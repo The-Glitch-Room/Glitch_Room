@@ -1,0 +1,317 @@
+@import "tailwindcss";
+
+.glitch-text {
+  color: #ff00c8; /* glitchPink */
+  text-transform: uppercase;
+  position: relative;
+  display: inline-block;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text); /* ✅ use data-text instead of class */
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.glitch-text::before {
+  color: #00f0ff; /* glitchBlue */
+  animation: glitchTop 2s infinite linear alternate-reverse;
+}
+
+.glitch-text::after {
+  color: #d600ff; /* glitchViolet */
+  animation: glitchBottom 2s infinite linear alternate-reverse;
+}
+
+@keyframes glitchTop {
+  0% {
+    clip: rect(0, 9999px, 0, 0);
+    transform: translate(0);
+  }
+  10% {
+    clip: rect(10px, 9999px, 50px, 0);
+    transform: translate(-3px, -3px);
+  }
+  20% {
+    clip: rect(85px, 9999px, 140px, 0);
+    transform: translate(3px, 3px);
+  }
+  30% {
+    clip: rect(20px, 9999px, 60px, 0);
+    transform: translate(-2px, 0);
+  }
+  40% {
+    clip: rect(40px, 9999px, 80px, 0);
+    transform: translate(2px, -1px);
+  }
+  50% {
+    clip: rect(10px, 9999px, 40px, 0);
+    transform: translate(-1px, 2px);
+  }
+  100% {
+    clip: rect(0, 9999px, 0, 0);
+    transform: translate(0);
+  }
+}
+
+@keyframes glitchBottom {
+  0% {
+    clip: rect(0, 9999px, 0, 0);
+    transform: translate(0);
+  }
+  10% {
+    clip: rect(55px, 9999px, 90px, 0);
+    transform: translate(3px, 3px);
+  }
+  20% {
+    clip: rect(10px, 9999px, 40px, 0);
+    transform: translate(-3px, -2px);
+  }
+  30% {
+    clip: rect(70px, 9999px, 120px, 0);
+    transform: translate(2px, 1px);
+  }
+  40% {
+    clip: rect(20px, 9999px, 60px, 0);
+    transform: translate(-2px, -1px);
+  }
+  50% {
+    clip: rect(40px, 9999px, 80px, 0);
+    transform: translate(1px, 2px);
+  }
+  100% {
+    clip: rect(0, 9999px, 0, 0);
+    transform: translate(0);
+  }
+}
+
+.glitch-logo {
+  position: relative;
+  display: inline-block;
+}
+
+.glitch-logo::before,
+.glitch-logo::after {
+  content: attr(data-text); /* ✅ duplicate the logo text only */
+  position: absolute;
+  left: 50px; /* adjust to align with icon */
+  top: 0;
+  font-weight: 800;
+  font-size: 1.875rem; /* text-3xl */
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.glitch-logo::before {
+  color: #00f0ff; /* glitchBlue */
+  animation: glitchTop 2s infinite linear alternate-reverse;
+}
+
+.glitch-logo::after {
+  color: #d600ff; /* glitchViolet */
+  animation: glitchBottom 2s infinite linear alternate-reverse;
+}
+
+@keyframes glitchTop {
+  0% {
+    clip: rect(0, 9999px, 0, 0);
+    transform: translate(0);
+  }
+  10% {
+    clip: rect(10px, 9999px, 50px, 0);
+    transform: translate(-3px, -3px);
+  }
+  20% {
+    clip: rect(85px, 9999px, 140px, 0);
+    transform: translate(3px, 3px);
+  }
+  30% {
+    clip: rect(20px, 9999px, 60px, 0);
+    transform: translate(-2px, 0);
+  }
+  40% {
+    clip: rect(40px, 9999px, 80px, 0);
+    transform: translate(2px, -1px);
+  }
+  50% {
+    clip: rect(10px, 9999px, 40px, 0);
+    transform: translate(-1px, 2px);
+  }
+  100% {
+    clip: rect(0, 9999px, 0, 0);
+    transform: translate(0);
+  }
+}
+
+@keyframes glitchBottom {
+  0% {
+    clip: rect(0, 9999px, 0, 0);
+    transform: translate(0);
+  }
+  10% {
+    clip: rect(55px, 9999px, 90px, 0);
+    transform: translate(3px, 3px);
+  }
+  20% {
+    clip: rect(10px, 9999px, 40px, 0);
+    transform: translate(-3px, -2px);
+  }
+  30% {
+    clip: rect(70px, 9999px, 120px, 0);
+    transform: translate(2px, 1px);
+  }
+  40% {
+    clip: rect(20px, 9999px, 60px, 0);
+    transform: translate(-2px, -1px);
+  }
+  50% {
+    clip: rect(40px, 9999px, 80px, 0);
+    transform: translate(1px, 2px);
+  }
+  100% {
+    clip: rect(0, 9999px, 0, 0);
+    transform: translate(0);
+  }
+}
+
+.glitchh-text {
+  position: relative;
+  color: white;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  animation: flicker 2s infinite;
+  text-align: center;
+}
+
+/* Red shadow */
+.glitchh-text::before {
+  content: attr(data-text);
+  position: absolute;
+  left: 2px;
+  top: 0;
+  color: rgba(255, 0, 0, 0.7);
+  z-index: -1;
+  animation: glitch-shift 2s infinite;
+}
+
+/* Cyan shadow */
+.glitchh-text::after {
+  content: attr(data-text);
+  position: absolute;
+  left: -2px;
+  top: 0;
+  color: rgba(0, 255, 255, 0.7);
+  z-index: -1;
+  animation: glitch-shift 2s infinite reverse;
+}
+
+/* Flicker effect */
+@keyframes flicker {
+  0%,
+  19%,
+  21%,
+  23%,
+  25%,
+  54%,
+  56%,
+  100% {
+    opacity: 1;
+  }
+  20%,
+  24%,
+  55% {
+    opacity: 0.8;
+  }
+}
+
+/* Subtle shifting of shadows */
+@keyframes glitch-shift {
+  0% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-1px, 1px);
+  }
+  40% {
+    transform: translate(-2px, -1px);
+  }
+  60% {
+    transform: translate(1px, 2px);
+  }
+  80% {
+    transform: translate(2px, -1px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.glitch {
+  position: relative;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background: transparent;
+  overflow: hidden;
+  clip: rect(0, 900px, 0, 0);
+}
+
+.glitch::before {
+  left: 2px;
+  text-shadow: -2px 0 #ff00ff;
+  animation: glitchTop 2s infinite linear alternate-reverse;
+}
+
+.glitch::after {
+  left: -2px;
+  text-shadow: -2px 0 #00ffff;
+  animation: glitchBottom 1.5s infinite linear alternate-reverse;
+}
+
+@keyframes glitchTop {
+  0% {
+    clip: rect(0, 900px, 0, 0);
+  }
+  25% {
+    clip: rect(0, 900px, 50px, 0);
+  }
+  50% {
+    clip: rect(0, 900px, 0, 0);
+  }
+  75% {
+    clip: rect(0, 900px, 40px, 0);
+  }
+  100% {
+    clip: rect(0, 900px, 0, 0);
+  }
+}
+
+@keyframes glitchBottom {
+  0% {
+    clip: rect(0, 900px, 0, 0);
+  }
+  25% {
+    clip: rect(0, 900px, 30px, 0);
+  }
+  50% {
+    clip: rect(0, 900px, 0, 0);
+  }
+  75% {
+    clip: rect(0, 900px, 60px, 0);
+  }
+  100% {
+    clip: rect(0, 900px, 0, 0);
+  }
+}
