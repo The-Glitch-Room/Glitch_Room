@@ -1,0 +1,1021 @@
+import React, { useEffect, useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "../supabaseClient";
+import {
+  FiEdit2,
+  FiX,
+  FiUpload,
+  FiGrid,
+  FiAward,
+  FiCode,
+  FiMessageSquare,
+  FiImage,
+} from "react-icons/fi";
+import { FaGithub, FaTwitter, FaDiscord, FaLinkedin } from "react-icons/fa";
+import { Zap, Trophy, Shield, Sparkles, ArrowRight } from "lucide-react";
+import Navbar from "./Navbar";
+import SharedSidebar from "./SharedSidebar";
+import Footer from "./Footer";
+import { getLevelFromXP } from "../utils/pointsHelper";
+
+// ── Preset Banners Config ───────────────────────────────────────────────────
+const PRESET_BANNERS = [
+  { id: "default", name: "Default Glitch Wave", url: "" },
+  {
+    id: "cyberpunk",
+    name: "Cyber Grid",
+    url: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    id: "matrix",
+    name: "Matrix Synthwave",
+    url: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    id: "quantum",
+    name: "Quantum Nebula",
+    url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80",
+  },
+];
+
+// ── Social Platforms Config ─────────────────────────────────────────────────
+const SOCIAL_PLATFORMS = [
+  {
+    field: "github_url",
+    label: "GitHub",
+    icon: FaGithub,
+    accent: "#9ca3af",
+    brandBg: "#24292F",
+    brandFg: "#ffffff",
+  },
+  {
+    field: "twitter_url",
+    label: "Twitter",
+    icon: FaTwitter,
+    accent: "#38bdf8",
+    brandBg: "#1DA1F2",
+    brandFg: "#ffffff",
+  },
+  {
+    field: "linkedin_url",
+    label: "LinkedIn",
+    icon: FaLinkedin,
+    accent: "#0A66C2",
+    brandBg: "#0A66C2",
+    brandFg: "#ffffff",
+  },
+  {
+    field: "discord_url",
+    label: "Discord",
+    icon: FaDiscord,
+    accent: "#5865F2",
+    brandBg: "#5865F2",
+    brandFg: "#ffffff",
+  },
+];
+
+// ── Social Icon Slot Component ──────────────────────────────────────────────
+const SocialIconSlot = ({
+  Icon,
+  label,
+  accent,
+  brandBg,
+  brandFg,
+  value,
+  onSave,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const ref = useRef(null);
+  const hasValue = !!value;
+
+  useEffect(() => {
+    setDraft(value || "");
+  }, [value]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const openEditor = () => {
+    setError("");
+    setOpen((v) => !v);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    const result = await onSave(draft.trim());
+    setSaving(false);
+    if (result?.error) {
+      setError(result.error);
+      return;
+    }
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative group">
+      {hasValue ? (
+        <motion.a
+          href={value}
+          target="_blank"
+          rel="noreferrer"
+          whileHover={{ scale: 1.08, y: -1 }}
+          whileTap={{ scale: 0.95 }}
+          className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer shadow-sm transition-all"
+          style={{
+            background: brandBg,
+            color: brandFg,
+            boxShadow: `0 0 10px ${brandBg}33`,
+          }}
+        >
+          <Icon size={14} />
+        </motion.a>
+      ) : (
+        <button
+          onClick={openEditor}
+          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer bg-white/[0.03] border border-dashed border-white/10 text-gray-500 hover:text-white hover:border-[#00F0FF]/40 hover:bg-[#00F0FF]/10"
+        >
+          <Icon size={14} />
+        </button>
+      )}
+
+      {hasValue && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openEditor();
+          }}
+          className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer bg-[#0f0f16] border border-white/20 p-0.5"
+        >
+          <FiEdit2 size={8} className="text-gray-300" />
+        </button>
+      )}
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.96 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-10 left-1/2 -translate-x-1/2 z-30 w-56 rounded-xl p-3 bg-[#0d0d14] border border-white/10 shadow-2xl"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+              {label} URL
+            </p>
+            <input
+              autoFocus
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              placeholder={`https://${label.toLowerCase()}.com/username`}
+              className="w-full bg-[#070709] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]/50 transition mb-2"
+            />
+            {error && (
+              <p className="text-red-400 text-[10px] leading-relaxed mb-2">
+                {error}
+              </p>
+            )}
+            <div className="flex justify-end gap-1.5">
+              <button
+                onClick={() => setOpen(false)}
+                className="px-2.5 py-1 rounded text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-3 py-1 rounded text-[11px] font-bold text-white cursor-pointer disabled:opacity-50"
+                style={{ background: accent }}
+              >
+                {saving ? "…" : "Save"}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// ── Main Profile Component ──────────────────────────────────────────────────
+export default function YourProfile() {
+  const [profile, setProfile] = useState(null);
+  const [authUser, setAuthUser] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("creations");
+
+  const [userPosts, setUserPosts] = useState([]);
+
+  const [showEditPanel, setShowEditPanel] = useState(false);
+  const [editForm, setEditForm] = useState({
+    full_name: "",
+    username: "",
+    bio: "",
+    avatar_url: "",
+    banner_url: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editSaved, setEditSaved] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      setAuthUser(userData?.user);
+      if (!userId) return;
+
+      const [profileRes, pointsRes, postsRes] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", userId).single(),
+        supabase
+          .from("user_points")
+          .select("points")
+          .eq("user_id", userId)
+          .single(),
+        supabase
+          .from("community_posts")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      const pd = profileRes.data;
+      const userMeta = userData?.user?.user_metadata;
+      const cachedBanner = userId ? localStorage.getItem(`glitch_banner_${userId}`) : null;
+      const bannerUrl = pd?.banner_url || userMeta?.banner_url || cachedBanner || "";
+
+      setProfile({
+        ...pd,
+        banner_url: bannerUrl,
+        points: pointsRes.data?.points || 0,
+      });
+      setUserPosts(postsRes.data || []);
+      setAvatarPreview(pd?.avatar_url || null);
+      setEditForm({
+        full_name: pd?.full_name || "",
+        username: pd?.username || "",
+        bio: pd?.bio || "",
+        avatar_url: pd?.avatar_url || "",
+        banner_url: bannerUrl,
+      });
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+  };
+
+  const uploadAvatar = async (file) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      if (!file || !userId) return;
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${userId}/${Date.now()}.${fileExt}`;
+      const { error } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true });
+      if (error) throw error;
+      const publicUrl = supabase.storage.from("avatars").getPublicUrl(fileName);
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl.data.publicUrl })
+        .eq("id", userId);
+      setAvatarPreview(publicUrl.data.publicUrl);
+      setEditForm((prev) => ({
+        ...prev,
+        avatar_url: publicUrl.data.publicUrl,
+      }));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleModalAvatarUpload = async (file) => {
+    if (!file) return;
+    setAvatarUploading(true);
+    setEditError("");
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      if (!userId) throw new Error("Not signed in.");
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${userId}/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName);
+
+      setAvatarLoadError(false);
+      setEditForm((prev) => ({ ...prev, avatar_url: urlData.publicUrl }));
+    } catch (err) {
+      console.error(err);
+      setEditError("Couldn't upload image.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleModalBannerUpload = async (file) => {
+    if (!file) return;
+    setBannerUploading(true);
+    setEditError("");
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      if (!userId) throw new Error("Not signed in.");
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `banners/${userId}/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName);
+
+      setEditForm((prev) => ({ ...prev, banner_url: urlData.publicUrl }));
+    } catch (err) {
+      console.error(err);
+      setEditError("Couldn't upload banner image.");
+    } finally {
+      setBannerUploading(false);
+    }
+  };
+
+  const handleSaveSocial = async (field, value) => {
+    const userId = authUser?.id;
+    if (!userId) return { error: "Not signed in." };
+    const { error } = await supabase
+      .from("profiles")
+      .update({ [field]: value || null })
+      .eq("id", userId);
+
+    if (error) return { error: error.message };
+    setProfile((prev) => ({ ...prev, [field]: value || null }));
+    return { error: null };
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [editForm.avatar_url]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#070709]">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+          className="w-8 h-8 border-2 border-t-transparent border-[#FF00C8] rounded-full"
+        />
+      </div>
+    );
+  }
+
+  const xp = profile?.points || 0;
+  const level = getLevelFromXP(xp);
+  const username = profile?.username || profile?.full_name || "Anonymous Glitcher";
+  const roleTitle = "Full-Stack Glitch Developer";
+  const initials = username.slice(0, 2).toUpperCase();
+
+  const openEditPanel = () => {
+    setEditError("");
+    setEditSaved(false);
+    setAvatarLoadError(false);
+    setShowEditPanel(true);
+  };
+
+  const saveEditProfile = async () => {
+    if (!editForm.username.trim()) {
+      setEditError("Username is required.");
+      return;
+    }
+    setSavingEdit(true);
+    setEditError("");
+
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+
+    if (!userId) {
+      setSavingEdit(false);
+      setEditError("You're not signed in.");
+      return;
+    }
+
+    // Save in Auth metadata + localStorage for guaranteed client persistence
+    await supabase.auth.updateUser({
+      data: {
+        banner_url: editForm.banner_url || null,
+      },
+    });
+
+    if (editForm.banner_url) {
+      localStorage.setItem(`glitch_banner_${userId}`, editForm.banner_url);
+    } else {
+      localStorage.removeItem(`glitch_banner_${userId}`);
+    }
+
+    // Attempt profile table update
+    let updatePayload = {
+      full_name: editForm.full_name,
+      username: editForm.username,
+      bio: editForm.bio,
+      avatar_url: editForm.avatar_url,
+    };
+
+    let { error } = await supabase
+      .from("profiles")
+      .update({ ...updatePayload, banner_url: editForm.banner_url || null })
+      .eq("id", userId);
+
+    if (error && error.message?.includes("banner_url")) {
+      // Fallback if banner_url column doesn't exist yet on profiles table
+      const fallback = await supabase
+        .from("profiles")
+        .update(updatePayload)
+        .eq("id", userId);
+      error = fallback.error;
+    }
+
+    setSavingEdit(false);
+
+    if (error) {
+      setEditError(
+        error.message?.toLowerCase().includes("duplicate")
+          ? "Username is taken."
+          : error.message || "Error saving profile."
+      );
+      return;
+    }
+
+    setEditSaved(true);
+    await fetchProfile();
+    setTimeout(() => {
+      setEditSaved(false);
+      setShowEditPanel(false);
+    }, 1200);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between">
+      <Navbar />
+
+      {/* ── Edit Profile Modal (Horizontal 2-Column + Banner Customizer) ── */}
+      <AnimatePresence>
+        {showEditPanel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
+            onClick={(e) => e.target === e.currentTarget && setShowEditPanel(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-3xl rounded-3xl p-6 sm:p-7 bg-[#0d0d14] border border-white/10 shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col"
+            >
+              <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-[#00F0FF] to-purple-500 absolute top-0 left-0" />
+
+              <div className="flex items-center justify-between mb-5 border-b border-white/5 pb-4 shrink-0">
+                <div>
+                  <h2 className="text-xl font-black text-white">Edit Profile</h2>
+                  <p className="text-xs text-gray-500">Customize your profile avatar, banner, and identity details</p>
+                </div>
+                <button
+                  onClick={() => setShowEditPanel(false)}
+                  className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition cursor-pointer"
+                >
+                  <FiX size={16} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto pr-1 space-y-6 flex-1">
+                {/* Horizontal 2-column Grid for Avatar & Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Column: Avatar & Full Name */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-2">
+                        Profile Avatar
+                      </label>
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="w-16 h-16 rounded-2xl border border-white/10 overflow-hidden bg-[#181824] shrink-0 flex items-center justify-center">
+                          {editForm.avatar_url && !avatarLoadError ? (
+                            <img
+                              src={editForm.avatar_url}
+                              alt="preview"
+                              className="w-full h-full object-cover"
+                              onError={() => setAvatarLoadError(true)}
+                            />
+                          ) : (
+                            <span className="text-xl font-black text-[#FF00C8]">
+                              {initials}
+                            </span>
+                          )}
+                        </div>
+                        <label className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-all bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20">
+                          <FiUpload size={14} />
+                          {avatarUploading ? "Uploading…" : "Upload Avatar"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) =>
+                              e.target.files?.[0] && handleModalAvatarUpload(e.target.files[0])
+                            }
+                          />
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="…or paste avatar URL"
+                        value={editForm.avatar_url}
+                        onChange={(e) => setEditForm({ ...editForm, avatar_url: e.target.value })}
+                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#FF00C8]/40 transition"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Alison Danis"
+                        value={editForm.full_name}
+                        onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right Column: Username & Bio */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
+                        Username *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="glitcher_pro"
+                        value={editForm.username}
+                        onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#FF00C8]/40 transition"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
+                        Bio / Headline
+                      </label>
+                      <textarea
+                        rows={3.5}
+                        placeholder="Full-Stack Developer & Glitch Hunter…"
+                        value={editForm.bio}
+                        onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                        maxLength={300}
+                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Banner Customization Section ── */}
+                <div className="pt-5 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <FiImage className="text-[#00F0FF]" /> Profile Banner Image
+                    </label>
+                    {editForm.banner_url && (
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, banner_url: "" })}
+                        className="text-[11px] text-gray-400 hover:text-white font-semibold underline cursor-pointer"
+                      >
+                        Reset to Default Banner
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Banner Preview */}
+                  <div className="relative h-24 w-full rounded-2xl overflow-hidden border border-white/10 bg-[#07070d] mb-3">
+                    {editForm.banner_url ? (
+                      <img
+                        src={editForm.banner_url}
+                        alt="Banner Preview"
+                        className="w-full h-full object-cover"
+                        onError={() => setEditForm((prev) => ({ ...prev, banner_url: "" }))}
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full opacity-60"
+                        style={{
+                          backgroundImage: `radial-gradient(ellipse at 30% 20%, rgba(255,0,200,0.45) 0%, transparent 70%),
+                                            radial-gradient(ellipse at 85% 70%, rgba(0,240,255,0.4) 0%, transparent 65%),
+                                            linear-gradient(135deg, rgba(255,0,200,0.2) 0%, rgba(0,240,255,0.15) 100%)`,
+                        }}
+                      />
+                    )}
+                    <span className="absolute bottom-2 right-2 text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/60 border border-white/20 text-gray-300 backdrop-blur-md">
+                      {editForm.banner_url ? "Custom Banner Selected" : "Default Glitch Wave Banner"}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-3 mb-3">
+                    <label className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-all bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20 flex items-center justify-center gap-2 shrink-0">
+                      <FiUpload size={13} />
+                      {bannerUploading ? "Uploading Banner…" : "Upload Banner Image"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) =>
+                          e.target.files?.[0] && handleModalBannerUpload(e.target.files[0])
+                        }
+                      />
+                    </label>
+
+                    <input
+                      type="text"
+                      placeholder="…or paste banner image URL"
+                      value={editForm.banner_url}
+                      onChange={(e) => setEditForm({ ...editForm, banner_url: e.target.value })}
+                      className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#FF00C8]/40 transition"
+                    />
+                  </div>
+
+                  {/* Preset Banner Selector */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase shrink-0 mr-1">
+                      Presets:
+                    </span>
+                    {PRESET_BANNERS.map((preset) => {
+                      const isSelected =
+                        (editForm.banner_url === preset.url) ||
+                        (!editForm.banner_url && !preset.url);
+
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => setEditForm({ ...editForm, banner_url: preset.url })}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition border ${
+                            isSelected
+                              ? "bg-[#FF00C8]/20 border-[#FF00C8] text-[#FF00C8] shadow-[0_0_10px_rgba(255,0,200,0.3)]"
+                              : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20"
+                          }`}
+                        >
+                          {preset.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {editError && <p className="text-red-400 text-xs mt-3">{editError}</p>}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/5 shrink-0 mt-4">
+                <button
+                  onClick={() => setShowEditPanel(false)}
+                  className="px-5 py-2.5 rounded-xl bg-white/5 text-gray-400 text-xs font-semibold hover:bg-white/10 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={saveEditProfile}
+                  disabled={savingEdit || editSaved}
+                  className="px-7 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#FF00C8] hover:bg-[#e000b0] cursor-pointer shadow-[0_0_15px_rgba(255,0,200,0.3)] transition-all"
+                >
+                  {editSaved ? "✓ Saved!" : savingEdit ? "Saving…" : "Save Changes"}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex pt-24 min-h-[calc(100vh-80px)]">
+        <SharedSidebar user={authUser} xp={xp} avatarPreview={avatarPreview} />
+
+        <main className="flex-1 min-w-0 p-4 sm:p-6 max-w-4xl mx-auto pb-20 mb-12">
+          {/* ── COMPACT REFERENCE PROFILE CARD ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+            className="relative rounded-2xl bg-[#0d0d14] border border-white/10 shadow-xl overflow-hidden mb-8"
+          >
+            {/* 1. Sleek Banner Container */}
+            <div className="relative h-44 sm:h-52 w-full overflow-hidden bg-[#07070d]">
+              {profile?.banner_url ? (
+                <img
+                  src={profile.banner_url}
+                  alt="Profile Banner"
+                  className="absolute inset-0 w-full h-full object-cover opacity-90"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <>
+                  <div
+                    className="absolute inset-0 opacity-40 pointer-events-none"
+                    style={{
+                      backgroundImage: `radial-gradient(ellipse at 30% 20%, rgba(255,0,200,0.45) 0%, transparent 70%),
+                                        radial-gradient(ellipse at 85% 70%, rgba(0,240,255,0.4) 0%, transparent 65%),
+                                        linear-gradient(135deg, rgba(255,0,200,0.2) 0%, rgba(0,240,255,0.15) 100%)`,
+                    }}
+                  />
+                  <div
+                    className="absolute inset-0 opacity-15"
+                    style={{
+                      backgroundImage: `linear-gradient(rgba(0,240,255,0.25) 1px, transparent 1px),
+                                        linear-gradient(90deg, rgba(0,240,255,0.25) 1px, transparent 1px)`,
+                      backgroundSize: "30px 30px",
+                    }}
+                  />
+                </>
+              )}
+
+              <svg
+                className="absolute bottom-0 left-0 right-0 w-full h-16 text-[#0d0d14] z-10 pointer-events-none"
+                viewBox="0 0 1440 320"
+                preserveAspectRatio="none"
+                fill="currentColor"
+              >
+                <path d="M0,192L48,197.3C96,203,192,213,288,197.3C384,181,480,139,576,144C672,149,768,203,864,218.7C960,235,1056,213,1152,186.7C1248,160,1344,128,1392,112L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z" />
+              </svg>
+            </div>
+
+            {/* 2. Compact Avatar & Header Info */}
+            <div className="relative px-5 sm:px-6 pb-6 -mt-14 sm:-mt-16 z-20">
+              <div className="flex items-end justify-between gap-3 mb-5">
+                {/* Avatar */}
+                <div className="relative shrink-0">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-4 border-[#0d0d14] overflow-hidden bg-[#181824] shadow-lg">
+                    {avatarPreview ? (
+                      <img
+                        src={avatarPreview}
+                        alt={username}
+                        className="w-full h-full object-cover"
+                        onError={(e) => (e.currentTarget.style.display = "none")}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-2xl font-black text-[#FF00C8] bg-gradient-to-br from-[#FF00C8]/20 to-[#00F0FF]/20">
+                        {initials}
+                      </div>
+                    )}
+                  </div>
+                  <label className="absolute bottom-0 right-0 w-6 h-6 rounded-lg bg-[#FF00C8] hover:bg-[#e000b0] flex items-center justify-center cursor-pointer shadow-md transition-transform hover:scale-110">
+                    <FiEdit2 size={10} className="text-white" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) =>
+                        e.target.files?.[0] && uploadAvatar(e.target.files[0])
+                      }
+                    />
+                  </label>
+                </div>
+
+                {/* Edit Profile Action Button */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={openEditPanel}
+                  className="px-3.5 py-1.5 rounded-lg bg-[#FF00C8] text-white font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(255,0,200,0.3)] transition-all"
+                >
+                  <FiEdit2 size={11} /> Edit Profile
+                </motion.button>
+              </div>
+
+              {/* 3. PRO Pill Badge + Name + Tagline with clear spacing below avatar */}
+              <div className="mt-4 mb-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="bg-[#FF00C8] text-white font-black text-[9px] px-2.5 py-0.5 rounded uppercase tracking-wider shadow-sm">
+                    PRO
+                  </span>
+                  <span className="bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] font-bold text-[9px] px-2.5 py-0.5 rounded uppercase tracking-wider">
+                    LEVEL {level}
+                  </span>
+                  <span className="bg-white/5 text-gray-400 font-bold text-[9px] px-2.5 py-0.5 rounded flex items-center gap-1">
+                    <Zap size={9} className="text-[#00F0FF]" /> {xp} gBits
+                  </span>
+                </div>
+
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  {username}
+                </h1>
+                <p className="text-[#00F0FF] text-xs font-semibold mt-1">
+                  {roleTitle}
+                </p>
+                {profile?.bio && (
+                  <p className="text-gray-400 text-xs mt-2 leading-relaxed max-w-xl">
+                    {profile.bio}
+                  </p>
+                )}
+              </div>
+
+              {/* 4. Social Links Row */}
+              <div className="flex items-center gap-2.5 pt-3 border-t border-white/5">
+                {SOCIAL_PLATFORMS.map((p) => (
+                  <SocialIconSlot
+                    key={p.field}
+                    Icon={p.icon}
+                    label={p.label}
+                    accent={p.accent}
+                    brandBg={p.brandBg}
+                    brandFg={p.brandFg}
+                    value={profile?.[p.field]}
+                    onSave={(val) => handleSaveSocial(p.field, val)}
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* 5. Interactive Tabbed Content Section (Portfolio Showcase & Forum Activity) */}
+          <div className="mb-5 flex items-center justify-between border-b border-white/10 pb-2.5">
+            <div className="flex items-center gap-2">
+              {[
+                { id: "creations", label: "My Solved Glitches & Showcase", icon: FiCode },
+                { id: "community", label: "Forum Discussions", icon: FiMessageSquare },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                      active
+                        ? "bg-[#FF00C8] text-white border-[#FF00C8] shadow-[0_0_12px_rgba(255,0,200,0.3)]"
+                        : "bg-white/[0.03] text-gray-400 border-white/5 hover:text-white"
+                    }`}
+                  >
+                    <Icon size={13} /> {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="hidden sm:flex items-center text-gray-500 text-xs font-mono">
+              <FiGrid size={13} />
+            </div>
+          </div>
+
+          {/* Tab 1: My Creations & Solved Glitches */}
+          {activeTab === "creations" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                {
+                  id: 1,
+                  title: "Async State Bugfix",
+                  category: "Web Dev",
+                  time: "Yesterday",
+                  codeSnippet: "const data = await fetchUserData();",
+                  status: "SOLVED ✓",
+                  accent: "#00F0FF",
+                },
+                {
+                  id: 2,
+                  title: "React Memory Leak Prevention",
+                  category: "Debug Mode",
+                  time: "3 days ago",
+                  codeSnippet: "return () => controller.abort();",
+                  status: "SOLVED ✓",
+                  accent: "#FF00C8",
+                },
+                {
+                  id: 3,
+                  title: "3-Stage Arena Challenge Entry",
+                  category: "Game Arena",
+                  time: "5 days ago",
+                  codeSnippet: "calculateUptimeScore();",
+                  status: "PASSED ✓",
+                  accent: "#22c55e",
+                },
+                {
+                  id: 4,
+                  title: "AI Prompt Optimization",
+                  category: "AI & ML",
+                  time: "1 week ago",
+                  codeSnippet: "aiClient.generate();",
+                  status: "SOLVED ✓",
+                  accent: "#a855f7",
+                },
+              ].map((item) => (
+                <motion.div
+                  key={item.id}
+                  whileHover={{ y: -3 }}
+                  className="bg-[#0d0d14] border border-white/10 rounded-xl p-4 flex flex-col justify-between group transition-all"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span
+                        className="text-[9px] font-bold px-2 py-0.5 rounded border"
+                        style={{
+                          color: item.accent,
+                          background: `${item.accent}15`,
+                          borderColor: `${item.accent}30`,
+                        }}
+                      >
+                        {item.category}
+                      </span>
+                      <span className="text-[10px] font-mono text-gray-500">
+                        {item.time}
+                      </span>
+                    </div>
+
+                    <h3 className="text-sm font-bold text-white mb-2 group-hover:text-[#00F0FF] transition-colors">
+                      {item.title}
+                    </h3>
+
+                    <div className="bg-[#07070d] border border-white/5 rounded-lg p-2.5 mb-3 font-mono text-xs text-green-400">
+                      <code>{item.codeSnippet}</code>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                    <span className="text-xs font-bold text-[#22c55e]">
+                      {item.status}
+                    </span>
+                    <button className="text-xs font-bold text-[#FF00C8] hover:underline flex items-center gap-1 cursor-pointer">
+                      Inspect Solution <ArrowRight size={11} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {/* Tab 2: Forum Activity */}
+          {activeTab === "community" && (
+            <div className="space-y-3">
+              {userPosts.length === 0 ? (
+                <div className="p-8 text-center bg-[#0d0d14] border border-white/10 rounded-xl">
+                  <FiMessageSquare className="mx-auto text-gray-600 mb-2" size={24} />
+                  <p className="text-gray-400 text-xs font-semibold">No discussions posted yet.</p>
+                  <p className="text-gray-600 text-[11px] mt-1">Join the community feed to start discussions!</p>
+                </div>
+              ) : (
+                userPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="p-4 bg-[#0d0d14] border border-white/10 rounded-xl flex flex-col gap-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">{post.title}</span>
+                      <span className="text-[10px] font-mono text-gray-500">
+                        {new Date(post.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 line-clamp-2">{post.content}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+
+      <Footer />
+    </div>
+  );
+}

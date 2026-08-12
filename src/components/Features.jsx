@@ -1,124 +1,190 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { FaTrophy } from "react-icons/fa";
-import { IoIosPeople } from "react-icons/io";
-import { FaPalette } from "react-icons/fa";
-import { RiLock2Fill } from "react-icons/ri";
+import { useNavigate } from "react-router-dom";
+import Navbar from "./Navbar";
+import Footer from "./Footer";
+import PageHeading from "./PageHeading";
+import Button from "./Button";
+
+const CORE_FEATURES = [
+  {
+    title: "⚡ Glitch Challenges",
+    desc: "Test your skills by fixing unique real-world glitches that challenge your logic, creativity, and problem-solving.",
+  },
+  {
+    title: "🎮 Game Arena",
+    desc: "A 3-level chaos-led competition — Find the Glitch, Twist the Cards, Pitch Wild — progress and reach the Hall of Fame!",
+  },
+  {
+    title: "🧠 AI & Tech Categories",
+    desc: "Explore glitches in AI, Web Dev, ML, Blockchain, Data Science, and more. Learn through play and experimentation.",
+  },
+  {
+    title: "🌈 Hall of Fame",
+    desc: "Showcase your achievements! Top players are featured for creativity, teamwork, and innovation — permanent recognition.",
+  },
+  {
+    title: "🧩 Twist Cards",
+    desc: "Random twists to every challenge — forcing players to adapt, remix, and think differently. No two games are the same!",
+  },
+  {
+    title: "🎭 Meme & Pitch Mode",
+    desc: "Turn your fixes into memes, comics, or short pitches. Combine humor and innovation to express your solution uniquely.",
+  },
+  {
+    title: "🔐 Private & Public Rooms",
+    desc: "Join public challenges or host private rooms for colleges, companies, and hackathons with secure entry codes.",
+  },
+  {
+    title: "🏗️ Real-World Integration",
+    desc: "Bridge between learning and application — use real datasets, APIs, and scenarios to simulate industry-level glitches.",
+  },
+  {
+    title: "🎁 Reward System",
+    desc: "Earn points, unlock badges, and win exclusive swags. Redeem your achievements or climb up the leaderboard!",
+  },
+];
+
+const VIBE_TAGS = [
+  "💡 Learn by Doing",
+  "🤝 Collaborate with Others",
+  "🏆 Compete & Win",
+  "🔥 Boost Creative Thinking",
+  "🎓 Build Portfolio Projects",
+];
+
+const ACCENT = "#00F0FF";
+const ACCENT_RGB = "0,240,255";
 
 const Features = () => {
-  const LeftFeatures = features.slice(0, 2).map((item, index) => (
-    <motion.div
-      key={item.id}
-      initial={{ opacity: 0, x: -50 }}
-      whileInView={{ opacity: 1, x: 0 }}
-      viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.6, delay: index * 0.2 }}
-      whileHover={{ scale: 1.03 }}
-      className="flex md:flex-row-reverse items-center gap-6 p-3 rounded-xl transition-all duration-300"
-    >
-      <motion.div
-        whileHover={{ scale: 1.2, rotate: 10 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <span className="flex justify-center items-center text-2xl text-white bg-gradient-to-r from-[#FF00C8] to-[#00F0FF] w-14 h-14 rounded-full shadow-lg">
-          {item.icon}
-        </span>
-      </motion.div>
-      <div className="md:text-right">
-        <h4 className="bg-gradient-to-r from-[#FF00C8] to-[#00F0FF] bg-clip-text text-transparent text-xl font-bold">
-          {item.title}
-        </h4>
-        <h6 className="text-white text-lg font-semibold">{item.line}</h6>
-        <p className="text-gray-400 text-sm">{item.para}</p>
-      </div>
-    </motion.div>
-  ));
-
-  const RightFeatures = features.slice(2).map((item, index) => (
-    <motion.div
-      key={item.id}
-      initial={{ opacity: 0, x: 50 }}
-      whileInView={{ opacity: 1, x: 0 }}
-      viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.6, delay: index * 0.2 }}
-      whileHover={{ scale: 1.03 }}
-      className="flex flex-row items-center gap-6 p-3 rounded-xl transition-all duration-300"
-    >
-      <motion.div
-        whileHover={{ scale: 1.2, rotate: -10 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <span className="flex justify-center items-center text-2xl text-white bg-gradient-to-r from-[#FF00C8] to-[#00F0FF] w-14 h-14 rounded-full shadow-lg">
-          {item.icon}
-        </span>
-      </motion.div>
-      <div className="text-left">
-        <h4 className="bg-gradient-to-r from-[#FF00C8] to-[#00F0FF] bg-clip-text text-transparent text-xl font-bold">
-          {item.title}
-        </h4>
-        <h6 className="text-white text-lg font-semibold">{item.line}</h6>
-        <p className="text-gray-400 text-sm">{item.para}</p>
-      </div>
-    </motion.div>
-  ));
+  const navigate = useNavigate();
 
   return (
-    <section className="bg-[#0B0C10] text-white py-20 overflow-hidden">
-      {/* Section Heading */}
-      <div className="w-full max-w-7xl mx-auto px-6 text-center mb-16">
-        <motion.h2
-          initial={{ opacity: 0, scale: 0.8 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="text-4xl md:text-5xl font-extrabold glitch-text text-orange-400"
-          data-text="Why Choose Us"
-        >
-          Why Choose Us
-        </motion.h2>
-      </div>
+    <div className="min-h-screen bg-[#0d0d10] text-white flex flex-col">
+      <Navbar />
 
-      {/* Features Grid */}
-      <div className="w-full max-w-7xl mx-auto px-6 flex flex-col md:flex-row gap-16">
-        {/* Left Side */}
-        <div className="flex flex-col gap-10 md:w-1/2">{LeftFeatures}</div>
+      {/* ── HERO ── */}
+      <section className="relative pt-40 pb-16 px-6 overflow-hidden">
+        <div
+          className="absolute inset-0 z-0 opacity-10"
+          style={{
+            backgroundImage: `linear-gradient(rgba(0,240,255,0.2) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0,240,255,0.2) 1px, transparent 1px)`,
+            backgroundSize: "60px 60px",
+          }}
+        />
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[250px] rounded-full blur-3xl opacity-10 z-0"
+          style={{
+            background: "radial-gradient(ellipse, #00F0FF, transparent)",
+          }}
+        />
 
-        {/* Right Side */}
-        <div className="flex flex-col gap-10 md:w-1/2">{RightFeatures}</div>
-      </div>
-    </section>
+        <div className="relative z-10 max-w-3xl mx-auto">
+          <PageHeading
+            eyebrow="Features"
+            title="Features That Power Creativity"
+            subtitle="Experience a world where glitches become opportunities, chaos turns into creativity, and innovation is gamified."
+            accent="cyan"
+            size="xl"
+          />
+        </div>
+
+        <div
+          className="absolute bottom-0 left-0 right-0 h-16 z-10"
+          style={{
+            background: "linear-gradient(to bottom, transparent, #0d0d10)",
+          }}
+        />
+      </section>
+
+      {/* ── CORE FEATURES ── */}
+      <section className="max-w-6xl mx-auto w-full px-6 pb-16">
+        <PageHeading
+          eyebrow="The Toolkit"
+          title="Everything you need"
+          accent="cyan"
+          size="md"
+          layout="inline"
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {CORE_FEATURES.map((feature, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.06, duration: 0.4 }}
+              className="relative rounded-2xl p-6 bg-[#111118] border overflow-hidden transition-all duration-300"
+              style={{ borderColor: `rgba(${ACCENT_RGB}, 0.15)` }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `rgba(${ACCENT_RGB}, 0.4)`;
+                e.currentTarget.style.boxShadow = `0 0 22px rgba(${ACCENT_RGB}, 0.15)`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = `rgba(${ACCENT_RGB}, 0.15)`;
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              <h3 className="text-lg font-bold text-white mb-3">
+                {feature.title}
+              </h3>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                {feature.desc}
+              </p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── ENGAGEMENT SECTION ── */}
+      <section className="bg-[#121218] py-20 px-6 text-center border-t border-white/5">
+        <PageHeading
+          eyebrow="The Vibe"
+          title="Why You'll Love Glitch Room"
+          subtitle="Because it's not just about coding — it's about creating. Every bug you fix, every glitch you twist, and every pitch you make shapes a story that reflects your imagination and skill."
+          accent="pink"
+        />
+
+        <div className="mt-4 flex flex-wrap justify-center gap-4">
+          {VIBE_TAGS.map((item, i) => (
+            <motion.span
+              key={i}
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="border px-4 py-2 rounded-lg text-sm font-medium"
+              style={{
+                background: "rgba(255,0,200,0.08)",
+                borderColor: "rgba(255,0,200,0.2)",
+                color: "#FF00C8",
+              }}
+            >
+              {item}
+            </motion.span>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA SECTION ── */}
+      <section className="text-center py-24 px-6 bg-[#0d0d10] border-t border-white/5">
+        <PageHeading
+          title="Ready to Dive Into the Glitch?"
+          subtitle="Join the movement where tech meets creativity — where every glitch is an opportunity to innovate."
+          accent="purple"
+          size="md"
+        />
+
+        <div onClick={() => navigate("/game-arena")} className="inline-block">
+          <Button content="Enter the Glitch Room 🚀" accent="purple" />
+        </div>
+      </section>
+
+      <Footer />
+    </div>
   );
 };
 
 export default Features;
-
-const features = [
-  {
-    id: 1,
-    title: "Trust & Safety",
-    line: "Chaos, but safe chaos",
-    para: "Your ideas stay yours. We just guard the madness.",
-    icon: <RiLock2Fill />,
-  },
-  {
-    id: 2,
-    title: "Always Fresh & Creative",
-    line: "Boring? Never heard of it.",
-    para: "Every challenge = a new twist. Expect the unexpected.",
-    icon: <FaPalette />,
-  },
-  {
-    id: 3,
-    title: "Community Vibes",
-    line: "Meme squad, assemble.",
-    para: "React, learn, grow, and vibe together. The crowd decides who wins",
-    icon: <IoIosPeople />,
-  },
-  {
-    id: 4,
-    title: "Win & Brag",
-    line: "Flex like a boss.",
-    para: "Rack up points, snag bragging rights, maybe even prizes",
-    icon: <FaTrophy />,
-  },
-];
