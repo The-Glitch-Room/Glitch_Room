@@ -7,10 +7,23 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node dependencies
 node_modules
 dist
 dist-ssr
 *.local
+
+# Environment variables (CRITICAL: NEVER COMMIT REALS KEYS TO GITHUB)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Temporary / Scratch scripts & logs
+scratch_seed.mjs
+generate_glitch_challenges.py
+*.cjs
 
 # Editor directories and files
 .vscode/*
