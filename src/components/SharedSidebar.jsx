@@ -73,14 +73,14 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
   return (
     <aside
-      className={`sticky top-[18vh] h-[calc(100vh-18vh)] overflow-y-auto border-r border-white/5 bg-[#070709] hidden md:flex flex-col shrink-0 transition-all duration-300 ${
-        isCollapsed ? "w-[76px]" : "w-[260px]"
+      className={`sticky top-[18vh] h-[calc(100vh-18vh)] overflow-y-auto border-r border-white/10 bg-[#070709] hidden md:flex flex-col shrink-0 transition-all duration-300 ${
+        isCollapsed ? "w-[76px]" : "w-[268px]"
       }`}
     >
       {/* ── Top Toggle Control Bar ── */}
-      <div className="p-3 border-b border-white/5 flex items-center justify-between gap-2">
+      <div className="p-3 border-b border-white/10 flex items-center justify-between gap-2">
         {!isCollapsed && (
-          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gray-500 pl-1">
+          <span className="text-xs font-mono font-extrabold uppercase tracking-widest text-gray-400 pl-1">
             Navigation
           </span>
         )}
@@ -105,12 +105,12 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
         </button>
       </div>
 
-      {/* ── User Mini Card ── */}
-      <div className="p-3.5 border-b border-white/5">
+      {/* ── User Mini Card — Increased avatar (w-12 h-12), username & gBits text sizes ── */}
+      <div className="p-4 border-b border-white/10">
         {!isCollapsed ? (
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3.5 min-w-0">
             <div className="relative shrink-0">
-              <div className="w-10 h-10 rounded-xl overflow-hidden ring-1 ring-white/10">
+              <div className="w-12 h-12 rounded-xl overflow-hidden ring-1 ring-white/15 shadow-md">
                 {avatarPreview ? (
                   <img
                     src={avatarPreview}
@@ -118,19 +118,19 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full bg-[#1a1a1e] flex items-center justify-center text-xs font-black text-white">
+                  <div className="w-full h-full bg-[#1a1a1e] flex items-center justify-center text-sm font-black text-white">
                     {initials}
                   </div>
                 )}
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-[#070709]" />
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-[#070709]" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-white font-semibold text-xs truncate">
+              <p className="text-white font-bold text-sm sm:text-base truncate tracking-tight">
                 {username}
               </p>
-              <p className="text-[10px] text-gray-500 mt-0.5 font-mono">
+              <p className="text-xs font-mono text-[#00F0FF] mt-0.5 font-semibold">
                 Level {level} · {xp} gBits
               </p>
             </div>
@@ -141,7 +141,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             onMouseEnter={() => setHoveredItem("profile_user")}
             onMouseLeave={() => setHoveredItem(null)}
           >
-            <div className="w-10 h-10 rounded-xl overflow-hidden ring-1 ring-white/10">
+            <div className="w-11 h-11 rounded-xl overflow-hidden ring-1 ring-white/15">
               {avatarPreview ? (
                 <img
                   src={avatarPreview}
@@ -154,13 +154,13 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                 </div>
               )}
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-[#070709]" />
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-[#070709]" />
 
             {/* Hover Tooltip for User */}
             {hoveredItem === "profile_user" && (
               <div className="fixed left-[86px] top-[26vh] z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
-                <p className="font-bold text-white">{username}</p>
-                <p className="text-[10px] text-[#00F0FF] font-mono">
+                <p className="font-bold text-white text-sm">{username}</p>
+                <p className="text-xs text-[#00F0FF] font-mono mt-0.5">
                   Level {level} · {xp} gBits
                 </p>
               </div>
@@ -169,7 +169,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
         )}
       </div>
 
-      {/* ── Nav links ── */}
+      {/* ── Nav links — Crisp, readable text-sm font-semibold ── */}
       <nav className="p-3 flex-1 space-y-1">
         {menuItems.map((item, i) => {
           const Icon = item.icon;
@@ -183,7 +183,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                   onClick={handleLogout}
                   onMouseEnter={() => setHoveredItem(item.name)}
                   onMouseLeave={() => setHoveredItem(null)}
-                  className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-all cursor-pointer ${
+                  className={`w-full flex items-center gap-3.5 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-all cursor-pointer ${
                     isCollapsed ? "justify-center px-0" : "px-3.5"
                   }`}
                 >
@@ -209,7 +209,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                 onMouseLeave={() => setHoveredItem(null)}
               >
                 <div
-                  className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center gap-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
                     isCollapsed ? "justify-center px-0" : "px-3.5"
                   } ${
                     isActive
@@ -243,15 +243,15 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
         })}
       </nav>
 
-      {/* ── gBits progress bar ── */}
-      <div className="p-4 border-t border-white/5">
+      {/* ── gBits progress bar — Increased label font size to text-xs font-mono ── */}
+      <div className="p-4 border-t border-white/10">
         {!isCollapsed ? (
           <>
-            <div className="flex justify-between text-[10px] text-gray-500 mb-1.5">
+            <div className="flex justify-between text-xs text-gray-300 mb-1.5 font-medium">
               <span className="font-mono">gBits Progress</span>
               <span className="font-mono font-bold text-[#FF00C8]">Lv {level}</span>
             </div>
-            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mb-1">
+            <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-1.5">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPercent}%` }}
@@ -259,7 +259,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                 className="h-full rounded-full bg-gradient-to-r from-[#FF00C8] to-[#00F0FF]"
               />
             </div>
-            <p className="text-[10px] font-mono text-gray-500 text-right">
+            <p className="text-xs font-mono text-gray-400 text-right font-medium">
               {xp.toLocaleString()} / {nextLevelXP.toLocaleString()}
             </p>
           </>
@@ -269,7 +269,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             onMouseEnter={() => setHoveredItem("progress")}
             onMouseLeave={() => setHoveredItem(null)}
           >
-            <div className="w-8 h-8 rounded-xl bg-[#FF00C8]/10 border border-[#FF00C8]/30 flex items-center justify-center text-[#FF00C8] text-[10px] font-mono font-bold">
+            <div className="w-9 h-9 rounded-xl bg-[#FF00C8]/10 border border-[#FF00C8]/30 flex items-center justify-center text-[#FF00C8] text-xs font-mono font-bold">
               L{level}
             </div>
 
@@ -277,7 +277,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             {hoveredItem === "progress" && (
               <div className="fixed left-[84px] bottom-6 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
                 <p className="font-bold text-white">gBits Progress</p>
-                <p className="text-[10px] font-mono text-gray-400">
+                <p className="text-xs font-mono text-gray-400">
                   {xp.toLocaleString()} / {nextLevelXP.toLocaleString()} gBits ({Math.round(progressPercent)}%)
                 </p>
               </div>

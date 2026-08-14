@@ -61,9 +61,9 @@ const Navbar = () => {
       }`}
     >
       <nav className="max-w-7xl mx-auto px-6 md:px-10 h-20 flex justify-between items-center">
-        {/* Logo */}
-        <NavLink to="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-1.5 transition-transform group-hover:scale-105 shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+        {/* Logo — Matched exactly with Footer logo & text proportions */}
+        <NavLink to="/" className="flex items-center gap-3 group">
+          <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-1.5 transition-transform group-hover:scale-105 shadow-[0_0_15px_rgba(0,240,255,0.2)]">
             <img
               src="/logo_GR.png"
               alt="Glitch Room"
@@ -71,14 +71,14 @@ const Navbar = () => {
             />
           </div>
           <span
-            className="text-lg md:text-xl font-black tracking-wider text-white group-hover:text-[#00F0FF] transition-colors glitch-text"
+            className="text-xl md:text-2xl font-black text-white tracking-wider glitch-text group-hover:text-[#00F0FF] transition-colors"
             data-text="GLITCH ROOM"
           >
             GLITCH ROOM
           </span>
         </NavLink>
 
-        {/* Desktop Navigation */}
+        {/* Desktop Navigation — Slightly larger text for high readability */}
         <ul className="md:flex items-center gap-x-1.5 hidden bg-white/[0.03] backdrop-blur-md border border-white/10 p-1.5 rounded-2xl">
           {NAV_LINKS.map((link) => {
             const isActive =
@@ -89,10 +89,10 @@ const Navbar = () => {
               <li key={link.to} className="relative">
                 <NavLink
                   to={link.to}
-                  className={`relative px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all block cursor-pointer ${
+                  className={`relative px-4 py-2 rounded-xl text-sm font-semibold tracking-wide transition-all block cursor-pointer ${
                     isActive
                       ? "text-[#00F0FF]"
-                      : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                      : "text-gray-300 hover:text-white hover:bg-white/[0.06]"
                   }`}
                 >
                   {isActive && (
@@ -109,30 +109,30 @@ const Navbar = () => {
           })}
         </ul>
 
-        {/* Right Section: Auth buttons (Single Cyan Color + Rounded Square Shape) */}
+        {/* Right Section: Auth buttons / User avatar */}
         <div className="flex items-center gap-x-3" ref={menuRef}>
           {user ? (
             <NavbarUserSection user={user} />
           ) : (
-            <div className="flex items-center gap-2">
-              {/* Log In Button — Rounded Square */}
+            <div className="flex items-center gap-2.5">
+              {/* Log In Button */}
               <motion.button
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={openAuth}
-                className="px-4 py-2 rounded-xl border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/10 text-xs font-bold tracking-wider cursor-pointer transition-all"
+                className="px-4 py-2 rounded-xl border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/10 text-sm font-bold tracking-wide cursor-pointer transition-all"
               >
                 Log In
               </motion.button>
 
-              {/* Sign Up Button — Single Cyan Color, Rounded Square */}
+              {/* Sign Up Button */}
               <motion.button
                 whileHover={{ scale: 1.04, boxShadow: "0 0 20px rgba(0,240,255,0.4)" }}
                 whileTap={{ scale: 0.96 }}
                 onClick={openAuth}
-                className="px-4 py-2 rounded-xl bg-[#00F0FF] text-black hover:bg-[#38bdf8] font-black text-xs tracking-wider cursor-pointer shadow-md transition-all flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-[#00F0FF] text-black hover:bg-[#38bdf8] font-extrabold text-sm tracking-wide cursor-pointer shadow-md transition-all flex items-center gap-1.5"
               >
-                Sign Up <ArrowRight size={13} />
+                Sign Up <ArrowRight size={14} />
               </motion.button>
             </div>
           )}
@@ -150,64 +150,28 @@ const Navbar = () => {
           <AnimatePresence>
             {showMenu && (
               <motion.div
-                initial={{ opacity: 0, y: -8, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-                className="absolute top-full right-4 mt-3 w-64 md:hidden rounded-2xl overflow-hidden shadow-2xl z-50"
-                style={{
-                  background: "#0d0d14",
-                  border: "1px solid rgba(0,240,255,0.2)",
-                  boxShadow: "0 20px 60px rgba(0,0,0,0.8)",
-                }}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="absolute top-full left-0 right-0 mt-3 p-4 bg-[#0a0a0d] border border-white/10 rounded-2xl shadow-2xl md:hidden flex flex-col gap-2"
               >
-                {/* Top glow line */}
-                <div
-                  className="h-[2px] w-full"
-                  style={{
-                    background:
-                      "linear-gradient(90deg,transparent,#00F0FF,transparent)",
-                  }}
-                />
-
-                <div className="p-3 space-y-1">
-                  {NAV_LINKS.map((link) => {
-                    const isActive =
-                      location.pathname === link.to ||
-                      (link.to !== "/" &&
-                        location.pathname.startsWith(link.to));
-                    return (
-                      <Link
-                        key={link.to}
-                        to={link.to}
-                        className={`flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                          isActive
-                            ? "bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF]"
-                            : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
-                        }`}
-                      >
-                        {link.label}
-                        {isActive && (
-                          <span className="w-2 h-2 rounded-full bg-[#00F0FF] shadow-[0_0_8px_#00F0FF]" />
-                        )}
-                      </Link>
-                    );
-                  })}
-
-                  {!user && (
-                    <div className="pt-3 border-t border-white/5 space-y-2">
-                      <button
-                        onClick={() => {
-                          setShowMenu(false);
-                          openAuth();
-                        }}
-                        className="w-full py-2.5 rounded-xl text-xs font-bold text-black bg-[#00F0FF] cursor-pointer shadow-[0_0_15px_rgba(0,240,255,0.3)]"
-                      >
-                        Sign Up Free
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {NAV_LINKS.map((link) => (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setShowMenu(false)}
+                    className={({ isActive }) =>
+                      `px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                        isActive
+                          ? "bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF]"
+                          : "text-gray-300 hover:text-white hover:bg-white/5"
+                      }`
+                    }
+                  >
+                    {link.label}
+                  </NavLink>
+                ))}
               </motion.div>
             )}
           </AnimatePresence>
