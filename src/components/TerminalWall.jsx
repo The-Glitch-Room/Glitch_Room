@@ -424,79 +424,84 @@ const TerminalWall = () => {
 
       const map = {};
 
-      if (!isoStart) {
-        // "All Time": fetch profiles directly ordered by points
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("id, user_id, username, full_name, avatar_url, points")
-          .order("points", { ascending: false })
-          .limit(50);
+      // 1. Query glitch_activity and arena_completions
+      let actQuery = supabase
+        .from("glitch_activity")
+        .select("user_id, points, created_at");
+      let arenaQuery = supabase
+        .from("arena_completions")
+        .select("user_id, score, completed_at");
 
-        (profs || []).forEach((p) => {
-          const uid = p.id || p.user_id;
-          if (uid && (p.points || 0) > 0) {
+      if (isoStart) {
+        actQuery = actQuery.gte("created_at", isoStart);
+        arenaQuery = arenaQuery.gte("completed_at", isoStart);
+      }
+
+      const [actRes, arenaRes] = await Promise.all([actQuery, arenaQuery]);
+
+      const rawActs = actRes.data || [];
+      const rawArena = arenaRes.data || [];
+
+      rawActs.forEach((row) => {
+        const uid = row.user_id;
+        if (!uid) return;
+        if (!map[uid]) {
+          map[uid] = { user_id: uid, total_score: 0, events_completed: 0 };
+        }
+        map[uid].total_score += row.points || 0;
+        map[uid].events_completed += 1;
+      });
+
+      rawArena.forEach((row) => {
+        const uid = row.user_id;
+        if (!uid) return;
+        if (!map[uid]) {
+          map[uid] = { user_id: uid, total_score: 0, events_completed: 0 };
+        }
+        map[uid].total_score += row.score || 0;
+        map[uid].events_completed += 1;
+      });
+
+      // 2. For "All Time", also cross-reference user_points table to capture total points
+      if (!isoStart) {
+        const { data: userPts } = await supabase
+          .from("user_points")
+          .select("user_id, points");
+
+        (userPts || []).forEach((row) => {
+          const uid = row.user_id;
+          if (!uid || (row.points || 0) <= 0) return;
+          if (!map[uid]) {
             map[uid] = {
               user_id: uid,
-              username: p.username || p.full_name || "Anonymous",
-              full_name: p.full_name || "",
-              avatar_url: p.avatar_url || null,
-              total_score: p.points || 0,
+              total_score: row.points || 0,
               events_completed: 1,
             };
+          } else {
+            map[uid].total_score = Math.max(
+              map[uid].total_score,
+              row.points || 0
+            );
           }
         });
-      } else {
-        // "Today" or "This Week": aggregate glitch_activity + arena_completions
-        const [actRes, arenaRes] = await Promise.all([
-          supabase
-            .from("glitch_activity")
-            .select("user_id, points, created_at")
-            .gte("created_at", isoStart),
-          supabase
-            .from("arena_completions")
-            .select("user_id, score, completed_at")
-            .gte("completed_at", isoStart),
-        ]);
+      }
 
-        const rawActs = actRes.data || [];
-        const rawArena = arenaRes.data || [];
+      // 3. Batch fetch profiles for all user IDs in map
+      const userIds = Object.keys(map);
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, user_id, username, full_name, avatar_url")
+          .in("id", userIds);
 
-        rawActs.forEach((row) => {
-          const uid = row.user_id;
-          if (!uid) return;
-          if (!map[uid]) {
-            map[uid] = { user_id: uid, total_score: 0, events_completed: 0 };
+        (profs || []).forEach((p) => {
+          const uId = p.id || p.user_id;
+          if (uId && map[uId]) {
+            map[uId].username = p.username || p.full_name || "Anonymous";
+            map[uId].full_name = p.full_name || "";
+            map[uId].avatar_url = p.avatar_url || null;
           }
-          map[uid].total_score += row.points || 0;
-          map[uid].events_completed += 1;
         });
-
-        rawArena.forEach((row) => {
-          const uid = row.user_id;
-          if (!uid) return;
-          if (!map[uid]) {
-            map[uid] = { user_id: uid, total_score: 0, events_completed: 0 };
-          }
-          map[uid].total_score += row.score || 0;
-          map[uid].events_completed += 1;
-        });
-
-        const userIds = Object.keys(map);
-        if (userIds.length > 0) {
-          const { data: profs } = await supabase
-            .from("profiles")
-            .select("id, user_id, username, full_name, avatar_url")
-            .in("id", userIds);
-
-          (profs || []).forEach((p) => {
-            const uId = p.id || p.user_id;
-            if (uId && map[uId]) {
-              map[uId].username = p.username || p.full_name || "Anonymous";
-              map[uId].full_name = p.full_name || "";
-              map[uId].avatar_url = p.avatar_url || null;
-            }
-          });
-        }
       }
 
       const sorted = Object.values(map)
