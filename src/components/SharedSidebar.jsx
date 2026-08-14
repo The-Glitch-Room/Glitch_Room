@@ -65,11 +65,26 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
   useEffect(() => {
     let isMounted = true;
     const fetchSidebarProfile = async () => {
-      let name = user?.user_metadata?.full_name || user?.email?.split("@")[0];
-      let avatar = avatarPreview || user?.user_metadata?.avatar_url;
-
       const { data: authData } = await supabase.auth.getUser();
       const currentUser = authData?.user;
+      const uId = currentUser?.id || user?.id;
+
+      const cachedAvatar = uId
+        ? localStorage.getItem(`glitch_avatar_${uId}`) ||
+          localStorage.getItem("glitch_avatar_url")
+        : null;
+
+      let name =
+        user?.user_metadata?.full_name ||
+        user?.email?.split("@")[0] ||
+        currentUser?.user_metadata?.full_name ||
+        currentUser?.email?.split("@")[0];
+
+      let avatar =
+        avatarPreview ||
+        user?.user_metadata?.avatar_url ||
+        currentUser?.user_metadata?.avatar_url ||
+        cachedAvatar;
 
       if (currentUser) {
         const { data: dbProfile } = await supabase
@@ -80,15 +95,21 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
         if (dbProfile) {
           name = dbProfile.full_name || dbProfile.username || name;
-          avatar = avatarPreview || dbProfile.avatar_url || avatar;
+          avatar =
+            avatarPreview ||
+            dbProfile.avatar_url ||
+            currentUser.user_metadata?.avatar_url ||
+            cachedAvatar ||
+            avatar;
+
           if (typeof dbProfile.points === "number" && !xp) {
             setCurrentXp(dbProfile.points);
           }
-        } else if (!name) {
-          name =
-            currentUser.user_metadata?.full_name ||
-            currentUser.email?.split("@")[0];
         }
+      }
+
+      if (avatar && uId) {
+        localStorage.setItem(`glitch_avatar_${uId}`, avatar);
       }
 
       if (isMounted) {
