@@ -14,6 +14,7 @@ import {
   Lightbulb,
   Zap,
   Users,
+  CheckCircle2,
 } from "lucide-react";
 import ReferralSection from "./ReferralSection";
 
@@ -55,6 +56,13 @@ const BONUS_RULES = [
     title: "7-Day Uptime Streak",
     reward: "+150 gBits",
     desc: "Keep your Uptime streak active for 7 consecutive days. Repeats every new 7-day milestone.",
+  },
+  {
+    icon: CheckCircle2,
+    color: "#3b82f6",
+    title: "Weekly Room Check-in",
+    reward: "+10 gBits",
+    desc: "Submit your weekly progress check-in inside any Creator Room to earn +10 gBits for your weekly check-in!",
   },
   {
     icon: Target,
@@ -99,232 +107,197 @@ const BonusCard = ({ rule }) => {
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 justify-between mb-1">
-          <h3 className="text-xs font-bold text-white truncate">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <h4 className="text-xs font-bold text-white truncate font-sans">
             {rule.title}
-          </h3>
+          </h4>
           <span
-            className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shrink-0"
+            className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0"
             style={{
+              background: `${rule.color}20`,
               color: rule.color,
-              background: `${rule.color}15`,
-              border: `1px solid ${rule.color}30`,
+              border: `1px solid ${rule.color}40`,
             }}
           >
             {rule.reward}
           </span>
         </div>
-        <p className="text-[11px] text-gray-500 leading-relaxed">{rule.desc}</p>
+        <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
+          {rule.desc}
+        </p>
       </div>
     </motion.div>
   );
 };
 
 const EarnRules = () => {
-  const [authUser, setAuthUser] = useState(null);
   const [xp, setXp] = useState(0);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUser = async () => {
-      setLoading(true);
-      const { data: au } = await supabase.auth.getUser();
-      setAuthUser(au?.user);
-      const userId = au?.user?.id;
-      if (userId) {
-        const { data: pts } = await supabase
-          .from("user_points")
-          .select("points")
-          .eq("user_id", userId)
-          .single();
-        if (pts) setXp(pts.points);
-      }
-      setLoading(false);
+    const fetchXP = async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      if (!userId) return;
+
+      const { data } = await supabase
+        .from("user_points")
+        .select("points")
+        .eq("user_id", userId)
+        .single();
+
+      if (data) setXp(data.points || 0);
     };
-    fetchUser();
+
+    fetchXP();
   }, []);
 
-  const level = Math.floor(xp / 100);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#070709]">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-          className="w-10 h-10 border-2 border-t-transparent border-[#00F0FF] rounded-full"
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#070709] text-white">
+    <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between font-sans">
       <Navbar />
-      <div className="flex pt-[18vh]">
-        <SharedSidebar user={authUser} xp={xp} level={level} />
 
-        <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto pb-24 md:pb-0">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -15 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 mb-3 text-[10px] font-bold font-mono tracking-widest uppercase bg-[#00F0FF]/10 border border-[#00F0FF]/25 rounded-full text-[#00F0FF]">
-              <Gift size={11} /> gBit Economy
-            </span>
-            <h1 className="text-3xl font-black text-white mb-1">Earn gBits</h1>
-            <p className="text-gray-500 text-sm max-w-xl">
-              Here's exactly how Glitchers generate gBits across The Glitch Room
-              today.
-            </p>
-          </motion.div>
+      <div className="flex pt-24 min-h-[calc(100vh-80px)]">
+        <SharedSidebar xp={xp} />
 
-          {/* Section 1 — Difficulty payout scale */}
-          <div className="mb-8">
-            <p className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#00F0FF]" />
-              01 · Core Challenge Payouts
-            </p>
+        <main className="flex-1 min-w-0 p-4 sm:p-6 max-w-5xl mx-auto pb-20 mb-12">
+          {/* Header Banner */}
+          <div className="relative rounded-3xl p-6 sm:p-8 mb-8 overflow-hidden bg-gradient-to-r from-purple-900/30 via-[#0d0d14] to-[#00F0FF]/10 border border-white/10 shadow-2xl">
+            <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-[#00F0FF] to-purple-500 absolute top-0 left-0" />
 
-            <div className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 mb-4">
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                {DIFFICULTY_TIERS.map((tier) => (
-                  <div
-                    key={tier.label}
-                    className="rounded-xl p-3 text-center"
-                    style={{
-                      background: `${tier.color}0d`,
-                      border: `1px solid ${tier.color}25`,
-                    }}
-                  >
-                    <p
-                      className="text-xl font-black"
-                      style={{ color: tier.color }}
-                    >
-                      +{tier.reward}
-                    </p>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">
-                      {tier.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
-                This scale applies the same way across{" "}
-                {CORE_CATEGORIES.join(", ")} — a challenge's difficulty is what
-                sets the payout, not its category.
-              </p>
-            </div>
-
-            {/* Arena — separate mechanic, multi-stage live event */}
-            <div className="bg-[#0f0f13] border border-white/5 rounded-2xl p-4 flex items-center gap-3.5">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{
-                  background: "rgba(0,240,255,0.12)",
-                  border: "1px solid rgba(0,240,255,0.3)",
-                }}
-              >
-                <Swords size={16} className="text-[#00F0FF]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <h3 className="text-xs font-bold text-white">
-                    Arena Challenge Events
-                  </h3>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 shrink-0">
-                    75 – 100 gBits
+            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="bg-[#FF00C8]/10 text-[#FF00C8] border border-[#FF00C8]/30 font-bold text-[10px] uppercase px-2.5 py-0.5 rounded-full tracking-wider font-mono">
+                    Points &amp; Rewards
+                  </span>
+                  <span className="bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30 font-bold text-[10px] uppercase px-2.5 py-0.5 rounded-full tracking-wider font-mono">
+                    Official Guide
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-500 leading-relaxed">
-                  The flagship 3-stage challenge — Find the Glitch, Twist Card,
-                  Pitch Wild. Complete all 3 stages for a 75 gBit base, plus up
-                  to +25 more scaled by how well you scored across the stages.
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-sans">
+                  Earn Rules &amp; Payouts
+                </h1>
+                <p className="text-gray-400 text-xs sm:text-sm mt-1 max-w-xl font-sans">
+                  Learn how gBits are awarded across Glitches, Debug Mode, AI Challenges, Creative Sparks, Room Check-ins, and Special Bonuses.
                 </p>
+              </div>
+
+              <div className="flex items-center gap-3 bg-[#070709]/80 border border-white/10 p-3.5 rounded-2xl shrink-0 backdrop-blur-md">
+                <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF]">
+                  <Gift size={20} />
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-500 font-mono uppercase">Your Balance</div>
+                  <div className="text-lg font-black text-white font-mono">{xp} gBits</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Section 2 — Bonuses */}
-          <div className="mb-8">
-            <p className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#FF00C8]" />
-              02 · Uptime Streaks & Execution Bonuses
+          {/* Section 1: Difficulty Payout Matrix */}
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Star size={16} className="text-[#FF00C8]" />
+              <h2 className="text-base font-bold text-white uppercase tracking-wider font-sans">
+                1. Core Challenge Payouts
+              </h2>
+            </div>
+            <p className="text-xs text-gray-400 mb-4 font-sans">
+              Applies across Glitches, Debug Mode, AI Challenges, and Creative Sparks. Earned automatically upon solving.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {BONUS_RULES.map((rule, i) => (
-                <BonusCard key={i} rule={rule} />
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              {DIFFICULTY_TIERS.map((tier) => (
+                <div
+                  key={tier.label}
+                  className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 relative overflow-hidden"
+                >
+                  <div
+                    className="h-1 w-full absolute top-0 left-0"
+                    style={{ background: tier.color }}
+                  />
+                  <div className="text-xs font-bold text-gray-400 uppercase tracking-wider font-mono mb-1">
+                    {tier.label} Difficulty
+                  </div>
+                  <div
+                    className="text-2xl font-black font-mono mb-2"
+                    style={{ color: tier.color }}
+                  >
+                    +{tier.reward} gBits
+                  </div>
+                  <div className="text-[11px] text-gray-500 leading-snug font-sans">
+                    Awarded for every verified solve on {tier.label.toLowerCase()}-level challenges.
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
 
-          {/* Section 2.5 — Referral Hub */}
-          <div className="mb-8">
-            <ReferralSection />
-          </div>
+            <div className="bg-[#0b0b10] border border-white/5 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 font-sans">
+              <span className="font-semibold text-gray-300">Active Categories:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {CORE_CATEGORIES.map((cat) => (
+                  <span
+                    key={cat}
+                    className="bg-white/5 border border-white/10 px-3 py-1 rounded-lg text-gray-300 font-medium"
+                  >
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
 
-          {/* Section 3 — Level Clearance */}
-          <div className="mb-8">
-            <p className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#a855f7]" />
-              03 · Level Clearance
-            </p>
+          {/* Section 2: Bonus Mechanics */}
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Zap size={16} className="text-[#00F0FF]" />
+              <h2 className="text-base font-bold text-white uppercase tracking-wider font-sans">
+                2. Special Bonus Rewards
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {BONUS_RULES.map((rule) => (
+                <BonusCard key={rule.title} rule={rule} />
+              ))}
+            </div>
+          </section>
+
+          {/* Section 3: Level Progression Curve */}
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Layers size={16} className="text-[#a855f7]" />
+              <h2 className="text-base font-bold text-white uppercase tracking-wider font-sans">
+                3. Level Progression Curve
+              </h2>
+            </div>
 
             <div className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Layers size={13} className="text-[#a855f7]" />
-                <p className="text-xs text-gray-400">
-                  Your level is total gBits against this curve — not linear, so
-                  later levels take meaningfully more to clear.
-                </p>
-              </div>
+              <p className="text-xs text-gray-400 mb-4 leading-relaxed font-sans">
+                Your Level increases automatically as you accumulate total gBits. XP thresholds scale progressively:
+              </p>
 
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
-                {LEVEL_THRESHOLDS.map((threshold, level) => (
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                {LEVEL_THRESHOLDS.slice(0, 6).map((threshold, lvl) => (
                   <div
-                    key={level}
-                    className="rounded-xl p-3 text-center"
-                    style={{
-                      background: "rgba(168,85,247,0.06)",
-                      border: "1px solid rgba(168,85,247,0.18)",
-                    }}
+                    key={lvl}
+                    className="bg-[#070709] border border-white/5 rounded-xl p-3 text-center"
                   >
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
-                      Level {level}
-                    </p>
-                    <p className="text-sm font-black text-[#a855f7]">
-                      {threshold.toLocaleString()}
-                    </p>
-                    <p className="text-[9px] text-gray-600 mt-0.5">gBits</p>
+                    <div className="text-[10px] font-mono text-[#00F0FF] font-bold uppercase mb-0.5">
+                      Level {lvl}
+                    </div>
+                    <div className="text-xs font-mono font-bold text-white">
+                      {threshold} gBits
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Footer note — ties gBits back into the progression system */}
-          <div className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-[#FFD700]/10 border border-[#FFD700]/25">
-              <Star size={16} className="text-[#FFD700]" />
-            </div>
-            <div>
-              <p className="text-white text-sm font-bold">
-                Top earners become Overclockers
-              </p>
-              <p className="text-gray-500 text-xs mt-0.5">
-                Rack up gBits and climb the{" "}
-                <a
-                  href="/terminal-wall"
-                  className="text-[#00F0FF] hover:underline"
-                >
-                  Terminal Wall
-                </a>{" "}
-                to earn Overclocker recognition each week.
-              </p>
-            </div>
-          </div>
+          {/* Section 4: Referral Program Card */}
+          <section className="mb-10">
+            <ReferralSection />
+          </section>
         </main>
       </div>
     </div>
