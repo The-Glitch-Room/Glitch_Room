@@ -77,7 +77,7 @@ const RoomLeaderboardModal = ({
     };
   });
 
-  // Calculate points from check-ins (10 gBits per completed check-in)
+  // Calculate completed check-ins count
   filteredCheckins.forEach((c) => {
     const uId = c.user_id;
     if (!userStatsMap[uId]) {
@@ -90,28 +90,41 @@ const RoomLeaderboardModal = ({
       };
     }
     if (c.did_complete) {
-      userStatsMap[uId].gbits += 10;
       userStatsMap[uId].completedCheckins += 1;
     }
   });
 
-  // Calculate points from activities
-  const filteredActivities =
-    timeframe === "week"
-      ? activity.filter((a) => {
-          if (!a.created_at) return true;
-          const diffDays =
-            (Date.now() - new Date(a.created_at)) / (1000 * 3600 * 24);
-          return diffDays <= 7;
-        })
-      : activity;
+  if (timeframe === "all") {
+    // "All-Time": Display member's canonical user_points master wallet balance
+    members.forEach((m) => {
+      const uId = m.user_id;
+      if (userStatsMap[uId]) {
+        userStatsMap[uId].gbits = m.profiles?.points || m.user_points || userStatsMap[uId].gbits || 0;
+      }
+    });
+  } else {
+    // "This Week": 10 gBits per weekly completed check-in + room activities (excluding checkin activity rows)
+    filteredCheckins.forEach((c) => {
+      const uId = c.user_id;
+      if (c.did_complete && userStatsMap[uId]) {
+        userStatsMap[uId].gbits += 10;
+      }
+    });
 
-  filteredActivities.forEach((act) => {
-    const uId = act.user_id;
-    if (userStatsMap[uId]) {
-      userStatsMap[uId].gbits += act.points || 0;
-    }
-  });
+    const filteredActivities = activity.filter((a) => {
+      if (!a.created_at) return true;
+      const diffDays =
+        (Date.now() - new Date(a.created_at)) / (1000 * 3600 * 24);
+      return diffDays <= 7;
+    });
+
+    filteredActivities.forEach((act) => {
+      const uId = act.user_id;
+      if (userStatsMap[uId] && act.type !== "checkin") {
+        userStatsMap[uId].gbits += act.points || 0;
+      }
+    });
+  }
 
   // Sort descending by gBits, then completed check-ins
   const rankedList = Object.values(userStatsMap).sort((a, b) => {

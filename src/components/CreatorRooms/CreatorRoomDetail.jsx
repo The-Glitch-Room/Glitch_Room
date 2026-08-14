@@ -326,14 +326,16 @@ const CreatorRoomDetail = ({ roomId }) => {
       setDidComplete(true);
     }
 
-    // Compute Top Contributors
+    // Compute Top Contributors (This Week)
     const pointsMap = {};
     enrichedActivity.forEach((act) => {
       const uId = act.user_id;
-      pointsMap[uId] = (pointsMap[uId] || 0) + (act.points || 0);
+      if (act.type !== "checkin") {
+        pointsMap[uId] = (pointsMap[uId] || 0) + (act.points || 0);
+      }
     });
 
-    enrichedCheckins.forEach((c) => {
+    currentWeekCheckins.forEach((c) => {
       if (c.did_complete) {
         const uId = c.user_id;
         pointsMap[uId] = (pointsMap[uId] || 0) + 10;

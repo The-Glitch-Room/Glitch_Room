@@ -24,9 +24,51 @@ export const fetchPoints = async () => {
   return data?.points ?? 0;
 };
 
+// ── Level Thresholds ────────────────────────────────────────────────────────
+export const LEVEL_THRESHOLDS = [
+  0, 250, 750, 1500, 2500, 3750, 5500, 7500, 10000, 13500, 17500,
+];
+
+export const getLevelFromXP = (xp) => {
+  let level = 0;
+  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
+    if (xp >= LEVEL_THRESHOLDS[i]) level = i;
+    else break;
+  }
+  return level;
+};
+
+export const getNextLevelXP = (level) => {
+  return (
+    LEVEL_THRESHOLDS[level + 1] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]
+  );
+};
+
+export const getCurrentLevelXP = (level) => {
+  return LEVEL_THRESHOLDS[level] ?? 0;
+};
+
+export const calculateLevelInfo = (xp) => {
+  const points = Math.max(0, Number(xp) || 0);
+  const currentLevel = getLevelFromXP(points);
+  const currentXP = getCurrentLevelXP(currentLevel);
+  const nextXP = getNextLevelXP(currentLevel);
+  const progressPercent = Math.min(
+    100,
+    Math.max(0, ((points - currentXP) / (nextXP - currentXP)) * 100)
+  );
+
+  return {
+    currentLevel,
+    currentXP: points,
+    nextLevelXP: nextXP,
+    xpIntoLevel: points - currentXP,
+    xpNeededForNext: nextXP - currentXP,
+    progressPercent,
+  };
+};
+
 // ── Uptime streak helpers ───────────────────────────────────────────────────
-// Computes the user's current consecutive-day activity streak from
-// glitch_activity. Mirrors the calc already used in Dashboard/ActivityHeatmap.
 export const getCurrentStreak = async (userId) => {
   if (!userId) return 0;
 
@@ -53,49 +95,85 @@ export const getCurrentStreak = async (userId) => {
   return streak;
 };
 
-// Awards +150 gBits every time the user crosses a new 7-day Uptime milestone
-// (day 7, day 14, day 21...). Tracks the last milestone claimed on
-// user_points.last_streak_bonus_at so it can't be re-claimed on every visit.
-// Requires the last_streak_bonus_at column — see migration note.
 export const checkAndAwardStreakBonus = async (userId) => {
-  if (!userId) return null;
+  if (!userId) return { awarded: false, streak: 0 };
 
   const streak = await getCurrentStreak(userId);
-  if (streak < 7) return null;
+  if (streak < 7) return { awarded: false, streak };
 
-  const { data: existing } = await supabase
+  const { data: userPts } = await supabase
     .from("user_points")
     .select("last_streak_bonus_at")
     .eq("user_id", userId)
     .single();
 
-  const lastClaimed = existing?.last_streak_bonus_at || 0;
-  const currentMilestone = Math.floor(streak / 7) * 7;
+  const lastAwarded = userPts?.last_streak_bonus_at
+    ? new Date(userPts.last_streak_bonus_at)
+    : null;
 
-  if (currentMilestone <= lastClaimed) return null; // already claimed this milestone
+  const daysSinceLastAward = lastAwarded
+    ? (Date.now() - lastAwarded) / (1000 * 3600 * 24)
+    : 999;
 
-  const { error: milestoneErr } = await supabase
-    .from("user_points")
-    .update({ last_streak_bonus_at: currentMilestone })
-    .eq("user_id", userId);
-  if (milestoneErr) {
-    console.error("streak milestone update error:", milestoneErr);
-    return null;
+  if (daysSinceLastAward < 7) {
+    return { awarded: false, streak, reason: "cooldown" };
   }
 
-  const next = await updatePoints(
-    150,
-    `Uptime Streak Bonus: ${currentMilestone} days`,
-    "bonus",
-  );
+  const milestone = Math.floor(streak / 7) * 7;
+  const { data: existingBonus } = await supabase
+    .from("glitch_activity")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("type", "bonus")
+    .ilike("title", `%${milestone}-Day Uptime Streak%`)
+    .maybeSingle();
 
-  return { awarded: true, milestone: currentMilestone, points: next };
+  if (existingBonus) {
+    return { awarded: false, streak, reason: "already_claimed" };
+  }
+
+  const { data: cur } = await supabase
+    .from("user_points")
+    .select("points")
+    .eq("user_id", userId)
+    .single();
+
+  const current = cur?.points ?? 0;
+  const next = current + 100;
+
+  await supabase
+    .from("user_points")
+    .update({ points: next, last_streak_bonus_at: new Date().toISOString() })
+    .eq("user_id", userId);
+
+  await supabase
+    .from("profiles")
+    .update({ points: next })
+    .eq("id", userId);
+
+  await supabase.from("glitch_activity").insert({
+    user_id: userId,
+    title: `⚡ 7-Day Uptime Streak Milestone (${milestone} Days)`,
+    points: 100,
+    type: "bonus",
+    created_at: new Date().toISOString(),
+  });
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("gbits_updated", { detail: { points: next } })
+    );
+  }
+
+  return { awarded: true, milestone, points: next };
 };
 
+// ── Unified Atomic Points Updater ─────────────────────────────────────────────
 export const updatePoints = async (
   delta,
   title = "Challenge completed",
   type = "glitch",
+  roomId = null
 ) => {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
@@ -116,7 +194,7 @@ export const updatePoints = async (
       .update({ points: nextDB })
       .eq("user_id", userId);
     if (error) {
-      console.error("update error:", error);
+      console.error("updatePoints user_points error:", error);
       return currentDB;
     }
   } else {
@@ -124,41 +202,58 @@ export const updatePoints = async (
       .from("user_points")
       .insert({ user_id: userId, points: nextDB });
     if (error) {
-      console.error("insert error:", error);
+      console.error("updatePoints insert error:", error);
       return 0;
     }
   }
 
+  // Keep profiles.points 100% in sync
+  try {
+    await supabase
+      .from("profiles")
+      .update({ points: nextDB })
+      .eq("id", userId);
+  } catch (e) {
+    // optional profile update fail-safe
+  }
+
   if (delta > 0) {
-    const { error: actErr } = await supabase.from("glitch_activity").insert({
+    const activityPayload = {
       user_id: userId,
       title,
       points: delta,
       type,
       created_at: new Date().toISOString(),
-    });
+    };
+    if (roomId) activityPayload.room_id = roomId;
+
+    const { error: actErr } = await supabase
+      .from("glitch_activity")
+      .insert(activityPayload);
     if (actErr) console.error("activity insert error:", actErr);
 
-    // Check for a new Uptime streak milestone after any real point-earning
-    // action. Skip when this award IS a bonus payout, to avoid recursion.
     if (type !== "bonus") {
       checkAndAwardStreakBonus(userId).catch((e) =>
-        console.error("streak bonus check error:", e),
+        console.error("streak bonus check error:", e)
       );
     }
+  }
+
+  // Dispatch real-time global event so Navbar, Sidebar, Profile, Console update instantly
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("gbits_updated", { detail: { points: nextDB } })
+    );
   }
 
   return nextDB;
 };
 
-// ── First-Try Clearance helper ──────────────────────────────────────────────
-// Returns true if the user has never submitted an answer for this challenge
-// before (pass or fail). Call this BEFORE saveSubmission() runs for the
-// current attempt, so it reflects the state prior to this submission.
+// ── Challenge Submission & Solved Helpers ─────────────────────────────────────
 export const hasPriorSubmissions = async (challengeId, challengeType) => {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
-  if (!userId) return true; // fail safe — assume prior attempts exist
+  if (!userId) return true;
 
   const { count } = await supabase
     .from("challenge_submissions")
@@ -190,9 +285,9 @@ export const checkIfSolved = async (challengeId, challengeType) => {
 
 export const getSpeedDemonThreshold = (difficulty) => {
   const d = (difficulty || "").toLowerCase();
-  if (d.includes("easy") || d.includes("beginner")) return 45; // 45 sec
-  if (d.includes("medium") || d.includes("inter")) return 90; // 90 sec
-  if (d.includes("hard") || d.includes("advanced")) return 180; // 3 min
+  if (d.includes("easy") || d.includes("beginner")) return 45;
+  if (d.includes("medium") || d.includes("inter")) return 90;
+  if (d.includes("hard") || d.includes("advanced")) return 180;
   return 60;
 };
 
@@ -224,7 +319,6 @@ export const saveSubmission = async (
   });
   if (error) console.error("saveSubmission error:", error);
 
-  // Check if Speed Demon criteria is met on a successful solve (pointsEarned > 0)
   let speedBonusAwarded = false;
   if (pointsEarned > 0 && checkSpeedDemonBonus(timeTakenSeconds, difficulty)) {
     try {
@@ -235,7 +329,6 @@ export const saveSubmission = async (
     }
   }
 
-  // Trigger referral bonus check on any successful solve
   if (pointsEarned > 0) {
     checkAndAwardReferralBonus(userId).catch((e) =>
       console.error("Referral bonus award error:", e)
@@ -243,31 +336,4 @@ export const saveSubmission = async (
   }
 
   return { speedBonusAwarded };
-};
-
-// Level thresholds — non-linear curve, scaled 5x to match the
-// 10/25/50 difficulty payout scale (was tuned for the old 2/5/10 scale).
-// Exported so any UI (SharedSidebar, EarnRules, etc.) reads the same real
-// curve instead of a manually-duplicated copy that can drift out of sync.
-export const LEVEL_THRESHOLDS = [
-  0, 250, 750, 1500, 2500, 3750, 5500, 7500, 10000, 13500, 17500,
-];
-
-export const getLevelFromXP = (xp) => {
-  let level = 0;
-  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
-    if (xp >= LEVEL_THRESHOLDS[i]) level = i;
-    else break;
-  }
-  return level;
-};
-
-export const getNextLevelXP = (level) => {
-  return (
-    LEVEL_THRESHOLDS[level + 1] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]
-  );
-};
-
-export const getCurrentLevelXP = (level) => {
-  return LEVEL_THRESHOLDS[level] ?? 0;
 };

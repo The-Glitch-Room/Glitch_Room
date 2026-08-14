@@ -42,16 +42,32 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
     return localStorage.getItem("gr_sidebar_collapsed") === "true";
   });
   const [hoveredItem, setHoveredItem] = useState(null);
+  const [currentXp, setCurrentXp] = useState(xp);
+
+  useEffect(() => {
+    setCurrentXp(xp);
+  }, [xp]);
+
+  useEffect(() => {
+    const handleGbitsUpdate = (e) => {
+      if (typeof e.detail?.points === "number") {
+        setCurrentXp(e.detail.points);
+      }
+    };
+    window.addEventListener("gbits_updated", handleGbitsUpdate);
+    return () => window.removeEventListener("gbits_updated", handleGbitsUpdate);
+  }, []);
 
   const username =
     user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
   const initials = username.slice(0, 2).toUpperCase();
 
-  const level = getLevelFromXP(xp);
+  const displayXp = currentXp;
+  const level = getLevelFromXP(displayXp);
   const currentLevelXP = getCurrentLevelXP(level);
   const nextLevelXP = getNextLevelXP(level);
 
-  const xpIntoLevel = Math.max(0, xp - currentLevelXP);
+  const xpIntoLevel = Math.max(0, displayXp - currentLevelXP);
   const xpSpanForLevel = Math.max(0, nextLevelXP - currentLevelXP);
   const progressPercent =
     xpSpanForLevel > 0
@@ -131,7 +147,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                 {username}
               </p>
               <p className="text-xs font-mono text-[#00F0FF] mt-0.5 font-semibold">
-                Level {level} · {xp} gBits
+                Level {level} · {displayXp} gBits
               </p>
             </div>
           </div>
@@ -161,7 +177,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
               <div className="fixed left-[86px] top-[26vh] z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
                 <p className="font-bold text-white text-sm">{username}</p>
                 <p className="text-xs text-[#00F0FF] font-mono mt-0.5">
-                  Level {level} · {xp} gBits
+                  Level {level} · {displayXp} gBits
                 </p>
               </div>
             )}
@@ -260,7 +276,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
               />
             </div>
             <p className="text-xs font-mono text-gray-400 text-right font-medium">
-              {xp.toLocaleString()} / {nextLevelXP.toLocaleString()}
+              {displayXp.toLocaleString()} / {nextLevelXP.toLocaleString()}
             </p>
           </>
         ) : (
