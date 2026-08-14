@@ -846,7 +846,7 @@ export default function YourProfile() {
                   {roleTitle}
                 </p>
                 {profile?.bio && (
-                  <p className="text-gray-400 text-xs mt-2 leading-relaxed max-w-xl">
+                  <p className="text-gray-300 text-sm sm:text-base mt-2.5 leading-relaxed max-w-2xl font-normal">
                     {profile.bio}
                   </p>
                 )}

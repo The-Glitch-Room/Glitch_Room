@@ -36,7 +36,7 @@ const Footer = () => {
   ];
 
   return (
-    <footer className="relative bg-transparent text-gray-400 border-t border-white/10 overflow-hidden">
+    <footer className="relative bg-transparent text-gray-300 border-t border-white/10 overflow-hidden font-sans">
       {/* Background Cyber Grid */}
       <div
         className="absolute inset-0 z-0 opacity-5 pointer-events-none"
@@ -68,7 +68,7 @@ const Footer = () => {
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 pt-16 pb-12">
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-14 pb-12 border-b border-white/5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-14 pb-12 border-b border-white/10">
           {/* Brand Column (5 cols) */}
           <div className="lg:col-span-5 flex flex-col justify-between">
             <div>
@@ -88,14 +88,14 @@ const Footer = () => {
                 </span>
               </Link>
 
-              <p className="text-xs sm:text-sm text-gray-400 max-w-md leading-relaxed mb-6">
+              <p className="text-sm sm:text-base text-gray-300 max-w-md leading-relaxed mb-6 font-normal">
                 Where chaos sparks creativity. Solve glitches, compete in 3-stage arenas, collect gBits, and climb the Terminal Wall.
               </p>
 
-              {/* Newsletter Subscriber Box with extra space above */}
+              {/* Newsletter Subscriber Box */}
               <form onSubmit={handleSubscribe} className="mt-8 mb-8 max-w-md">
-                <p className="text-xs font-bold text-gray-300 mb-2.5 flex items-center gap-1.5">
-                  <Zap size={14} className="text-[#00F0FF]" /> Stay in the loop
+                <p className="text-sm font-bold text-white mb-2.5 flex items-center gap-1.5">
+                  <Zap size={15} className="text-[#00F0FF]" /> Stay in the loop
                 </p>
                 <div className="flex items-center gap-2">
                   <input
@@ -104,19 +104,19 @@ const Footer = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your dev email..."
                     required
-                    className="flex-1 bg-[#0d0d14] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 outline-none focus:border-[#00F0FF]/50 transition-colors"
+                    className="flex-1 bg-[#0d0d14] border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-[#00F0FF]/60 transition-colors font-medium"
                   />
                   <motion.button
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     type="submit"
-                    className="px-4 py-2.5 rounded-xl bg-[#00F0FF] text-black font-bold text-xs flex items-center gap-1.5 cursor-pointer hover:bg-[#38bdf8] transition-all shadow-[0_0_15px_rgba(0,240,255,0.3)] shrink-0"
+                    className="px-5 py-2.5 rounded-xl bg-[#00F0FF] text-black font-extrabold text-sm flex items-center gap-1.5 cursor-pointer hover:bg-[#38bdf8] transition-all shadow-[0_0_15px_rgba(0,240,255,0.3)] shrink-0"
                   >
-                    Subscribe <Send size={12} />
+                    Subscribe <Send size={13} />
                   </motion.button>
                 </div>
                 {subscribed && (
-                  <p className="text-[11px] text-[#22c55e] mt-2 font-semibold">
+                  <p className="text-xs text-[#22c55e] mt-2 font-semibold">
                     ✓ Subscribed! Welcome to the Glitch Room network.
                   </p>
                 )}
@@ -134,7 +134,7 @@ const Footer = () => {
                   aria-label={label}
                   whileHover={{ scale: 1.1, y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className="w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 bg-[#0d0d14] text-gray-400 hover:text-[#00F0FF] hover:border-[#00F0FF]/40 hover:bg-[#00F0FF]/10 transition-all shadow-md"
+                  className="w-10 h-10 flex items-center justify-center rounded-xl border border-white/15 bg-[#0d0d14] text-gray-300 hover:text-[#00F0FF] hover:border-[#00F0FF]/50 hover:bg-[#00F0FF]/10 transition-all shadow-md"
                 >
                   {icon}
                 </motion.a>
@@ -146,10 +146,10 @@ const Footer = () => {
           <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-8">
             {/* Column 1: Explore & Play */}
             <div>
-              <h4 className="text-xs font-bold text-[#00F0FF] uppercase tracking-wider mb-4 flex items-center gap-1">
+              <h4 className="text-sm font-extrabold text-[#00F0FF] uppercase tracking-wider mb-4 flex items-center gap-1">
                 Explore & Play
               </h4>
-              <ul className="space-y-2.5 text-xs">
+              <ul className="space-y-3 text-sm font-medium">
                 {[
                   { label: "Explore Glitches", path: "/explore" },
                   { label: "Game Arena", path: "/game-arena" },
@@ -160,7 +160,7 @@ const Footer = () => {
                   <li key={i}>
                     <Link
                       to={link.path}
-                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-400"
+                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-300"
                     >
                       {link.label}
                     </Link>
@@ -171,10 +171,10 @@ const Footer = () => {
 
             {/* Column 2: Rewards & Earn */}
             <div>
-              <h4 className="text-xs font-bold text-[#FF00C8] uppercase tracking-wider mb-4">
+              <h4 className="text-sm font-extrabold text-[#FF00C8] uppercase tracking-wider mb-4">
                 Rewards & Earn
               </h4>
-              <ul className="space-y-2.5 text-xs">
+              <ul className="space-y-3 text-sm font-medium">
                 {[
                   { label: "Earn Rules Hub", path: "/earn-rules" },
                   { label: "Speed Demon (+50)", path: "/earn-rules" },
@@ -185,7 +185,7 @@ const Footer = () => {
                   <li key={i}>
                     <Link
                       to={link.path}
-                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-400"
+                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-300"
                     >
                       {link.label}
                     </Link>
@@ -196,10 +196,10 @@ const Footer = () => {
 
             {/* Column 3: Platform & Support */}
             <div>
-              <h4 className="text-xs font-bold text-[#22c55e] uppercase tracking-wider mb-4">
+              <h4 className="text-sm font-extrabold text-[#22c55e] uppercase tracking-wider mb-4">
                 Support & Info
               </h4>
-              <ul className="space-y-2.5 text-xs">
+              <ul className="space-y-3 text-sm font-medium">
                 {[
                   { label: "About Us", path: "/about" },
                   { label: "Help Center", path: "/help" },
@@ -210,7 +210,7 @@ const Footer = () => {
                   <li key={i}>
                     <Link
                       to={link.path}
-                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-400"
+                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-300"
                     >
                       {link.label}
                     </Link>
@@ -222,10 +222,10 @@ const Footer = () => {
         </div>
 
         {/* Bottom Bar: Copyright */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500">
-          <p>© {new Date().getFullYear()} <span className="text-gray-300 font-semibold">Glitch Room</span>. All rights reserved.</p>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-gray-400 font-medium">
+          <p>© {new Date().getFullYear()} <span className="text-white font-bold">Glitch Room</span>. All rights reserved.</p>
 
-          <p className="text-center sm:text-right text-gray-500">
+          <p className="text-center sm:text-right text-gray-400">
             Built with chaos &amp; creativity ⚡
           </p>
         </div>

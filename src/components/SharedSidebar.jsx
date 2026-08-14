@@ -183,11 +183,11 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                   onClick={handleLogout}
                   onMouseEnter={() => setHoveredItem(item.name)}
                   onMouseLeave={() => setHoveredItem(null)}
-                  className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-xs font-medium text-red-400 hover:bg-red-500/10 transition-all cursor-pointer ${
-                    isCollapsed ? "justify-center px-0" : "px-3"
+                  className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-all cursor-pointer ${
+                    isCollapsed ? "justify-center px-0" : "px-3.5"
                   }`}
                 >
-                  <Icon size={16} className="shrink-0" />
+                  <Icon size={18} className="shrink-0" />
                   {!isCollapsed && <span>{item.name}</span>}
                 </button>
 
@@ -209,23 +209,23 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                 onMouseLeave={() => setHoveredItem(null)}
               >
                 <div
-                  className={`flex items-center gap-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-                    isCollapsed ? "justify-center px-0" : "px-3"
+                  className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                    isCollapsed ? "justify-center px-0" : "px-3.5"
                   } ${
                     isActive
                       ? "bg-white/10 text-white border border-white/10 shadow-[0_0_12px_rgba(255,0,200,0.15)]"
-                      : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                      : "text-gray-300 hover:text-white hover:bg-white/[0.06]"
                   }`}
                 >
                   <Icon
-                    size={16}
+                    size={18}
                     className={`shrink-0 ${isActive ? "text-[#FF00C8]" : ""}`}
                   />
                   {!isCollapsed && (
                     <>
                       <span className="flex-1 truncate">{item.name}</span>
                       {isActive && (
-                        <ChevronRight size={13} className="text-gray-500 shrink-0" />
+                        <ChevronRight size={14} className="text-gray-400 shrink-0" />
                       )}
                     </>
                   )}
