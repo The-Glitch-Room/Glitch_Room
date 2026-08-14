@@ -218,6 +218,8 @@ export default function YourProfile() {
   const [activeTab, setActiveTab] = useState("creations");
 
   const [userPosts, setUserPosts] = useState([]);
+  const [solvedGlitches, setSolvedGlitches] = useState([]);
+  const [inspectModalItem, setInspectModalItem] = useState(null);
 
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -235,6 +237,28 @@ export default function YourProfile() {
   const [bannerUploading, setBannerUploading] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
 
+  const formatSolvedTime = (dateStr) => {
+    if (!dateStr) return "Recently";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "Recently";
+
+    const now = new Date();
+    const diffMs = now - date;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffHours < 1) return "Just now";
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays} days ago`;
+
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
   const fetchProfile = async () => {
     try {
       setLoading(true);
@@ -243,24 +267,38 @@ export default function YourProfile() {
       setAuthUser(userData?.user);
       if (!userId) return;
 
-      const [profileRes, pointsRes, postsRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", userId).single(),
-        supabase
-          .from("user_points")
-          .select("points")
-          .eq("user_id", userId)
-          .single(),
-        supabase
-          .from("community_posts")
-          .select("*")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false }),
-      ]);
+      const [profileRes, pointsRes, postsRes, submissionsRes, activityRes] =
+        await Promise.all([
+          supabase.from("profiles").select("*").eq("id", userId).single(),
+          supabase
+            .from("user_points")
+            .select("points")
+            .eq("user_id", userId)
+            .single(),
+          supabase
+            .from("community_posts")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("challenge_submissions")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("glitch_activity")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
+        ]);
 
       const pd = profileRes.data;
       const userMeta = userData?.user?.user_metadata;
-      const cachedBanner = userId ? localStorage.getItem(`glitch_banner_${userId}`) : null;
-      const bannerUrl = pd?.banner_url || userMeta?.banner_url || cachedBanner || "";
+      const cachedBanner = userId
+        ? localStorage.getItem(`glitch_banner_${userId}`)
+        : null;
+      const bannerUrl =
+        pd?.banner_url || userMeta?.banner_url || cachedBanner || "";
 
       setProfile({
         ...pd,
@@ -268,6 +306,95 @@ export default function YourProfile() {
         points: pointsRes.data?.points || 0,
       });
       setUserPosts(postsRes.data || []);
+
+      // Build real solved glitches directly from database records
+      const submissions = submissionsRes.data || [];
+      const activities = (activityRes.data || []).filter(
+        (a) =>
+          a.type !== "bonus" &&
+          a.type !== "referral" &&
+          a.type !== "checkin"
+      );
+
+      const items = [];
+      const seenKeys = new Set();
+
+      // Process challenge_submissions
+      submissions.forEach((sub) => {
+        const subDate = sub.created_at;
+        const key = `${sub.challenge_id}_${sub.challenge_type}`;
+        seenKeys.add(key);
+
+        const matchedAct = activities.find(
+          (a) =>
+            a.type === sub.challenge_type &&
+            Math.abs(new Date(a.created_at) - new Date(subDate)) < 600000
+        );
+
+        let category = "Glitches";
+        let accent = "#00F0FF";
+        if (sub.challenge_type === "debug") {
+          category = "Debug Mode";
+          accent = "#FF00C8";
+        } else if (sub.challenge_type === "ai") {
+          category = "AI Challenge";
+          accent = "#a855f7";
+        } else if (sub.challenge_type === "spark") {
+          category = "Creative Spark";
+          accent = "#f59e0b";
+        } else if (sub.challenge_type === "arena") {
+          category = "Game Arena";
+          accent = "#22c55e";
+        }
+
+        items.push({
+          id: sub.id,
+          title: matchedAct?.title || `Challenge #${sub.challenge_id}`,
+          category,
+          time: subDate,
+          codeSnippet: sub.answer || "// Solved & Verified in Database",
+          status: "SOLVED ✓",
+          points: sub.points_earned || matchedAct?.points || 10,
+          accent,
+        });
+      });
+
+      // Process remaining glitch_activity items
+      activities.forEach((act) => {
+        let category = "Glitches";
+        let accent = "#00F0FF";
+        if (act.type === "debug") {
+          category = "Debug Mode";
+          accent = "#FF00C8";
+        } else if (act.type === "ai") {
+          category = "AI Challenge";
+          accent = "#a855f7";
+        } else if (act.type === "spark") {
+          category = "Creative Spark";
+          accent = "#f59e0b";
+        } else if (act.type === "arena") {
+          category = "Game Arena";
+          accent = "#22c55e";
+        }
+
+        const key = `${act.title}_${act.created_at}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          items.push({
+            id: act.id,
+            title: act.title || "Glitch Solved",
+            category,
+            time: act.created_at,
+            codeSnippet: `// Solved for +${act.points || 10} gBits`,
+            status: "SOLVED ✓",
+            points: act.points || 10,
+            accent,
+          });
+        }
+      });
+
+      items.sort((a, b) => new Date(b.time) - new Date(a.time));
+      setSolvedGlitches(items);
       setAvatarPreview(pd?.avatar_url || null);
       setEditForm({
         full_name: pd?.full_name || "",
@@ -902,86 +1029,72 @@ export default function YourProfile() {
 
           {/* Tab 1: My Creations & Solved Glitches */}
           {activeTab === "creations" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                {
-                  id: 1,
-                  title: "Async State Bugfix",
-                  category: "Web Dev",
-                  time: "Yesterday",
-                  codeSnippet: "const data = await fetchUserData();",
-                  status: "SOLVED ✓",
-                  accent: "#00F0FF",
-                },
-                {
-                  id: 2,
-                  title: "React Memory Leak Prevention",
-                  category: "Debug Mode",
-                  time: "3 days ago",
-                  codeSnippet: "return () => controller.abort();",
-                  status: "SOLVED ✓",
-                  accent: "#FF00C8",
-                },
-                {
-                  id: 3,
-                  title: "3-Stage Arena Challenge Entry",
-                  category: "Game Arena",
-                  time: "5 days ago",
-                  codeSnippet: "calculateUptimeScore();",
-                  status: "PASSED ✓",
-                  accent: "#22c55e",
-                },
-                {
-                  id: 4,
-                  title: "AI Prompt Optimization",
-                  category: "AI & ML",
-                  time: "1 week ago",
-                  codeSnippet: "aiClient.generate();",
-                  status: "SOLVED ✓",
-                  accent: "#a855f7",
-                },
-              ].map((item) => (
-                <motion.div
-                  key={item.id}
-                  whileHover={{ y: -3 }}
-                  className="bg-[#0d0d14] border border-white/10 rounded-xl p-4 flex flex-col justify-between group transition-all"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span
-                        className="text-[9px] font-bold px-2 py-0.5 rounded border"
-                        style={{
-                          color: item.accent,
-                          background: `${item.accent}15`,
-                          borderColor: `${item.accent}30`,
-                        }}
-                      >
-                        {item.category}
-                      </span>
-                      <span className="text-[10px] font-mono text-gray-500">
-                        {item.time}
-                      </span>
-                    </div>
+            <div>
+              {solvedGlitches.length === 0 ? (
+                <div className="p-8 text-center bg-[#0d0d14] border border-white/10 rounded-2xl">
+                  <FiCode className="mx-auto text-gray-500 mb-3" size={28} />
+                  <h3 className="text-sm font-bold text-white mb-1">
+                    No Solved Glitches Yet
+                  </h3>
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto mb-4 leading-relaxed font-sans">
+                    You haven't solved any challenges yet. Solve Glitches, Debug Mode, or AI Challenges to display your verified solutions here!
+                  </p>
+                  <a
+                    href="/glitches"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#FF00C8] text-white hover:bg-[#e000b0] transition shadow-md"
+                  >
+                    Explore Glitches <ArrowRight size={13} />
+                  </a>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {solvedGlitches.map((item) => (
+                    <motion.div
+                      key={item.id}
+                      whileHover={{ y: -3 }}
+                      className="bg-[#0d0d14] border border-white/10 rounded-xl p-4 flex flex-col justify-between group transition-all"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span
+                            className="text-[9px] font-bold px-2 py-0.5 rounded border"
+                            style={{
+                              color: item.accent,
+                              background: `${item.accent}15`,
+                              borderColor: `${item.accent}30`,
+                            }}
+                          >
+                            {item.category}
+                          </span>
+                          <span className="text-[10px] font-mono text-gray-400">
+                            {formatSolvedTime(item.time)}
+                          </span>
+                        </div>
 
-                    <h3 className="text-sm font-bold text-white mb-2 group-hover:text-[#00F0FF] transition-colors">
-                      {item.title}
-                    </h3>
+                        <h3 className="text-sm font-bold text-white mb-2 group-hover:text-[#00F0FF] transition-colors">
+                          {item.title}
+                        </h3>
 
-                    <div className="bg-[#07070d] border border-white/5 rounded-lg p-2.5 mb-3 font-mono text-xs text-green-400">
-                      <code>{item.codeSnippet}</code>
-                    </div>
-                  </div>
+                        <div className="bg-[#07070d] border border-white/5 rounded-lg p-2.5 mb-3 font-mono text-xs text-green-400 truncate">
+                          <code>{item.codeSnippet}</code>
+                        </div>
+                      </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                    <span className="text-xs font-bold text-[#22c55e]">
-                      {item.status}
-                    </span>
-                    <button className="text-xs font-bold text-[#FF00C8] hover:underline flex items-center gap-1 cursor-pointer">
-                      Inspect Solution <ArrowRight size={11} />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
+                      <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                        <span className="text-xs font-bold text-[#22c55e]">
+                          {item.status} (+{item.points} gBits)
+                        </span>
+                        <button
+                          onClick={() => setInspectModalItem(item)}
+                          className="text-xs font-bold text-[#FF00C8] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          Inspect Solution <ArrowRight size={11} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1014,6 +1127,70 @@ export default function YourProfile() {
           )}
         </main>
       </div>
+
+      {/* Solution Inspection Modal */}
+      <AnimatePresence>
+        {inspectModalItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setInspectModalItem(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#0d0d14] border border-white/15 rounded-2xl p-6 max-w-xl w-full shadow-2xl relative"
+            >
+              <button
+                onClick={() => setInspectModalItem(null)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white p-1 rounded-lg bg-white/5 hover:bg-white/10 transition"
+              >
+                <FiX size={16} />
+              </button>
+
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className="text-[10px] font-bold px-2.5 py-0.5 rounded border uppercase font-mono"
+                  style={{
+                    color: inspectModalItem.accent,
+                    background: `${inspectModalItem.accent}15`,
+                    borderColor: `${inspectModalItem.accent}30`,
+                  }}
+                >
+                  {inspectModalItem.category}
+                </span>
+                <span className="text-xs font-mono text-gray-400">
+                  {new Date(inspectModalItem.time).toLocaleString()}
+                </span>
+              </div>
+
+              <h2 className="text-lg font-bold text-white mb-2">
+                {inspectModalItem.title}
+              </h2>
+              <p className="text-xs text-gray-400 mb-4">
+                Status: <span className="text-green-400 font-bold">{inspectModalItem.status}</span> · Reward: <span className="text-[#00F0FF] font-bold">+{inspectModalItem.points} gBits</span>
+              </p>
+
+              <div className="text-xs font-mono text-gray-300 bg-[#070709] border border-white/10 rounded-xl p-4 overflow-x-auto max-h-60">
+                <pre className="text-green-400 whitespace-pre-wrap">{inspectModalItem.codeSnippet}</pre>
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  onClick={() => setInspectModalItem(null)}
+                  className="px-5 py-2 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/20 transition cursor-pointer"
+                >
+                  Close Inspection
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Footer />
     </div>
