@@ -43,6 +43,10 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
   });
   const [hoveredItem, setHoveredItem] = useState(null);
   const [currentXp, setCurrentXp] = useState(xp);
+  const [profileData, setProfileData] = useState({
+    username: "",
+    avatarUrl: avatarPreview,
+  });
 
   useEffect(() => {
     setCurrentXp(xp);
@@ -58,9 +62,57 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
     return () => window.removeEventListener("gbits_updated", handleGbitsUpdate);
   }, []);
 
-  const username =
-    user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSidebarProfile = async () => {
+      let name = user?.user_metadata?.full_name || user?.email?.split("@")[0];
+      let avatar = avatarPreview || user?.user_metadata?.avatar_url;
+
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUser = authData?.user;
+
+      if (currentUser) {
+        const { data: dbProfile } = await supabase
+          .from("profiles")
+          .select("full_name, username, avatar_url, points")
+          .eq("id", currentUser.id)
+          .maybeSingle();
+
+        if (dbProfile) {
+          name = dbProfile.full_name || dbProfile.username || name;
+          avatar = avatarPreview || dbProfile.avatar_url || avatar;
+          if (typeof dbProfile.points === "number" && !xp) {
+            setCurrentXp(dbProfile.points);
+          }
+        } else if (!name) {
+          name =
+            currentUser.user_metadata?.full_name ||
+            currentUser.email?.split("@")[0];
+        }
+      }
+
+      if (isMounted) {
+        setProfileData({
+          username: name || "User",
+          avatarUrl: avatar || null,
+        });
+      }
+    };
+
+    fetchSidebarProfile();
+
+    const handleProfileUpdate = () => fetchSidebarProfile();
+    window.addEventListener("profile_updated", handleProfileUpdate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("profile_updated", handleProfileUpdate);
+    };
+  }, [user, avatarPreview, xp]);
+
+  const username = profileData.username || "User";
   const initials = username.slice(0, 2).toUpperCase();
+  const avatarUrl = profileData.avatarUrl;
 
   const displayXp = currentXp;
   const level = getLevelFromXP(displayXp);
@@ -94,42 +146,36 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       }`}
     >
       {/* ── Top Toggle Control Bar ── */}
-      <div className="p-3 border-b border-white/10 flex items-center justify-between gap-2">
+      <div className="p-3 border-b border-white/10 flex items-center justify-between">
         {!isCollapsed && (
-          <span className="text-xs font-mono font-extrabold uppercase tracking-widest text-gray-400 pl-1">
+          <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-gray-400 pl-2">
             Navigation
           </span>
         )}
-
         <button
           onClick={toggleCollapse}
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          onMouseEnter={() => setHoveredItem("toggle_btn")}
-          onMouseLeave={() => setHoveredItem(null)}
-          className={`p-2 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/25 hover:border-[#00F0FF]/60 transition-all cursor-pointer shadow-md ${
-            isCollapsed ? "mx-auto" : ""
+          className={`p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-[#00F0FF] border border-white/10 transition-all duration-200 ${
+            isCollapsed ? "mx-auto" : "ml-auto"
           }`}
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
-          {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-
-          {/* Hover Tooltip in Collapsed Mode */}
-          {isCollapsed && hoveredItem === "toggle_btn" && (
-            <div className="fixed left-[86px] top-[20vh] z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-bold bg-[#0d0d14] border border-[#00F0FF]/40 text-[#00F0FF] shadow-2xl whitespace-nowrap">
-              Expand Sidebar
-            </div>
+          {isCollapsed ? (
+            <PanelLeftOpen size={18} />
+          ) : (
+            <PanelLeftClose size={18} />
           )}
         </button>
       </div>
 
-      {/* ── User Mini Card — Increased avatar (w-12 h-12), username & gBits text sizes ── */}
+      {/* ── User Mini Card ── */}
       <div className="p-4 border-b border-white/10">
         {!isCollapsed ? (
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="relative shrink-0">
               <div className="w-12 h-12 rounded-xl overflow-hidden ring-1 ring-white/15 shadow-md">
-                {avatarPreview ? (
+                {avatarUrl ? (
                   <img
-                    src={avatarPreview}
+                    src={avatarUrl}
                     alt="avatar"
                     className="w-full h-full object-cover"
                   />
@@ -158,9 +204,9 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             onMouseLeave={() => setHoveredItem(null)}
           >
             <div className="w-11 h-11 rounded-xl overflow-hidden ring-1 ring-white/15">
-              {avatarPreview ? (
+              {avatarUrl ? (
                 <img
-                  src={avatarPreview}
+                  src={avatarUrl}
                   alt="avatar"
                   className="w-full h-full object-cover"
                 />
@@ -176,7 +222,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             {hoveredItem === "profile_user" && (
               <div className="fixed left-[86px] top-[26vh] z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
                 <p className="font-bold text-white text-sm">{username}</p>
-                <p className="text-xs text-[#00F0FF] font-mono mt-0.5">
+                <p className="text-[#00F0FF] font-mono mt-0.5 text-xs font-semibold">
                   Level {level} · {displayXp} gBits
                 </p>
               </div>
@@ -185,72 +231,61 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
         )}
       </div>
 
-      {/* ── Nav links — Crisp, readable text-sm font-semibold ── */}
-      <nav className="p-3 flex-1 space-y-1">
-        {menuItems.map((item, i) => {
+      {/* ── Navigation Links ── */}
+      <nav className="p-3 space-y-1 flex-1">
+        {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
-          const isHovered = hoveredItem === item.name;
+          const isActive = item.path && location.pathname === item.path;
 
           if (item.danger) {
             return (
-              <div key={i} className="relative">
+              <div key="logout-wrapper" className="pt-3 border-t border-white/10">
                 <button
                   onClick={handleLogout}
                   onMouseEnter={() => setHoveredItem(item.name)}
                   onMouseLeave={() => setHoveredItem(null)}
-                  className={`w-full flex items-center gap-3.5 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-all cursor-pointer ${
-                    isCollapsed ? "justify-center px-0" : "px-3.5"
+                  className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-red-400 hover:text-red-300 hover:bg-red-500/10 ${
+                    isCollapsed ? "justify-center" : ""
                   }`}
                 >
                   <Icon size={18} className="shrink-0" />
                   {!isCollapsed && <span>{item.name}</span>}
                 </button>
-
-                {/* Collapsed Tooltip */}
-                {isCollapsed && isHovered && (
-                  <div className="fixed left-[84px] z-50 pointer-events-none px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#0d0d14] border border-red-500/30 text-red-400 shadow-2xl whitespace-nowrap">
-                    {item.name}
-                  </div>
-                )}
               </div>
             );
           }
 
           return (
-            <div key={i} className="relative">
+            <div key={item.path} className="relative">
               <Link
                 to={item.path}
                 onMouseEnter={() => setHoveredItem(item.name)}
                 onMouseLeave={() => setHoveredItem(null)}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  isCollapsed ? "justify-center" : ""
+                } ${
+                  isActive
+                    ? "bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30 shadow-lg shadow-[#00F0FF]/5"
+                    : "text-gray-300 hover:text-white hover:bg-white/5"
+                }`}
               >
-                <div
-                  className={`flex items-center gap-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                    isCollapsed ? "justify-center px-0" : "px-3.5"
-                  } ${
-                    isActive
-                      ? "bg-white/10 text-white border border-white/10 shadow-[0_0_12px_rgba(255,0,200,0.15)]"
-                      : "text-gray-300 hover:text-white hover:bg-white/[0.06]"
-                  }`}
-                >
+                <div className="flex items-center gap-3.5 min-w-0">
                   <Icon
                     size={18}
-                    className={`shrink-0 ${isActive ? "text-[#FF00C8]" : ""}`}
+                    className={`shrink-0 ${
+                      isActive ? "text-[#00F0FF]" : "text-gray-400"
+                    }`}
                   />
-                  {!isCollapsed && (
-                    <>
-                      <span className="flex-1 truncate">{item.name}</span>
-                      {isActive && (
-                        <ChevronRight size={14} className="text-gray-400 shrink-0" />
-                      )}
-                    </>
-                  )}
+                  {!isCollapsed && <span className="truncate">{item.name}</span>}
                 </div>
+                {!isCollapsed && isActive && (
+                  <ChevronRight size={14} className="text-[#00F0FF] shrink-0" />
+                )}
               </Link>
 
-              {/* Collapsed Tooltip */}
-              {isCollapsed && isHovered && (
-                <div className="fixed left-[84px] z-50 pointer-events-none px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
+              {/* Hover Tooltip when Collapsed */}
+              {isCollapsed && hoveredItem === item.name && (
+                <div className="fixed left-[86px] z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
                   {item.name}
                 </div>
               )}
@@ -259,13 +294,15 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
         })}
       </nav>
 
-      {/* ── gBits progress bar — Increased label font size to text-xs font-mono ── */}
-      <div className="p-4 border-t border-white/10">
+      {/* ── Level Progress Bar at Bottom ── */}
+      <div className="p-4 border-t border-white/10 bg-[#070709]">
         {!isCollapsed ? (
           <>
-            <div className="flex justify-between text-xs text-gray-300 mb-1.5 font-medium">
+            <div className="flex items-center justify-between text-xs text-gray-300 mb-1.5 font-medium">
               <span className="font-mono">gBits Progress</span>
-              <span className="font-mono font-bold text-[#FF00C8]">Lv {level}</span>
+              <span className="font-mono font-bold text-[#FF00C8]">
+                Lv {level}
+              </span>
             </div>
             <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-1.5">
               <motion.div
@@ -285,16 +322,16 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             onMouseEnter={() => setHoveredItem("progress")}
             onMouseLeave={() => setHoveredItem(null)}
           >
-            <div className="w-9 h-9 rounded-xl bg-[#FF00C8]/10 border border-[#FF00C8]/30 flex items-center justify-center text-[#FF00C8] text-xs font-mono font-bold">
+            <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] text-xs font-mono font-bold">
               L{level}
             </div>
-
-            {/* Hover Tooltip for Progress */}
             {hoveredItem === "progress" && (
-              <div className="fixed left-[84px] bottom-6 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
-                <p className="font-bold text-white">gBits Progress</p>
-                <p className="text-xs font-mono text-gray-400">
-                  {xp.toLocaleString()} / {nextLevelXP.toLocaleString()} gBits ({Math.round(progressPercent)}%)
+              <div className="fixed left-[86px] bottom-6 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
+                <p className="font-mono text-[#00F0FF]">
+                  Level {level} Progress: {Math.round(progressPercent)}%
+                </p>
+                <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                  {displayXp} / {nextLevelXP} gBits
                 </p>
               </div>
             )}
