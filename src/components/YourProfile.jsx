@@ -267,7 +267,7 @@ export default function YourProfile() {
       setAuthUser(userData?.user);
       if (!userId) return;
 
-      const [profileRes, pointsRes, postsRes, submissionsRes, activityRes] =
+      const [profileRes, pointsRes, postsRes, commentsRes, submissionsRes, activityRes] =
         await Promise.all([
           supabase.from("profiles").select("*").eq("id", userId).single(),
           supabase
@@ -278,6 +278,11 @@ export default function YourProfile() {
           supabase
             .from("community_posts")
             .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("community_comments")
+            .select("*, community_posts(title)")
             .eq("user_id", userId)
             .order("created_at", { ascending: false }),
           supabase
@@ -305,7 +310,35 @@ export default function YourProfile() {
         banner_url: bannerUrl,
         points: pointsRes.data?.points || 0,
       });
-      setUserPosts(postsRes.data || []);
+
+      // Combine user's real posts and comments into userDiscussions list
+      const rawPosts = postsRes.data || [];
+      const rawComments = commentsRes.data || [];
+
+      const discussions = [
+        ...rawPosts.map((p) => ({
+          id: p.id,
+          type: "post",
+          title: p.title || "Untitled Discussion",
+          content: p.content || "",
+          category: p.category || "Discussion",
+          created_at: p.created_at,
+          upvotes: p.upvotes || 0,
+        })),
+        ...rawComments.map((c) => ({
+          id: c.id,
+          postId: c.post_id,
+          type: "comment",
+          title: `Commented on: ${c.community_posts?.title || "Discussion"}`,
+          content: c.content || "",
+          category: "Comment",
+          created_at: c.created_at,
+          upvotes: 0,
+        })),
+      ];
+
+      discussions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setUserPosts(discussions);
 
       // Build real solved glitches directly from database records
       const submissions = submissionsRes.data || [];
@@ -1102,25 +1135,50 @@ export default function YourProfile() {
           {activeTab === "community" && (
             <div className="space-y-3">
               {userPosts.length === 0 ? (
-                <div className="p-8 text-center bg-[#0d0d14] border border-white/10 rounded-xl">
-                  <FiMessageSquare className="mx-auto text-gray-600 mb-2" size={24} />
-                  <p className="text-gray-400 text-xs font-semibold">No discussions posted yet.</p>
-                  <p className="text-gray-600 text-[11px] mt-1">Join the community feed to start discussions!</p>
+                <div className="p-8 text-center bg-[#0d0d14] border border-white/10 rounded-2xl">
+                  <FiMessageSquare className="mx-auto text-gray-500 mb-3" size={28} />
+                  <h3 className="text-sm font-bold text-white mb-1">
+                    No Forum Discussions Yet
+                  </h3>
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto mb-4 leading-relaxed font-sans">
+                    You haven't posted any topics or comments in the forum yet. Visit the Community Feed to join developer discussions!
+                  </p>
+                  <a
+                    href="/community"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#FF00C8] text-white hover:bg-[#e000b0] transition shadow-md"
+                  >
+                    Visit Community Feed <ArrowRight size={13} />
+                  </a>
                 </div>
               ) : (
                 userPosts.map((post) => (
-                  <div
+                  <motion.div
                     key={post.id}
-                    className="p-4 bg-[#0d0d14] border border-white/10 rounded-xl flex flex-col gap-2"
+                    whileHover={{ y: -2 }}
+                    className="p-4 bg-[#0d0d14] border border-white/10 rounded-xl flex flex-col gap-2 transition-all"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-white">{post.title}</span>
-                      <span className="text-[10px] font-mono text-gray-500">
-                        {new Date(post.created_at).toLocaleDateString()}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded border border-[#FF00C8]/30 bg-[#FF00C8]/10 text-[#FF00C8] shrink-0 font-mono">
+                          {post.category}
+                        </span>
+                        <a
+                          href={`/community`}
+                          className="text-xs sm:text-sm font-bold text-white hover:text-[#00F0FF] transition truncate"
+                        >
+                          {post.title}
+                        </a>
+                      </div>
+                      <span className="text-[10px] font-mono text-gray-400 shrink-0">
+                        {formatSolvedTime(post.created_at)}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 line-clamp-2">{post.content}</p>
-                  </div>
+                    {post.content && (
+                      <p className="text-xs text-gray-300 font-sans line-clamp-2 leading-relaxed bg-[#070709] p-2.5 rounded-lg border border-white/5">
+                        {post.content}
+                      </p>
+                    )}
+                  </motion.div>
                 ))
               )}
             </div>
