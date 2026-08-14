@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
+import { linkReferralSignup } from "../utils/referralHelper";
 import {
   FiUser,
   FiMail,
@@ -55,7 +56,7 @@ const AuthModal = ({ isOpen, onClose }) => {
       }
     } else {
       const fullName = e.target.fullName.value;
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { full_name: fullName } },
@@ -65,6 +66,22 @@ const AuthModal = ({ isOpen, onClose }) => {
         setError(error.message);
         return;
       }
+
+      // Automatically link pending referral if invited with a code
+      const newUserId = signUpData?.user?.id;
+      const storedRefCode =
+        localStorage.getItem("glitch_ref_code") ||
+        new URLSearchParams(window.location.search).get("ref");
+
+      if (newUserId && storedRefCode) {
+        try {
+          await linkReferralSignup(newUserId, storedRefCode);
+          localStorage.removeItem("glitch_ref_code");
+        } catch (e) {
+          console.error("Link referral signup error:", e);
+        }
+      }
+
       resetState();
       onClose();
     }

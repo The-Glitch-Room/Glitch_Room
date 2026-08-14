@@ -119,10 +119,23 @@ export const checkAndAwardReferralBonus = async (inviteeId) => {
     }
 
     // Award +100 gBits to referrer
+    if (pending.referrer_id) {
+      await updatePoints(
+        100,
+        "Invite a Glitcher Referral Bonus (+100)",
+        "bonus",
+        null,
+        pending.referrer_id
+      );
+    }
+
+    // Award +25 gBits welcome bonus to invitee
     await updatePoints(
-      100,
-      "Invite a Glitcher Referral Bonus (+100)",
-      "bonus"
+      25,
+      "Welcome Referral Bonus (+25)",
+      "bonus",
+      null,
+      inviteeId
     );
 
     return {
