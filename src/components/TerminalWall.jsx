@@ -409,63 +409,107 @@ const TerminalWall = () => {
 
   const fetchLiveRankings = async () => {
     setLoadingLive(true);
-    const dateFrom = getRangeFilter(filter);
 
-    let query = supabase.from("arena_completions").select("*");
-    if (dateFrom) {
-      query = query.gte("completed_date", dateFrom);
-    }
-
-    const { data: rawCompletions, error } = await query;
-
-    if (error || !rawCompletions) {
-      console.error("Terminal Wall fetch error:", error);
-      setEntries([]);
-      setLoadingLive(false);
-      return;
-    }
-
-    const userIds = Array.from(
-      new Set(rawCompletions.map((r) => r.user_id))
-    ).filter(Boolean);
-
-    let profilesMap = {};
-    if (userIds.length > 0) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, user_id, username, full_name, avatar_url")
-        .in("id", userIds);
-
-      (profs || []).forEach((p) => {
-        const uId = p.id || p.user_id;
-        if (uId) profilesMap[uId] = p;
-      });
-    }
-
-    const map = {};
-    rawCompletions.forEach((row) => {
-      const uid = row.user_id;
-      const prof = profilesMap[uid];
-      if (!map[uid]) {
-        map[uid] = {
-          user_id: uid,
-          username: prof?.username || prof?.full_name || "Anonymous",
-          full_name: prof?.full_name || "",
-          avatar_url: prof?.avatar_url || null,
-          total_score: 0,
-          events_completed: 0,
-        };
+    try {
+      let isoStart = null;
+      if (filter === "daily") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        isoStart = today.toISOString();
+      } else if (filter === "weekly") {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        isoStart = weekAgo.toISOString();
       }
-      map[uid].total_score += row.score || 0;
-      map[uid].events_completed += 1;
-    });
 
-    const sorted = Object.values(map)
-      .sort((a, b) => b.total_score - a.total_score)
-      .slice(0, 50);
+      const map = {};
 
-    setEntries(sorted);
-    setLoadingLive(false);
+      if (!isoStart) {
+        // "All Time": fetch profiles directly ordered by points
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, user_id, username, full_name, avatar_url, points")
+          .order("points", { ascending: false })
+          .limit(50);
+
+        (profs || []).forEach((p) => {
+          const uid = p.id || p.user_id;
+          if (uid && (p.points || 0) > 0) {
+            map[uid] = {
+              user_id: uid,
+              username: p.username || p.full_name || "Anonymous",
+              full_name: p.full_name || "",
+              avatar_url: p.avatar_url || null,
+              total_score: p.points || 0,
+              events_completed: 1,
+            };
+          }
+        });
+      } else {
+        // "Today" or "This Week": aggregate glitch_activity + arena_completions
+        const [actRes, arenaRes] = await Promise.all([
+          supabase
+            .from("glitch_activity")
+            .select("user_id, points, created_at")
+            .gte("created_at", isoStart),
+          supabase
+            .from("arena_completions")
+            .select("user_id, score, completed_at")
+            .gte("completed_at", isoStart),
+        ]);
+
+        const rawActs = actRes.data || [];
+        const rawArena = arenaRes.data || [];
+
+        rawActs.forEach((row) => {
+          const uid = row.user_id;
+          if (!uid) return;
+          if (!map[uid]) {
+            map[uid] = { user_id: uid, total_score: 0, events_completed: 0 };
+          }
+          map[uid].total_score += row.points || 0;
+          map[uid].events_completed += 1;
+        });
+
+        rawArena.forEach((row) => {
+          const uid = row.user_id;
+          if (!uid) return;
+          if (!map[uid]) {
+            map[uid] = { user_id: uid, total_score: 0, events_completed: 0 };
+          }
+          map[uid].total_score += row.score || 0;
+          map[uid].events_completed += 1;
+        });
+
+        const userIds = Object.keys(map);
+        if (userIds.length > 0) {
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("id, user_id, username, full_name, avatar_url")
+            .in("id", userIds);
+
+          (profs || []).forEach((p) => {
+            const uId = p.id || p.user_id;
+            if (uId && map[uId]) {
+              map[uId].username = p.username || p.full_name || "Anonymous";
+              map[uId].full_name = p.full_name || "";
+              map[uId].avatar_url = p.avatar_url || null;
+            }
+          });
+        }
+      }
+
+      const sorted = Object.values(map)
+        .sort((a, b) => b.total_score - a.total_score)
+        .slice(0, 50);
+
+      setEntries(sorted);
+    } catch (err) {
+      console.error("fetchLiveRankings error:", err);
+      setEntries([]);
+    } finally {
+      setLoadingLive(false);
+    }
   };
 
   // ── Fetch All-Time Legends (Fail-Safe 2-Step Query Pattern) ──
