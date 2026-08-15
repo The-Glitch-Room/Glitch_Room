@@ -19,13 +19,14 @@ import {
   Clock,
   TrendingUp,
   Tag,
+  Filter,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
 
 // ── Categories ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { id: "all", label: "All", color: "#ffffff", emoji: "🌐" },
+  { id: "all", label: "All Topics", color: "#ffffff", emoji: "🌐" },
   { id: "general", label: "General", color: "#00F0FF", emoji: "💬" },
   { id: "glitch", label: "Glitch Help", color: "#FF00C8", emoji: "⚡" },
   { id: "ai", label: "AI & ML", color: "#a855f7", emoji: "🤖" },
@@ -98,7 +99,7 @@ const MarkdownBody = ({ content }) => (
           href={href}
           target="_blank"
           rel="noreferrer"
-          className="text-[#00F0FF] hover:underline"
+          className="text-[#00F0FF] underline hover:text-[#00F0FF]/80 transition"
         >
           {children}
         </a>
@@ -114,56 +115,49 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("general");
-  const [mode, setMode] = useState("text"); // text | code | image
   const [imageUrl, setImageUrl] = useState("");
+  const [mode, setMode] = useState("text"); // text | code | image
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!title.trim()) {
-      setError("Title is required.");
+      setError("Please add a title to your post.");
       return;
     }
-    if (!body.trim() && mode !== "image") {
-      setError("Post body is required.");
-      return;
-    }
+
     if (containsProfanity(title) || containsProfanity(body)) {
       setError(PROFANITY_ERROR_MSG);
       return;
     }
+
     setSubmitting(true);
     setError("");
 
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("username, full_name, avatar_url")
-      .eq("id", user.id)
-      .single();
-
-    const { error: insertErr } = await supabase.from("community_posts").insert({
-      user_id: user.id,
-      username:
-        profileData?.username ||
-        profileData?.full_name ||
-        user.email?.split("@")[0],
-      avatar_url: profileData?.avatar_url || null,
+    const postData = {
+      user_id: user?.id,
       title: title.trim(),
-      body: mode !== "image" ? body.trim() : "",
-      image_url: mode === "image" ? imageUrl.trim() : null,
-      code: mode === "code" ? body.trim() : null,
       category,
+      body: mode === "text" ? body.trim() : null,
+      code: mode === "code" ? body.trim() : null,
+      image_url: mode === "image" ? imageUrl.trim() : null,
       likes: 0,
-      created_at: new Date().toISOString(),
-    });
+    };
+
+    const { error: err } = await supabase
+      .from("community_posts")
+      .insert([postData]);
 
     setSubmitting(false);
-    if (insertErr) {
-      setError(insertErr.message);
-      return;
+
+    if (err) {
+      setError("Failed to create post. Please try again.");
+      console.error(err);
+    } else {
+      onCreated();
+      onClose();
     }
-    onCreated();
-    onClose();
   };
 
   return (
@@ -171,15 +165,14 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
-        initial={{ scale: 0.93, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        transition={{ duration: 0.25 }}
-        className="relative bg-[#0a0a0e] border border-white/8 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative w-full max-w-xl bg-[#0c0c14] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
       >
         {/* Top glow bar */}
         <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
@@ -188,13 +181,13 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-black text-white">Create a Post</h2>
-              <p className="text-gray-600 text-xs mt-0.5">
+              <p className="text-gray-400 text-xs mt-0.5">
                 Share with the community
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-600 hover:text-white transition cursor-pointer"
+              className="text-gray-400 hover:text-white transition cursor-pointer"
             >
               <X size={18} />
             </button>
@@ -280,32 +273,31 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="What's on your mind?"
+              placeholder="Write your post content... (Markdown supported)"
               rows={5}
               className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF00C8]/40 transition mb-4 resize-none"
             />
           )}
 
-          {mode === "text" && (
-            <p className="text-[10px] text-gray-600 mb-3">
-              Supports **bold**, *italic*, ## headings, `code`, and - lists
+          {error && (
+            <p className="text-red-400 text-xs font-mono mb-4 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-xl">
+              {error}
             </p>
           )}
 
-          {error && <p className="text-red-400 text-xs mb-4">{error}</p>}
-
           <div className="flex justify-end gap-3">
             <button
+              type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl bg-white/5 text-gray-400 text-sm font-semibold hover:bg-white/8 transition cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-white/5 text-gray-400 text-xs font-semibold hover:bg-white/10 transition cursor-pointer"
             >
               Cancel
             </button>
             <motion.button
-              onClick={handleSubmit}
-              disabled={submitting}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
+              onClick={handleSubmit}
+              disabled={submitting}
               className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-sm font-bold disabled:opacity-50 cursor-pointer"
             >
               {submitting ? "Posting..." : "Post it ✦"}
@@ -364,7 +356,7 @@ const PostCard = ({ post, onLike, onClick, likedIds }) => {
             <span className="text-white text-xs font-semibold truncate block">
               {post.username}
             </span>
-            <span className="text-gray-600 text-[10px]">
+            <span className="text-gray-500 text-[10px]">
               {timeAgo(post.created_at)}
             </span>
           </div>
@@ -518,12 +510,6 @@ const Community = () => {
       };
     });
 
-    if (sort === "hot") {
-      results.sort(
-        (a, b) => b.likes + b.comment_count * 2 - (a.likes + a.comment_count * 2)
-      );
-    }
-
     setPosts(results);
 
     const stored = JSON.parse(localStorage.getItem("liked_posts") || "[]");
@@ -570,132 +556,162 @@ const Community = () => {
     <div className="min-h-screen bg-[#06060c] text-white flex flex-col font-sans">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-28 pb-20 flex-1 w-full">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
-          <div>
-            <PageHeading
-              badge="Community"
-              title="The Glitch Lounge"
-              description="Discuss challenges, showcase builds, and learn together."
-            />
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => {
-              if (!user) navigate("/");
-              else setShowCreate(true);
-            }}
-            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white font-bold text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(255,0,200,0.3)] shrink-0 cursor-pointer"
-          >
-            <Plus size={16} />
-            <span>Create Post</span>
-          </motion.button>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-32 pb-20 flex-1 w-full">
+        {/* Centered Page Heading */}
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <PageHeading
+            eyebrow="COMMUNITY FEED"
+            title="The Glitch Lounge"
+            subtitle="Discuss challenges, showcase builds, ask for help, and learn together with fellow developers."
+            align="center"
+            accent="cyan"
+            size="xl"
+          />
         </div>
 
-        {/* Category Pills & Sort Bar */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 mb-8">
-          <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-none">
-            {CATEGORIES.map((cat) => {
-              const active = category === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setCategory(cat.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition cursor-pointer shrink-0 border ${
-                    active
-                      ? "bg-white/10 text-white border-white/20 shadow-sm"
-                      : "bg-[#0b0b12] text-gray-500 border-white/5 hover:border-white/10 hover:text-gray-300"
-                  }`}
-                >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
+        {/* 2-Column Layout: Topics Sidebar on Left + Posts Feed on Right */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+          {/* LEFT SIDEBAR: Topics & Search */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Topics/Categories Box */}
+            <div className="bg-[#0c0c14] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
+              <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-white/10">
+                <Tag size={14} className="text-[#FF00C8]" />
+                <span>Topics & Categories</span>
+              </h3>
 
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 sm:w-64">
-              <Search
-                size={14}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"
-              />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={handleSearch}
-                placeholder="Search posts..."
-                className="w-full bg-[#0b0b12] border border-white/6 rounded-2xl pl-9 pr-4 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#00F0FF]/40 transition"
-              />
+              <div className="space-y-1.5">
+                {CATEGORIES.map((cat) => {
+                  const active = category === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setCategory(cat.id)}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                        active
+                          ? "bg-white/10 text-white border-white/20 shadow-sm"
+                          : "bg-transparent text-gray-400 border-transparent hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-sm">{cat.emoji}</span>
+                        <span>{cat.label}</span>
+                      </div>
+                      {active && (
+                        <span className="w-2 h-2 rounded-full bg-[#00F0FF]" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="flex items-center gap-1 bg-[#0b0b12] border border-white/6 p-1 rounded-2xl">
-              {SORT_OPTIONS.map((s) => {
-                const Icon = s.icon;
-                const active = sort === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => setSort(s.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                      active
-                        ? "bg-white/10 text-white"
-                        : "text-gray-500 hover:text-gray-300"
-                    }`}
-                  >
-                    <Icon size={12} />
-                    <span>{s.label}</span>
-                  </button>
-                );
-              })}
+            {/* Search Box */}
+            <div className="bg-[#0c0c14] border border-white/10 rounded-2xl p-5 shadow-xl space-y-3">
+              <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-white/10">
+                <Search size={14} className="text-[#00F0FF]" />
+                <span>Search Community</span>
+              </h3>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={handleSearch}
+                  placeholder="Search posts..."
+                  className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#00F0FF]/50 transition font-sans"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Posts Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <div
-                key={n}
-                className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 h-48 animate-pulse"
-              />
-            ))}
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="text-center py-20 bg-[#0f0f13] border border-white/5 rounded-3xl">
-            <p className="text-4xl mb-3">💬</p>
-            <p className="text-white font-bold text-base mb-1">
-              No posts found
-            </p>
-            <p className="text-gray-500 text-xs mb-6">
-              Be the first to share something in this category!
-            </p>
-            {user && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold hover:bg-purple-600/40 transition cursor-pointer"
+          {/* RIGHT COLUMN: Posts Feed & Feed Controls */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Top Feed Bar: Sort Pills + Create Post CTA */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0c0c14] border border-white/10 rounded-2xl p-4 shadow-xl">
+              {/* Sort Options */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-gray-500 mr-1">
+                  Sort:
+                </span>
+                {SORT_OPTIONS.map((s) => {
+                  const Icon = s.icon;
+                  const active = sort === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setSort(s.id)}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
+                        active
+                          ? "bg-white/10 text-white border-white/20 shadow-sm"
+                          : "bg-transparent text-gray-400 border-transparent hover:text-white"
+                      }`}
+                    >
+                      <Icon size={13} />
+                      <span>{s.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Create Post Button */}
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  if (!user) navigate("/");
+                  else setShowCreate(true);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#FF00C8]/20 cursor-pointer shrink-0"
               >
-                Create a Post
-              </button>
+                <Plus size={15} />
+                <span>Create Post</span>
+              </motion.button>
+            </div>
+
+            {/* Posts Feed Grid */}
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {[1, 2, 3, 4].map((n) => (
+                  <div
+                    key={n}
+                    className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 h-48 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : posts.length === 0 ? (
+              <div className="text-center py-20 bg-[#0c0c14] border border-white/10 rounded-3xl p-8">
+                <p className="text-4xl mb-3">💬</p>
+                <p className="text-white font-bold text-base mb-1">
+                  No posts found
+                </p>
+                <p className="text-gray-400 text-xs mb-6">
+                  Be the first to share something in this topic!
+                </p>
+                {user && (
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold hover:bg-purple-600/40 transition cursor-pointer"
+                  >
+                    Create a Post
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {posts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    onLike={handleLike}
+                    likedIds={likedIds}
+                    onClick={(p) => navigate(`/community/${p.id}`)}
+                  />
+                ))}
+              </div>
             )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onLike={handleLike}
-                likedIds={likedIds}
-                onClick={(p) => navigate(`/community/${p.id}`)}
-              />
-            ))}
-          </div>
-        )}
+        </div>
       </main>
 
       <AnimatePresence>
