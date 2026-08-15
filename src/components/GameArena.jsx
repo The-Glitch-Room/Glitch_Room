@@ -29,7 +29,7 @@ const GameArena = () => {
         <Navbar />
 
       {/* ── HERO ── */}
-      <section className="relative pt-36 pb-16 px-6 overflow-hidden">
+      <section className="relative pt-36 md:pt-44 pb-12 px-6 mb-8 md:mb-16 text-center">
         {/* Animated Cyber Grid */}
         <div
           className="absolute inset-0 z-0 opacity-10 pointer-events-none"
@@ -37,14 +37,6 @@ const GameArena = () => {
             backgroundImage: `linear-gradient(rgba(0,240,255,0.2) 1px, transparent 1px),
                               linear-gradient(90deg, rgba(0,240,255,0.2) 1px, transparent 1px)`,
             backgroundSize: "60px 60px",
-          }}
-        />
-        {/* Ambient Glow */}
-        <div
-          className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full blur-3xl opacity-15 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse, #FF00C8, #00F0FF, transparent)",
           }}
         />
 
@@ -79,7 +71,7 @@ const GameArena = () => {
       </section>
 
       {/* ── EVENT OVERVIEW & 3-STAGE BREAKDOWN ── */}
-      <section className="max-w-6xl mx-auto px-6 pb-16 w-full">
+      <section className="max-w-6xl mx-auto px-6 pb-20 w-full">
         <motion.div
           initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
