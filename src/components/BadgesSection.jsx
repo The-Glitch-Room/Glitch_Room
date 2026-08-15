@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
 import { MASTER_BADGES, RARITY_THEMES } from "../data/badgesMaster";
 import { checkAndAwardBadges } from "../utils/badgeEngine";
-import { X, Lock, CheckCircle2, Trophy, ShieldCheck, Sparkles, AlertCircle } from "lucide-react";
+import { X, Lock, CheckCircle2, Trophy, ShieldCheck, Sparkles, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function BadgesSection({ userId }) {
   const [earnedMap, setEarnedMap] = useState({}); // badgeId -> earned_at
@@ -30,6 +30,24 @@ export default function BadgesSection({ userId }) {
   const [rarityFilter, setRarityFilter] = useState("all");
   const [selectedBadge, setSelectedBadge] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Pagination / Row expansion state
+  const [visibleEarnedRows, setVisibleEarnedRows] = useState(2);
+  const [visibleLockedRows, setVisibleLockedRows] = useState(2);
+  const [cols, setCols] = useState(5);
+
+  useEffect(() => {
+    const updateCols = () => {
+      const w = window.innerWidth;
+      if (w >= 1024) setCols(5);
+      else if (w >= 768) setCols(4);
+      else if (w >= 640) setCols(3);
+      else setCols(2);
+    };
+    updateCols();
+    window.addEventListener("resize", updateCols);
+    return () => window.removeEventListener("resize", updateCols);
+  }, []);
 
   const fetchBadgeData = async () => {
     setLoading(true);
@@ -192,6 +210,21 @@ export default function BadgesSection({ userId }) {
   const totalBadgesCount = MASTER_BADGES.length;
   const overallPercent = Math.round((totalUnlockedCount / totalBadgesCount) * 100);
 
+  // Dynamic row slicing
+  const maxEarnedVisible = visibleEarnedRows * cols;
+  const displayedEarnedList = earnedBadgesList.slice(0, maxEarnedVisible);
+  const hasMoreEarned = earnedBadgesList.length > maxEarnedVisible;
+
+  const maxLockedVisible = visibleLockedRows * cols;
+  const displayedLockedList = lockedBadgesList.slice(0, maxLockedVisible);
+  const hasMoreLocked = lockedBadgesList.length > maxLockedVisible;
+
+  const handleFilterChange = (r) => {
+    setRarityFilter(r);
+    setVisibleEarnedRows(2);
+    setVisibleLockedRows(2);
+  };
+
   if (loading) {
     return (
       <div className="py-12 text-center flex flex-col items-center justify-center gap-3">
@@ -233,7 +266,7 @@ export default function BadgesSection({ userId }) {
       {/* ── Rarity Filter Bar (ALL, COMMON, RARE, EPIC, LEGENDARY) ── */}
       <div className="flex flex-wrap items-center gap-2">
         <button
-          onClick={() => setRarityFilter("all")}
+          onClick={() => handleFilterChange("all")}
           className={`px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer border ${
             rarityFilter === "all"
               ? "bg-[#FF00C8] text-white border-[#FF00C8] shadow-[0_0_12px_rgba(255,0,200,0.3)]"
@@ -250,7 +283,7 @@ export default function BadgesSection({ userId }) {
           return (
             <button
               key={key}
-              onClick={() => setRarityFilter(key)}
+              onClick={() => handleFilterChange(key)}
               className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer border"
               style={{
                 background: active ? theme.bg : "rgba(255,255,255,0.03)",
@@ -281,62 +314,89 @@ export default function BadgesSection({ userId }) {
             <p className="text-[11px] text-gray-600 mt-1">Complete glitch challenges and daily streaks to earn badges!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-            {earnedBadgesList.map((badge) => {
-              const theme = RARITY_THEMES[badge.rarity] || RARITY_THEMES.common;
-              const Icon = badge.icon || Zap;
-              const earnedAt = earnedMap[badge.id];
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+              {displayedEarnedList.map((badge) => {
+                const theme = RARITY_THEMES[badge.rarity] || RARITY_THEMES.common;
+                const Icon = badge.icon || Zap;
+                const earnedAt = earnedMap[badge.id];
 
-              return (
-                <motion.div
-                  key={badge.id}
-                  whileHover={{ y: -4, scale: 1.02 }}
-                  onClick={() => setSelectedBadge(badge)}
-                  className="relative p-4 rounded-2xl bg-[#0d0d14] border flex flex-col items-center text-center cursor-pointer transition-all shadow-lg overflow-hidden group"
-                  style={{
-                    borderColor: theme.border,
-                    boxShadow: `0 0 18px ${theme.glow}`,
-                  }}
+                return (
+                  <motion.div
+                    key={badge.id}
+                    whileHover={{ y: -4, scale: 1.02 }}
+                    onClick={() => setSelectedBadge(badge)}
+                    className="relative p-4 rounded-2xl bg-[#0d0d14] border flex flex-col items-center text-center cursor-pointer transition-all shadow-lg overflow-hidden group"
+                    style={{
+                      borderColor: theme.border,
+                      boxShadow: `0 0 18px ${theme.glow}`,
+                    }}
+                  >
+                    {/* Top neon indicator line */}
+                    <div
+                      className="absolute top-0 left-0 right-0 h-[2px]"
+                      style={{ background: theme.color }}
+                    />
+
+                    {/* Icon Ring */}
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 mt-1 transition-transform group-hover:scale-110"
+                      style={{
+                        background: theme.bg,
+                        border: `1px solid ${theme.border}`,
+                      }}
+                    >
+                      <Icon size={22} style={{ color: theme.color }} />
+                    </div>
+
+                    <p className="text-xs font-bold text-white mb-1 line-clamp-1">
+                      {badge.title}
+                    </p>
+
+                    <span
+                      className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full mb-2 font-mono"
+                      style={{
+                        color: theme.color,
+                        background: theme.bg,
+                        border: `1px solid ${theme.border}`,
+                      }}
+                    >
+                      {theme.label}
+                    </span>
+
+                    <span className="text-[9px] font-mono text-[#22c55e] flex items-center gap-1 mt-auto">
+                      <CheckCircle2 size={10} /> UNLOCKED
+                    </span>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Show More / Show Less for Earned Badges */}
+            {hasMoreEarned ? (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={() => setVisibleEarnedRows((prev) => prev + 2)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:border-[#22c55e]/40 hover:bg-[#22c55e]/10 text-xs font-bold font-mono text-gray-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer group"
                 >
-                  {/* Top neon indicator line */}
-                  <div
-                    className="absolute top-0 left-0 right-0 h-[2px]"
-                    style={{ background: theme.color }}
-                  />
-
-                  {/* Icon Ring */}
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 mt-1 transition-transform group-hover:scale-110"
-                    style={{
-                      background: theme.bg,
-                      border: `1px solid ${theme.border}`,
-                    }}
+                  <span>Show More Earned (+{earnedBadgesList.length - maxEarnedVisible} remaining)</span>
+                  <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform text-[#22c55e]" />
+                </button>
+              </div>
+            ) : (
+              visibleEarnedRows > 2 && earnedBadgesList.length > cols * 2 && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={() => setVisibleEarnedRows(2)}
+                    className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-xs font-bold font-mono text-gray-400 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
                   >
-                    <Icon size={22} style={{ color: theme.color }} />
-                  </div>
-
-                  <p className="text-xs font-bold text-white mb-1 line-clamp-1">
-                    {badge.title}
-                  </p>
-
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full mb-2 font-mono"
-                    style={{
-                      color: theme.color,
-                      background: theme.bg,
-                      border: `1px solid ${theme.border}`,
-                    }}
-                  >
-                    {theme.label}
-                  </span>
-
-                  <span className="text-[9px] font-mono text-[#22c55e] flex items-center gap-1 mt-auto">
-                    <CheckCircle2 size={10} /> UNLOCKED
-                  </span>
-                </motion.div>
-              );
-            })}
-          </div>
+                    <span>Show Less</span>
+                    <ChevronUp size={14} />
+                  </button>
+                </div>
+              )
+            )}
+          </>
         )}
       </div>
 
@@ -355,63 +415,90 @@ export default function BadgesSection({ userId }) {
             <p className="text-xs text-white font-bold">Incredible! All badges in this tier unlocked!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-            {lockedBadgesList.map((badge) => {
-              const theme = RARITY_THEMES[badge.rarity] || RARITY_THEMES.common;
-              const Icon = badge.icon || Zap;
-              const prog = getBadgeProgress(badge);
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+              {displayedLockedList.map((badge) => {
+                const theme = RARITY_THEMES[badge.rarity] || RARITY_THEMES.common;
+                const Icon = badge.icon || Zap;
+                const prog = getBadgeProgress(badge);
 
-              return (
-                <motion.div
-                  key={badge.id}
-                  whileHover={{ y: -2 }}
-                  onClick={() => setSelectedBadge(badge)}
-                  className="relative p-4 rounded-2xl bg-[#09090d]/80 border border-white/5 flex flex-col items-center text-center cursor-pointer transition-all opacity-70 hover:opacity-100 hover:border-white/20 overflow-hidden"
-                >
-                  {/* Lock Overlay Badge */}
-                  <div className="absolute top-2.5 right-2.5 text-gray-500">
-                    <Lock size={12} />
-                  </div>
-
-                  {/* Monochromatic Icon */}
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 mb-3 mt-1 text-gray-400">
-                    <Icon size={20} />
-                  </div>
-
-                  <p className="text-xs font-bold text-gray-300 mb-1 line-clamp-1">
-                    {badge.title}
-                  </p>
-
-                  <span
-                    className="text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full mb-3 font-mono opacity-80"
-                    style={{
-                      color: theme.color,
-                      background: theme.bg,
-                      border: `1px solid ${theme.border}`,
-                    }}
+                return (
+                  <motion.div
+                    key={badge.id}
+                    whileHover={{ y: -2 }}
+                    onClick={() => setSelectedBadge(badge)}
+                    className="relative p-4 rounded-2xl bg-[#09090d]/80 border border-white/5 flex flex-col items-center text-center cursor-pointer transition-all opacity-70 hover:opacity-100 hover:border-white/20 overflow-hidden"
                   >
-                    {theme.label}
-                  </span>
+                    {/* Lock Overlay Badge */}
+                    <div className="absolute top-2.5 right-2.5 text-gray-500">
+                      <Lock size={12} />
+                    </div>
 
-                  {/* Progress bar inside card */}
-                  <div className="w-full mt-auto">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-gray-500 mb-1">
-                      <span>Progress</span>
-                      <span>
-                        {prog.current}/{prog.target}
-                      </span>
+                    {/* Monochromatic Icon */}
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 mb-3 mt-1 text-gray-400">
+                      <Icon size={20} />
                     </div>
-                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gray-500"
-                        style={{ width: `${prog.percent}%` }}
-                      />
+
+                    <p className="text-xs font-bold text-gray-300 mb-1 line-clamp-1">
+                      {badge.title}
+                    </p>
+
+                    <span
+                      className="text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full mb-3 font-mono opacity-80"
+                      style={{
+                        color: theme.color,
+                        background: theme.bg,
+                        border: `1px solid ${theme.border}`,
+                      }}
+                    >
+                      {theme.label}
+                    </span>
+
+                    {/* Progress bar inside card */}
+                    <div className="w-full mt-auto">
+                      <div className="flex justify-between items-center text-[9px] font-mono text-gray-500 mb-1">
+                        <span>Progress</span>
+                        <span>
+                          {prog.current}/{prog.target}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gray-500"
+                          style={{ width: `${prog.percent}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Show More / Show Less for Locked Collection */}
+            {hasMoreLocked ? (
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={() => setVisibleLockedRows((prev) => prev + 2)}
+                  className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-[#FF00C8]/40 hover:bg-[#FF00C8]/10 text-xs font-bold font-mono text-gray-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer shadow-lg group"
+                >
+                  <span>Show More ({lockedBadgesList.length - maxLockedVisible} remaining)</span>
+                  <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform text-[#FF00C8]" />
+                </button>
+              </div>
+            ) : (
+              visibleLockedRows > 2 && lockedBadgesList.length > cols * 2 && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={() => setVisibleLockedRows(2)}
+                    className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-xs font-bold font-mono text-gray-400 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Show Less</span>
+                    <ChevronUp size={14} />
+                  </button>
+                </div>
+              )
+            )}
+          </>
         )}
       </div>
 
