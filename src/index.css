@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --accent: #FF00C8;
+    --accent-glow: rgba(255, 0, 200, 0.35);
+    --accent-10: rgba(255, 0, 200, 0.1);
+    --accent-20: rgba(255, 0, 200, 0.2);
+  }
   html {
     font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;

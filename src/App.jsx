@@ -131,6 +131,18 @@ const AdminRoute = ({ children }) => {
 const AnimatedRoutes = () => {
   const location = useLocation();
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const userId = data?.user?.id;
+      const userMeta = data?.user?.user_metadata;
+      const savedAccent =
+        (userId ? localStorage.getItem(`glitch_accent_${userId}`) : null) ||
+        userMeta?.accentColor ||
+        "#FF00C8";
+      document.documentElement.style.setProperty("--accent", savedAccent);
+    });
+  }, []);
+
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
