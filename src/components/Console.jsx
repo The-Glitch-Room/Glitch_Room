@@ -362,6 +362,10 @@ const Console = () => {
     return d;
   });
 
+  const dailyValues = weekDays.map((d) => weekChartMap[d.toDateString()] || 0);
+  const maxVal = Math.max(...dailyValues, 10);
+  const suggestedTopMax = Math.ceil((maxVal * 1.2) / 10) * 10;
+
   const chartData = {
     labels: weekDays.map((d) =>
       d.toLocaleDateString("en-US", { weekday: "short" }),
@@ -369,26 +373,54 @@ const Console = () => {
     datasets: [
       {
         label: "gBits",
-        data: weekDays.map((d) => weekChartMap[d.toDateString()] || 0),
+        data: dailyValues,
         backgroundColor: "rgba(255,0,200,0.25)",
         borderColor: "#FF00C8",
         borderWidth: 1.5,
         borderRadius: 6,
+        hoverBackgroundColor: "rgba(0,240,255,0.4)",
+        hoverBorderColor: "#00F0FF",
       },
     ],
   };
 
   const chartOptions = {
     responsive: true,
-    plugins: { legend: { display: false } },
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: "#0d0d14",
+        borderColor: "rgba(255,0,200,0.3)",
+        borderWidth: 1,
+        titleColor: "#ffffff",
+        bodyColor: "#00F0FF",
+        bodyFont: { family: "monospace", weight: "bold" },
+        padding: 10,
+        displayColors: false,
+        callbacks: {
+          label: (context) => ` +${context.parsed.y} gBits`,
+        },
+      },
+    },
     scales: {
       x: {
         grid: { color: "rgba(255,255,255,0.03)" },
-        ticks: { color: "#4b5563", font: { family: "monospace", size: 10 } },
+        ticks: { color: "#9ca3af", font: { family: "monospace", size: 10 } },
       },
       y: {
-        grid: { color: "rgba(255,255,255,0.03)" },
-        ticks: { color: "#4b5563", font: { family: "monospace", size: 10 } },
+        beginAtZero: true,
+        suggestedMax: suggestedTopMax,
+        grid: { color: "rgba(255,255,255,0.04)" },
+        ticks: {
+          color: "#9ca3af",
+          font: { family: "monospace", size: 10 },
+          callback: (value) => {
+            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+            if (value >= 1000) return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`;
+            return value;
+          },
+        },
       },
     },
   };
@@ -574,7 +606,9 @@ const Console = () => {
                     range: {formatDDMMYYYY(weekMonday)} →{" "}
                     {formatDDMMYYYY(weekSunday)}
                   </p>
-                  <Bar data={chartData} options={chartOptions} />
+                  <div className="h-64 sm:h-72 w-full pt-2">
+                    <Bar data={chartData} options={chartOptions} />
+                  </div>
                 </TerminalWindow>
               </motion.div>
 
