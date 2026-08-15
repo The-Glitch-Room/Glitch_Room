@@ -214,7 +214,7 @@ const ContactForm = ({ userEmail }) => {
     if (!subject.trim() || !message.trim()) return;
     setLoading(true);
     // Open the user's mail client with pre-filled content
-    const mailtoLink = `mailto:support@glitchroom.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`From: ${userEmail || "User"}\n\n${message}`)}`;
+    const mailtoLink = `mailto:theglitchroom.official@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`From: ${userEmail || "User"}\n\n${message}`)}`;
     window.location.href = mailtoLink;
     setTimeout(() => {
       setLoading(false);
@@ -376,7 +376,7 @@ const HelpPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             {/* Email support */}
             <motion.a
-              href="mailto:support@glitchroom.com"
+              href="mailto:theglitchroom.official@gmail.com"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
@@ -410,7 +410,7 @@ const HelpPage = () => {
                 Email Support
               </h3>
               <p className="text-gray-500 text-xs mb-3">
-                support@glitchroom.com
+                theglitchroom.official@gmail.com
               </p>
               <span className="flex items-center gap-1 text-xs font-medium text-[#FF00C8]">
                 Send Email <ChevronRight size={11} />
@@ -764,7 +764,7 @@ const HelpPage = () => {
               </p>
               <div className="flex flex-wrap gap-3 justify-center">
                 <motion.a
-                  href="mailto:support@glitchroom.com"
+                  href="mailto:theglitchroom.official@gmail.com"
                   whileHover={{
                     scale: 1.03,
                     boxShadow: "0 0 16px rgba(255,0,200,0.3)",

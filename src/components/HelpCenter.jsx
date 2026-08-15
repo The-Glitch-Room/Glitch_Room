@@ -23,7 +23,7 @@ const faqs = [
   {
     question: "How can I contact customer support?",
     answer:
-      "You can reach us anytime via the 'Contact Support' section below or email us at support@glitchroom.com.",
+      "You can reach us anytime via the 'Contact Support' section below or email us at theglitchroom.official@gmail.com.",
   },
   {
     question: "What payment methods are supported?",
@@ -264,7 +264,7 @@ const HelpCenter = () => {
           accent="pink"
         />
         <a
-          href="mailto:support@glitchroom.com"
+          href="mailto:theglitchroom.official@gmail.com"
           className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-white font-bold cursor-pointer transition-all duration-300"
           style={{ background: "linear-gradient(90deg, #FF00C8, #a855f7)" }}
           onMouseEnter={(e) => {
