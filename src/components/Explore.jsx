@@ -45,7 +45,6 @@ const CORE_CHALLENGE_TYPES = [
     color: "#00F0FF",
     title: "Glitch Challenges",
     badge: "Core Arena",
-    badgeColor: "#00F0FF",
     desc: "Test your skills by identifying and fixing unique, real-world inspired coding glitches across JavaScript, Python, SQL, and C++.",
     path: "/glitches",
     dbKey: "glitches",
@@ -56,7 +55,6 @@ const CORE_CHALLENGE_TYPES = [
     color: "#D600FF",
     title: "Debug Mode",
     badge: "Diagnostics",
-    badgeColor: "#D600FF",
     desc: "Hone your diagnostics by stepping through complex stack traces, memory leaks, and broken execution logic.",
     path: "/bug-challenges",
     dbKey: "bug-challenges",
@@ -67,7 +65,6 @@ const CORE_CHALLENGE_TYPES = [
     color: "#FF00C8",
     title: "AI Powered Puzzles",
     badge: "GenAI Evaluation",
-    badgeColor: "#FF00C8",
     desc: "Engage with generative AI scenarios designed to test edge cases, prompt fixes, and automated code evaluation.",
     path: "/ai-challenges",
     dbKey: "ai-challenges",
@@ -78,7 +75,6 @@ const CORE_CHALLENGE_TYPES = [
     color: "#FFD700",
     title: "Creative Sparks",
     badge: "Design & Logic",
-    badgeColor: "#FFD700",
     desc: "Ignite your architectural creativity by designing solutions, UI patterns, and novel fixes that stand out.",
     path: "/sparks",
     dbKey: "sparks",
@@ -144,30 +140,14 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.96 }}
+        initial={{ opacity: 0, y: 25, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 10, scale: 0.96 }}
+        exit={{ opacity: 0, y: 15, scale: 0.96 }}
         className="relative w-full max-w-xl bg-[#0d0d16] border border-white/10 rounded-2xl p-6 shadow-2xl overflow-hidden"
       >
-        <div
-          className="absolute top-0 left-0 right-0 h-[2px]"
-          style={{
-            background: `linear-gradient(90deg, transparent, ${
-              challenge.badgeColor || "#FF00C8"
-            }, transparent)`,
-          }}
-        />
-
         <div className="flex items-start justify-between mb-4">
           <div>
-            <span
-              className="text-[10px] font-mono font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full border mb-2 inline-block"
-              style={{
-                background: `${challenge.badgeColor || "#FF00C8"}15`,
-                borderColor: `${challenge.badgeColor || "#FF00C8"}30`,
-                color: challenge.badgeColor || "#FF00C8",
-              }}
-            >
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300 mb-2 inline-block">
               {challenge.category || "Challenge"}
             </span>
             <h2 className="text-lg font-black text-white">{challenge.title}</h2>
@@ -213,7 +193,7 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
                 onChange={(e) => setAnswer(e.target.value)}
                 placeholder="Explain the bug root cause and your fix..."
                 rows={3}
-                className="w-full bg-[#05050a] border border-white/10 rounded-xl p-3 text-white text-xs placeholder-gray-600 outline-none focus:border-[#FF00C8]/50 transition font-mono resize-none"
+                className="w-full bg-[#05050a] border border-white/10 rounded-xl p-3 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/50 transition font-mono resize-none"
               />
             </div>
 
@@ -359,18 +339,26 @@ const Explore = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between">
+    <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between overflow-x-hidden">
       <Navbar />
 
-      <main className="flex-1 pt-28 pb-16">
-        <PageHeading
-          eyebrow="EXPLORE HUB"
-          title="Discover Time-Bounded Battles & Challenges"
-          subtitle="Explore daily refreshes, live events, featured picks, core challenge modes, and historical vaults."
-          accent="cyan"
-        />
+      <main className="flex-1 pt-36 md:pt-44 pb-20">
+        {/* Entrance Heading Animation matching Home page style */}
+        <motion.div
+          initial={{ opacity: 0, y: -35 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, ease: "easeOut" }}
+          className="relative z-10 w-full max-w-5xl mx-auto text-center px-4 mb-4"
+        >
+          <PageHeading
+            eyebrow="EXPLORE HUB"
+            title="Discover Time-Bounded Battles & Challenges"
+            subtitle="Explore daily refreshes, live events, featured picks, core challenge modes, and historical vaults."
+            accent="cyan"
+          />
+        </motion.div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-14">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
           {/* Toast Notification */}
           <AnimatePresence>
             {toastMessage && (
@@ -397,23 +385,29 @@ const Explore = () => {
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 1: LIMITED-TIME & DAILY / WEEKLY GLITCHES
           ───────────────────────────────────────────────────────────────── */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <motion.section
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="space-y-6"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#FF00C8]/10 border border-[#FF00C8]/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
                   <Flame size={20} className="text-[#FF00C8]" />
                 </div>
                 <div>
                   <h2 className="text-xl font-extrabold text-white">
                     1. Limited-Time & Daily / Weekly Glitches
                   </h2>
-                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                  <p className="text-xs text-gray-400 font-mono mt-0.5">
                     Recurring time-bound challenges with auto-reset schedules
                   </p>
                 </div>
               </div>
-              <span className="hidden sm:inline-block text-xs font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
-                ⚡ Single Unified Uptime System
+              <span className="hidden sm:inline-block text-xs font-mono text-gray-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
+                ⚡ Unified Uptime System
               </span>
             </div>
 
@@ -423,24 +417,13 @@ const Explore = () => {
                 return (
                   <motion.div
                     key={item.id}
-                    whileHover={{ y: -4 }}
-                    className="relative overflow-hidden bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between hover:border-white/20 transition-all shadow-xl group"
+                    whileHover={{ y: -5 }}
+                    transition={{ duration: 0.2 }}
+                    className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
                   >
-                    <div
-                      className="absolute top-0 left-0 right-0 h-[2px]"
-                      style={{ background: item.badgeColor }}
-                    />
-
                     <div>
                       <div className="flex items-center justify-between mb-4">
-                        <span
-                          className="text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full border"
-                          style={{
-                            background: `${item.badgeColor}15`,
-                            borderColor: `${item.badgeColor}30`,
-                            color: item.badgeColor,
-                          }}
-                        >
+                        <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
                           {item.category}
                         </span>
                         <div className="flex items-center gap-1.5 text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
@@ -458,7 +441,7 @@ const Explore = () => {
                     </div>
 
                     <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                      <span className="text-xs font-mono text-gray-500 flex items-center gap-1.5">
+                      <span className="text-xs font-mono text-gray-400 flex items-center gap-1.5">
                         <Clock size={13} /> {item.refreshText}
                       </span>
 
@@ -470,9 +453,9 @@ const Explore = () => {
                         <button
                           type="button"
                           onClick={() => setActiveSolverChallenge(item)}
-                          className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:scale-105 shadow-md"
+                          className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md"
                           style={{
-                            background: `linear-gradient(90deg, ${item.badgeColor}, #a855f7)`,
+                            background: "linear-gradient(90deg, #FF00C8, #a855f7)",
                           }}
                         >
                           Solve <ChevronRight size={14} />
@@ -483,21 +466,27 @@ const Explore = () => {
                 );
               })}
             </div>
-          </section>
+          </motion.section>
 
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 2: LIVE CHALLENGES & UPCOMING CHALLENGES
           ───────────────────────────────────────────────────────────────── */}
-          <section className="space-y-6">
-            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-              <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center">
+          <motion.section
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="space-y-6"
+          >
+            <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+              <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
                 <Activity size={20} className="text-[#00F0FF]" />
               </div>
               <div>
                 <h2 className="text-xl font-extrabold text-white">
                   2. Live Challenges & Upcoming Battles
                 </h2>
-                <p className="text-xs text-gray-500 font-mono mt-0.5">
+                <p className="text-xs text-gray-400 font-mono mt-0.5">
                   Active live windows & scheduled future events
                 </p>
               </div>
@@ -505,12 +494,12 @@ const Explore = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Live Challenges Column */}
-              <div className="bg-[#0b0b12] border border-red-500/20 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-5 border-b border-red-500/10 pb-4">
+              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
                   <div className="flex items-center gap-2.5">
-                    <span className="relative flex h-3.5 w-3.5">
+                    <span className="relative flex h-3 w-3">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500" />
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
                     </span>
                     <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
                       Live Challenges (Active Now)
@@ -527,7 +516,7 @@ const Explore = () => {
                     return (
                       <div
                         key={ch.id}
-                        className="bg-[#12121e] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-red-500/30 transition"
+                        className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
                       >
                         <div className="min-w-0 mr-4">
                           <div className="flex items-center gap-2 mb-1.5">
@@ -554,7 +543,7 @@ const Explore = () => {
                           <button
                             type="button"
                             onClick={() => setActiveSolverChallenge(ch)}
-                            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow-lg shadow-red-500/20"
+                            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow-lg"
                           >
                             Attempt
                           </button>
@@ -566,8 +555,8 @@ const Explore = () => {
               </div>
 
               {/* Upcoming Challenges Column */}
-              <div className="bg-[#0b0b12] border border-[#38BDF8]/20 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-5 border-b border-[#38BDF8]/10 pb-4">
+              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
                   <div className="flex items-center gap-2.5">
                     <Clock size={18} className="text-[#38BDF8]" />
                     <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
@@ -585,7 +574,7 @@ const Explore = () => {
                     return (
                       <div
                         key={ch.id}
-                        className="bg-[#12121e] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-[#38BDF8]/30 transition"
+                        className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
                       >
                         <div className="min-w-0 mr-4">
                           <div className="flex items-center gap-2 mb-1.5">
@@ -629,22 +618,28 @@ const Explore = () => {
                 </div>
               </div>
             </div>
-          </section>
+          </motion.section>
 
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 3: FEATURED & EDITOR'S CHOICE
           ───────────────────────────────────────────────────────────────── */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <motion.section
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="space-y-6"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#A855F7]/10 border border-[#A855F7]/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
                   <Sparkles size={20} className="text-[#A855F7]" />
                 </div>
                 <div>
                   <h2 className="text-xl font-extrabold text-white">
                     3. Featured & Editor's Choice
                   </h2>
-                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                  <p className="text-xs text-gray-400 font-mono mt-0.5">
                     Handpicked top-tier challenges worth discovering
                   </p>
                 </div>
@@ -655,19 +650,13 @@ const Explore = () => {
               {FEATURED_CHALLENGES.map((item) => (
                 <motion.div
                   key={item.id}
-                  whileHover={{ y: -4 }}
-                  className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between hover:border-[#A855F7]/40 transition-all shadow-xl group"
+                  whileHover={{ y: -5 }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <span
-                        className="text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full border"
-                        style={{
-                          background: `${item.badgeColor}15`,
-                          borderColor: `${item.badgeColor}30`,
-                          color: item.badgeColor,
-                        }}
-                      >
+                      <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
                         {item.badge}
                       </span>
                       <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
@@ -684,7 +673,7 @@ const Explore = () => {
                   </div>
 
                   <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                    <span className="text-xs font-mono text-gray-500">
+                    <span className="text-xs font-mono text-gray-400">
                       {item.language}
                     </span>
                     <Link
@@ -697,22 +686,28 @@ const Explore = () => {
                 </motion.div>
               ))}
             </div>
-          </section>
+          </motion.section>
 
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 4: OUR 4 CORE CHALLENGE CATEGORIES
           ───────────────────────────────────────────────────────────────── */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <motion.section
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="space-y-6"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
                   <Layers size={20} className="text-[#00F0FF]" />
                 </div>
                 <div>
                   <h2 className="text-xl font-extrabold text-white">
                     4. Core Challenge Modes
                   </h2>
-                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                  <p className="text-xs text-gray-400 font-mono mt-0.5">
                     Our 4 primary challenge platforms & problem domains
                   </p>
                 </div>
@@ -727,7 +722,7 @@ const Explore = () => {
                   <Link
                     key={cat.id}
                     to={cat.path}
-                    className="no-underline group bg-[#0f0f18] border border-white/10 hover:border-white/20 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 shadow-xl hover:-translate-y-1"
+                    className="no-underline group bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 shadow-xl hover:-translate-y-1"
                   >
                     <div>
                       <div className="flex items-center justify-between mb-4">
@@ -754,14 +749,7 @@ const Explore = () => {
                     </div>
 
                     <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                      <span
-                        className="text-[11px] font-mono font-bold px-3 py-1 rounded-full border"
-                        style={{
-                          background: `${cat.color}10`,
-                          borderColor: `${cat.color}25`,
-                          color: cat.color,
-                        }}
-                      >
+                      <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
                         {cat.badge}
                       </span>
                       <span className="text-xs font-bold text-gray-300 group-hover:text-white flex items-center gap-1">
@@ -772,22 +760,28 @@ const Explore = () => {
                 );
               })}
             </div>
-          </section>
+          </motion.section>
 
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 5: PAST CHALLENGES & VAULT ARCHIVE
           ───────────────────────────────────────────────────────────────── */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <motion.section
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="space-y-6"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gray-500/10 border border-gray-500/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
                   <Archive size={20} className="text-gray-400" />
                 </div>
                 <div>
                   <h2 className="text-xl font-extrabold text-white">
                     5. Past Challenges & Vault Archive
                   </h2>
-                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                  <p className="text-xs text-gray-400 font-mono mt-0.5">
                     Completed historical battles & hall of fame solution references
                   </p>
                 </div>
@@ -819,12 +813,12 @@ const Explore = () => {
 
                   <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-between text-xs font-mono text-gray-400">
                     <span>Top Solver: <strong className="text-white">@{item.winner}</strong></span>
-                    <span className="text-gray-500 bg-white/5 px-2 py-0.5 rounded">Archived ✓</span>
+                    <span className="text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">Archived ✓</span>
                   </div>
                 </div>
               ))}
             </div>
-          </section>
+          </motion.section>
         </div>
       </main>
 
