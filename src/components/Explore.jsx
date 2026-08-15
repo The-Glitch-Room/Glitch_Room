@@ -10,13 +10,6 @@ import { supabase } from "../supabaseClient";
 import { fetchDatabaseCategoryCounts } from "../utils/challengeCountHelper";
 import { updatePoints } from "../utils/pointsHelper";
 import {
-  DAILY_WEEKLY_CHALLENGES,
-  LIVE_CHALLENGES,
-  UPCOMING_CHALLENGES,
-  FEATURED_CHALLENGES,
-  ARCHIVED_VAULT_CHALLENGES,
-} from "../data/exploreChallengesData";
-import {
   Zap,
   Bug,
   Cpu,
@@ -238,6 +231,19 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
   );
 };
 
+// ── Coming Soon Section Component ─────────────────────────────────────────────
+const ComingSoonBanner = ({ message = "No active challenges in this section right now. New challenges will be published soon from the Admin Panel!" }) => (
+  <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-8 text-center space-y-2">
+    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-gray-400">
+      <Clock size={20} />
+    </div>
+    <h4 className="text-base font-bold text-white">Coming Soon</h4>
+    <p className="text-xs text-gray-400 max-w-md mx-auto">
+      {message}
+    </p>
+  </div>
+);
+
 // ── Main Explore Page Component ───────────────────────────────────────────────
 const Explore = () => {
   const [authUser, setAuthUser] = useState(null);
@@ -249,11 +255,11 @@ const Explore = () => {
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
 
-  const [dailyWeeklyItems, setDailyWeeklyItems] = useState(DAILY_WEEKLY_CHALLENGES);
-  const [liveItems, setLiveItems] = useState(LIVE_CHALLENGES);
-  const [upcomingItems, setUpcomingItems] = useState(UPCOMING_CHALLENGES);
-  const [featuredItems, setFeaturedItems] = useState(FEATURED_CHALLENGES);
-  const [archivedItems, setArchivedItems] = useState(ARCHIVED_VAULT_CHALLENGES);
+  const [dailyWeeklyItems, setDailyWeeklyItems] = useState([]);
+  const [liveItems, setLiveItems] = useState([]);
+  const [upcomingItems, setUpcomingItems] = useState([]);
+  const [featuredItems, setFeaturedItems] = useState([]);
+  const [archivedItems, setArchivedItems] = useState([]);
 
   const [liveSeconds, setLiveSeconds] = useState(145 * 60);
   const [upcomingSeconds, setUpcomingSeconds] = useState(210 * 60);
@@ -534,61 +540,65 @@ const Explore = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {dailyWeeklyItems.map((item) => {
-                const isCompleted = completedIds.has(item.id);
-                return (
-                  <motion.div
-                    key={item.id}
-                    whileHover={{ y: -5 }}
-                    transition={{ duration: 0.2 }}
-                    className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
-                          {item.category}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                          <Award size={13} />
-                          <span>+{Math.min(item.points, 100)} gBits</span>
+            {dailyWeeklyItems.length === 0 ? (
+              <ComingSoonBanner message="No active Daily or Weekly Glitches right now. Add challenges from the Admin Panel to feature them here!" />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {dailyWeeklyItems.map((item) => {
+                  const isCompleted = completedIds.has(item.id);
+                  return (
+                    <motion.div
+                      key={item.id}
+                      whileHover={{ y: -5 }}
+                      transition={{ duration: 0.2 }}
+                      className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
+                            {item.category}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                            <Award size={13} />
+                            <span>+{Math.min(item.points, 100)} gBits</span>
+                          </div>
                         </div>
+
+                        <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#00F0FF] transition">
+                          {item.title}
+                        </h3>
+                        <p className="text-xs text-gray-400 mb-6 leading-relaxed">
+                          {item.description}
+                        </p>
                       </div>
 
-                      <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#00F0FF] transition">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                        {item.description}
-                      </p>
-                    </div>
-
-                    <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                      <span className="text-xs font-mono text-gray-400 flex items-center gap-1.5">
-                        <Clock size={13} /> {item.refreshText}
-                      </span>
-
-                      {isCompleted ? (
-                        <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl">
-                          <Check size={14} /> Completed
+                      <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                        <span className="text-xs font-mono text-gray-400 flex items-center gap-1.5">
+                          <Clock size={13} /> {item.refreshText}
                         </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setActiveSolverChallenge(item)}
-                          className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md"
-                          style={{
-                            background: "linear-gradient(90deg, #FF00C8, #a855f7)",
-                          }}
-                        >
-                          Solve <ChevronRight size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+
+                        {isCompleted ? (
+                          <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl">
+                            <Check size={14} /> Completed
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setActiveSolverChallenge(item)}
+                            className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md"
+                            style={{
+                              background: "linear-gradient(90deg, #FF00C8, #a855f7)",
+                            }}
+                          >
+                            Solve <ChevronRight size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
           </motion.section>
 
           {/* ─────────────────────────────────────────────────────────────────
@@ -628,53 +638,59 @@ const Explore = () => {
                       Live Challenges (Active Now)
                     </h3>
                   </div>
-                  <span className="text-xs font-mono text-red-400 font-bold bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">
-                    {formatTimer(liveSeconds)}
-                  </span>
+                  {liveItems.length > 0 && (
+                    <span className="text-xs font-mono text-red-400 font-bold bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">
+                      {formatTimer(liveSeconds)}
+                    </span>
+                  )}
                 </div>
 
-                <div className="space-y-4">
-                  {liveItems.map((ch) => {
-                    const isDone = completedIds.has(ch.id);
-                    return (
-                      <div
-                        key={ch.id}
-                        className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
-                      >
-                        <div className="min-w-0 mr-4">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md font-bold">
-                              LIVE NOW
-                            </span>
-                            <span className="text-xs font-mono text-amber-400 font-semibold">
-                              +{Math.min(ch.points, 100)} gBits
-                            </span>
+                {liveItems.length === 0 ? (
+                  <ComingSoonBanner message="No active Live Battles right now. Stay tuned!" />
+                ) : (
+                  <div className="space-y-4">
+                    {liveItems.map((ch) => {
+                      const isDone = completedIds.has(ch.id);
+                      return (
+                        <div
+                          key={ch.id}
+                          className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
+                        >
+                          <div className="min-w-0 mr-4">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md font-bold">
+                                LIVE NOW
+                              </span>
+                              <span className="text-xs font-mono text-amber-400 font-semibold">
+                                +{Math.min(ch.points, 100)} gBits
+                              </span>
+                            </div>
+                            <h4 className="text-base font-bold text-white truncate mb-1">
+                              {ch.title}
+                            </h4>
+                            <p className="text-xs text-gray-400">
+                              {ch.description}
+                            </p>
                           </div>
-                          <h4 className="text-base font-bold text-white truncate mb-1">
-                            {ch.title}
-                          </h4>
-                          <p className="text-xs text-gray-400">
-                            {ch.description}
-                          </p>
-                        </div>
 
-                        {isDone ? (
-                          <span className="text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-4 py-2 rounded-xl shrink-0">
-                            Done ✓
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setActiveSolverChallenge(ch)}
-                            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow-lg"
-                          >
-                            Attempt
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                          {isDone ? (
+                            <span className="text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-4 py-2 rounded-xl shrink-0">
+                              Done ✓
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setActiveSolverChallenge(ch)}
+                              className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow-lg"
+                            >
+                              Attempt
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Upcoming Challenges Column */}
@@ -686,59 +702,65 @@ const Explore = () => {
                       Upcoming Challenges (Opening Soon)
                     </h3>
                   </div>
-                  <span className="text-xs font-mono text-[#38BDF8] font-bold bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-3 py-1 rounded-full">
-                    Opens in {formatTimer(upcomingSeconds)}
-                  </span>
+                  {upcomingItems.length > 0 && (
+                    <span className="text-xs font-mono text-[#38BDF8] font-bold bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-3 py-1 rounded-full">
+                      Opens in {formatTimer(upcomingSeconds)}
+                    </span>
+                  )}
                 </div>
 
-                <div className="space-y-4">
-                  {upcomingItems.map((ch) => {
-                    const isSet = reminders.has(ch.id);
-                    return (
-                      <div
-                        key={ch.id}
-                        className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
-                      >
-                        <div className="min-w-0 mr-4">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-[10px] font-mono text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-2.5 py-0.5 rounded-md font-bold">
-                              UPCOMING
-                            </span>
-                            <span className="text-xs font-mono text-amber-400 font-semibold">
-                              +{Math.min(ch.points, 100)} gBits
-                            </span>
-                          </div>
-                          <h4 className="text-base font-bold text-white truncate mb-1">
-                            {ch.title}
-                          </h4>
-                          <p className="text-xs text-gray-400">
-                            {ch.description}
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleToggleReminder(ch.id, ch.title)}
-                          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
-                            isSet
-                              ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
-                              : "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
-                          }`}
+                {upcomingItems.length === 0 ? (
+                  <ComingSoonBanner message="No upcoming battles scheduled yet." />
+                ) : (
+                  <div className="space-y-4">
+                    {upcomingItems.map((ch) => {
+                      const isSet = reminders.has(ch.id);
+                      return (
+                        <div
+                          key={ch.id}
+                          className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
                         >
-                          {isSet ? (
-                            <>
-                              <Check size={14} /> Saved
-                            </>
-                          ) : (
-                            <>
-                              <Bell size={14} /> Remind Me
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+                          <div className="min-w-0 mr-4">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-[10px] font-mono text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-2.5 py-0.5 rounded-md font-bold">
+                                UPCOMING
+                              </span>
+                              <span className="text-xs font-mono text-amber-400 font-semibold">
+                                +{Math.min(ch.points, 100)} gBits
+                              </span>
+                            </div>
+                            <h4 className="text-base font-bold text-white truncate mb-1">
+                              {ch.title}
+                            </h4>
+                            <p className="text-xs text-gray-400">
+                              {ch.description}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleReminder(ch.id, ch.title)}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
+                              isSet
+                                ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
+                                : "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
+                            }`}
+                          >
+                            {isSet ? (
+                              <>
+                                <Check size={14} /> Saved
+                              </>
+                            ) : (
+                              <>
+                                <Bell size={14} /> Remind Me
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </motion.section>
@@ -769,46 +791,50 @@ const Explore = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {featuredItems.map((item) => (
-                <motion.div
-                  key={item.id}
-                  whileHover={{ y: -5 }}
-                  transition={{ duration: 0.2 }}
-                  className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
-                        {item.badge}
-                      </span>
-                      <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                        +{Math.min(item.points, 100)} gBits
-                      </span>
+            {featuredItems.length === 0 ? (
+              <ComingSoonBanner message="No featured picks currently. Add challenges in Admin to feature them here!" />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {featuredItems.map((item) => (
+                  <motion.div
+                    key={item.id}
+                    whileHover={{ y: -5 }}
+                    transition={{ duration: 0.2 }}
+                    className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
+                          {item.badge}
+                        </span>
+                        <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                          +{Math.min(item.points, 100)} gBits
+                        </span>
+                      </div>
+
+                      <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#A855F7] transition">
+                        {item.title}
+                      </h3>
+                      <p className="text-xs text-gray-400 mb-6 leading-relaxed">
+                        {item.description}
+                      </p>
                     </div>
 
-                    <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#A855F7] transition">
-                      {item.title}
-                    </h3>
-                    <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                      {item.description}
-                    </p>
-                  </div>
-
-                  <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                    <span className="text-xs font-mono text-gray-400">
-                      {item.language}
-                    </span>
-                    <Link
-                      to={item.path || "/glitches"}
-                      className="flex items-center gap-1.5 text-xs font-bold text-[#A855F7] hover:underline"
-                    >
-                      Solve <ArrowUpRight size={14} />
-                    </Link>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                    <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                      <span className="text-xs font-mono text-gray-400">
+                        {item.language}
+                      </span>
+                      <Link
+                        to={item.path || "/glitches"}
+                        className="flex items-center gap-1.5 text-xs font-bold text-[#A855F7] hover:underline"
+                      >
+                        Solve <ArrowUpRight size={14} />
+                      </Link>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </motion.section>
 
           {/* ─────────────────────────────────────────────────────────────────
@@ -911,36 +937,40 @@ const Explore = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {archivedItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between opacity-85 hover:opacity-100 transition shadow-xl"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-mono text-gray-400 uppercase tracking-wider bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
-                        {item.date}
-                      </span>
-                      <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                        +{Math.min(item.rewardClaimed || item.points || 50, 100)} gBits
-                      </span>
+            {archivedItems.length === 0 ? (
+              <ComingSoonBanner message="No archived vault entries yet." />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {archivedItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between opacity-85 hover:opacity-100 transition shadow-xl"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-mono text-gray-400 uppercase tracking-wider bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
+                          {item.date}
+                        </span>
+                        <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                          +{Math.min(item.rewardClaimed || item.points || 50, 100)} gBits
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-white text-base mb-2">
+                        {item.title}
+                      </h4>
+                      <p className="text-xs text-gray-400">
+                        Completed by {item.completedBy || 100} developers
+                      </p>
                     </div>
-                    <h4 className="font-bold text-white text-base mb-2">
-                      {item.title}
-                    </h4>
-                    <p className="text-xs text-gray-400">
-                      Completed by {item.completedBy || 100} developers
-                    </p>
-                  </div>
 
-                  <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-between text-xs font-mono text-gray-400">
-                    <span>Top Solver: <strong className="text-white">@{item.winner || "glitch_master"}</strong></span>
-                    <span className="text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">Archived ✓</span>
+                    <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-between text-xs font-mono text-gray-400">
+                      <span>Top Solver: <strong className="text-white">@{item.winner || "glitch_master"}</strong></span>
+                      <span className="text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">Archived ✓</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </motion.section>
         </main>
 
