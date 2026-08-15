@@ -271,12 +271,10 @@ const ContactForm = ({ userEmail }) => {
           className="w-full bg-[#0a0a14] border border-white/8 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-[#FF00C8]/40 transition resize-none"
         />
       </div>
-      {userEmail && (
-        <p className="text-xs text-gray-600">
-          Reply will be sent to{" "}
-          <span className="text-gray-400">{userEmail}</span>
-        </p>
-      )}
+      <p className="text-xs text-gray-400 font-mono flex items-center gap-1.5 pt-1">
+        <span>Support team responds from</span>
+        <span className="text-[#FF00C8] font-bold">theglitchroom.official@gmail.com</span>
+      </p>
       <motion.button
         whileHover={subject && message ? { scale: 1.02 } : {}}
         whileTap={subject && message ? { scale: 0.98 } : {}}
