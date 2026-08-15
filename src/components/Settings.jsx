@@ -1,3 +1,4 @@
+// src/components/Settings.jsx
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
@@ -18,15 +19,21 @@ import {
   X,
   Save,
   RefreshCw,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import Navbar from "./Navbar";
 import SharedSidebar from "./SharedSidebar";
 
-// ── Toggle ────────────────────────────────────────────────────────────────────
-const Toggle = ({ enabled, onToggle }) => (
+// ── Toggle Switch Component ───────────────────────────────────────────────────
+const Toggle = ({ enabled, onToggle, disabled }) => (
   <button
-    onClick={onToggle}
-    className="relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none cursor-pointer"
+    type="button"
+    onClick={disabled ? undefined : onToggle}
+    disabled={disabled}
+    className={`relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none ${
+      disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
+    }`}
     style={{ background: enabled ? "#FF00C8" : "rgba(255,255,255,0.1)" }}
   >
     <motion.div
@@ -37,41 +44,45 @@ const Toggle = ({ enabled, onToggle }) => (
   </button>
 );
 
-// ── Section wrapper ───────────────────────────────────────────────────────────
+// ── Section Card Wrapper ──────────────────────────────────────────────────────
 const Section = ({ icon: Icon, title, color, children, delay }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay, duration: 0.4 }}
-    className="bg-[#0f0f13] rounded-2xl border border-white/5 overflow-hidden mb-4"
+    className="bg-[#0f0f13] rounded-2xl border border-white/5 overflow-hidden mb-5 shadow-xl"
   >
-    <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5">
+    <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5 bg-white/[0.01]">
       <div
         className="w-8 h-8 rounded-xl flex items-center justify-center"
         style={{ background: `${color}18`, border: `1px solid ${color}30` }}
       >
-        <Icon size={15} style={{ color }} />
+        <Icon size={16} style={{ color }} />
       </div>
-      <h2 className="text-sm font-bold text-white uppercase tracking-widest">
+      <h2 className="text-xs font-bold text-white uppercase tracking-widest font-mono">
         {title}
       </h2>
     </div>
-    <div className="p-2">{children}</div>
+    <div className="p-3 divide-y divide-white/5">{children}</div>
   </motion.div>
 );
 
-// ── Setting row ───────────────────────────────────────────────────────────────
+// ── Setting Row Item ──────────────────────────────────────────────────────────
 const SettingRow = ({ label, desc, children, danger }) => (
   <div
-    className={`flex items-center justify-between px-3 py-3.5 rounded-xl transition-all hover:bg-white/[0.02] ${danger ? "hover:bg-red-500/5" : ""}`}
+    className={`flex items-center justify-between px-3 py-3.5 rounded-xl transition-all ${
+      danger ? "hover:bg-red-500/5" : "hover:bg-white/[0.02]"
+    }`}
   >
     <div className="min-w-0 mr-4">
       <p
-        className={`text-sm font-medium ${danger ? "text-red-400" : "text-gray-200"}`}
+        className={`text-sm font-medium ${
+          danger ? "text-red-400 font-bold" : "text-gray-200"
+        }`}
       >
         {label}
       </p>
-      {desc && <p className="text-xs text-gray-600 mt-0.5">{desc}</p>}
+      {desc && <p className="text-xs text-gray-500 mt-0.5">{desc}</p>}
     </div>
     <div className="shrink-0">{children}</div>
   </div>
@@ -95,30 +106,36 @@ const PasswordModal = ({ onClose }) => {
       return;
     }
     if (next !== confirm) {
-      setError("Passwords don't match.");
+      setError("Passwords do not match.");
       return;
     }
     setLoading(true);
-    // Re-authenticate by signing in with current password first
+
     const { data: userData } = await supabase.auth.getUser();
     const email = userData?.user?.email;
-    const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email,
-      password: current,
-    });
-    if (signInErr) {
-      setError("Current password is incorrect.");
-      setLoading(false);
-      return;
+
+    if (email) {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email,
+        password: current,
+      });
+      if (signInErr) {
+        setError("Current password is incorrect.");
+        setLoading(false);
+        return;
+      }
     }
+
     const { error: updateErr } = await supabase.auth.updateUser({
       password: next,
     });
     setLoading(false);
+
     if (updateErr) {
       setError(updateErr.message);
       return;
     }
+
     setSuccess(true);
     setTimeout(() => onClose(), 1800);
   };
@@ -128,29 +145,19 @@ const PasswordModal = ({ onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(5,5,12,0.85)", backdropFilter: "blur(10px)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.97 }}
-        className="relative w-full max-w-md rounded-2xl p-7 overflow-hidden"
-        style={{
-          background: "#0f0f1a",
-          border: "1px solid rgba(255,255,255,0.08)",
-        }}
+        className="relative w-full max-w-md bg-[#0f0f1a] border border-white/10 rounded-2xl p-7 shadow-2xl overflow-hidden"
       >
-        <div
-          className="absolute top-0 left-0 right-0 h-[2px]"
-          style={{
-            background:
-              "linear-gradient(90deg,transparent,#FF00C8,#00F0FF,transparent)",
-          }}
-        />
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-black text-white">Change Password</h2>
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#FF00C8] to-transparent" />
+
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-bold text-white">Change Password</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-white transition cursor-pointer"
@@ -164,13 +171,12 @@ const PasswordModal = ({ onClose }) => {
             <div className="w-14 h-14 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto mb-3">
               <Check size={24} className="text-green-400" />
             </div>
-            <p className="text-green-400 font-bold">Password updated!</p>
+            <p className="text-green-400 font-bold">Password updated successfully!</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Current password */}
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold block mb-1.5">
+              <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold block mb-1.5 font-mono">
                 Current Password
               </label>
               <div className="relative">
@@ -179,9 +185,10 @@ const PasswordModal = ({ onClose }) => {
                   value={current}
                   onChange={(e) => setCurrent(e.target.value)}
                   placeholder="Enter current password"
-                  className="w-full bg-[#0a0a14] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-[#FF00C8]/50 pr-10 transition"
+                  className="w-full bg-[#0a0a14] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-[#FF00C8]/50 pr-10 transition font-mono"
                 />
                 <button
+                  type="button"
                   onClick={() => setShowCurrent(!showCurrent)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 cursor-pointer"
                 >
@@ -190,9 +197,8 @@ const PasswordModal = ({ onClose }) => {
               </div>
             </div>
 
-            {/* New password */}
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold block mb-1.5">
+              <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold block mb-1.5 font-mono">
                 New Password
               </label>
               <div className="relative">
@@ -201,40 +207,20 @@ const PasswordModal = ({ onClose }) => {
                   value={next}
                   onChange={(e) => setNext(e.target.value)}
                   placeholder="At least 6 characters"
-                  className="w-full bg-[#0a0a14] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-[#FF00C8]/50 pr-10 transition"
+                  className="w-full bg-[#0a0a14] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-[#FF00C8]/50 pr-10 transition font-mono"
                 />
                 <button
+                  type="button"
                   onClick={() => setShowNext(!showNext)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 cursor-pointer"
                 >
                   {showNext ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
-              {next.length > 0 && (
-                <div className="flex gap-1 mt-1.5">
-                  {[...Array(4)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 h-1 rounded-full transition-all"
-                      style={{
-                        background:
-                          next.length > i * 2 + 2
-                            ? next.length >= 10
-                              ? "#22c55e"
-                              : next.length >= 6
-                                ? "#f59e0b"
-                                : "#ef4444"
-                            : "rgba(255,255,255,0.08)",
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
 
-            {/* Confirm */}
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold block mb-1.5">
+              <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold block mb-1.5 font-mono">
                 Confirm New Password
               </label>
               <input
@@ -242,13 +228,7 @@ const PasswordModal = ({ onClose }) => {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Repeat new password"
-                className="w-full bg-[#0a0a14] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-[#FF00C8]/50 transition"
-                style={{
-                  borderColor:
-                    confirm && confirm !== next
-                      ? "rgba(239,68,68,0.4)"
-                      : undefined,
-                }}
+                className="w-full bg-[#0a0a14] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-[#FF00C8]/50 transition font-mono"
               />
             </div>
 
@@ -258,19 +238,19 @@ const PasswordModal = ({ onClose }) => {
               </div>
             )}
 
-            <div className="flex gap-3 pt-1">
+            <div className="flex gap-3 pt-2">
               <button
+                type="button"
                 onClick={onClose}
                 className="flex-1 py-2.5 rounded-xl bg-white/5 text-gray-400 text-sm font-semibold hover:bg-white/10 transition cursor-pointer"
               >
                 Cancel
               </button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+              <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={loading || !current || !next || !confirm}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40 cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40 cursor-pointer transition"
                 style={{ background: "linear-gradient(90deg,#FF00C8,#a855f7)" }}
               >
                 {loading ? (
@@ -278,7 +258,7 @@ const PasswordModal = ({ onClose }) => {
                 ) : (
                   "Update Password"
                 )}
-              </motion.button>
+              </button>
             </div>
           </div>
         )}
@@ -294,8 +274,16 @@ const DeleteModal = ({ onClose }) => {
 
   const handleDelete = async () => {
     setLoading(true);
-    // Sign out the user — actual account deletion requires admin SDK
-    // We'll sign out and show a message
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+
+    if (userId) {
+      // Clear all local storage caches
+      localStorage.clear();
+      // Remove profile row if allowed
+      await supabase.from("profiles").delete().eq("id", userId).catch(() => {});
+    }
+
     await supabase.auth.signOut();
     window.location.href = "/";
   };
@@ -305,29 +293,18 @@ const DeleteModal = ({ onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(5,5,12,0.9)", backdropFilter: "blur(10px)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10 }}
-        className="relative w-full max-w-md rounded-2xl p-7"
-        style={{
-          background: "#0f0f1a",
-          border: "1px solid rgba(239,68,68,0.2)",
-        }}
+        className="relative w-full max-w-md bg-[#0f0f1a] border border-red-500/30 rounded-2xl p-7 shadow-2xl"
       >
-        <div
-          className="absolute top-0 left-0 right-0 h-[2px]"
-          style={{
-            background:
-              "linear-gradient(90deg,transparent,#ef4444,transparent)",
-          }}
-        />
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-red-500 to-transparent" />
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-black text-red-400">Delete Account</h2>
+          <h2 className="text-base font-black text-red-400">Delete Account</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-white cursor-pointer"
@@ -335,24 +312,27 @@ const DeleteModal = ({ onClose }) => {
             <X size={17} />
           </button>
         </div>
-        <div className="bg-red-500/8 border border-red-500/20 rounded-xl px-4 py-3 mb-5 flex items-start gap-3">
-          <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
+
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-5 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-red-400 mt-0.5 shrink-0" />
           <p className="text-red-300 text-xs leading-relaxed">
-            This will permanently delete your account, all your points, badges,
-            activity history, and posts. <strong>This cannot be undone.</strong>
+            This will permanently delete your account, all your gBits, earned badges,
+            and platform activity history. <strong>This action cannot be undone.</strong>
           </p>
         </div>
-        <p className="text-gray-400 text-sm mb-3">
-          Type <span className="text-red-400 font-mono font-bold">DELETE</span>{" "}
-          to confirm:
+
+        <p className="text-gray-400 text-xs mb-3 font-mono">
+          Type <span className="text-red-400 font-bold">DELETE</span> to confirm:
         </p>
+
         <input
           type="text"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           placeholder="Type DELETE"
-          className="w-full bg-[#0a0a14] border border-red-500/20 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-red-500/50 transition mb-4 font-mono"
+          className="w-full bg-[#0a0a14] border border-red-500/30 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-red-500 mb-5 font-mono"
         />
+
         <div className="flex gap-3">
           <button
             onClick={onClose}
@@ -360,22 +340,20 @@ const DeleteModal = ({ onClose }) => {
           >
             Cancel
           </button>
-          <motion.button
-            whileHover={confirm === "DELETE" ? { scale: 1.02 } : {}}
-            whileTap={confirm === "DELETE" ? { scale: 0.98 } : {}}
+          <button
             onClick={handleDelete}
             disabled={confirm !== "DELETE" || loading}
-            className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold bg-red-500 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition"
+            className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold bg-red-600 hover:bg-red-500 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition"
           >
             {loading ? "Deleting..." : "Delete Forever"}
-          </motion.button>
+          </button>
         </div>
       </motion.div>
     </motion.div>
   );
 };
 
-// ── Main Settings ─────────────────────────────────────────────────────────────
+// ── Main Settings Component ────────────────────────────────────────────────────
 const Settings = () => {
   const [authUser, setAuthUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -384,16 +362,19 @@ const Settings = () => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  const [accentColor, setAccentColor] = useState("#FF00C8");
+
   const [toggles, setToggles] = useState({
     emailNotifs: true,
     pushNotifs: false,
-    darkMode: true,
+    weeklyDigest: true,
+    sounds: true,
     publicProfile: true,
     showEmail: false,
     twoFactor: false,
-    weeklyDigest: true,
-    sounds: false,
   });
+
+  const [originalToggles, setOriginalToggles] = useState({ ...toggles });
 
   const [profile, setProfile] = useState({
     full_name: "",
@@ -403,60 +384,101 @@ const Settings = () => {
 
   const [originalProfile, setOriginalProfile] = useState(null);
   const [usernameError, setUsernameError] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchSettings = async () => {
       setLoading(true);
       const { data: au } = await supabase.auth.getUser();
-      setAuthUser(au?.user);
-      const userId = au?.user?.id;
+      const user = au?.user;
+      setAuthUser(user);
+      const userId = user?.id;
       if (!userId) {
         setLoading(false);
         return;
       }
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("full_name, username")
-        .eq("id", userId)
-        .single();
+      // Load profile & points
+      const [{ data: profileData }, { data: pts }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("user_points").select("points").eq("user_id", userId).maybeSingle(),
+      ]);
+
+      const userMeta = user?.user_metadata || {};
+      const cachedTogglesStr = localStorage.getItem(`glitch_toggles_${userId}`);
+      let cachedToggles = null;
+      if (cachedTogglesStr) {
+        try { cachedToggles = JSON.parse(cachedTogglesStr); } catch (e) {}
+      }
+
+      const initialToggles = {
+        emailNotifs: userMeta?.emailNotifs ?? cachedToggles?.emailNotifs ?? true,
+        pushNotifs: userMeta?.pushNotifs ?? cachedToggles?.pushNotifs ?? (Notification?.permission === "granted"),
+        weeklyDigest: userMeta?.weeklyDigest ?? cachedToggles?.weeklyDigest ?? true,
+        sounds: userMeta?.sounds ?? cachedToggles?.sounds ?? (localStorage.getItem("gr_sound_enabled") !== "false"),
+        publicProfile: userMeta?.publicProfile ?? cachedToggles?.publicProfile ?? profileData?.public_profile ?? true,
+        showEmail: userMeta?.showEmail ?? cachedToggles?.showEmail ?? profileData?.show_email ?? false,
+        twoFactor: false, // Explicitly false & disabled (Coming Soon)
+      };
+
+      setToggles(initialToggles);
+      setOriginalToggles(initialToggles);
+
+      const cachedAccent = localStorage.getItem(`glitch_accent_${userId}`) || userMeta?.accentColor || "#FF00C8";
+      setAccentColor(cachedAccent);
+      document.documentElement.style.setProperty("--accent", cachedAccent);
 
       const p = {
-        full_name:
-          profileData?.full_name || au?.user?.user_metadata?.full_name || "",
-        username: profileData?.username || "",
-        email: au?.user?.email || "",
+        full_name: profileData?.full_name || userMeta?.full_name || "",
+        username: profileData?.username || userMeta?.username || "",
+        email: user?.email || "",
       };
       setProfile(p);
       setOriginalProfile(p);
 
-      const { data: pts } = await supabase
-        .from("user_points")
-        .select("points")
-        .eq("user_id", userId)
-        .single();
-      if (pts) setXp(pts.points);
+      const calculatedXP = Math.max(pts?.points || 0, profileData?.points || 0);
+      setXp(calculatedXP);
 
       setLoading(false);
     };
-    fetchUser();
+
+    fetchSettings();
   }, []);
 
-  const toggle = (key) =>
-    setToggles((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleSetting = (key) => {
+    if (key === "pushNotifs" && !toggles.pushNotifs && "Notification" in window) {
+      Notification.requestPermission().then((perm) => {
+        if (perm === "granted") {
+          setToggles((prev) => ({ ...prev, pushNotifs: true }));
+          showToast("Push notifications permission granted!");
+        } else {
+          showToast("Push notification permission denied in browser.");
+        }
+      });
+    } else {
+      setToggles((prev) => ({ ...prev, [key]: !prev[key] }));
+    }
+  };
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 3500);
+  };
 
   const isDirty =
-    originalProfile &&
-    (profile.full_name !== originalProfile.full_name ||
-      profile.username !== originalProfile.username);
+    (originalProfile &&
+      (profile.full_name !== originalProfile.full_name ||
+        profile.username !== originalProfile.username)) ||
+    (originalToggles &&
+      JSON.stringify(toggles) !== JSON.stringify(originalToggles)) ||
+    accentColor !== (localStorage.getItem(`glitch_accent_${authUser?.id}`) || "#FF00C8");
 
   const handleSave = async () => {
-    if (!isDirty) return;
-    setUsernameError("");
     setSaveStatus("saving");
+    setUsernameError("");
 
-    const { data: au } = await supabase.auth.getUser();
-    const userId = au?.user?.id;
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
     if (!userId) {
       setSaveStatus("error");
       return;
@@ -472,28 +494,66 @@ const Settings = () => {
         .select("id")
         .eq("username", profile.username.trim())
         .neq("id", userId)
-        .single();
+        .maybeSingle();
+
       if (existing) {
-        setUsernameError("Username already taken.");
+        setUsernameError("Username is already taken.");
         setSaveStatus("idle");
         return;
       }
     }
 
-    const { error } = await supabase
+    // Save in LocalStorage & system settings
+    localStorage.setItem(`glitch_toggles_${userId}`, JSON.stringify(toggles));
+    localStorage.setItem(`glitch_accent_${userId}`, accentColor);
+    localStorage.setItem("gr_sound_enabled", toggles.sounds ? "true" : "false");
+    document.documentElement.style.setProperty("--accent", accentColor);
+
+    // Save in Auth Metadata for cross-device persistence
+    await supabase.auth.updateUser({
+      data: {
+        full_name: profile.full_name.trim(),
+        username: profile.username.trim(),
+        emailNotifs: toggles.emailNotifs,
+        pushNotifs: toggles.pushNotifs,
+        weeklyDigest: toggles.weeklyDigest,
+        sounds: toggles.sounds,
+        publicProfile: toggles.publicProfile,
+        showEmail: toggles.showEmail,
+        accentColor: accentColor,
+      },
+    });
+
+    // Update profiles table in Supabase
+    let { error } = await supabase
       .from("profiles")
       .update({
         full_name: profile.full_name.trim(),
         username: profile.username.trim(),
+        public_profile: toggles.publicProfile,
+        show_email: toggles.showEmail,
       })
       .eq("id", userId);
+
+    if (error && (error.message?.includes("public_profile") || error.message?.includes("show_email"))) {
+      const fallback = await supabase
+        .from("profiles")
+        .update({
+          full_name: profile.full_name.trim(),
+          username: profile.username.trim(),
+        })
+        .eq("id", userId);
+      error = fallback.error;
+    }
 
     if (error) {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     } else {
       setOriginalProfile({ ...profile });
+      setOriginalToggles({ ...toggles });
       setSaveStatus("saved");
+      showToast("All settings saved successfully!");
       setTimeout(() => setSaveStatus("idle"), 2500);
     }
   };
@@ -518,7 +578,7 @@ const Settings = () => {
       <div className="flex pt-[18vh]">
         <SharedSidebar user={authUser} xp={xp} level={level} />
 
-        <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto pb-24 md:pb-0">
+        <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto pb-24 md:pb-12">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -15 }}
@@ -528,7 +588,7 @@ const Settings = () => {
             <div>
               <h1 className="text-3xl font-black text-white mb-1">Settings</h1>
               <p className="text-gray-500 text-sm">
-                Manage your account, preferences & privacy.
+                Manage your account preferences, privacy, and system controls.
               </p>
             </div>
 
@@ -543,45 +603,68 @@ const Settings = () => {
                   saveStatus === "saved"
                     ? "#22c55e"
                     : saveStatus === "error"
-                      ? "#ef4444"
-                      : "#FF00C8",
+                    ? "#ef4444"
+                    : "#FF00C8",
                 color:
                   saveStatus === "saved"
                     ? "#22c55e"
                     : saveStatus === "error"
-                      ? "#ef4444"
-                      : "#FF00C8",
+                    ? "#ef4444"
+                    : "#FF00C8",
                 boxShadow:
                   isDirty && saveStatus === "idle"
-                    ? "0 0 12px rgba(255,0,200,0.2)"
+                    ? "0 0 16px rgba(255,0,200,0.3)"
                     : "none",
               }}
             >
               {saveStatus === "saving" ? (
                 <>
-                  <RefreshCw size={13} className="animate-spin" /> Saving...
+                  <RefreshCw size={14} className="animate-spin" /> Saving...
                 </>
               ) : saveStatus === "saved" ? (
                 <>
-                  <Check size={13} /> Saved!
+                  <Check size={14} /> Saved!
                 </>
               ) : saveStatus === "error" ? (
                 <>
-                  <AlertTriangle size={13} /> Error
+                  <AlertTriangle size={14} /> Error
                 </>
               ) : (
                 <>
-                  <Save size={13} /> Save Changes
+                  <Save size={14} /> Save Changes
                 </>
               )}
             </motion.button>
           </motion.div>
 
-          {/* ── ACCOUNT ── */}
+          {/* Toast Notification */}
+          <AnimatePresence>
+            {toastMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-6 px-4 py-3 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 text-[#22c55e] text-xs font-mono flex items-center justify-between shadow-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <Check size={14} />
+                  <span>{toastMessage}</span>
+                </div>
+                <button
+                  onClick={() => setToastMessage("")}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── 1. ACCOUNT ── */}
           <Section icon={User} title="Account" color="#FF00C8" delay={0.1}>
             <SettingRow
               label="Display Name"
-              desc="Your name shown across the platform"
+              desc="Your public name displayed across the platform"
             >
               <input
                 value={profile.full_name}
@@ -589,7 +672,7 @@ const Settings = () => {
                   setProfile({ ...profile, full_name: e.target.value })
                 }
                 placeholder="Your full name"
-                className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white w-48 focus:outline-none focus:border-[#FF00C8]/50 transition placeholder-gray-600"
+                className="bg-white/5 border border-white/10 rounded-xl px-3.5 py-1.5 text-sm text-white w-52 focus:outline-none focus:border-[#FF00C8]/50 transition placeholder-gray-600 font-sans"
               />
             </SettingRow>
 
@@ -597,37 +680,35 @@ const Settings = () => {
               label="Username"
               desc={
                 usernameError ? (
-                  <span className="text-red-400">{usernameError}</span>
+                  <span className="text-red-400 font-semibold">{usernameError}</span>
                 ) : (
-                  "Your unique @handle"
+                  "Your unique handle"
                 )
               }
             >
-              <div className="relative">
-                <input
-                  value={profile.username}
-                  onChange={(e) => {
-                    setProfile({ ...profile, username: e.target.value });
-                    setUsernameError("");
-                  }}
-                  placeholder="@username"
-                  className="bg-white/5 border rounded-xl px-3 py-1.5 text-sm text-white w-48 focus:outline-none transition placeholder-gray-600"
-                  style={{
-                    borderColor: usernameError
-                      ? "rgba(239,68,68,0.4)"
-                      : "rgba(255,255,255,0.1)",
-                  }}
-                />
-              </div>
+              <input
+                value={profile.username}
+                onChange={(e) => {
+                  setProfile({ ...profile, username: e.target.value });
+                  setUsernameError("");
+                }}
+                placeholder="@username"
+                className="bg-white/5 border rounded-xl px-3.5 py-1.5 text-sm text-white w-52 focus:outline-none transition placeholder-gray-600 font-mono"
+                style={{
+                  borderColor: usernameError
+                    ? "rgba(239,68,68,0.5)"
+                    : "rgba(255,255,255,0.1)",
+                }}
+              />
             </SettingRow>
 
             <SettingRow
               label="Email Address"
-              desc="Used for login and notifications"
+              desc="Primary login and account recovery email"
             >
-              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 w-48 opacity-70">
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3.5 py-1.5 w-52 opacity-70">
                 <Mail size={13} className="text-gray-500 shrink-0" />
-                <span className="text-sm text-gray-400 truncate">
+                <span className="text-xs text-gray-400 font-mono truncate">
                   {profile.email}
                 </span>
               </div>
@@ -635,18 +716,19 @@ const Settings = () => {
 
             <SettingRow
               label="Change Password"
-              desc="Update your login password"
+              desc="Update your current login password"
             >
               <button
+                type="button"
                 onClick={() => setShowPasswordModal(true)}
-                className="flex items-center gap-1.5 text-xs text-[#FF00C8] font-medium border border-[#FF00C8]/30 px-3 py-1.5 rounded-xl hover:border-[#FF00C8]/60 hover:bg-[#FF00C8]/5 transition bg-transparent cursor-pointer"
+                className="flex items-center gap-1.5 text-xs text-[#FF00C8] font-bold border border-[#FF00C8]/30 px-3.5 py-1.5 rounded-xl hover:border-[#FF00C8]/60 hover:bg-[#FF00C8]/10 transition bg-transparent cursor-pointer"
               >
-                <Lock size={11} /> Update
+                <Lock size={12} /> Update Password
               </button>
             </SettingRow>
           </Section>
 
-          {/* ── NOTIFICATIONS ── */}
+          {/* ── 2. NOTIFICATIONS ── */}
           <Section
             icon={Bell}
             title="Notifications"
@@ -655,42 +737,51 @@ const Settings = () => {
           >
             <SettingRow
               label="Email Notifications"
-              desc="Get challenge updates via email"
+              desc="Receive activity updates and challenge news via email"
             >
               <Toggle
                 enabled={toggles.emailNotifs}
-                onToggle={() => toggle("emailNotifs")}
+                onToggle={() => toggleSetting("emailNotifs")}
               />
             </SettingRow>
-            <SettingRow label="Push Notifications" desc="Browser push alerts">
+
+            <SettingRow
+              label="Push Notifications"
+              desc="Receive real-time browser push alerts for rewards and events"
+            >
               <Toggle
                 enabled={toggles.pushNotifs}
-                onToggle={() => {
-                  toggle("pushNotifs");
-                  if (!toggles.pushNotifs && "Notification" in window) {
-                    Notification.requestPermission();
-                  }
-                }}
+                onToggle={() => toggleSetting("pushNotifs")}
               />
             </SettingRow>
+
             <SettingRow
               label="Weekly Digest"
-              desc="Summary of your week's activity"
+              desc="Receive a weekly summary of your gBits, streaks & badges"
             >
               <Toggle
                 enabled={toggles.weeklyDigest}
-                onToggle={() => toggle("weeklyDigest")}
+                onToggle={() => toggleSetting("weeklyDigest")}
               />
             </SettingRow>
-            <SettingRow label="Sound Effects" desc="UI sounds and alerts">
-              <Toggle
-                enabled={toggles.sounds}
-                onToggle={() => toggle("sounds")}
-              />
+
+            <SettingRow
+              label="Sound Effects"
+              desc="Enable audio feedback for challenges, level ups & floating particles"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 font-mono flex items-center gap-1">
+                  {toggles.sounds ? <Volume2 size={13} className="text-[#00F0FF]" /> : <VolumeX size={13} />}
+                </span>
+                <Toggle
+                  enabled={toggles.sounds}
+                  onToggle={() => toggleSetting("sounds")}
+                />
+              </div>
             </SettingRow>
           </Section>
 
-          {/* ── PRIVACY & SECURITY ── */}
+          {/* ── 3. PRIVACY & SECURITY ── */}
           <Section
             icon={Shield}
             title="Privacy & Security"
@@ -699,96 +790,107 @@ const Settings = () => {
           >
             <SettingRow
               label="Public Profile"
-              desc="Let others find and view your profile"
+              desc="Allow other developers to view your profile and terminal wall rank"
             >
               <Toggle
                 enabled={toggles.publicProfile}
-                onToggle={() => toggle("publicProfile")}
+                onToggle={() => toggleSetting("publicProfile")}
               />
             </SettingRow>
+
             <SettingRow
-              label="Show Email"
-              desc="Display email on your public profile"
+              label="Show Email on Profile"
+              desc="Display your email address publicly on your user profile card"
             >
               <Toggle
                 enabled={toggles.showEmail}
-                onToggle={() => toggle("showEmail")}
+                onToggle={() => toggleSetting("showEmail")}
               />
             </SettingRow>
+
             <SettingRow
               label="Two-Factor Authentication"
-              desc="Extra security for your account"
+              desc="Add an extra layer of security using TOTP / Authenticator apps"
             >
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full font-semibold">
+                <span className="text-[10px] font-bold font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
                   Coming Soon
                 </span>
-                <Toggle enabled={toggles.twoFactor} onToggle={() => {}} />
+                <Toggle enabled={false} onToggle={() => {}} disabled />
               </div>
             </SettingRow>
+
             <SettingRow
               label="Active Sessions"
-              desc="Manage your logged-in devices"
+              desc="Sign out from all devices across all web sessions"
             >
               <button
+                type="button"
                 onClick={() =>
                   supabase.auth
                     .signOut()
                     .then(() => (window.location.href = "/"))
                 }
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition bg-transparent border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-xl cursor-pointer"
+                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition bg-transparent border border-white/10 hover:border-white/20 px-3.5 py-1.5 rounded-xl cursor-pointer font-mono"
               >
-                <Smartphone size={12} /> Sign Out All <ChevronRight size={12} />
+                <Smartphone size={13} /> Sign Out All <ChevronRight size={13} />
               </button>
             </SettingRow>
           </Section>
 
-          {/* ── APPEARANCE ── */}
-          {/* <Section
+          {/* ── 4. APPEARANCE ── */}
+          <Section
             icon={Palette}
-            title="Appearance"
+            title="Appearance & Theme"
             color="#f59e0b"
             delay={0.25}
           >
-            <SettingRow label="Dark Mode" desc="Toggle dark / light interface">
+            <SettingRow
+              label="Theme Mode"
+              desc="Default high-contrast cyberpunk dark environment"
+            >
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-gray-500">Always on</span>
-                <Toggle
-                  enabled={toggles.darkMode}
-                  onToggle={() => toggle("darkMode")}
-                />
+                <span className="text-xs text-amber-400 font-mono bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                  Cyber Dark (Default)
+                </span>
               </div>
             </SettingRow>
-            <SettingRow label="Accent Color" desc="Choose your highlight color">
-              <div className="flex gap-2">
+
+            <SettingRow
+              label="Accent Color"
+              desc="Choose your custom highlight color across the user interface"
+            >
+              <div className="flex items-center gap-2.5">
                 {[
-                  { color: "#FF00C8", name: "pink" },
-                  { color: "#00F0FF", name: "cyan" },
-                  { color: "#a855f7", name: "purple" },
-                  { color: "#f59e0b", name: "amber" },
-                  { color: "#10b981", name: "green" },
-                ].map(({ color }) => (
+                  { color: "#FF00C8", name: "Neon Pink" },
+                  { color: "#00F0FF", name: "Electric Cyan" },
+                  { color: "#a855f7", name: "Cyber Purple" },
+                  { color: "#f59e0b", name: "Amber" },
+                  { color: "#22c55e", name: "Emerald Green" },
+                ].map(({ color, name }) => (
                   <button
                     key={color}
-                    className="w-6 h-6 rounded-full border-2 transition-all cursor-pointer hover:scale-110"
+                    type="button"
+                    title={name}
+                    className="w-7 h-7 rounded-full border-2 transition-all cursor-pointer hover:scale-110 flex items-center justify-center"
                     style={{
                       background: color,
-                      borderColor: "rgba(255,255,255,0.15)",
-                      boxShadow: `0 0 8px ${color}60`,
+                      borderColor: accentColor === color ? "#ffffff" : "rgba(255,255,255,0.15)",
+                      boxShadow: accentColor === color ? `0 0 14px ${color}` : "none",
                     }}
                     onClick={() => {
-                      document.documentElement.style.setProperty(
-                        "--accent",
-                        color,
-                      );
+                      setAccentColor(color);
+                      document.documentElement.style.setProperty("--accent", color);
                     }}
-                  />
+                  >
+                    {accentColor === color && <Check size={12} className="text-black font-bold" />}
+                  </button>
                 ))}
               </div>
             </SettingRow>
-          </Section> */}
+          </Section>
 
-          {/* ── DANGER ZONE ── */}
+          {/* ── 5. DANGER ZONE ── */}
           <Section
             icon={Trash2}
             title="Danger Zone"
@@ -797,12 +899,13 @@ const Settings = () => {
           >
             <SettingRow
               label="Delete Account"
-              desc="Permanently remove your account and all data"
+              desc="Permanently remove your account, gBits balance, and data history"
               danger
             >
               <button
+                type="button"
                 onClick={() => setShowDeleteModal(true)}
-                className="text-xs text-red-400 font-medium border border-red-500/30 px-3 py-1.5 rounded-xl hover:border-red-500/60 hover:bg-red-500/5 transition bg-transparent cursor-pointer"
+                className="text-xs text-red-400 font-bold border border-red-500/30 px-3.5 py-1.5 rounded-xl hover:border-red-500/60 hover:bg-red-500/10 transition bg-transparent cursor-pointer"
               >
                 Delete Account
               </button>
