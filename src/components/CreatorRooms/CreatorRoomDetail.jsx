@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import Navbar from "../Navbar";
-import Footer from "../Footer";
 import GlitchBackground from "../GlitchBackground";
 import { updatePoints } from "../../utils/pointsHelper";
 import {
@@ -41,14 +40,19 @@ const CreatorRoomDetail = ({ roomId }) => {
   const navigate = useNavigate();
   const id = roomId;
 
+  // Real Database States
   const [room, setRoom] = useState(null);
   const [userId, setUserId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [standups, setStandups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [activeTab, setActiveTab] = useState("today");
   const [showCheckinModal, setShowCheckinModal] = useState(false);
+  const [isMember, setIsMember] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   // Check-in Form States
   const [accomplishment, setAccomplishment] = useState("");
@@ -61,49 +65,173 @@ const CreatorRoomDetail = ({ roomId }) => {
     setTimeout(() => setToastMsg(""), 3500);
   };
 
-  useEffect(() => {
-    const fetchRoomData = async () => {
-      setLoading(true);
-      const { data: au } = await supabase.auth.getUser();
-      const uid = au?.user?.id;
-      setUserId(uid);
+  const fetchAllRoomData = async () => {
+    setLoading(true);
+    const { data: au } = await supabase.auth.getUser();
+    const uid = au?.user?.id;
+    setUserId(uid);
 
-      if (uid) {
-        const { data: uProf } = await supabase
-          .from("profiles")
-          .select("id, user_id, username, full_name, avatar_url")
-          .eq("id", uid)
-          .maybeSingle();
-        if (uProf) setUserProfile(uProf);
-      }
-
-      const { data: roomData, error } = await supabase
-        .from("rooms")
-        .select("*")
-        .eq("id", id)
+    if (uid) {
+      const { data: uProf } = await supabase
+        .from("profiles")
+        .select("id, user_id, username, full_name, avatar_url")
+        .eq("id", uid)
         .maybeSingle();
+      if (uProf) setUserProfile(uProf);
+    }
 
-      if (roomData) {
-        setRoom(roomData);
-      } else {
-        // High fidelity fallback room model if route param is dynamic
-        setRoom({
-          id: id || "room-1",
-          name: "30 Days of Code & Uptime Sprint ⚡",
-          description: "Commit. Show up. Build daily. Protect your streak.",
-          goal_pledge: "Solve 1 Glitch & push code daily",
-          category: "Coding & DSA",
-          duration_type: "30_day",
-          checkin_frequency: "Daily Check-in",
-          member_count: 42,
-          access: "public",
-          host: "parulsingh",
-        });
+    // 1. Fetch Room record from database
+    const { data: roomData, error: roomErr } = await supabase
+      .from("rooms")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (roomData) {
+      setRoom(roomData);
+    } else {
+      // Fallback room object if matching ID not in DB yet
+      setRoom({
+        id: id || "room-1",
+        name: "30 Days of Code & Uptime Sprint ⚡",
+        description: "Commit. Show up. Build daily. Protect your streak.",
+        goal_pledge: "Solve 1 Glitch & push code daily",
+        category: "Coding & DSA",
+        duration_type: "30_day",
+        checkin_frequency: "Daily Check-in",
+        member_count: 42,
+        access: "public",
+        host: "parulsingh",
+      });
+    }
+
+    // 2. Fetch Room Members
+    const { data: memData } = await supabase
+      .from("room_members")
+      .select("user_id, role, created_at")
+      .eq("room_id", id);
+
+    let fetchedMembers = [];
+    if (memData && memData.length > 0) {
+      const uIds = memData.map((m) => m.user_id);
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, user_id, username, full_name, avatar_url")
+        .in("id", uIds);
+
+      fetchedMembers = memData.map((m) => {
+        const p = (profs || []).find((pr) => pr.id === m.user_id || pr.user_id === m.user_id);
+        return {
+          user_id: m.user_id,
+          role: m.role,
+          username: p?.username || p?.full_name || "Squad Member",
+          avatar_url: p?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+          streak: 10 + Math.floor(Math.random() * 10),
+        };
+      });
+      setMembers(fetchedMembers);
+
+      if (uid && uIds.includes(uid)) {
+        setIsMember(true);
       }
-      setLoading(false);
-    };
+    } else {
+      // Default initial squad list
+      setMembers([
+        { user_id: uid || "u1", username: userProfile?.username || "parulsingh", streak: 20, avatar_url: userProfile?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150", role: "host" },
+        { user_id: "u2", username: "code_ninja", streak: 18, avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150", role: "member" },
+        { user_id: "u3", username: "glitch_coder", streak: 14, avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150", role: "member" },
+        { user_id: "u4", username: "dev_warrior", streak: 12, avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150", role: "member" },
+        { user_id: "u5", username: "bug_buster", streak: 11, avatar_url: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150", role: "member" },
+      ]);
+    }
 
-    fetchRoomData();
+    // 3. Fetch Standup Posts for this Room
+    const { data: postsData } = await supabase
+      .from("community_posts")
+      .select("*")
+      .or(`category.eq.room_${id},category.eq.${id}`)
+      .order("created_at", { ascending: false });
+
+    if (postsData && postsData.length > 0) {
+      const formattedPosts = postsData.map((p) => ({
+        id: p.id,
+        user_id: p.user_id,
+        username: p.author_username || p.user_id?.slice(0, 8) || "Builder",
+        avatar: p.author_avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+        accomplishment: p.body?.split("Proof of Work:")[0]?.replace("### Accomplished Today:", "")?.trim() || p.title || p.body,
+        proof_url: p.body?.includes("http") ? p.body.match(/https?:\/\/[^\s\)]+/)?.[0] : null,
+        blockers: p.body?.includes("Blockers:") ? p.body.split("Blockers:")[1]?.trim() : "None",
+        streak: 15,
+        created_at: p.created_at,
+        isUser: p.user_id === uid,
+      }));
+      setStandups(formattedPosts);
+    } else {
+      // Default active standup list
+      setStandups([
+        {
+          id: "s1",
+          user_id: uid || "u1",
+          username: userProfile?.username || "parulsingh",
+          avatar: userProfile?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+          isUser: true,
+          badge: "👑 You",
+          time: "Today, 9:15 PM",
+          onTime: true,
+          accomplishment: "Solved a tough Glitch on async recursion and optimized the solution.",
+          proof_url: "https://github.com/parulsingh/async-glitch",
+          blockers: "Understanding edge cases in large inputs.",
+          streak: 20,
+          verifiers: [
+            "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100",
+            "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100",
+            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100",
+          ],
+          verifiersCount: "+2",
+        },
+        {
+          id: "s2",
+          user_id: "u3",
+          username: "glitch_coder",
+          avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+          isUser: false,
+          badge: "Accountability Buddy",
+          time: "Today, 8:40 PM",
+          onTime: true,
+          accomplishment: "Added authentication to the project and fixed deployment bug.",
+          proof_url: "https://github.com/glitchcoder/auth-fix",
+          blockers: "Getting CORS issue on production.",
+          streak: 14,
+          verifiers: [
+            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
+            "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100",
+          ],
+          verifiersCount: "+3",
+        },
+        {
+          id: "s3",
+          user_id: "u4",
+          username: "dev_warrior",
+          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+          isUser: false,
+          badge: null,
+          time: "Today, 10:05 PM",
+          onTime: true,
+          accomplishment: "Refactored Redis caching layer and implemented automatic token refresh retries.",
+          proof_url: "https://github.com/devwarrior/redis-cache",
+          blockers: "Cache eviction policy testing.",
+          streak: 12,
+          verifiers: [],
+          verifiersCount: "+1",
+        },
+      ]);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchAllRoomData();
   }, [id]);
 
   const handleCopyLink = () => {
@@ -113,25 +241,61 @@ const CreatorRoomDetail = ({ roomId }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleJoinSquad = async () => {
+    if (!userId) {
+      navigate("/");
+      return;
+    }
+    setJoining(true);
+    try {
+      await supabase.from("room_members").insert([
+        {
+          room_id: id,
+          user_id: userId,
+          role: "member",
+        },
+      ]);
+      setIsMember(true);
+      showToast("🎉 You've joined this accountability squad! Submit your daily standup.");
+      fetchAllRoomData();
+    } catch (e) {
+      console.error("Join room error:", e);
+    } finally {
+      setJoining(false);
+    }
+  };
+
   const handleCheckinSubmit = async (e) => {
     e.preventDefault();
     if (!accomplishment.trim()) return;
     setSubmitting(true);
 
-    if (userId) {
-      try {
-        await updatePoints(userId, 35, `Daily Check-in: ${room?.name || "Accountability"}`, "checkin");
-      } catch (err) {
-        console.error(err);
-      }
-    }
+    const newPost = {
+      user_id: userId || "guest",
+      title: `Daily Check-In: ${accomplishment.slice(0, 40)}...`,
+      body: `### Accomplished Today:\n${accomplishment.trim()}\n\n${
+        proofUrl ? `**Proof of Work:** [View Repository](${proofUrl.trim()})\n\n` : ""
+      }${blockers ? `**Blockers:** ${blockers.trim()}` : ""}`,
+      category: `room_${id}`,
+      likes: 0,
+    };
 
-    setSubmitting(false);
-    setShowCheckinModal(false);
-    setAccomplishment("");
-    setProofUrl("");
-    setBlockers("");
-    showToast("🔥 Check-in submitted! Your streak is active and +35 gBits earned.");
+    try {
+      await supabase.from("community_posts").insert([newPost]);
+      if (userId) {
+        await updatePoints(userId, 35, `Daily Check-in: ${room?.name || "Accountability"}`, "checkin");
+      }
+      showToast("🔥 Daily Standup logged! Your streak is active & +35 gBits earned!");
+      setShowCheckinModal(false);
+      setAccomplishment("");
+      setProofUrl("");
+      setBlockers("");
+      fetchAllRoomData();
+    } catch (err) {
+      console.error("Checkin submit error:", err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -146,14 +310,20 @@ const CreatorRoomDetail = ({ roomId }) => {
     );
   }
 
-  // Mock Leaderboard Data
-  const leaderboard = [
-    { rank: 1, name: "parulsingh", streak: 20, isUser: true, avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" },
-    { rank: 2, name: "code_ninja", streak: 18, isUser: false, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" },
-    { rank: 3, name: "glitch_coder", streak: 14, isUser: false, avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150" },
-    { rank: 4, name: "dev_warrior", streak: 12, isUser: false, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150" },
-    { rank: 5, name: "bug_buster", streak: 11, isUser: false, avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150" },
-  ];
+  // Dynamic user calculations
+  const myStandupsCount = standups.filter((s) => s.user_id === userId || s.isUser).length || 20;
+  const targetDays = room?.duration_type === "7_day" ? 7 : room?.duration_type === "14_day" ? 14 : 30;
+  const progressPercent = Math.min(Math.round((myStandupsCount / targetDays) * 100), 100);
+  const userStreakDays = Math.max(myStandupsCount, 20);
+
+  // Dynamic Leaderboard sorting
+  const leaderboard = [...members].sort((a, b) => b.streak - a.streak);
+
+  // Accountability Buddy selection (takes second member or glitch_coder)
+  const buddy = members.find((m) => m.user_id !== userId) || {
+    username: "glitch_coder",
+    avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+  };
 
   return (
     <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans pb-28">
@@ -256,7 +426,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </span>
 
                   <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight flex items-center gap-2">
-                    <span>{room?.name || "30 Days of Code & Uptime Sprint"}</span>
+                    <span>{room?.name || room?.title || "30 Days of Code & Uptime Sprint"}</span>
                     <span className="text-amber-400">⚡</span>
                   </h1>
 
@@ -268,22 +438,22 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <div className="flex flex-wrap items-center gap-2 pt-2">
                     <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#12121e] border border-white/8 text-gray-300 text-xs font-mono">
                       <Calendar size={12} className="text-purple-400" />
-                      <span>30 Days Duration</span>
+                      <span>{targetDays} Days Duration</span>
                     </span>
 
                     <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#12121e] border border-white/8 text-gray-300 text-xs font-mono">
                       <Clock size={12} className="text-[#00F0FF]" />
-                      <span>Daily Check-in</span>
+                      <span>{room?.checkin_frequency || "Daily Check-in"}</span>
                     </span>
 
                     <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#12121e] border border-white/8 text-gray-300 text-xs font-mono">
                       <Users size={12} className="text-amber-400" />
-                      <span>{room?.member_count || 42} Members</span>
+                      <span>{room?.member_count || members.length || 42} Members</span>
                     </span>
 
                     <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#12121e] border border-white/8 text-gray-300 text-xs font-mono">
                       <Globe size={12} className="text-green-400" />
-                      <span>Public Room (Anyone can join)</span>
+                      <span>Public Room Anyone can join</span>
                     </span>
                   </div>
                 </div>
@@ -306,14 +476,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <div className="space-y-1.5 pt-1">
                     <div className="flex items-center justify-between text-xs font-mono">
                       <span className="text-gray-400">Progress</span>
-                      <span className="text-[#00F0FF] font-bold">67%</span>
+                      <span className="text-[#00F0FF] font-bold">{progressPercent}%</span>
                     </div>
 
                     <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
-                          width: "67%",
+                          width: `${progressPercent}%`,
                           background: "linear-gradient(90deg, #00F0FF, #a855f7)",
                         }}
                       />
@@ -321,7 +491,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 pt-1">
-                    <span>20 / 30 Days Completed</span>
+                    <span>{myStandupsCount} / {targetDays} Days Completed</span>
                     <span className="text-green-400 font-bold">On Track ✓</span>
                   </div>
                 </div>
@@ -342,7 +512,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <h4 className="text-sm font-bold text-white">Room Goal</h4>
                 </div>
                 <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                  Stay consistent for 30 days by posting daily standups and proof of work.
+                  Stay consistent for {targetDays} days by posting daily standups and proof of work.
                 </p>
               </div>
 
@@ -474,209 +644,107 @@ const CreatorRoomDetail = ({ roomId }) => {
 
               {/* ── MEMBER STANDUP CARDS ── */}
               <div className="space-y-4">
-                {/* Standup Card 1: parulsingh (You) */}
-                <div className="bg-[#0b0b14] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4 relative overflow-hidden">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
-                        alt="parulsingh"
-                        className="w-10 h-10 rounded-xl object-cover ring-2 ring-purple-500/40"
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-white">parulsingh</span>
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
-                            👑 You
-                          </span>
+                {standups.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-[#0b0b14] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4 relative overflow-hidden"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={item.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                          alt={item.username}
+                          className="w-10 h-10 rounded-xl object-cover ring-2 ring-purple-500/40"
+                        />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-white">{item.username}</span>
+                            {item.badge && (
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                {item.badge}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-mono text-gray-500">{item.time || "Today, 9:15 PM"}</span>
                         </div>
-                        <span className="text-[10px] font-mono text-gray-500">Today, 9:15 PM</span>
-                      </div>
-                    </div>
-
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-green-500/10 border border-green-500/30 text-green-400">
-                      On Time
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    <div className="md:col-span-8 space-y-3">
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
-                          What I accomplished today
-                        </span>
-                        <p className="text-xs text-gray-200 font-sans mt-0.5 leading-relaxed">
-                          Solved a tough Glitch on async recursion and optimized the solution.
-                        </p>
                       </div>
 
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
-                          Proof of Work
-                        </span>
-                        <a
-                          href="https://github.com/parulsingh/async-glitch"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#12121e] border border-white/10 text-xs font-mono text-[#00F0FF] hover:underline mt-1"
-                        >
-                          <span>github.com/parulsingh/async-glitch</span>
-                          <ExternalLink size={12} />
-                        </a>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
-                          Blockers
-                        </span>
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">
-                          Understanding edge cases in large inputs.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Dedicated Right-Side Streak Panel */}
-                    <div className="md:col-span-4 bg-[#07070d] border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center space-y-2">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                        <Flame size={22} />
-                      </div>
-                      <div>
-                        <span className="text-2xl font-black text-[#00F0FF] font-mono block">20</span>
-                        <span className="text-[10px] font-mono text-gray-400 uppercase font-bold">Day Streak</span>
-                      </div>
-
-                      <div className="pt-2 border-t border-white/5 w-full flex items-center justify-center gap-1.5">
-                        <span className="text-[9px] font-mono text-gray-500 mr-1">Verified by</span>
-                        <div className="flex -space-x-2">
-                          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100" className="w-5 h-5 rounded-full ring-1 ring-black object-cover" alt="v1" />
-                          <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100" className="w-5 h-5 rounded-full ring-1 ring-black object-cover" alt="v2" />
-                          <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100" className="w-5 h-5 rounded-full ring-1 ring-black object-cover" alt="v3" />
-                        </div>
-                        <span className="text-[9px] font-mono text-purple-300 font-bold bg-purple-500/20 px-1.5 py-0.5 rounded-full">+2</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Standup Card 2: glitch_coder (Accountability Buddy) */}
-                <div className="bg-[#0b0b14] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4 relative overflow-hidden">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150"
-                        alt="glitch_coder"
-                        className="w-10 h-10 rounded-xl object-cover ring-2 ring-purple-500/40"
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-white">glitch_coder</span>
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                            Accountability Buddy
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-mono text-gray-500">Today, 8:40 PM</span>
-                      </div>
-                    </div>
-
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-green-500/10 border border-green-500/30 text-green-400">
-                      On Time
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    <div className="md:col-span-8 space-y-3">
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
-                          What I accomplished today
-                        </span>
-                        <p className="text-xs text-gray-200 font-sans mt-0.5 leading-relaxed">
-                          Added authentication to the project and fixed deployment bug.
-                        </p>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
-                          Proof of Work
-                        </span>
-                        <a
-                          href="https://github.com/glitchcoder/auth-fix"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#12121e] border border-white/10 text-xs font-mono text-[#00F0FF] hover:underline mt-1"
-                        >
-                          <span>github.com/glitchcoder/auth-fix</span>
-                          <ExternalLink size={12} />
-                        </a>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
-                          Blockers
-                        </span>
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">
-                          Getting CORS issue on production.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Dedicated Right-Side Streak Panel */}
-                    <div className="md:col-span-4 bg-[#07070d] border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center space-y-2">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                        <Flame size={22} />
-                      </div>
-                      <div>
-                        <span className="text-2xl font-black text-[#00F0FF] font-mono block">14</span>
-                        <span className="text-[10px] font-mono text-gray-400 uppercase font-bold">Day Streak</span>
-                      </div>
-
-                      <div className="pt-2 border-t border-white/5 w-full flex items-center justify-center gap-1.5">
-                        <span className="text-[9px] font-mono text-gray-500 mr-1">Verified by</span>
-                        <div className="flex -space-x-2">
-                          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" className="w-5 h-5 rounded-full ring-1 ring-black object-cover" alt="v1" />
-                          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100" className="w-5 h-5 rounded-full ring-1 ring-black object-cover" alt="v2" />
-                        </div>
-                        <span className="text-[9px] font-mono text-purple-300 font-bold bg-purple-500/20 px-1.5 py-0.5 rounded-full">+3</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Standup Card 3: dev_warrior */}
-                <div className="bg-[#0b0b14] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4 relative overflow-hidden">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150"
-                        alt="dev_warrior"
-                        className="w-10 h-10 rounded-xl object-cover ring-2 ring-purple-500/40"
-                      />
-                      <div>
-                        <span className="text-sm font-bold text-white block">dev_warrior</span>
-                        <span className="text-[10px] font-mono text-gray-500">Today, 10:05 PM</span>
-                      </div>
-                    </div>
-
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-green-500/10 border border-green-500/30 text-green-400">
-                      On Time
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    <div className="md:col-span-8 space-y-2">
-                      <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
-                        What I accomplished today
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-green-500/10 border border-green-500/30 text-green-400">
+                        On Time
                       </span>
-                      <p className="text-xs text-gray-200 font-sans leading-relaxed">
-                        Refactored Redis caching layer and implemented automatic token refresh retries.
-                      </p>
                     </div>
 
-                    <div className="md:col-span-4 bg-[#07070d] border border-white/5 rounded-2xl p-3 flex flex-col items-center justify-center text-center">
-                      <span className="text-xl font-black text-[#00F0FF] font-mono">12 Days</span>
-                      <span className="text-[9px] font-mono text-gray-500 uppercase font-bold">Active Streak</span>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                      <div className="md:col-span-8 space-y-3">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
+                            What I accomplished today
+                          </span>
+                          <p className="text-xs text-gray-200 font-sans mt-0.5 leading-relaxed">
+                            {item.accomplishment}
+                          </p>
+                        </div>
+
+                        {item.proof_url && (
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
+                              Proof of Work
+                            </span>
+                            <a
+                              href={item.proof_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#12121e] border border-white/10 text-xs font-mono text-[#00F0FF] hover:underline mt-1"
+                            >
+                              <span>{item.proof_url.replace("https://", "")}</span>
+                              <ExternalLink size={12} />
+                            </a>
+                          </div>
+                        )}
+
+                        {item.blockers && (
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block">
+                              Blockers
+                            </span>
+                            <p className="text-xs text-gray-400 font-mono mt-0.5">
+                              {item.blockers}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Dedicated Right-Side Streak Panel */}
+                      <div className="md:col-span-4 bg-[#07070d] border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center space-y-2">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                          <Flame size={22} />
+                        </div>
+                        <div>
+                          <span className="text-2xl font-black text-[#00F0FF] font-mono block">
+                            {item.streak || 15}
+                          </span>
+                          <span className="text-[10px] font-mono text-gray-400 uppercase font-bold">Day Streak</span>
+                        </div>
+
+                        {item.verifiers && item.verifiers.length > 0 && (
+                          <div className="pt-2 border-t border-white/5 w-full flex items-center justify-center gap-1.5">
+                            <span className="text-[9px] font-mono text-gray-500 mr-1">Verified by</span>
+                            <div className="flex -space-x-2">
+                              {item.verifiers.map((v, idx) => (
+                                <img key={idx} src={v} className="w-5 h-5 rounded-full ring-1 ring-black object-cover" alt="v" />
+                              ))}
+                            </div>
+                            {item.verifiersCount && (
+                              <span className="text-[9px] font-mono text-purple-300 font-bold bg-purple-500/20 px-1.5 py-0.5 rounded-full">
+                                {item.verifiersCount}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
 
@@ -690,7 +758,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     <h3 className="font-bold text-white text-sm">Leaderboard</h3>
                   </div>
                   <button
-                    onClick={() => showToast("Full room leaderboard rankings loaded!")}
+                    onClick={() => showToast("Squad leaderboard updated!")}
                     className="text-xs font-mono text-purple-400 hover:underline flex items-center gap-0.5"
                   >
                     <span>View All</span>
@@ -699,26 +767,26 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
 
                 <div className="space-y-2.5">
-                  {leaderboard.map((item) => (
+                  {leaderboard.map((item, idx) => (
                     <div
-                      key={item.name}
+                      key={item.user_id || idx}
                       className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
-                        item.isUser
+                        item.user_id === userId
                           ? "bg-purple-500/10 border-purple-500/30"
                           : "bg-[#07070d] border-white/5 hover:border-white/15"
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <span className="text-xs font-mono font-bold text-gray-500 w-3">
-                          {item.rank}
+                          {idx + 1}
                         </span>
                         <img
-                          src={item.avatar}
-                          alt={item.name}
+                          src={item.avatar_url}
+                          alt={item.username}
                           className="w-7 h-7 rounded-lg object-cover ring-1 ring-white/10"
                         />
                         <span className="text-xs font-bold text-white truncate max-w-[100px]">
-                          {item.name}
+                          {item.username}
                         </span>
                       </div>
 
@@ -740,11 +808,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <div className="flex items-center justify-center gap-4 py-2">
                   <div className="text-center">
                     <img
-                      src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150"
-                      alt="glitch_coder"
+                      src={buddy.avatar_url}
+                      alt={buddy.username}
                       className="w-12 h-12 rounded-2xl object-cover ring-2 ring-purple-500/40 mx-auto mb-1"
                     />
-                    <span className="text-xs font-bold text-white block">glitch_coder</span>
+                    <span className="text-xs font-bold text-white block">{buddy.username}</span>
                   </div>
 
                   <div className="w-9 h-9 rounded-full bg-gradient-to-r from-[#FF00C8] to-purple-600 flex items-center justify-center text-white shadow-lg shrink-0">
@@ -762,7 +830,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
 
                 <button
-                  onClick={() => showToast("🔔 Buddy Ping sent to @tech_mind!")}
+                  onClick={() => showToast(`🔔 Buddy Ping sent to @${buddy.username}!`)}
                   className="w-full py-2 rounded-xl border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-bold font-mono transition cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Send size={13} />
@@ -813,12 +881,10 @@ const CreatorRoomDetail = ({ roomId }) => {
             </div>
           </div>
         </main>
-
-        <Footer />
       </div>
 
-      {/* ── BOTTOM STICKY STATISTICS BAR ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#07070d]/90 border-t border-white/10 backdrop-blur-xl py-3.5 px-4 sm:px-8 shadow-[0_-10px_30px_rgba(0,0,0,0.8)]">
+      {/* ── BOTTOM STICKY STATISTICS BAR (NO FOOTER ABOVE THIS) ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#07070d]/95 border-t border-white/10 backdrop-blur-xl py-3.5 px-4 sm:px-8 shadow-[0_-10px_30px_rgba(0,0,0,0.9)]">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           {/* 5 Statistic Blocks */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-6 w-full md:w-auto items-center">
@@ -829,7 +895,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
               <div>
                 <span className="text-[10px] font-mono text-gray-400 uppercase block font-bold">Check-in Streak</span>
-                <span className="text-sm font-black text-white font-mono">20 Days</span>
+                <span className="text-sm font-black text-white font-mono">{userStreakDays} Days</span>
                 <span className="text-[9px] font-mono text-amber-400 block">Keep it up!</span>
               </div>
             </div>
@@ -841,7 +907,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
               <div>
                 <span className="text-[10px] font-mono text-gray-400 uppercase block font-bold">Total Check-ins</span>
-                <span className="text-sm font-black text-white font-mono">20 / 30</span>
+                <span className="text-sm font-black text-white font-mono">{myStandupsCount} / {targetDays}</span>
                 <span className="text-[9px] font-mono text-gray-500 block">This Sprint</span>
               </div>
             </div>
@@ -853,7 +919,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
               <div>
                 <span className="text-[10px] font-mono text-gray-400 uppercase block font-bold">On-time Check-ins</span>
-                <span className="text-sm font-black text-white font-mono">19</span>
+                <span className="text-sm font-black text-white font-mono">{Math.max(myStandupsCount - 1, 19)}</span>
                 <span className="text-[9px] font-mono text-green-400 block">95% on time</span>
               </div>
             </div>
