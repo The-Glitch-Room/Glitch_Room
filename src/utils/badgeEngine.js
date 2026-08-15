@@ -118,59 +118,42 @@ export const checkAndAwardBadges = async (userId) => {
   check("streak_3", streak >= 3);
   check("streak_7", streak >= 7);
   check("streak_14", streak >= 14);
-  check("streak_21", streak >= 21);
   check("streak_30", streak >= 30);
-  check("streak_60", streak >= 60);
-  check("streak_100", streak >= 100);
 
-  // ── Volume ────────────────────────────────────────────────────────────────
+  // ── Volume & Challenge Types ──────────────────────────────────────────────
   check("vol_1", total >= 1);
-  check("vol_5", total >= 5);
-  check("vol_10", total >= 10);
-  check("vol_25", total >= 25);
-  check("vol_50", total >= 50);
-  check("vol_75", total >= 75);
-  check("vol_100", total >= 100);
-  check("vol_150", total >= 150);
-  check("vol_200", total >= 200);
-  check("vol_500", total >= 500);
-
-  // ── Challenge types ───────────────────────────────────────────────────────
-  check("glitch_1", glitchCount >= 1);
   check("glitch_5", glitchCount >= 5);
-  check("glitch_20", glitchCount >= 20);
-  check("glitch_50", glitchCount >= 50);
-  check("ai_1", aiCount >= 1);
-  check("ai_5", aiCount >= 5);
-  check("ai_20", aiCount >= 20);
-  check("bug_1", bugCount >= 1);
   check("bug_5", bugCount >= 5);
-  check("bug_20", bugCount >= 20);
-  check("spark_1", sparkCount >= 1);
+  check("ai_5", aiCount >= 5);
   check("spark_5", sparkCount >= 5);
-  check("spark_20", sparkCount >= 20);
-  check("arena_1", arenaCount >= 1);
-  check("arena_5", arenaCount >= 5);
+  check("arena_3", arenaCount >= 3);
+  check("vol_100", total >= 100);
 
-  // ── XP milestones ─────────────────────────────────────────────────────────
-  check("xp_10", xp >= 10);
+  // ── XP Milestones ─────────────────────────────────────────────────────────
   check("xp_50", xp >= 50);
-  check("xp_100", xp >= 100);
   check("xp_250", xp >= 250);
   check("xp_500", xp >= 500);
+  check("xp_750", xp >= 750);
   check("xp_1000", xp >= 1000);
   check("xp_2000", xp >= 2000);
-  check("xp_3500", xp >= 3500);
+  check("xp_3000", xp >= 3000);
+  check("xp_4000", xp >= 4000);
   check("xp_5000", xp >= 5000);
-  check("xp_10000", xp >= 10000);
 
-  // ── Social ────────────────────────────────────────────────────────────────
+  // ── Social & Community ───────────────────────────────────────────────────
   check("social_post", (posts || []).length > 0);
   check("social_comment", (comments || []).length > 0);
   check("social_room", (rooms || []).length > 0);
-  check("social_host", (hostedRooms || []).length > 0);
 
-  // ── Special ───────────────────────────────────────────────────────────────
+  // Check referrals count
+  const { count: referralCount } = await supabase
+    .from("user_referrals")
+    .select("id", { count: "exact", head: true })
+    .eq("referrer_id", userId)
+    .eq("status", "completed");
+  check("social_referral", (referralCount || 0) >= 1);
+
+  // ── Special Achievements ──────────────────────────────────────────────────
   const profileComplete =
     profile?.username?.trim() &&
     profile?.bio?.trim() &&
