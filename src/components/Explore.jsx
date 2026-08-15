@@ -249,6 +249,12 @@ const Explore = () => {
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
 
+  const [dailyWeeklyItems, setDailyWeeklyItems] = useState(DAILY_WEEKLY_CHALLENGES);
+  const [liveItems, setLiveItems] = useState(LIVE_CHALLENGES);
+  const [upcomingItems, setUpcomingItems] = useState(UPCOMING_CHALLENGES);
+  const [featuredItems, setFeaturedItems] = useState(FEATURED_CHALLENGES);
+  const [archivedItems, setArchivedItems] = useState(ARCHIVED_VAULT_CHALLENGES);
+
   const [liveSeconds, setLiveSeconds] = useState(145 * 60);
   const [upcomingSeconds, setUpcomingSeconds] = useState(210 * 60);
 
@@ -298,6 +304,102 @@ const Explore = () => {
           try {
             setReminders(new Set(JSON.parse(savedReminders)));
           } catch (e) {}
+        }
+      }
+
+      // Dynamic fetching from database challenges table
+      const { data: dbItems } = await supabase
+        .from("challenges")
+        .select("*")
+        .like("type", "explore_%");
+
+      if (dbItems && dbItems.length > 0) {
+        const daily = dbItems.filter((i) => i.type === "explore_daily" || i.type === "explore_weekly" || i.type === "explore_flash");
+        const live = dbItems.filter((i) => i.type === "explore_live");
+        const upcoming = dbItems.filter((i) => i.type === "explore_upcoming");
+        const featured = dbItems.filter((i) => i.type === "explore_featured");
+        const archived = dbItems.filter((i) => i.type === "explore_archived");
+
+        if (daily.length > 0) {
+          setDailyWeeklyItems(daily.map(d => ({
+            id: `db-${d.id}`,
+            title: d.title,
+            category: d.category || (d.type === "explore_daily" ? "Daily Challenge" : d.type === "explore_weekly" ? "Weekly Challenge" : "Flash Glitch"),
+            difficulty: d.difficulty || "Medium",
+            points: d.points || (d.difficulty === "Easy" ? 25 : d.difficulty === "Hard" ? 75 : d.difficulty === "Expert" ? 90 : 50),
+            language: d.category || "JavaScript",
+            description: d.description,
+            refreshText: d.type === "explore_daily" ? "Refreshes at Midnight UTC" : d.type === "explore_weekly" ? "Refreshes Every Monday" : "Ends in 18 Hours",
+            badgeColor: d.type === "explore_daily" ? "#FF00C8" : d.type === "explore_weekly" ? "#00F0FF" : "#F59E0B",
+            codeSnippet: d.code,
+            solution: d.solution,
+          })));
+        }
+
+        if (live.length > 0) {
+          setLiveItems(live.map(l => ({
+            id: `db-live-${l.id}`,
+            title: l.title,
+            category: "Live Challenge",
+            difficulty: l.difficulty || "Medium",
+            points: l.points || (l.difficulty === "Easy" ? 25 : l.difficulty === "Hard" ? 75 : l.difficulty === "Expert" ? 90 : 50),
+            language: l.category || "Code Battle",
+            description: l.description,
+            endsInMinutes: 120,
+            participants: 85,
+            status: "live",
+            badgeColor: "#EF4444",
+            codeSnippet: l.code,
+            solution: l.solution,
+          })));
+        }
+
+        if (upcoming.length > 0) {
+          setUpcomingItems(upcoming.map(u => ({
+            id: `db-up-${u.id}`,
+            title: u.title,
+            category: "Upcoming Challenge",
+            difficulty: u.difficulty || "Hard",
+            points: u.points || (u.difficulty === "Easy" ? 25 : u.difficulty === "Hard" ? 75 : u.difficulty === "Expert" ? 90 : 50),
+            language: u.category || "General",
+            description: u.description,
+            startsInMinutes: 240,
+            participants: 150,
+            status: "upcoming",
+            badgeColor: "#38BDF8",
+            codeSnippet: u.code,
+            solution: u.solution,
+          })));
+        }
+
+        if (featured.length > 0) {
+          setFeaturedItems(featured.map(f => ({
+            id: `db-feat-${f.id}`,
+            title: f.title,
+            category: "Featured Pick",
+            difficulty: f.difficulty || "Easy",
+            badge: f.category || "Featured",
+            points: f.points || (f.difficulty === "Easy" ? 25 : f.difficulty === "Hard" ? 75 : f.difficulty === "Expert" ? 90 : 50),
+            language: f.category || "Fullstack",
+            description: f.description,
+            badgeColor: "#A855F7",
+            codeSnippet: f.code,
+            solution: f.solution,
+          })));
+        }
+
+        if (archived.length > 0) {
+          setArchivedItems(archived.map(a => ({
+            id: `db-arc-${a.id}`,
+            title: a.title,
+            category: "Archived Vault",
+            difficulty: a.difficulty || "Medium",
+            points: a.points || 50,
+            date: "Aug 2026",
+            winner: "glitch_master",
+            completedBy: 110,
+            rewardClaimed: a.points || 50,
+          })));
         }
       }
 
@@ -433,7 +535,7 @@ const Explore = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {DAILY_WEEKLY_CHALLENGES.map((item) => {
+              {dailyWeeklyItems.map((item) => {
                 const isCompleted = completedIds.has(item.id);
                 return (
                   <motion.div
@@ -532,7 +634,7 @@ const Explore = () => {
                 </div>
 
                 <div className="space-y-4">
-                  {LIVE_CHALLENGES.map((ch) => {
+                  {liveItems.map((ch) => {
                     const isDone = completedIds.has(ch.id);
                     return (
                       <div
@@ -590,7 +692,7 @@ const Explore = () => {
                 </div>
 
                 <div className="space-y-4">
-                  {UPCOMING_CHALLENGES.map((ch) => {
+                  {upcomingItems.map((ch) => {
                     const isSet = reminders.has(ch.id);
                     return (
                       <div
@@ -668,7 +770,7 @@ const Explore = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {FEATURED_CHALLENGES.map((item) => (
+              {featuredItems.map((item) => (
                 <motion.div
                   key={item.id}
                   whileHover={{ y: -5 }}
@@ -810,7 +912,7 @@ const Explore = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {ARCHIVED_VAULT_CHALLENGES.map((item) => (
+              {archivedItems.map((item) => (
                 <div
                   key={item.id}
                   className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between opacity-85 hover:opacity-100 transition shadow-xl"
@@ -821,19 +923,19 @@ const Explore = () => {
                         {item.date}
                       </span>
                       <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                        +{Math.min(item.rewardClaimed, 100)} gBits
+                        +{Math.min(item.rewardClaimed || item.points || 50, 100)} gBits
                       </span>
                     </div>
                     <h4 className="font-bold text-white text-base mb-2">
                       {item.title}
                     </h4>
                     <p className="text-xs text-gray-400">
-                      Completed by {item.completedBy} developers
+                      Completed by {item.completedBy || 100} developers
                     </p>
                   </div>
 
                   <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-between text-xs font-mono text-gray-400">
-                    <span>Top Solver: <strong className="text-white">@{item.winner}</strong></span>
+                    <span>Top Solver: <strong className="text-white">@{item.winner || "glitch_master"}</strong></span>
                     <span className="text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">Archived ✓</span>
                   </div>
                 </div>

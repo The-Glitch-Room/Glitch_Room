@@ -27,6 +27,13 @@ const CHALLENGE_TYPES = [
   { value: "bug", label: "Debug Mode", color: "#FF6B00" },
   { value: "ai", label: "AI Powered", color: "#FF00C8" },
   { value: "spark", label: "Creative Sparks", color: "#A855F7" },
+  { value: "explore_daily", label: "Explore: Daily Glitch", color: "#FF00C8" },
+  { value: "explore_weekly", label: "Explore: Weekly Challenge", color: "#00F0FF" },
+  { value: "explore_flash", label: "Explore: Flash Event", color: "#F59E0B" },
+  { value: "explore_live", label: "Explore: Live Battle", color: "#EF4444" },
+  { value: "explore_upcoming", label: "Explore: Upcoming Battle", color: "#38BDF8" },
+  { value: "explore_featured", label: "Explore: Featured Pick", color: "#A855F7" },
+  { value: "explore_archived", label: "Explore: Archived Vault", color: "#10B981" },
 ];
 
 const JSON_SOURCES = {
@@ -36,7 +43,7 @@ const JSON_SOURCES = {
   spark: sparkJson,
 };
 
-const DIFFICULTIES = ["Easy", "Medium", "Hard"];
+const DIFFICULTIES = ["Easy", "Medium", "Hard", "Expert"];
 
 const inputClass =
   "w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a12] border border-white/8 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-cyan-500/40 transition";
@@ -48,7 +55,8 @@ const emptyChallengeForm = {
   title: "",
   description: "",
   category: "",
-  difficulty: "Easy",
+  difficulty: "Medium",
+  points: 50,
   code: "",
   hint: "",
   solution: "",
@@ -125,7 +133,8 @@ const ChallengesTab = () => {
       title: item.title || "",
       description: item.description || "",
       category: item.category || "",
-      difficulty: item.difficulty || "Easy",
+      difficulty: item.difficulty || "Medium",
+      points: item.points || (item.difficulty === "Easy" ? 25 : item.difficulty === "Hard" ? 75 : item.difficulty === "Expert" ? 90 : 50),
       code: item.code || "",
       hint: item.hint || "",
       solution: item.solution || "",
@@ -152,10 +161,11 @@ const ChallengesTab = () => {
       description: form.description.trim(),
       category: form.category.trim(),
       difficulty: form.difficulty,
-      code: form.code.trim() || null,
-      hint: form.hint.trim() || null,
-      solution: form.solution.trim() || null,
-      prompt: form.prompt.trim() || null,
+      points: Math.min(Math.max(parseInt(form.points || 50, 10), 10), 100),
+      code: form.code ? form.code.trim() : null,
+      hint: form.hint ? form.hint.trim() : null,
+      solution: form.solution ? form.solution.trim() : null,
+      prompt: form.prompt ? form.prompt.trim() : null,
     };
 
     if (editingId === "new") {
@@ -330,7 +340,13 @@ const ChallengesTab = () => {
                     <button
                       key={d}
                       type="button"
-                      onClick={() => setForm({ ...form, difficulty: d })}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          difficulty: d,
+                          points: d === "Easy" ? 25 : d === "Hard" ? 75 : d === "Expert" ? 90 : 50,
+                        })
+                      }
                       className="flex-1 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer"
                       style={
                         form.difficulty === d
@@ -350,6 +366,24 @@ const ChallengesTab = () => {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="mb-4">
+                <label className={labelClass}>gBits Reward (10 to 100 gBits)</label>
+                <input
+                  type="number"
+                  min="10"
+                  max="100"
+                  value={form.points || 50}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      points: Math.min(100, Math.max(10, parseInt(e.target.value || "0", 10))),
+                    })
+                  }
+                  className={inputClass}
+                  placeholder="Points reward (Easy: 25, Medium: 50, Hard: 75, Expert: 90)"
+                />
               </div>
 
               {type !== "spark" && (
