@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 import PageHeading from "./PageHeading";
+import GlitchBackground from "./GlitchBackground";
 import { supabase } from "../supabaseClient";
 import { fetchDatabaseCategoryCounts } from "../utils/challengeCountHelper";
 import { updatePoints } from "../utils/pointsHelper";
@@ -339,26 +340,46 @@ const Explore = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between overflow-x-hidden">
-      <Navbar />
+    <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden">
+      {/* Dynamic Moving Glitch Background (Game Arena & Home Page Treatment) */}
+      <GlitchBackground />
 
-      <main className="flex-1 pt-36 md:pt-44 pb-20">
-        {/* Entrance Heading Animation matching Home page style */}
-        <motion.div
-          initial={{ opacity: 0, y: -35 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: "easeOut" }}
-          className="relative z-10 w-full max-w-5xl mx-auto text-center px-4 mb-4"
-        >
-          <PageHeading
-            eyebrow="EXPLORE HUB"
-            title="Discover Time-Bounded Battles & Challenges"
-            subtitle="Explore daily refreshes, live events, featured picks, core challenge modes, and historical vaults."
-            accent="cyan"
+      <div className="relative z-10 flex flex-col flex-1">
+        <Navbar />
+
+        {/* ── HERO HEADER (Game Arena style with cyber grid & ambient radial glow) ── */}
+        <section className="relative pt-36 md:pt-44 pb-16 px-6 overflow-hidden mb-12 md:mb-20">
+          {/* Animated Cyber Grid */}
+          <div
+            className="absolute inset-0 z-0 opacity-10 pointer-events-none"
+            style={{
+              backgroundImage: `linear-gradient(rgba(0,240,255,0.2) 1px, transparent 1px),
+                                linear-gradient(90deg, rgba(0,240,255,0.2) 1px, transparent 1px)`,
+              backgroundSize: "60px 60px",
+            }}
           />
-        </motion.div>
+          {/* Ambient Radial Glow */}
+          <div
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[650px] h-[320px] rounded-full blur-3xl opacity-15 pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(ellipse, #FF00C8, #00F0FF, transparent)",
+            }}
+          />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
+          <div className="relative z-10 max-w-4xl mx-auto text-center">
+            <PageHeading
+              eyebrow="CHALLENGE DISCOVERY ENGINE"
+              title="The Glitch Explore Hub"
+              subtitle="Discover time-bounded battles, daily refreshes, featured picks, core challenge modes, and historical vaults."
+              accent="pink"
+              size="xl"
+            />
+          </div>
+        </section>
+
+        {/* ── 5 SECTIONS CONTAINER ── */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16 pb-20">
           {/* Toast Notification */}
           <AnimatePresence>
             {toastMessage && (
@@ -819,10 +840,10 @@ const Explore = () => {
               ))}
             </div>
           </motion.section>
-        </div>
-      </main>
+        </main>
 
-      <Footer />
+        <Footer />
+      </div>
 
       {/* Interactive Challenge Solver Modal */}
       <AnimatePresence>
