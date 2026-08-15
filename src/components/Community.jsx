@@ -5,6 +5,7 @@ import { supabase } from "../supabaseClient";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 import PageHeading from "./PageHeading";
+import GlitchBackground from "./GlitchBackground";
 import Button from "./Button";
 import {
   MessageSquare,
@@ -326,8 +327,9 @@ const PostCard = ({ post, onLike, onClick, likedIds }) => {
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -2 }}
-      className="group relative bg-[#0f0f13] border border-white/5 rounded-2xl p-5 cursor-pointer hover:border-white/10 transition-all overflow-hidden"
+      whileHover={{ y: -4 }}
+      transition={{ duration: 0.2 }}
+      className="group relative bg-[#0f0f18] border border-white/10 rounded-2xl p-6 cursor-pointer hover:border-white/25 transition-all shadow-xl overflow-hidden flex flex-col justify-between"
       onClick={() => onClick(post)}
     >
       <div
@@ -337,73 +339,75 @@ const PostCard = ({ post, onLike, onClick, likedIds }) => {
         }}
       />
 
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/8">
-            {post.avatar_url ? (
-              <img
-                src={post.avatar_url}
-                alt={post.username}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#FF00C8]/40 to-[#00F0FF]/40 flex items-center justify-center text-xs font-black text-white">
-                {post.username?.slice(0, 2).toUpperCase()}
-              </div>
-            )}
+      <div>
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/10">
+              {post.avatar_url ? (
+                <img
+                  src={post.avatar_url}
+                  alt={post.username}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-[#FF00C8]/40 to-[#00F0FF]/40 flex items-center justify-center text-xs font-black text-white">
+                  {post.username?.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <span className="text-white text-xs font-semibold truncate block">
+                {post.username}
+              </span>
+              <span className="text-gray-500 text-[10px]">
+                {timeAgo(post.created_at)}
+              </span>
+            </div>
           </div>
-          <div className="min-w-0">
-            <span className="text-white text-xs font-semibold truncate block">
-              {post.username}
-            </span>
-            <span className="text-gray-500 text-[10px]">
-              {timeAgo(post.created_at)}
-            </span>
-          </div>
+
+          <span
+            className="flex items-center gap-1 text-[10px] font-mono font-semibold px-2.5 py-1 rounded-full border shrink-0"
+            style={{
+              color: cat.color,
+              borderColor: `${cat.color}30`,
+              background: `${cat.color}0c`,
+            }}
+          >
+            <span>{cat.emoji}</span>
+            <span>{cat.label}</span>
+          </span>
         </div>
 
-        <span
-          className="flex items-center gap-1 text-[10px] font-mono font-semibold px-2.5 py-1 rounded-full border shrink-0"
-          style={{
-            color: cat.color,
-            borderColor: `${cat.color}30`,
-            background: `${cat.color}0c`,
-          }}
-        >
-          <span>{cat.emoji}</span>
-          <span>{cat.label}</span>
-        </span>
+        <h3 className="text-white font-bold text-base leading-snug mb-2 group-hover:text-[#00F0FF] transition-colors">
+          {post.title}
+        </h3>
+
+        {post.body && (
+          <div className="line-clamp-3 text-gray-400 text-xs leading-relaxed mb-4">
+            <MarkdownBody content={post.body} />
+          </div>
+        )}
+
+        {post.code && (
+          <div className="bg-[#080810] border border-white/6 rounded-xl p-3 my-3 overflow-hidden">
+            <pre className="text-green-400 text-xs font-mono line-clamp-3">
+              {post.code}
+            </pre>
+          </div>
+        )}
+
+        {post.image_url && (
+          <div className="rounded-xl overflow-hidden mb-4 border border-white/6 max-h-48">
+            <img
+              src={post.image_url}
+              alt="post attachment"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
       </div>
 
-      <h3 className="text-white font-bold text-base leading-snug mb-2 group-hover:text-[#00F0FF] transition-colors">
-        {post.title}
-      </h3>
-
-      {post.body && (
-        <div className="line-clamp-3 text-gray-400 text-xs leading-relaxed mb-4">
-          <MarkdownBody content={post.body} />
-        </div>
-      )}
-
-      {post.code && (
-        <div className="bg-[#080810] border border-white/6 rounded-xl p-3 my-3 overflow-hidden">
-          <pre className="text-green-400 text-xs font-mono line-clamp-3">
-            {post.code}
-          </pre>
-        </div>
-      )}
-
-      {post.image_url && (
-        <div className="rounded-xl overflow-hidden mb-4 border border-white/6 max-h-48">
-          <img
-            src={post.image_url}
-            alt="post attachment"
-            className="w-full h-full object-cover"
-          />
-        </div>
-      )}
-
-      <div className="flex items-center gap-4 text-xs font-medium text-gray-500 pt-3 border-t border-white/4">
+      <div className="flex items-center gap-4 text-xs font-medium text-gray-500 pt-3 border-t border-white/5 mt-4">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -553,166 +557,204 @@ const Community = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#06060c] text-white flex flex-col font-sans">
-      <Navbar />
+    <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans">
+      {/* Dynamic Moving Glitch Background Particles (Explore & Home Page Treatment) */}
+      <GlitchBackground />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-32 pb-20 flex-1 w-full">
-        {/* Centered Page Heading */}
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <PageHeading
-            eyebrow="COMMUNITY FEED"
-            title="The Glitch Lounge"
-            subtitle="Discuss challenges, showcase builds, ask for help, and learn together with fellow developers."
-            align="center"
-            accent="cyan"
-            size="xl"
-          />
-        </div>
+      {/* Smooth Seamless Top Cyber Grid with Vertical Fade Gradient */}
+      <div
+        className="absolute top-0 left-0 right-0 h-[1100px] z-0 opacity-10 pointer-events-none"
+        style={{
+          backgroundImage: `linear-gradient(rgba(0,240,255,0.25) 1px, transparent 1px),
+                            linear-gradient(90deg, rgba(0,240,255,0.25) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
+          maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
+          WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
+        }}
+      />
 
-        {/* 2-Column Layout: Topics Sidebar on Left + Posts Feed on Right */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-          {/* LEFT SIDEBAR: Topics & Search */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Topics/Categories Box */}
-            <div className="bg-[#0c0c14] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
-              <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-white/10">
-                <Tag size={14} className="text-[#FF00C8]" />
-                <span>Topics & Categories</span>
-              </h3>
+      {/* Ambient Cyan Radial Glow with Smooth Radial Falloff */}
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[750px] rounded-full blur-3xl opacity-20 pointer-events-none z-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 60% at 50% 25%, rgba(0, 240, 255, 0.25) 0%, rgba(0, 240, 255, 0.08) 50%, transparent 80%)",
+        }}
+      />
 
-              <div className="space-y-1.5">
-                {CATEGORIES.map((cat) => {
-                  const active = category === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setCategory(cat.id)}
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                        active
-                          ? "bg-white/10 text-white border-white/20 shadow-sm"
-                          : "bg-transparent text-gray-400 border-transparent hover:bg-white/5 hover:text-white"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-sm">{cat.emoji}</span>
-                        <span>{cat.label}</span>
-                      </div>
-                      {active && (
-                        <span className="w-2 h-2 rounded-full bg-[#00F0FF]" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+      <div className="relative z-10 flex flex-col flex-1">
+        <Navbar />
 
-            {/* Search Box */}
-            <div className="bg-[#0c0c14] border border-white/10 rounded-2xl p-5 shadow-xl space-y-3">
-              <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-white/10">
-                <Search size={14} className="text-[#00F0FF]" />
-                <span>Search Community</span>
-              </h3>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={handleSearch}
-                  placeholder="Search posts..."
-                  className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#00F0FF]/50 transition font-sans"
-                />
-              </div>
-            </div>
+        {/* HERO HEADER SECTION (Matching Explore Page Spacing & Entrance Animation) */}
+        <section className="relative pt-36 md:pt-44 pb-12 px-6 mb-8 md:mb-16 text-center">
+          <div className="max-w-4xl mx-auto">
+            <PageHeading
+              eyebrow="COMMUNITY FEED"
+              title="The Glitch Lounge"
+              subtitle="Discuss challenges, showcase builds, ask for help, and learn together with fellow developers."
+              align="center"
+              accent="cyan"
+              size="xl"
+            />
           </div>
+        </section>
 
-          {/* RIGHT COLUMN: Posts Feed & Feed Controls */}
-          <div className="lg:col-span-3 space-y-6">
-            {/* Top Feed Bar: Sort Pills + Create Post CTA */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0c0c14] border border-white/10 rounded-2xl p-4 shadow-xl">
-              {/* Sort Options */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-gray-500 mr-1">
-                  Sort:
-                </span>
-                {SORT_OPTIONS.map((s) => {
-                  const Icon = s.icon;
-                  const active = sort === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => setSort(s.id)}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
-                        active
-                          ? "bg-white/10 text-white border-white/20 shadow-sm"
-                          : "bg-transparent text-gray-400 border-transparent hover:text-white"
-                      }`}
-                    >
-                      <Icon size={13} />
-                      <span>{s.label}</span>
-                    </button>
-                  );
-                })}
+        {/* MAIN CONTENT AREA */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 space-y-16 pb-20 flex-1 w-full">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start"
+          >
+            {/* LEFT SIDEBAR: Topics & Search */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* Topics/Categories Box */}
+              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
+                <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-white/10">
+                  <Tag size={14} className="text-[#FF00C8]" />
+                  <span>Topics & Categories</span>
+                </h3>
+
+                <div className="space-y-1.5">
+                  {CATEGORIES.map((cat) => {
+                    const active = category === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCategory(cat.id)}
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                          active
+                            ? "bg-white/10 text-white border-white/20 shadow-sm"
+                            : "bg-transparent text-gray-400 border-transparent hover:bg-white/5 hover:text-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-sm">{cat.emoji}</span>
+                          <span>{cat.label}</span>
+                        </div>
+                        {active && (
+                          <span className="w-2 h-2 rounded-full bg-[#00F0FF]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Create Post Button */}
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  if (!user) navigate("/");
-                  else setShowCreate(true);
-                }}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#FF00C8]/20 cursor-pointer shrink-0"
-              >
-                <Plus size={15} />
-                <span>Create Post</span>
-              </motion.button>
+              {/* Search Box */}
+              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-5 shadow-xl space-y-3">
+                <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-white/10">
+                  <Search size={14} className="text-[#00F0FF]" />
+                  <span>Search Community</span>
+                </h3>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={handleSearch}
+                    placeholder="Search posts..."
+                    className="w-full bg-[#07070d] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#00F0FF]/50 transition font-sans"
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* Posts Feed Grid */}
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[1, 2, 3, 4].map((n) => (
-                  <div
-                    key={n}
-                    className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 h-48 animate-pulse"
-                  />
-                ))}
+            {/* RIGHT COLUMN: Posts Feed & Feed Controls */}
+            <div className="lg:col-span-3 space-y-6">
+              {/* Top Feed Bar: Sort Pills + Create Post CTA */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0f0f18] border border-white/10 rounded-2xl p-4 shadow-xl">
+                {/* Sort Options */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-gray-500 mr-1">
+                    Sort:
+                  </span>
+                  {SORT_OPTIONS.map((s) => {
+                    const Icon = s.icon;
+                    const active = sort === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => setSort(s.id)}
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
+                          active
+                            ? "bg-white/10 text-white border-white/20 shadow-sm"
+                            : "bg-transparent text-gray-400 border-transparent hover:text-white"
+                        }`}
+                      >
+                        <Icon size={13} />
+                        <span>{s.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Create Post Button */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    if (!user) navigate("/");
+                    else setShowCreate(true);
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#FF00C8]/20 cursor-pointer shrink-0"
+                  style={{
+                    background: "linear-gradient(90deg, #FF00C8, #a855f7)",
+                  }}
+                >
+                  <Plus size={15} />
+                  <span>Create Post</span>
+                </motion.button>
               </div>
-            ) : posts.length === 0 ? (
-              <div className="text-center py-20 bg-[#0c0c14] border border-white/10 rounded-3xl p-8">
-                <p className="text-4xl mb-3">💬</p>
-                <p className="text-white font-bold text-base mb-1">
-                  No posts found
-                </p>
-                <p className="text-gray-400 text-xs mb-6">
-                  Be the first to share something in this topic!
-                </p>
-                {user && (
-                  <button
-                    onClick={() => setShowCreate(true)}
-                    className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold hover:bg-purple-600/40 transition cursor-pointer"
-                  >
-                    Create a Post
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {posts.map((post) => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    onLike={handleLike}
-                    likedIds={likedIds}
-                    onClick={(p) => navigate(`/community/${p.id}`)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
+
+              {/* Posts Feed Grid */}
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[1, 2, 3, 4].map((n) => (
+                    <div
+                      key={n}
+                      className="bg-[#0f0f18] border border-white/5 rounded-2xl p-5 h-48 animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="text-center py-20 bg-[#0f0f18] border border-white/10 rounded-3xl p-8">
+                  <p className="text-4xl mb-3">💬</p>
+                  <p className="text-white font-bold text-base mb-1">
+                    No posts found
+                  </p>
+                  <p className="text-gray-400 text-xs mb-6">
+                    Be the first to share something in this topic!
+                  </p>
+                  {user && (
+                    <button
+                      onClick={() => setShowCreate(true)}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold hover:bg-purple-600/40 transition cursor-pointer"
+                    >
+                      Create a Post
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {posts.map((post) => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      onLike={handleLike}
+                      likedIds={likedIds}
+                      onClick={(p) => navigate(`/community/${p.id}`)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </main>
+
+        <Footer />
+      </div>
 
       <AnimatePresence>
         {showCreate && (
@@ -723,8 +765,6 @@ const Community = () => {
           />
         )}
       </AnimatePresence>
-
-      <Footer />
     </div>
   );
 };
