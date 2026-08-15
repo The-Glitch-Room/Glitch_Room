@@ -49,7 +49,7 @@ const GameArena = () => {
             size="xl"
           />
 
-          <div className="mt-8 flex flex-wrap justify-center items-center gap-4">
+          <div className="mt-12 md:mt-14 flex flex-wrap justify-center items-center gap-4">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
