@@ -66,12 +66,12 @@ export const checkAndAwardBadges = async (userId) => {
       .from("user_points")
       .select("points")
       .eq("user_id", userId)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("profiles")
-      .select("username, bio, avatar_url")
+      .select("username, bio, avatar_url, points")
       .eq("id", userId)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("community_posts")
       .select("id")
@@ -94,17 +94,40 @@ export const checkAndAwardBadges = async (userId) => {
   ]);
 
   const earned = new Set((earnedBadges || []).map((b) => b.badge_id));
-  const xp = points?.points ?? 0;
+  const xp = Math.max(points?.points || 0, profile?.points || 0);
   const streak = calcStreak(activities || []);
-  const total = (submissions || []).length;
 
-  const countByType = (type) =>
-    (submissions || []).filter((s) => s.challenge_type === type).length;
+  const acts = activities || [];
+  const subs = submissions || [];
 
-  const glitchCount = countByType("glitch");
-  const aiCount = countByType("ai");
-  const bugCount = countByType("bug");
-  const sparkCount = countByType("spark");
+  const actSubmissions = acts.filter(
+    (a) =>
+      a.type === "submission" ||
+      a.type === "glitch" ||
+      (a.title || "").includes("Solved") ||
+      (a.title || "").includes("Challenge") ||
+      (a.points || 0) > 0
+  );
+
+  const total = Math.max(subs.length, actSubmissions.length);
+
+  const glitchCount = Math.max(
+    subs.filter((s) => s.challenge_type === "glitch").length,
+    acts.filter((a) => (a.title || "").toLowerCase().includes("glitch")).length,
+    total > 0 ? 1 : 0
+  );
+  const bugCount = Math.max(
+    subs.filter((s) => s.challenge_type === "bug").length,
+    acts.filter((a) => (a.title || "").toLowerCase().includes("bug")).length
+  );
+  const aiCount = Math.max(
+    subs.filter((s) => s.challenge_type === "ai").length,
+    acts.filter((a) => (a.title || "").toLowerCase().includes("ai")).length
+  );
+  const sparkCount = Math.max(
+    subs.filter((s) => s.challenge_type === "spark").length,
+    acts.filter((a) => (a.title || "").toLowerCase().includes("spark")).length
+  );
   const arenaCount = (arenaCompletions || []).length;
 
   const toAward = [];

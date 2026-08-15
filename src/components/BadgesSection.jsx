@@ -56,10 +56,10 @@ export default function BadgesSection({ userId }) {
       { data: referrals },
     ] = await Promise.all([
       supabase.from("user_badges").select("badge_id, earned_at").eq("user_id", uid),
-      supabase.from("user_points").select("points").eq("user_id", uid).single(),
-      supabase.from("glitch_activity").select("created_at, title, type").eq("user_id", uid),
+      supabase.from("user_points").select("points").eq("user_id", uid).maybeSingle(),
+      supabase.from("glitch_activity").select("created_at, title, type, points").eq("user_id", uid),
       supabase.from("challenge_submissions").select("challenge_type, created_at").eq("user_id", uid),
-      supabase.from("profiles").select("username, bio, avatar_url").eq("id", uid).single(),
+      supabase.from("profiles").select("username, bio, avatar_url, points").eq("id", uid).maybeSingle(),
       supabase.from("community_posts").select("id", { count: "exact", head: true }).eq("user_id", uid),
       supabase.from("community_comments").select("id", { count: "exact", head: true }).eq("user_id", uid),
       supabase.from("rooms").select("id", { count: "exact", head: true }).eq("created_by", uid),
@@ -71,17 +71,41 @@ export default function BadgesSection({ userId }) {
     (earned || []).forEach((e) => {
       map[e.badge_id] = e.earned_at;
     });
-    setEarnedMap(map);
 
     // Calculate metrics for live progress bars
     const subs = submissions || [];
-    const glitchCount = subs.filter((s) => s.challenge_type === "glitch").length;
-    const bugCount = subs.filter((s) => s.challenge_type === "bug").length;
-    const aiCount = subs.filter((s) => s.challenge_type === "ai").length;
-    const sparkCount = subs.filter((s) => s.challenge_type === "spark").length;
-    const arenaCount = (activities || []).filter((a) => (a.title || "").includes("Arena")).length;
-
     const acts = activities || [];
+
+    const actSubmissions = acts.filter(
+      (a) =>
+        a.type === "submission" ||
+        a.type === "glitch" ||
+        (a.title || "").includes("Solved") ||
+        (a.title || "").includes("Challenge") ||
+        (a.points || 0) > 0
+    );
+
+    const totalSubmissions = Math.max(subs.length, actSubmissions.length);
+
+    const glitchCount = Math.max(
+      subs.filter((s) => s.challenge_type === "glitch").length,
+      acts.filter((a) => (a.title || "").toLowerCase().includes("glitch")).length,
+      totalSubmissions > 0 ? 1 : 0
+    );
+    const bugCount = Math.max(
+      subs.filter((s) => s.challenge_type === "bug").length,
+      acts.filter((a) => (a.title || "").toLowerCase().includes("bug")).length
+    );
+    const aiCount = Math.max(
+      subs.filter((s) => s.challenge_type === "ai").length,
+      acts.filter((a) => (a.title || "").toLowerCase().includes("ai")).length
+    );
+    const sparkCount = Math.max(
+      subs.filter((s) => s.challenge_type === "spark").length,
+      acts.filter((a) => (a.title || "").toLowerCase().includes("spark")).length
+    );
+    const arenaCount = acts.filter((a) => (a.title || "").includes("Arena")).length;
+
     const isNightOwl = acts.some((a) => {
       const h = new Date(a.created_at).getHours();
       return h >= 0 && h < 4;
@@ -104,10 +128,12 @@ export default function BadgesSection({ userId }) {
       curDate.setDate(curDate.getDate() - 1);
     }
 
+    const calculatedXP = Math.max(pts?.points || 0, profile?.points || 0);
+
     setUserStats({
-      xp: pts?.points || 0,
+      xp: calculatedXP,
       streak,
-      totalSubmissions: subs.length,
+      totalSubmissions,
       glitchCount,
       bugCount,
       aiCount,
@@ -123,6 +149,7 @@ export default function BadgesSection({ userId }) {
       dailyFact: hasDailyFact,
     });
 
+    setEarnedMap(map);
     setLoading(false);
   };
 
@@ -146,16 +173,22 @@ export default function BadgesSection({ userId }) {
     return { current, target, percent };
   };
 
+  const isBadgeUnlocked = (b) => {
+    if (earnedMap[b.id]) return true;
+    const prog = getBadgeProgress(b);
+    return prog.percent >= 100;
+  };
+
   // Filter badges by Rarity
   const filteredBadges = MASTER_BADGES.filter((b) => {
     if (rarityFilter !== "all" && b.rarity !== rarityFilter) return false;
     return true;
   });
 
-  const earnedBadgesList = filteredBadges.filter((b) => earnedMap[b.id]);
-  const lockedBadgesList = filteredBadges.filter((b) => !earnedMap[b.id]);
+  const earnedBadgesList = filteredBadges.filter(isBadgeUnlocked);
+  const lockedBadgesList = filteredBadges.filter((b) => !isBadgeUnlocked(b));
 
-  const totalUnlockedCount = Object.keys(earnedMap).length;
+  const totalUnlockedCount = MASTER_BADGES.filter(isBadgeUnlocked).length;
   const totalBadgesCount = MASTER_BADGES.length;
   const overallPercent = Math.round((totalUnlockedCount / totalBadgesCount) * 100);
 
