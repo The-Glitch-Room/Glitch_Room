@@ -168,6 +168,37 @@ export const checkAndAwardStreakBonus = async (userId) => {
   return { awarded: true, milestone, points: next };
 };
 
+// ── Daily Fact Bubble 1-per-day enforcement ───────────────────────────────
+export const hasEarnedDailyFactToday = async (userId) => {
+  if (!userId) return false;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const { data: existingToday } = await supabase
+    .from("glitch_activity")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("type", "bonus")
+    .ilike("title", "%Daily Fact Bubble%")
+    .gte("created_at", todayStart.toISOString())
+    .maybeSingle();
+
+  return !!existingToday;
+};
+
+export const awardDailyFactBonus = async (userId) => {
+  if (!userId) return { awarded: false, reason: "no_user" };
+
+  const alreadyEarned = await hasEarnedDailyFactToday(userId);
+  if (alreadyEarned) {
+    return { awarded: false, reason: "already_claimed_today" };
+  }
+
+  const nextPoints = await updatePoints(10, "Daily Fact Bubble", "bonus");
+  return { awarded: true, points: nextPoints };
+};
+
 // ── Unified Atomic Points Updater ─────────────────────────────────────────────
 export const updatePoints = async (
   delta,

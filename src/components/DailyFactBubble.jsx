@@ -3,7 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Lightbulb, X, ThumbsUp, ThumbsDown } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "./AuthContext";
-import { updatePoints } from "../utils/pointsHelper";
+import {
+  awardDailyFactBonus,
+  hasEarnedDailyFactToday,
+} from "../utils/pointsHelper";
 
 // ── Category styling (used inside the popup, not the button itself) ─────────
 const CATEGORY_STYLE = {
@@ -44,6 +47,7 @@ const DailyFactBubble = () => {
   const [userReaction, setUserReaction] = useState(null); // "like" | "dislike" | null
   const [reacting, setReacting] = useState(false);
   const [bonusEarned, setBonusEarned] = useState(false);
+  const [claimedToday, setClaimedToday] = useState(false);
 
   // ── Fetch today's fact (deterministic pick) ──
   const fetchTodayFact = async () => {
@@ -98,8 +102,12 @@ const DailyFactBubble = () => {
         .eq("user_id", uid)
         .maybeSingle();
       setUserReaction(existing?.reaction || null);
+
+      const alreadyClaimed = await hasEarnedDailyFactToday(uid);
+      setClaimedToday(alreadyClaimed);
     } else {
       setUserReaction(null);
+      setClaimedToday(false);
     }
   };
 
@@ -155,12 +163,6 @@ const DailyFactBubble = () => {
         if (type === "like") setLikeCount((c) => Math.max(0, c - 1));
         else setDislikeCount((c) => Math.max(0, c - 1));
       } else {
-        // This is the user's very first reaction to TODAY's fact only when
-        // userReaction was null beforehand — switching like↔dislike or
-        // toggling off-then-on again does not re-earn the bonus, since
-        // userReaction would already be non-null in those cases.
-        const isFirstReactionToday = !userReaction;
-
         await supabase
           .from("daily_fact_reactions")
           .upsert(
@@ -168,10 +170,11 @@ const DailyFactBubble = () => {
             { onConflict: "fact_id,user_id" },
           );
 
-        if (isFirstReactionToday) {
-          updatePoints(10, "Daily Fact Bubble", "bonus")
-            .then(() => setBonusEarned(true))
-            .catch((e) => console.error("daily fact bonus error:", e));
+        // Attempt database-enforced 1-per-day Daily Fact bonus payout
+        const res = await awardDailyFactBonus(uid);
+        if (res.awarded) {
+          setBonusEarned(true);
+          setClaimedToday(true);
         }
 
         // Adjust counts locally
@@ -408,8 +411,14 @@ const DailyFactBubble = () => {
                   )}
                 </AnimatePresence>
 
-                {/* Aggregate line */}
-                {totalVotes > 0 && !bonusEarned && (
+                {/* Aggregate / Claimed line */}
+                {claimedToday && !bonusEarned && (
+                  <p className="text-center text-[11px] font-mono text-gray-400 mt-3 bg-white/5 py-1.5 px-3 rounded-lg border border-white/10">
+                    ⚡ Today's +10 gBits Bonus Claimed (Resets at Midnight)
+                  </p>
+                )}
+
+                {totalVotes > 0 && !bonusEarned && !claimedToday && (
                   <p className="text-center text-[10px] text-gray-600 mt-3">
                     {likePct}% of {totalVotes} found this useful
                   </p>
