@@ -225,10 +225,13 @@ export default function YourProfile() {
   const [editForm, setEditForm] = useState({
     full_name: "",
     username: "",
+    tagline: "",
     bio: "",
+    hobbies: [],
     avatar_url: "",
     banner_url: "",
   });
+  const [hobbyInput, setHobbyInput] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [editSaved, setEditSaved] = useState(false);
   const [editError, setEditError] = useState("");
@@ -305,8 +308,18 @@ export default function YourProfile() {
       const bannerUrl =
         pd?.banner_url || userMeta?.banner_url || cachedBanner || "";
 
+      const rawHobbies = pd?.hobbies || userMeta?.hobbies || [];
+      const parsedHobbies = Array.isArray(rawHobbies)
+        ? rawHobbies
+        : typeof rawHobbies === "string"
+        ? rawHobbies.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
+
       setProfile({
         ...pd,
+        tagline: pd?.tagline || pd?.headline || userMeta?.tagline || "",
+        bio: pd?.bio || userMeta?.bio || "",
+        hobbies: parsedHobbies,
         banner_url: bannerUrl,
         points: pointsRes.data?.points || 0,
       });
@@ -564,13 +577,45 @@ export default function YourProfile() {
   const xp = profile?.points || 0;
   const level = getLevelFromXP(xp);
   const username = profile?.username || profile?.full_name || "Anonymous Glitcher";
-  const roleTitle = "Full-Stack Glitch Developer";
   const initials = username.slice(0, 2).toUpperCase();
+
+  const handleAddHobby = () => {
+    if (!hobbyInput.trim()) return;
+    const val = hobbyInput.trim();
+    if (!editForm.hobbies.includes(val)) {
+      setEditForm((prev) => ({
+        ...prev,
+        hobbies: [...(prev.hobbies || []), val],
+      }));
+    }
+    setHobbyInput("");
+  };
+
+  const handleRemoveHobby = (index) => {
+    setEditForm((prev) => ({
+      ...prev,
+      hobbies: (prev.hobbies || []).filter((_, idx) => idx !== index),
+    }));
+  };
 
   const openEditPanel = () => {
     setEditError("");
     setEditSaved(false);
     setAvatarLoadError(false);
+    setHobbyInput("");
+    setEditForm({
+      full_name: profile?.full_name || "",
+      username: profile?.username || authUser?.user_metadata?.username || "",
+      tagline: profile?.tagline || profile?.headline || "",
+      bio: profile?.bio || "",
+      hobbies: Array.isArray(profile?.hobbies)
+        ? [...profile.hobbies]
+        : typeof profile?.hobbies === "string"
+        ? profile.hobbies.split(",").map((s) => s.trim()).filter(Boolean)
+        : [],
+      avatar_url: avatarPreview || profile?.avatar_url || "",
+      banner_url: profile?.banner_url || "",
+    });
     setShowEditPanel(true);
   };
 
@@ -594,6 +639,12 @@ export default function YourProfile() {
     // Save in Auth metadata + localStorage for guaranteed client persistence
     await supabase.auth.updateUser({
       data: {
+        full_name: editForm.full_name,
+        username: editForm.username,
+        tagline: editForm.tagline,
+        headline: editForm.tagline,
+        bio: editForm.bio,
+        hobbies: editForm.hobbies,
         banner_url: editForm.banner_url || null,
       },
     });
@@ -608,7 +659,10 @@ export default function YourProfile() {
     let updatePayload = {
       full_name: editForm.full_name,
       username: editForm.username,
+      tagline: editForm.tagline,
+      headline: editForm.tagline,
       bio: editForm.bio,
+      hobbies: editForm.hobbies,
       avatar_url: editForm.avatar_url,
     };
 
@@ -617,11 +671,17 @@ export default function YourProfile() {
       .update({ ...updatePayload, banner_url: editForm.banner_url || null })
       .eq("id", userId);
 
-    if (error && error.message?.includes("banner_url")) {
-      // Fallback if banner_url column doesn't exist yet on profiles table
+    if (error && (error.message?.includes("banner_url") || error.message?.includes("tagline") || error.message?.includes("hobbies"))) {
+      // Fallback if specific column doesn't exist yet on profiles table
+      const fallbackPayload = {
+        full_name: editForm.full_name,
+        username: editForm.username,
+        bio: editForm.bio,
+        avatar_url: editForm.avatar_url,
+      };
       const fallback = await supabase
         .from("profiles")
-        .update(updatePayload)
+        .update(fallbackPayload)
         .eq("id", userId);
       error = fallback.error;
     }
@@ -739,6 +799,19 @@ export default function YourProfile() {
                         className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition"
                       />
                     </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
+                        Small Heading / Tagline
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Full-Stack Developer, AI/ML Specialist, Bug Hunter"
+                        value={editForm.tagline}
+                        onChange={(e) => setEditForm({ ...editForm, tagline: e.target.value })}
+                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition"
+                      />
+                    </div>
                   </div>
 
                   {/* Right Column: Username & Bio */}
@@ -758,18 +831,66 @@ export default function YourProfile() {
 
                     <div>
                       <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
-                        Bio / Headline
+                        About / Short Bio
                       </label>
                       <textarea
                         rows={3.5}
-                        placeholder="Full-Stack Developer & Glitch Hunter…"
+                        placeholder="Write a short summary about yourself, your skills, and what you build…"
                         value={editForm.bio}
                         onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
-                        maxLength={300}
+                        maxLength={400}
                         className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition resize-none"
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* ── Hobbies & Interests Section ── */}
+                <div className="pt-5 border-t border-white/5 space-y-3">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block">
+                    Hobbies & Interests
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Add an interest or hobby (e.g. Machine Learning, Gaming, UI Design)"
+                      value={hobbyInput}
+                      onChange={(e) => setHobbyInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddHobby();
+                        }
+                      }}
+                      className="flex-1 bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddHobby}
+                      className="px-4 py-2.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 transition cursor-pointer shrink-0"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  {editForm.hobbies && editForm.hobbies.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {editForm.hobbies.map((item, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/5 border border-white/10 text-gray-200"
+                        >
+                          {item}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveHobby(idx)}
+                            className="text-gray-400 hover:text-red-400 transition cursor-pointer"
+                          >
+                            <FiX size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* ── Banner Customization Section ── */}
@@ -985,35 +1106,69 @@ export default function YourProfile() {
                 </motion.button>
               </div>
 
-              {/* 3. PRO Pill Badge + Name + Tagline with clear spacing below avatar */}
-              <div className="mt-4 mb-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="bg-[#FF00C8] text-white font-black text-[9px] px-2.5 py-0.5 rounded uppercase tracking-wider shadow-sm">
+              {/* 3. PRO Pill Badge + Name + Tagline + About + Hobbies with generous spacing */}
+              <div className="mt-6 mb-6">
+                {/* Badges Row with larger, more readable sizes & spacing */}
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <span className="bg-[#FF00C8] text-white font-black text-xs px-3.5 py-1 rounded-md uppercase tracking-wider shadow-md">
                     PRO
                   </span>
-                  <span className="bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] font-bold text-[9px] px-2.5 py-0.5 rounded uppercase tracking-wider">
+                  <span className="bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] font-bold text-xs px-3.5 py-1 rounded-md uppercase tracking-wider shadow-sm">
                     LEVEL {level}
                   </span>
-                  <span className="bg-white/5 text-gray-400 font-bold text-[9px] px-2.5 py-0.5 rounded flex items-center gap-1">
-                    <Zap size={9} className="text-[#00F0FF]" /> {xp} gBits
+                  <span className="bg-white/5 border border-white/10 text-gray-200 font-bold text-xs px-3.5 py-1 rounded-md flex items-center gap-1.5 shadow-sm font-mono">
+                    <Zap size={13} className="text-[#00F0FF]" /> {xp} gBits
                   </span>
                 </div>
 
-                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  {username}
-                </h1>
-                <p className="text-[#00F0FF] text-xs font-semibold mt-1">
-                  {roleTitle}
-                </p>
+                {/* Name & Small Heading / Tagline */}
+                <div className="space-y-1 mb-4">
+                  <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                    {profile?.full_name || profile?.username || username}
+                  </h1>
+                  <p className="text-xs text-gray-400 font-mono">@{profile?.username || username}</p>
+
+                  {profile?.tagline && (
+                    <p className="text-[#00F0FF] text-xs sm:text-sm font-semibold font-mono tracking-wide mt-1.5">
+                      {profile.tagline}
+                    </p>
+                  )}
+                </div>
+
+                {/* About / Bio Section */}
                 {profile?.bio && (
-                  <p className="text-gray-300 text-sm sm:text-base mt-2.5 leading-relaxed max-w-2xl font-normal">
-                    {profile.bio}
-                  </p>
+                  <div className="my-5 pt-4 border-t border-white/5">
+                    <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      ✨ About Me
+                    </h4>
+                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-3xl font-normal bg-[#07070c] p-4 rounded-xl border border-white/5">
+                      {profile.bio}
+                    </p>
+                  </div>
+                )}
+
+                {/* Hobbies & Interests Section */}
+                {profile?.hobbies && profile.hobbies.length > 0 && (
+                  <div className="my-5 pt-4 border-t border-white/5">
+                    <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
+                      🎯 Hobbies & Interests
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.hobbies.map((item, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-gray-200 hover:border-[#00F0FF]/40 transition shadow-sm"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
               {/* 4. Social Links Row */}
-              <div className="flex items-center gap-2.5 pt-3 border-t border-white/5">
+              <div className="flex items-center gap-3 pt-4 border-t border-white/5">
                 {SOCIAL_PLATFORMS.map((p) => (
                   <SocialIconSlot
                     key={p.field}
