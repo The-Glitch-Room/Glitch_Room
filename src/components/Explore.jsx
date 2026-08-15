@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
-import SharedSidebar from "./SharedSidebar";
+import PageHeading from "./PageHeading";
 import { supabase } from "../supabaseClient";
 import { fetchDatabaseCategoryCounts } from "../utils/challengeCountHelper";
 import { updatePoints } from "../utils/pointsHelper";
@@ -32,20 +32,18 @@ import {
   Layers,
   ArrowUpRight,
   X,
-  Play,
   Check,
-  HelpCircle,
   Activity,
   Archive,
 } from "lucide-react";
 
-// ── 4 Existing Core Challenge Categories ──────────────────────────────────────
+// ── 4 Core Challenge Categories ───────────────────────────────────────────────
 const CORE_CHALLENGE_TYPES = [
   {
     id: "glitches",
     icon: Zap,
     color: "#00F0FF",
-    title: "Code Glitch Challenges",
+    title: "Glitch Challenges",
     badge: "Core Arena",
     badgeColor: "#00F0FF",
     desc: "Test your skills by identifying and fixing unique, real-world inspired coding glitches across JavaScript, Python, SQL, and C++.",
@@ -87,7 +85,7 @@ const CORE_CHALLENGE_TYPES = [
   },
 ];
 
-// ── Challenge Solver Modal Component ──────────────────────────────────────────
+// ── Interactive Challenge Solver Modal ────────────────────────────────────────
 const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
   const [answer, setAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -103,11 +101,10 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
     setError("");
 
     const userId = user?.id;
-    const pointsToEarn = Math.min(challenge.points || 40, 100); // Strict <= 100 cap
+    const pointsToEarn = Math.min(challenge.points || 40, 100);
 
     if (userId) {
       try {
-        // Record in challenge_submissions
         await supabase.from("challenge_submissions").insert([
           {
             user_id: userId,
@@ -119,7 +116,6 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
           },
         ]);
 
-        // Record points & update unified Uptime streak
         await updatePoints(
           userId,
           pointsToEarn,
@@ -272,7 +268,6 @@ const Explore = () => {
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
 
-  // Live ticking countdown state (in seconds)
   const [liveSeconds, setLiveSeconds] = useState(145 * 60);
   const [upcomingSeconds, setUpcomingSeconds] = useState(210 * 60);
 
@@ -301,7 +296,6 @@ const Explore = () => {
       setAuthUser(user);
 
       if (user?.id) {
-        // Fetch user points
         const { data: pts } = await supabase
           .from("user_points")
           .select("points")
@@ -309,7 +303,6 @@ const Explore = () => {
           .maybeSingle();
         if (pts) setUserPoints(pts.points);
 
-        // Fetch user completions
         const { data: subs } = await supabase
           .from("challenge_submissions")
           .select("challenge_id")
@@ -319,7 +312,6 @@ const Explore = () => {
           setCompletedIds(new Set(subs.map((s) => s.challenge_id)));
         }
 
-        // Fetch reminder preferences from local storage / metadata
         const savedReminders = localStorage.getItem(`glitch_reminders_${user.id}`);
         if (savedReminders) {
           try {
@@ -328,7 +320,6 @@ const Explore = () => {
         }
       }
 
-      // Fetch dynamic database counts for our 4 core challenge types
       const counts = await fetchDatabaseCategoryCounts();
       setCategoryCounts(counts || {});
 
@@ -367,32 +358,19 @@ const Explore = () => {
     setTimeout(() => setToastMessage(""), 3500);
   };
 
-  const level = Math.floor(userPoints / 100);
-
   return (
-    <div className="min-h-screen bg-[#070709] text-white">
+    <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between">
       <Navbar />
-      <div className="flex pt-[18vh]">
-        <SharedSidebar user={authUser} xp={userPoints} level={level} />
 
-        <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto pb-24 md:pb-12">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -15 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#FF00C8]/10 text-[#FF00C8] border border-[#FF00C8]/30">
-                Challenge Discovery Engine
-              </span>
-            </div>
-            <h1 className="text-3xl font-black text-white mb-1">Explore Hub</h1>
-            <p className="text-gray-400 text-sm">
-              Discover time-bounded battles, daily refreshes, featured picks & core challenges.
-            </p>
-          </motion.div>
+      <main className="flex-1 pt-28 pb-16">
+        <PageHeading
+          eyebrow="EXPLORE HUB"
+          title="Discover Time-Bounded Battles & Challenges"
+          subtitle="Explore daily refreshes, live events, featured picks, core challenge modes, and historical vaults."
+          accent="cyan"
+        />
 
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-14">
           {/* Toast Notification */}
           <AnimatePresence>
             {toastMessage && (
@@ -400,7 +378,7 @@ const Explore = () => {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="mb-6 px-4 py-3 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-mono flex items-center justify-between shadow-lg"
+                className="px-4 py-3 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-mono flex items-center justify-between shadow-lg"
               >
                 <div className="flex items-center gap-2">
                   <CheckCircle size={14} />
@@ -419,28 +397,34 @@ const Explore = () => {
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 1: LIMITED-TIME & DAILY / WEEKLY GLITCHES
           ───────────────────────────────────────────────────────────────── */}
-          <section className="mb-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Flame size={18} className="text-[#FF00C8]" />
-                <h2 className="text-lg font-extrabold text-white">
-                  1. Limited-Time & Daily / Weekly Glitches
-                </h2>
+          <section className="space-y-6">
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#FF00C8]/10 border border-[#FF00C8]/30 flex items-center justify-center">
+                  <Flame size={20} className="text-[#FF00C8]" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-white">
+                    1. Limited-Time & Daily / Weekly Glitches
+                  </h2>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                    Recurring time-bound challenges with auto-reset schedules
+                  </p>
+                </div>
               </div>
-              <span className="text-xs font-mono text-gray-500">
-                Single Unified Uptime System ⚡
+              <span className="hidden sm:inline-block text-xs font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+                ⚡ Single Unified Uptime System
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {DAILY_WEEKLY_CHALLENGES.map((item) => {
                 const isCompleted = completedIds.has(item.id);
                 return (
                   <motion.div
                     key={item.id}
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="relative overflow-hidden bg-[#0f0f18] border border-white/10 rounded-2xl p-5 flex flex-col justify-between hover:border-white/20 transition-all shadow-xl group"
+                    whileHover={{ y: -4 }}
+                    className="relative overflow-hidden bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between hover:border-white/20 transition-all shadow-xl group"
                   >
                     <div
                       className="absolute top-0 left-0 right-0 h-[2px]"
@@ -448,9 +432,9 @@ const Explore = () => {
                     />
 
                     <div>
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-4">
                         <span
-                          className="text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border"
+                          className="text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full border"
                           style={{
                             background: `${item.badgeColor}15`,
                             borderColor: `${item.badgeColor}30`,
@@ -459,39 +443,39 @@ const Explore = () => {
                         >
                           {item.category}
                         </span>
-                        <div className="flex items-center gap-1 text-[11px] font-mono text-amber-400 font-bold">
-                          <Award size={12} />
+                        <div className="flex items-center gap-1.5 text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                          <Award size={13} />
                           <span>+{Math.min(item.points, 100)} gBits</span>
                         </div>
                       </div>
 
-                      <h3 className="font-bold text-white text-sm mb-1.5 group-hover:text-[#00F0FF] transition">
+                      <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#00F0FF] transition">
                         {item.title}
                       </h3>
-                      <p className="text-xs text-gray-400 mb-4 line-clamp-2">
+                      <p className="text-xs text-gray-400 mb-6 leading-relaxed">
                         {item.description}
                       </p>
                     </div>
 
-                    <div className="pt-3 border-t border-white/5 flex items-center justify-between">
-                      <span className="text-[11px] font-mono text-gray-500 flex items-center gap-1">
-                        <Clock size={12} /> {item.refreshText}
+                    <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                      <span className="text-xs font-mono text-gray-500 flex items-center gap-1.5">
+                        <Clock size={13} /> {item.refreshText}
                       </span>
 
                       {isCompleted ? (
-                        <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-xl">
-                          <Check size={13} /> Completed
+                        <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl">
+                          <Check size={14} /> Completed
                         </span>
                       ) : (
                         <button
                           type="button"
                           onClick={() => setActiveSolverChallenge(item)}
-                          className="flex items-center gap-1 text-xs font-bold text-white px-3.5 py-1.5 rounded-xl cursor-pointer transition hover:scale-105"
+                          className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:scale-105 shadow-md"
                           style={{
                             background: `linear-gradient(90deg, ${item.badgeColor}, #a855f7)`,
                           }}
                         >
-                          Solve <ChevronRight size={13} />
+                          Solve <ChevronRight size={14} />
                         </button>
                       )}
                     </div>
@@ -504,66 +488,73 @@ const Explore = () => {
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 2: LIVE CHALLENGES & UPCOMING CHALLENGES
           ───────────────────────────────────────────────────────────────── */}
-          <section className="mb-10">
-            <div className="flex items-center gap-2 mb-4">
-              <Activity size={18} className="text-[#00F0FF]" />
-              <h2 className="text-lg font-extrabold text-white">
-                2. Live Challenges & Upcoming Battles
-              </h2>
+          <section className="space-y-6">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+              <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center">
+                <Activity size={20} className="text-[#00F0FF]" />
+              </div>
+              <div>
+                <h2 className="text-xl font-extrabold text-white">
+                  2. Live Challenges & Upcoming Battles
+                </h2>
+                <p className="text-xs text-gray-500 font-mono mt-0.5">
+                  Active live windows & scheduled future events
+                </p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Live Challenges Column */}
-              <div className="bg-[#0b0b12] border border-red-500/20 rounded-2xl p-5 shadow-xl">
-                <div className="flex items-center justify-between mb-4 border-b border-red-500/10 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-3 w-3">
+              <div className="bg-[#0b0b12] border border-red-500/20 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-5 border-b border-red-500/10 pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="relative flex h-3.5 w-3.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500" />
                     </span>
                     <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
                       Live Challenges (Active Now)
                     </h3>
                   </div>
-                  <span className="text-xs font-mono text-red-400 font-bold">
+                  <span className="text-xs font-mono text-red-400 font-bold bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">
                     {formatTimer(liveSeconds)}
                   </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {LIVE_CHALLENGES.map((ch) => {
                     const isDone = completedIds.has(ch.id);
                     return (
                       <div
                         key={ch.id}
-                        className="bg-[#12121e] border border-white/5 rounded-xl p-4 flex items-center justify-between hover:border-red-500/30 transition"
+                        className="bg-[#12121e] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-red-500/30 transition"
                       >
-                        <div className="min-w-0 mr-3">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-md font-bold">
+                        <div className="min-w-0 mr-4">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md font-bold">
                               LIVE NOW
                             </span>
                             <span className="text-xs font-mono text-amber-400 font-semibold">
                               +{Math.min(ch.points, 100)} gBits
                             </span>
                           </div>
-                          <h4 className="text-sm font-bold text-white truncate">
+                          <h4 className="text-base font-bold text-white truncate mb-1">
                             {ch.title}
                           </h4>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {ch.participants} participants battling
+                          <p className="text-xs text-gray-400">
+                            {ch.description}
                           </p>
                         </div>
 
                         {isDone ? (
-                          <span className="text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-xl shrink-0">
+                          <span className="text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-4 py-2 rounded-xl shrink-0">
                             Done ✓
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => setActiveSolverChallenge(ch)}
-                            className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow-lg shadow-red-500/20"
+                            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow-lg shadow-red-500/20"
                           >
                             Attempt
                           </button>
@@ -575,48 +566,48 @@ const Explore = () => {
               </div>
 
               {/* Upcoming Challenges Column */}
-              <div className="bg-[#0b0b12] border border-[#38BDF8]/20 rounded-2xl p-5 shadow-xl">
-                <div className="flex items-center justify-between mb-4 border-b border-[#38BDF8]/10 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Clock size={16} className="text-[#38BDF8]" />
+              <div className="bg-[#0b0b12] border border-[#38BDF8]/20 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-5 border-b border-[#38BDF8]/10 pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <Clock size={18} className="text-[#38BDF8]" />
                     <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
                       Upcoming Challenges (Opening Soon)
                     </h3>
                   </div>
-                  <span className="text-xs font-mono text-[#38BDF8] font-bold">
+                  <span className="text-xs font-mono text-[#38BDF8] font-bold bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-3 py-1 rounded-full">
                     Opens in {formatTimer(upcomingSeconds)}
                   </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {UPCOMING_CHALLENGES.map((ch) => {
                     const isSet = reminders.has(ch.id);
                     return (
                       <div
                         key={ch.id}
-                        className="bg-[#12121e] border border-white/5 rounded-xl p-4 flex items-center justify-between hover:border-[#38BDF8]/30 transition"
+                        className="bg-[#12121e] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-[#38BDF8]/30 transition"
                       >
-                        <div className="min-w-0 mr-3">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-mono text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-2 py-0.5 rounded-md font-bold">
+                        <div className="min-w-0 mr-4">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[10px] font-mono text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-2.5 py-0.5 rounded-md font-bold">
                               UPCOMING
                             </span>
                             <span className="text-xs font-mono text-amber-400 font-semibold">
                               +{Math.min(ch.points, 100)} gBits
                             </span>
                           </div>
-                          <h4 className="text-sm font-bold text-white truncate">
+                          <h4 className="text-base font-bold text-white truncate mb-1">
                             {ch.title}
                           </h4>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {ch.language} · Difficulty: {ch.difficulty}
+                          <p className="text-xs text-gray-400">
+                            {ch.description}
                           </p>
                         </div>
 
                         <button
                           type="button"
                           onClick={() => handleToggleReminder(ch.id, ch.title)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
                             isSet
                               ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
                               : "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
@@ -624,11 +615,11 @@ const Explore = () => {
                         >
                           {isSet ? (
                             <>
-                              <Check size={13} /> Saved
+                              <Check size={14} /> Saved
                             </>
                           ) : (
                             <>
-                              <Bell size={13} /> Remind Me
+                              <Bell size={14} /> Remind Me
                             </>
                           )}
                         </button>
@@ -643,26 +634,34 @@ const Explore = () => {
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 3: FEATURED & EDITOR'S CHOICE
           ───────────────────────────────────────────────────────────────── */}
-          <section className="mb-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-[#A855F7]" />
-                <h2 className="text-lg font-extrabold text-white">
-                  3. Featured & Editor's Choice
-                </h2>
+          <section className="space-y-6">
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#A855F7]/10 border border-[#A855F7]/30 flex items-center justify-center">
+                  <Sparkles size={20} className="text-[#A855F7]" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-white">
+                    3. Featured & Editor's Choice
+                  </h2>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                    Handpicked top-tier challenges worth discovering
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {FEATURED_CHALLENGES.map((item) => (
-                <div
+                <motion.div
                   key={item.id}
-                  className="bg-[#0f0f18] border border-white/10 rounded-2xl p-5 flex flex-col justify-between hover:border-[#A855F7]/40 transition-all shadow-xl group"
+                  whileHover={{ y: -4 }}
+                  className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between hover:border-[#A855F7]/40 transition-all shadow-xl group"
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-4">
                       <span
-                        className="text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border"
+                        className="text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full border"
                         style={{
                           background: `${item.badgeColor}15`,
                           borderColor: `${item.badgeColor}30`,
@@ -671,49 +670,56 @@ const Explore = () => {
                       >
                         {item.badge}
                       </span>
-                      <span className="text-xs font-mono text-amber-400 font-bold">
+                      <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
                         +{Math.min(item.points, 100)} gBits
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-white text-sm mb-1.5 group-hover:text-[#A855F7] transition">
+                    <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#A855F7] transition">
                       {item.title}
                     </h3>
-                    <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+                    <p className="text-xs text-gray-400 mb-6 leading-relaxed">
                       {item.description}
                     </p>
                   </div>
 
-                  <div className="pt-3 border-t border-white/5 flex items-center justify-between">
-                    <span className="text-[11px] font-mono text-gray-500">
+                  <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-xs font-mono text-gray-500">
                       {item.language}
                     </span>
                     <Link
                       to={item.path || "/glitches"}
-                      className="flex items-center gap-1 text-xs font-bold text-[#A855F7] hover:underline"
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#A855F7] hover:underline"
                     >
-                      Solve <ArrowUpRight size={13} />
+                      Solve <ArrowUpRight size={14} />
                     </Link>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </section>
 
           {/* ─────────────────────────────────────────────────────────────────
-              SECTION 4: OUR 4 EXISTING CHALLENGE TYPES
+              SECTION 4: OUR 4 CORE CHALLENGE CATEGORIES
           ───────────────────────────────────────────────────────────────── */}
-          <section className="mb-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Layers size={18} className="text-[#00F0FF]" />
-                <h2 className="text-lg font-extrabold text-white">
-                  4. Core Challenge Categories
-                </h2>
+          <section className="space-y-6">
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center">
+                  <Layers size={20} className="text-[#00F0FF]" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-white">
+                    4. Core Challenge Modes
+                  </h2>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                    Our 4 primary challenge platforms & problem domains
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {CORE_CHALLENGE_TYPES.map((cat) => {
                 const Icon = cat.icon;
                 const count = categoryCounts[cat.dbKey] || "20+";
@@ -721,35 +727,35 @@ const Explore = () => {
                   <Link
                     key={cat.id}
                     to={cat.path}
-                    className="no-underline group bg-[#0f0f18] border border-white/10 hover:border-white/20 rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 shadow-xl"
+                    className="no-underline group bg-[#0f0f18] border border-white/10 hover:border-white/20 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 shadow-xl hover:-translate-y-1"
                   >
                     <div>
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-4">
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center"
+                          className="w-12 h-12 rounded-xl flex items-center justify-center"
                           style={{
                             background: `${cat.color}15`,
                             border: `1px solid ${cat.color}30`,
                           }}
                         >
-                          <Icon size={20} style={{ color: cat.color }} />
+                          <Icon size={24} style={{ color: cat.color }} />
                         </div>
-                        <span className="text-xs font-mono text-gray-500 font-semibold">
+                        <span className="text-xs font-mono text-gray-400 font-semibold bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
                           {count} Puzzles
                         </span>
                       </div>
 
-                      <h3 className="font-bold text-white text-base mb-1 group-hover:text-[#00F0FF] transition">
+                      <h3 className="font-bold text-white text-lg mb-2 group-hover:text-[#00F0FF] transition">
                         {cat.title}
                       </h3>
-                      <p className="text-xs text-gray-400 leading-relaxed mb-4">
+                      <p className="text-xs text-gray-400 leading-relaxed mb-6">
                         {cat.desc}
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
                       <span
-                        className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border"
+                        className="text-[11px] font-mono font-bold px-3 py-1 rounded-full border"
                         style={{
                           background: `${cat.color}10`,
                           borderColor: `${cat.color}25`,
@@ -759,7 +765,7 @@ const Explore = () => {
                         {cat.badge}
                       </span>
                       <span className="text-xs font-bold text-gray-300 group-hover:text-white flex items-center gap-1">
-                        Enter <ChevronRight size={13} />
+                        Enter <ChevronRight size={14} />
                       </span>
                     </div>
                   </Link>
@@ -769,56 +775,60 @@ const Explore = () => {
           </section>
 
           {/* ─────────────────────────────────────────────────────────────────
-              SECTION 5: PAST CHALLENGES / VAULT (ARCHIVED)
+              SECTION 5: PAST CHALLENGES & VAULT ARCHIVE
           ───────────────────────────────────────────────────────────────── */}
-          <section className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Archive size={18} className="text-gray-400" />
-                <h2 className="text-lg font-extrabold text-white">
-                  5. Past Challenges & Vault Archive
-                </h2>
+          <section className="space-y-6">
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gray-500/10 border border-gray-500/30 flex items-center justify-center">
+                  <Archive size={20} className="text-gray-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-white">
+                    5. Past Challenges & Vault Archive
+                  </h2>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                    Completed historical battles & hall of fame solution references
+                  </p>
+                </div>
               </div>
-              <span className="text-xs font-mono text-gray-500">
-                Reference & Hall of Fame Solutions
-              </span>
             </div>
 
-            <div className="bg-[#0b0b12] border border-white/10 rounded-2xl p-5 shadow-xl">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {ARCHIVED_VAULT_CHALLENGES.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-[#12121e] border border-white/5 rounded-xl p-4 flex flex-col justify-between opacity-80 hover:opacity-100 transition"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider bg-white/5 px-2 py-0.5 rounded-md">
-                          {item.date}
-                        </span>
-                        <span className="text-xs font-mono text-emerald-400 font-semibold">
-                          +{Math.min(item.rewardClaimed, 100)} gBits
-                        </span>
-                      </div>
-                      <h4 className="font-bold text-white text-sm mb-1">
-                        {item.title}
-                      </h4>
-                      <p className="text-xs text-gray-500">
-                        Completed by {item.completedBy} developers
-                      </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {ARCHIVED_VAULT_CHALLENGES.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between opacity-85 hover:opacity-100 transition shadow-xl"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-mono text-gray-400 uppercase tracking-wider bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
+                        {item.date}
+                      </span>
+                      <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                        +{Math.min(item.rewardClaimed, 100)} gBits
+                      </span>
                     </div>
-
-                    <div className="pt-3 border-t border-white/5 mt-3 flex items-center justify-between text-xs font-mono text-gray-400">
-                      <span>Top Fix: @{item.winner}</span>
-                      <span className="text-gray-500">Archived ✓</span>
-                    </div>
+                    <h4 className="font-bold text-white text-base mb-2">
+                      {item.title}
+                    </h4>
+                    <p className="text-xs text-gray-400">
+                      Completed by {item.completedBy} developers
+                    </p>
                   </div>
-                ))}
-              </div>
+
+                  <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-between text-xs font-mono text-gray-400">
+                    <span>Top Solver: <strong className="text-white">@{item.winner}</strong></span>
+                    <span className="text-gray-500 bg-white/5 px-2 py-0.5 rounded">Archived ✓</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
-        </main>
-      </div>
+        </div>
+      </main>
+
+      <Footer />
 
       {/* Interactive Challenge Solver Modal */}
       <AnimatePresence>
