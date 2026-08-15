@@ -305,10 +305,31 @@ export default function YourProfile() {
       const cachedBanner = userId
         ? localStorage.getItem(`glitch_banner_${userId}`)
         : null;
+      const cachedTagline = userId
+        ? localStorage.getItem(`glitch_tagline_${userId}`)
+        : null;
+      const cachedHobbiesStr = userId
+        ? localStorage.getItem(`glitch_hobbies_${userId}`)
+        : null;
+
+      let cachedHobbies = [];
+      if (cachedHobbiesStr) {
+        try {
+          cachedHobbies = JSON.parse(cachedHobbiesStr);
+        } catch (e) {
+          cachedHobbies = cachedHobbiesStr.split(",").map((s) => s.trim()).filter(Boolean);
+        }
+      }
+
       const bannerUrl =
         pd?.banner_url || userMeta?.banner_url || cachedBanner || "";
 
-      const rawHobbies = pd?.hobbies || userMeta?.hobbies || [];
+      const rawHobbies =
+        (pd?.hobbies && Array.isArray(pd.hobbies) && pd.hobbies.length > 0 ? pd.hobbies : null) ||
+        (userMeta?.hobbies && Array.isArray(userMeta.hobbies) && userMeta.hobbies.length > 0 ? userMeta.hobbies : null) ||
+        cachedHobbies ||
+        [];
+
       const parsedHobbies = Array.isArray(rawHobbies)
         ? rawHobbies
         : typeof rawHobbies === "string"
@@ -317,7 +338,7 @@ export default function YourProfile() {
 
       setProfile({
         ...pd,
-        tagline: pd?.tagline || pd?.headline || userMeta?.tagline || "",
+        tagline: pd?.tagline || pd?.headline || userMeta?.tagline || cachedTagline || "",
         bio: pd?.bio || userMeta?.bio || "",
         hobbies: parsedHobbies,
         banner_url: bannerUrl,
@@ -654,6 +675,30 @@ export default function YourProfile() {
     } else {
       localStorage.removeItem(`glitch_banner_${userId}`);
     }
+
+    if (editForm.tagline) {
+      localStorage.setItem(`glitch_tagline_${userId}`, editForm.tagline);
+    } else {
+      localStorage.removeItem(`glitch_tagline_${userId}`);
+    }
+
+    if (editForm.hobbies && editForm.hobbies.length > 0) {
+      localStorage.setItem(`glitch_hobbies_${userId}`, JSON.stringify(editForm.hobbies));
+    } else {
+      localStorage.removeItem(`glitch_hobbies_${userId}`);
+    }
+
+    // Immediately update local profile state so it shows on screen instantly!
+    setProfile((prev) => ({
+      ...prev,
+      full_name: editForm.full_name,
+      username: editForm.username,
+      tagline: editForm.tagline,
+      headline: editForm.tagline,
+      bio: editForm.bio,
+      hobbies: editForm.hobbies,
+      banner_url: editForm.banner_url || prev?.banner_url || "",
+    }));
 
     // Attempt profile table update
     let updatePayload = {
