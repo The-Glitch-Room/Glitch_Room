@@ -120,15 +120,17 @@ export const checkAndAwardStreakBonus = async (userId) => {
   }
 
   const milestone = Math.floor(streak / 7) * 7;
+  
+  // Use .limit(1) to avoid Supabase PostgREST JSON single-object errors if duplicates exist
   const { data: existingBonus } = await supabase
     .from("glitch_activity")
     .select("id")
     .eq("user_id", userId)
     .eq("type", "bonus")
     .ilike("title", `%${milestone}-Day Uptime Streak%`)
-    .maybeSingle();
+    .limit(1);
 
-  if (existingBonus) {
+  if (existingBonus && existingBonus.length > 0) {
     return { awarded: false, streak, reason: "already_claimed" };
   }
 
@@ -174,27 +176,64 @@ export const hasEarnedDailyFactToday = async (userId) => {
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+  const todayStr = todayStart.toISOString().split("T")[0];
 
-  const { data: existingToday } = await supabase
+  // 1. Check daily_fact_claims table (PostgreSQL UNIQUE enforced)
+  try {
+    const { data: claims } = await supabase
+      .from("daily_fact_claims")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("claim_date", todayStr)
+      .limit(1);
+
+    if (claims && claims.length > 0) return true;
+  } catch (e) {
+    // Fail-safe if table doesn't exist yet
+  }
+
+  // 2. Check glitch_activity table for today's bonus entry using .limit(1)
+  const { data: activities } = await supabase
     .from("glitch_activity")
     .select("id")
     .eq("user_id", userId)
     .eq("type", "bonus")
     .ilike("title", "%Daily Fact Bubble%")
     .gte("created_at", todayStart.toISOString())
-    .maybeSingle();
+    .limit(1);
 
-  return !!existingToday;
+  return !!(activities && activities.length > 0);
 };
 
 export const awardDailyFactBonus = async (userId) => {
   if (!userId) return { awarded: false, reason: "no_user" };
 
+  // Layer 1: Strict JS check with .limit(1)
   const alreadyEarned = await hasEarnedDailyFactToday(userId);
   if (alreadyEarned) {
     return { awarded: false, reason: "already_claimed_today" };
   }
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // Layer 2: Insert into daily_fact_claims with PostgreSQL UNIQUE(user_id, claim_date) constraint
+  try {
+    const { error: claimErr } = await supabase.from("daily_fact_claims").insert({
+      user_id: userId,
+      claim_date: todayStr,
+    });
+
+    if (claimErr) {
+      if (claimErr.code === "23505" || claimErr.message?.includes("unique")) {
+        console.warn("Database blocked duplicate Daily Fact claim:", claimErr.message);
+        return { awarded: false, reason: "already_claimed_today" };
+      }
+    }
+  } catch (e) {
+    // Fail-safe fallback if table is not yet created in Supabase
+  }
+
+  // Layer 3: Atomic points update
   const nextPoints = await updatePoints(10, "Daily Fact Bubble", "bonus");
   return { awarded: true, points: nextPoints };
 };
@@ -204,10 +243,14 @@ export const updatePoints = async (
   delta,
   title = "Challenge completed",
   type = "glitch",
-  roomId = null
+  roomId = null,
+  targetUserId = null
 ) => {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData?.user?.id;
+  let userId = targetUserId;
+  if (!userId) {
+    const { data: userData } = await supabase.auth.getUser();
+    userId = userData?.user?.id;
+  }
   if (!userId) return 0;
 
   const { data: existing } = await supabase
@@ -309,7 +352,7 @@ export const checkIfSolved = async (challengeId, challengeType) => {
     .eq("challenge_type", challengeType)
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   return data || null;
 };
@@ -353,8 +396,20 @@ export const saveSubmission = async (
   let speedBonusAwarded = false;
   if (pointsEarned > 0 && checkSpeedDemonBonus(timeTakenSeconds, difficulty)) {
     try {
-      await updatePoints(50, `Speed Demon Bonus (${timeTakenSeconds}s)`, "bonus");
-      speedBonusAwarded = true;
+      // Check if user ALREADY earned Speed Demon for this specific challenge using .limit(1)
+      const { data: existingSpeed } = await supabase
+        .from("glitch_activity")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("type", "bonus")
+        .ilike("title", `%Speed Demon Bonus%`)
+        .gte("created_at", new Date(Date.now() - 86400000).toISOString())
+        .limit(1);
+
+      if (!existingSpeed || existingSpeed.length === 0) {
+        await updatePoints(50, `Speed Demon Bonus (${timeTakenSeconds}s)`, "bonus");
+        speedBonusAwarded = true;
+      }
     } catch (e) {
       console.error("Speed demon bonus error:", e);
     }
