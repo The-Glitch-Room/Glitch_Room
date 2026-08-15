@@ -881,6 +881,7 @@ const Settings = () => {
                     onClick={() => {
                       setAccentColor(color);
                       document.documentElement.style.setProperty("--accent", color);
+                      window.dispatchEvent(new Event("accent_color_changed"));
                     }}
                   >
                     {accentColor === color && <Check size={12} className="text-black font-bold" />}

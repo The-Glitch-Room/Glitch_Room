@@ -48,31 +48,41 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
     avatarUrl: avatarPreview,
   });
 
+  const [accentColor, setAccentColor] = useState(() => {
+    return (
+      getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() ||
+      "#FF00C8"
+    );
+  });
+
+  useEffect(() => {
+    const updateAccent = () => {
+      const col =
+        getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() ||
+        "#FF00C8";
+      setAccentColor(col);
+    };
+
+    updateAccent();
+    window.addEventListener("accent_color_changed", updateAccent);
+    const observer = new MutationObserver(updateAccent);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+
+    return () => {
+      window.removeEventListener("accent_color_changed", updateAccent);
+      observer.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     setCurrentXp(xp);
   }, [xp]);
-
-  useEffect(() => {
-    const handleGbitsUpdate = (e) => {
-      if (typeof e.detail?.points === "number") {
-        setCurrentXp(e.detail.points);
-      }
-    };
-    window.addEventListener("gbits_updated", handleGbitsUpdate);
-    return () => window.removeEventListener("gbits_updated", handleGbitsUpdate);
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
     const fetchSidebarProfile = async () => {
       const { data: authData } = await supabase.auth.getUser();
       const currentUser = authData?.user;
-      const uId = currentUser?.id || user?.id;
-
-      const cachedAvatar = uId
-        ? localStorage.getItem(`glitch_avatar_${uId}`) ||
-          localStorage.getItem("glitch_avatar_url")
-        : null;
 
       let name =
         user?.user_metadata?.full_name ||
@@ -83,8 +93,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       let avatar =
         avatarPreview ||
         user?.user_metadata?.avatar_url ||
-        currentUser?.user_metadata?.avatar_url ||
-        cachedAvatar;
+        currentUser?.user_metadata?.avatar_url;
 
       if (currentUser) {
         const { data: dbProfile } = await supabase
@@ -98,38 +107,26 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
           avatar =
             avatarPreview ||
             dbProfile.avatar_url ||
-            currentUser.user_metadata?.avatar_url ||
-            cachedAvatar ||
-            avatar;
-
-          if (typeof dbProfile.points === "number" && !xp) {
+            currentUser?.user_metadata?.avatar_url;
+          if (typeof dbProfile.points === "number") {
             setCurrentXp(dbProfile.points);
           }
         }
       }
 
-      if (avatar && uId) {
-        localStorage.setItem(`glitch_avatar_${uId}`, avatar);
-      }
-
       if (isMounted) {
         setProfileData({
-          username: name || "User",
-          avatarUrl: avatar || null,
+          username: name || "Creator",
+          avatarUrl: avatar,
         });
       }
     };
 
     fetchSidebarProfile();
-
-    const handleProfileUpdate = () => fetchSidebarProfile();
-    window.addEventListener("profile_updated", handleProfileUpdate);
-
     return () => {
       isMounted = false;
-      window.removeEventListener("profile_updated", handleProfileUpdate);
     };
-  }, [user, avatarPreview, xp]);
+  }, [user, avatarPreview]);
 
   const username = profileData.username || "User";
   const initials = username.slice(0, 2).toUpperCase();
@@ -175,9 +172,8 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
         )}
         <button
           onClick={toggleCollapse}
-          className={`p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-[#00F0FF] border border-white/10 transition-all duration-200 ${
-            isCollapsed ? "mx-auto" : "ml-auto"
-          }`}
+          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 transition-all duration-200"
+          style={{ color: accentColor }}
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
           {isCollapsed ? (
@@ -213,7 +209,10 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
               <p className="text-white font-bold text-sm sm:text-base truncate tracking-tight">
                 {username}
               </p>
-              <p className="text-xs font-mono text-[#00F0FF] mt-0.5 font-semibold">
+              <p
+                className="text-xs font-mono mt-0.5 font-semibold"
+                style={{ color: accentColor }}
+              >
                 Level {level} · {displayXp} gBits
               </p>
             </div>
@@ -243,7 +242,10 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             {hoveredItem === "profile_user" && (
               <div className="fixed left-[86px] top-[26vh] z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
                 <p className="font-bold text-white text-sm">{username}</p>
-                <p className="text-[#00F0FF] font-mono mt-0.5 text-xs font-semibold">
+                <p
+                  className="font-mono mt-0.5 text-xs font-semibold"
+                  style={{ color: accentColor }}
+                >
                   Level {level} · {displayXp} gBits
                 </p>
               </div>
@@ -286,21 +288,30 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                   isCollapsed ? "justify-center" : ""
                 } ${
                   isActive
-                    ? "bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30 shadow-lg shadow-[#00F0FF]/5"
+                    ? "text-white border shadow-lg"
                     : "text-gray-300 hover:text-white hover:bg-white/5"
                 }`}
+                style={
+                  isActive
+                    ? {
+                        background: `${accentColor}18`,
+                        color: accentColor,
+                        borderColor: `${accentColor}40`,
+                        boxShadow: `0 0 16px ${accentColor}20`,
+                      }
+                    : {}
+                }
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <Icon
                     size={18}
-                    className={`shrink-0 ${
-                      isActive ? "text-[#00F0FF]" : "text-gray-400"
-                    }`}
+                    className="shrink-0"
+                    style={{ color: isActive ? accentColor : "#9ca3af" }}
                   />
                   {!isCollapsed && <span className="truncate">{item.name}</span>}
                 </div>
                 {!isCollapsed && isActive && (
-                  <ChevronRight size={14} className="text-[#00F0FF] shrink-0" />
+                  <ChevronRight size={14} style={{ color: accentColor }} className="shrink-0" />
                 )}
               </Link>
 
@@ -319,9 +330,9 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       <div className="p-4 border-t border-white/10 bg-[#070709]">
         {!isCollapsed ? (
           <>
-            <div className="flex items-center justify-between text-xs text-gray-300 mb-1.5 font-medium">
+            <div className="flex items-center justify-between text-xs font-semibold text-gray-300 mb-1.5">
               <span className="font-mono">gBits Progress</span>
-              <span className="font-mono font-bold text-[#FF00C8]">
+              <span className="font-mono font-bold" style={{ color: accentColor }}>
                 Lv {level}
               </span>
             </div>
@@ -330,7 +341,10 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPercent}%` }}
                 transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
-                className="h-full rounded-full bg-gradient-to-r from-[#FF00C8] to-[#00F0FF]"
+                className="h-full rounded-full"
+                style={{
+                  background: `linear-gradient(90deg, ${accentColor}, #00F0FF)`,
+                }}
               />
             </div>
             <p className="text-xs font-mono text-gray-400 text-right font-medium">
@@ -343,12 +357,19 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             onMouseEnter={() => setHoveredItem("progress")}
             onMouseLeave={() => setHoveredItem(null)}
           >
-            <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] text-xs font-mono font-bold">
+            <div
+              className="w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-mono font-bold"
+              style={{
+                background: `${accentColor}18`,
+                borderColor: `${accentColor}40`,
+                color: accentColor,
+              }}
+            >
               L{level}
             </div>
             {hoveredItem === "progress" && (
               <div className="fixed left-[86px] bottom-6 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
-                <p className="font-mono text-[#00F0FF]">
+                <p className="font-mono" style={{ color: accentColor }}>
                   Level {level} Progress: {Math.round(progressPercent)}%
                 </p>
                 <p className="text-[10px] text-gray-400 font-mono mt-0.5">
