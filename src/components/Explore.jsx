@@ -217,7 +217,7 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
                   disabled={submitting || !answer.trim()}
                   className="px-5 py-2 rounded-xl text-white text-xs font-bold disabled:opacity-40 cursor-pointer transition flex items-center gap-1.5"
                   style={{
-                    background: "linear-gradient(90deg, #FF00C8, #a855f7)",
+                    background: "linear-gradient(90deg, #00F0FF, #a855f7)",
                   }}
                 >
                   {submitting ? "Submitting..." : "Submit Solution"}
@@ -449,38 +449,41 @@ const Explore = () => {
 
   return (
     <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden">
-      {/* Dynamic Moving Glitch Background (Game Arena & Home Page Treatment) */}
+      {/* Dynamic Moving Glitch Background Particles */}
       <GlitchBackground />
+
+      {/* Smooth Seamless Top Cyber Grid with Vertical Fade Gradient */}
+      <div
+        className="absolute top-0 left-0 right-0 h-[1100px] z-0 opacity-10 pointer-events-none"
+        style={{
+          backgroundImage: `linear-gradient(rgba(0,240,255,0.25) 1px, transparent 1px),
+                            linear-gradient(90deg, rgba(0,240,255,0.25) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
+          maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
+          WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
+        }}
+      />
+
+      {/* Ambient Cyan Radial Glow with Smooth Radial Falloff */}
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[750px] rounded-full blur-3xl opacity-20 pointer-events-none z-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 60% at 50% 25%, rgba(0, 240, 255, 0.25) 0%, rgba(0, 240, 255, 0.08) 50%, transparent 80%)",
+        }}
+      />
 
       <div className="relative z-10 flex flex-col flex-1">
         <Navbar />
 
-        {/* ── HERO HEADER (Game Arena style with cyber grid & ambient radial glow) ── */}
-        <section className="relative pt-36 md:pt-44 pb-16 px-6 overflow-hidden mb-12 md:mb-20">
-          {/* Animated Cyber Grid */}
-          <div
-            className="absolute inset-0 z-0 opacity-10 pointer-events-none"
-            style={{
-              backgroundImage: `linear-gradient(rgba(0,240,255,0.2) 1px, transparent 1px),
-                                linear-gradient(90deg, rgba(0,240,255,0.2) 1px, transparent 1px)`,
-              backgroundSize: "60px 60px",
-            }}
-          />
-          {/* Ambient Radial Glow */}
-          <div
-            className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[650px] h-[320px] rounded-full blur-3xl opacity-15 pointer-events-none"
-            style={{
-              background:
-                "radial-gradient(ellipse, #FF00C8, #00F0FF, transparent)",
-            }}
-          />
-
-          <div className="relative z-10 max-w-4xl mx-auto text-center">
+        {/* ── HERO HEADER (Cyan Accent & Seamless Fading Glow) ── */}
+        <section className="relative pt-36 md:pt-44 pb-12 px-6 mb-8 md:mb-16 text-center">
+          <div className="max-w-4xl mx-auto">
             <PageHeading
               eyebrow="CHALLENGE DISCOVERY ENGINE"
               title="The Glitch Explore Hub"
               subtitle="Discover time-bounded battles, daily refreshes, featured picks, core challenge modes, and historical vaults."
-              accent="pink"
+              accent="cyan"
               size="xl"
             />
           </div>
@@ -524,7 +527,7 @@ const Explore = () => {
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <Flame size={20} className="text-[#FF00C8]" />
+                  <Flame size={20} className="text-[#00F0FF]" />
                 </div>
                 <div>
                   <h2 className="text-xl font-extrabold text-white">
@@ -587,7 +590,7 @@ const Explore = () => {
                             onClick={() => setActiveSolverChallenge(item)}
                             className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md"
                             style={{
-                              background: "linear-gradient(90deg, #FF00C8, #a855f7)",
+                              background: "linear-gradient(90deg, #00F0FF, #a855f7)",
                             }}
                           >
                             Solve <ChevronRight size={14} />
