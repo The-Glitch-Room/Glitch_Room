@@ -42,6 +42,7 @@ import {
   MessageCircle,
   Plus,
   Send,
+  LogOut,
 } from "lucide-react";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import { supabase } from "../../supabaseClient";
@@ -61,6 +62,7 @@ const ProfessionalRoomDetail = () => {
   const [userSubmission, setUserSubmission] = useState(null);
   const [userRegistration, setUserRegistration] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [userGbits, setUserGbits] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [activeSidebarTab, setActiveSidebarTab] = useState("overview");
@@ -96,6 +98,16 @@ const ProfessionalRoomDetail = () => {
       const { data: authData } = await supabase.auth.getUser();
       const uid = authData?.user?.id;
       setCurrentUserId(uid);
+
+      if (uid) {
+        // Fetch User gBits Balance
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("gbits")
+          .eq("id", uid)
+          .maybeSingle();
+        setUserGbits(prof?.gbits || 0);
+      }
 
       // 1. Fetch Room Metadata
       const { data: roomData } = await supabase
@@ -141,7 +153,7 @@ const ProfessionalRoomDetail = () => {
 
       setSections(secData || []);
 
-      // 3. Fetch User Registration & User's OWN Submission (Candidate Privacy Directive)
+      // 3. Fetch User Registration & User's OWN Submission
       if (uid) {
         const { data: reg } = await supabase
           .from("pro_room_registrations")
@@ -170,10 +182,10 @@ const ProfessionalRoomDetail = () => {
         setSubmissions(allSubs || []);
       }
 
-      // 5. Fetch Registrations Count
+      // 5. Fetch Registrations Roster
       const { data: regList } = await supabase
         .from("pro_room_registrations")
-        .select("id")
+        .select("*, profiles(full_name, username, avatar_url)")
         .eq("room_id", id);
       setRegistrations(regList || []);
 
@@ -201,7 +213,7 @@ const ProfessionalRoomDetail = () => {
         .order("created_at", { ascending: false });
       setDiscussions(discData || []);
 
-      // 9. Set Room-Specific Dynamic Notifications
+      // 9. Set Notifications
       setNotifications([
         {
           id: "n1",
@@ -228,7 +240,6 @@ const ProfessionalRoomDetail = () => {
   useEffect(() => {
     fetchRoomData();
 
-    // Live Countdown Timer
     const timer = setInterval(() => {
       const now = new Date();
       const end = room?.event_end_at ? new Date(room.event_end_at) : new Date(Date.now() + 172800000);
@@ -301,6 +312,16 @@ const ProfessionalRoomDetail = () => {
     }
   };
 
+  const handleDeleteAnnouncement = async (annId) => {
+    try {
+      await supabase.from("pro_room_announcements").delete().eq("id", annId);
+      showToast("🗑️ Announcement deleted.");
+      fetchRoomData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#070709] flex items-center justify-center">
@@ -320,6 +341,16 @@ const ProfessionalRoomDetail = () => {
   const userScoreDisplay = userSubmission?.total_score || myRankItem?.total_score || 0;
   const totalPossible = room?.total_possible_score || 300;
 
+  // Format Event End Time
+  const eventEndFormatted = room?.event_end_at
+    ? new Date(room.event_end_at).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
+
   return (
     <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans relative">
       <GlitchBackground />
@@ -338,7 +369,7 @@ const ProfessionalRoomDetail = () => {
         )}
       </AnimatePresence>
 
-      {/* TOP HEADER BAR matching Reference Image */}
+      {/* TOP HEADER BAR */}
       <div className="relative z-30 border-b border-white/10 bg-[#07070e]/90 backdrop-blur-md px-6 py-3.5 flex items-center justify-between">
         <button
           type="button"
@@ -358,7 +389,7 @@ const ProfessionalRoomDetail = () => {
             <Share2 size={14} /> Share Room
           </button>
 
-          {/* 🔔 ROOM-SPECIFIC NOTIFICATION BELL */}
+          {/* 🔔 ROOM NOTIFICATION BELL */}
           <div className="relative">
             <button
               type="button"
@@ -420,7 +451,7 @@ const ProfessionalRoomDetail = () => {
             </AnimatePresence>
           </div>
 
-          {/* ⋮ ROLE-BASED 3-DOT MENU */}
+          {/* ⋮ STRICT ROLE-BASED 3-DOT MENU */}
           <div className="relative">
             <button
               type="button"
@@ -442,21 +473,25 @@ const ProfessionalRoomDetail = () => {
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   className="absolute right-0 mt-2 w-64 bg-[#0d0d16] border border-white/10 rounded-2xl shadow-2xl p-2 z-50 text-xs font-sans space-y-1"
                 >
-                  {/* ORGANIZER / HOST ACTIONS */}
-                  {isHost && (
+                  {/* DIRECTIVE 1 & 2: RENDER EXCLUSIVELY HOST OR PARTICIPANT OPTIONS */}
+                  {isHost ? (
+                    /* HOST / CREATOR EXCLUSIVE ACTIONS */
                     <>
                       <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-purple-400 uppercase tracking-widest">
-                        Organizer / Host Actions
+                        Host Management Actions
                       </div>
                       <button
-                        onClick={() => navigate(`/pro-rooms/${id}/dashboard`)}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
+                        onClick={() => {
+                          setActiveSidebarTab("host_dashboard");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
                       >
                         <BarChart2 size={14} className="text-[#00F0FF]" /> Command Dashboard
                       </button>
                       <button
                         onClick={() => navigate(`/pro-rooms/create?edit=${id}`)}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
                       >
                         <Edit3 size={14} className="text-purple-400" /> Edit Room Configuration
                       </button>
@@ -465,64 +500,95 @@ const ProfessionalRoomDetail = () => {
                           setActiveSidebarTab("announcements");
                           setShowThreeDotMenu(false);
                         }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
                       >
                         <Megaphone size={14} className="text-amber-400" /> Post Announcement
                       </button>
-                      <div className="my-1 border-t border-white/10" />
-                    </>
-                  )}
-
-                  {/* TEAM ACTIONS */}
-                  {isTeamEvent && (
-                    <>
-                      <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest">
-                        Team Management
-                      </div>
                       <button
-                        onClick={() => showToast("👥 Team member invite link generated!")}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
+                        onClick={() => {
+                          setActiveSidebarTab("host_participants");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
                       >
-                        <UserPlus size={14} className="text-[#00F0FF]" /> Invite Team Member
+                        <Users size={14} className="text-gray-300" /> Manage Participants
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveSidebarTab("host_assessment");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                      >
+                        <Layers size={14} className="text-cyan-400" /> Manage Assessment
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveSidebarTab("host_submissions");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                      >
+                        <CheckCircle size={14} className="text-emerald-400" /> Manage Submissions & Evaluation
+                      </button>
+                      <button
+                        onClick={handleShareRoom}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                      >
+                        <Share2 size={14} className="text-gray-400" /> Share Room Link
                       </button>
                       <div className="my-1 border-t border-white/10" />
+                      <button
+                        onClick={() => showToast("⚠️ Room settings updated.")}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-red-400 hover:text-red-300 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Trash2 size={14} /> Archive / Delete Room
+                      </button>
+                    </>
+                  ) : (
+                    /* PARTICIPANT EXCLUSIVE OPTIONS (NEVER SHOW HOST HEADER) */
+                    <>
+                      <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">
+                        Participant Actions
+                      </div>
+                      <button
+                        onClick={() => {
+                          setActiveSidebarTab("overview");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                      >
+                        <Info size={14} className="text-gray-400" /> Event Overview
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveSidebarTab("instructions");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                      >
+                        <FileText size={14} className="text-gray-400" /> View Guidelines
+                      </button>
+                      <button
+                        onClick={handleShareRoom}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                      >
+                        <Share2 size={14} className="text-gray-400" /> Share Room Link
+                      </button>
+                      <button
+                        onClick={() => showToast("⚠️ Issue report submitted to host.")}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                      >
+                        <AlertTriangle size={14} className="text-amber-400" /> Report an Issue
+                      </button>
+                      <button
+                        onClick={() => showToast("🚪 Left room successfully.")}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-red-400 hover:text-red-300 flex items-center gap-2 cursor-pointer"
+                      >
+                        <LogOut size={14} /> Leave Room
+                      </button>
                     </>
                   )}
-
-                  {/* PARTICIPANT ACTIONS */}
-                  <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">
-                    Participant Options
-                  </div>
-                  <button
-                    onClick={() => {
-                      setActiveSidebarTab("overview");
-                      setShowThreeDotMenu(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
-                  >
-                    <Info size={14} className="text-gray-400" /> Event Overview
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveSidebarTab("instructions");
-                      setShowThreeDotMenu(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
-                  >
-                    <FileText size={14} className="text-gray-400" /> View Guidelines
-                  </button>
-                  <button
-                    onClick={handleShareRoom}
-                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
-                  >
-                    <Share2 size={14} className="text-gray-400" /> Share Room Link
-                  </button>
-                  <button
-                    onClick={() => showToast("⚠️ Issue report submitted.")}
-                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-red-400 hover:text-red-300 flex items-center gap-2"
-                  >
-                    <AlertTriangle size={14} /> Report an Issue
-                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -533,7 +599,7 @@ const ProfessionalRoomDetail = () => {
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full relative z-10 space-y-6">
         {/* ROOM HEADER & TOP 4 STATS CARDS GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* Room Header Info Box (7 Columns ~60%) */}
+          {/* Room Header Info Box */}
           <div className="lg:col-span-7 bg-[#0c0c16] border border-white/10 rounded-3xl p-6 flex flex-col justify-between shadow-2xl space-y-4">
             <div className="flex items-start gap-4">
               <div className="w-28 sm:w-36 h-28 sm:h-32 rounded-2xl overflow-hidden border border-white/10 shrink-0 bg-[#12121e]">
@@ -560,6 +626,11 @@ const ProfessionalRoomDetail = () => {
                   <span className="text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300">
                     {room.event_type || "Hackathon"}
                   </span>
+                  {isHost && (
+                    <span className="text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                      ★ ROOM HOST
+                    </span>
+                  )}
                 </div>
 
                 <h1 className="text-xl sm:text-2xl font-black text-white leading-tight truncate">
@@ -571,13 +642,15 @@ const ProfessionalRoomDetail = () => {
                     By {room.org_name || "Verified Organization"}
                     <ShieldCheck size={13} className="text-[#00F0FF]" />
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsFollowingOrg(!isFollowingOrg)}
-                    className="px-3 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-[10px] font-bold border border-purple-500/30 transition cursor-pointer"
-                  >
-                    {isFollowingOrg ? "✓ Following" : "Follow"}
-                  </button>
+                  {!isHost && (
+                    <button
+                      type="button"
+                      onClick={() => setIsFollowingOrg(!isFollowingOrg)}
+                      className="px-3 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-[10px] font-bold border border-purple-500/30 transition cursor-pointer"
+                    >
+                      {isFollowingOrg ? "✓ Following" : "Follow"}
+                    </button>
+                  )}
                 </div>
 
                 <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
@@ -599,7 +672,7 @@ const ProfessionalRoomDetail = () => {
             </div>
           </div>
 
-          {/* TOP 4 STATS CARDS GRID (5 Columns ~40%) */}
+          {/* TOP 4 STATS CARDS GRID */}
           <div className="lg:col-span-5 grid grid-cols-2 gap-3">
             {/* Card 1: Time Remaining */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
@@ -620,14 +693,14 @@ const ProfessionalRoomDetail = () => {
             {/* Card 2: Your Progress */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span className="flex items-center gap-1"><Zap size={13} className="text-[#00F0FF]" /> Your Progress</span>
+                <span className="flex items-center gap-1"><Zap size={13} className="text-[#00F0FF]" /> {isHost ? "Roster Progress" : "Your Progress"}</span>
               </div>
               <div className="my-2 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white">
-                  {userSubmission ? `${userSubmission.percentage || 100}%` : "0%"}
+                  {isHost ? `${submissions.length > 0 ? Math.round((submissions.length / (registrations.length || 1)) * 100) : 0}%` : userSubmission ? `${userSubmission.percentage || 100}%` : "0%"}
                 </div>
                 <span className="text-[11px] text-gray-300 font-bold">
-                  {sections.length > 0 ? `${userSubmission ? sections.length : 0} / ${sections.length} Sections` : "0 Sections"}
+                  {isHost ? `${submissions.length} / ${registrations.length} Submitted` : `${sections.length > 0 ? (userSubmission ? sections.length : 0) : 0} / ${sections.length} Sections`}
                 </span>
               </div>
               <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Assessment Phase</span>
@@ -636,14 +709,15 @@ const ProfessionalRoomDetail = () => {
             {/* Card 3: Your Rank */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span className="flex items-center gap-1"><Trophy size={13} className="text-amber-400" /> Your Rank</span>
+                <span className="flex items-center gap-1"><Trophy size={13} className="text-amber-400" /> {isHost ? "Top Candidate Score" : "Your Rank"}</span>
               </div>
               <div className="my-2">
                 <div className="text-xl font-black text-white font-mono">
-                  {userRankDisplay} <span className="text-xs text-gray-500 font-normal">/ {registrations.length || 1}</span>
+                  {isHost ? (leaderboard[0] ? `${leaderboard[0].total_score} pts` : "—") : userRankDisplay}
+                  {!isHost && <span className="text-xs text-gray-500 font-normal"> / {registrations.length || 1}</span>}
                 </div>
                 <span className="text-[11px] text-emerald-400 font-mono font-bold">
-                  Score: {userScoreDisplay} / {totalPossible}
+                  {isHost ? `Total Candidates: ${registrations.length}` : `Score: ${userScoreDisplay} / ${totalPossible}`}
                 </span>
               </div>
               <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Official Standings</span>
@@ -669,9 +743,51 @@ const ProfessionalRoomDetail = () => {
 
         {/* 3-COLUMN MAIN BODY LAYOUT */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* LEFT SIDEBAR TABS & ORGANIZER CARD (2 Columns ~18%) */}
+          {/* LEFT SIDEBAR TABS */}
           <div className="lg:col-span-2 space-y-4">
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-2 space-y-1 shadow-xl text-xs font-bold">
+              {/* DIRECTIVE 3: SEPARATE HOST VIEW TABS FROM PARTICIPANT TABS */}
+              {isHost && (
+                <div className="mb-2 pb-2 border-b border-white/10 space-y-1">
+                  <div className="px-2 py-1 text-[10px] font-mono font-bold text-amber-400 uppercase tracking-widest">
+                    Host Management
+                  </div>
+                  {[
+                    { id: "host_dashboard", label: "Dashboard", icon: BarChart2 },
+                    { id: "host_participants", label: "Participants", icon: Users, count: registrations.length },
+                    { id: "host_assessment", label: "Manage Assessment", icon: Layers, count: sections.length },
+                    { id: "host_submissions", label: "Submissions & Grading", icon: CheckCircle, count: submissions.length },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeSidebarTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveSidebarTab(item.id)}
+                        className={`w-full px-3 py-2.5 rounded-xl transition flex items-center justify-between cursor-pointer ${
+                          isActive
+                            ? "bg-[#FF00C8]/15 border border-[#FF00C8]/40 text-[#FF00C8]"
+                            : "text-gray-400 hover:text-white hover:bg-white/5"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Icon size={14} /> {item.label}
+                        </span>
+                        {item.count !== undefined && (
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${isActive ? "bg-[#FF00C8] text-white" : "bg-white/10 text-gray-400"}`}>
+                            {item.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="px-2 py-1 text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">
+                Room Navigation
+              </div>
+
               {[
                 { id: "overview", label: "Overview", icon: Eye },
                 { id: "instructions", label: "Instructions", icon: FileText },
@@ -729,9 +845,100 @@ const ProfessionalRoomDetail = () => {
             </div>
           </div>
 
-          {/* CENTER MAIN CONTENT AREA (7 Columns ~58%) — DYNAMICALLY SWITCHES BASED ON ACTIVE TAB */}
+          {/* CENTER MAIN CONTENT AREA */}
           <div className="lg:col-span-7 space-y-6">
-            {/* TAB 1: OVERVIEW */}
+            {/* HOST TABS (HOST EXCLUSIVE) */}
+            {activeSidebarTab === "host_dashboard" && isHost && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                  <BarChart2 size={16} className="text-[#00F0FF]" /> Room Analytics & Host Command Center
+                </h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
+                    <span className="text-gray-400 block text-[10px] font-mono">Registrations</span>
+                    <span className="text-xl font-black text-white font-mono">{registrations.length}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
+                    <span className="text-gray-400 block text-[10px] font-mono">Submissions</span>
+                    <span className="text-xl font-black text-[#00F0FF] font-mono">{submissions.length}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
+                    <span className="text-gray-400 block text-[10px] font-mono">Completion Rate</span>
+                    <span className="text-xl font-black text-emerald-400 font-mono">
+                      {registrations.length > 0 ? `${Math.round((submissions.length / registrations.length) * 100)}%` : "0%"}
+                    </span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
+                    <span className="text-gray-400 block text-[10px] font-mono">Prize Pool</span>
+                    <span className="text-xl font-black text-amber-400 font-mono">{room?.gbits_prize_pool || 1000} gBits</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSidebarTab === "host_participants" && isHost && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                  <Users size={16} className="text-purple-400" /> Registered Candidate Roster ({registrations.length})
+                </h3>
+
+                {registrations.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center py-8">No candidates registered yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {registrations.map((r, idx) => (
+                      <div key={r.id || idx} className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                        <span className="text-white font-bold">{r.profiles?.full_name || r.profiles?.username || "Candidate"}</span>
+                        <span className="text-[10px] font-mono text-emerald-400">Registered</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeSidebarTab === "host_assessment" && isHost && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                  <Layers size={16} className="text-[#00F0FF]" /> Assessment Configuration
+                </h3>
+                <p className="text-gray-400">Manage your timed sections and question bank.</p>
+                <button onClick={() => navigate(`/pro-rooms/create?edit=${id}`)} className="px-4 py-2 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer">
+                  Open Creation Studio Editor →
+                </button>
+              </div>
+            )}
+
+            {activeSidebarTab === "host_submissions" && isHost && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                  <CheckCircle size={16} className="text-emerald-400" /> Candidate Submissions & Evaluation
+                </h3>
+                <div className="space-y-3">
+                  {submissions.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-8">No candidate submissions yet.</p>
+                  ) : (
+                    submissions.map((sub, sIdx) => (
+                      <div key={sub.id || sIdx} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="text-white font-bold block">{sub.profiles?.full_name || sub.profiles?.username || "Candidate"}</span>
+                          <span className="text-[10px] text-gray-500 font-mono">Score: {sub.total_score} pts • {sub.percentage}%</span>
+                        </div>
+                        <button
+                          onClick={() => navigate(`/pro-rooms/${id}/dashboard`)}
+                          className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold hover:bg-purple-500/30 cursor-pointer"
+                        >
+                          Grade & Review
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* STANDARD ROOM NAVIGATION TABS */}
             {activeSidebarTab === "overview" && (
               <div className="space-y-6">
                 <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
@@ -751,11 +958,11 @@ const ProfessionalRoomDetail = () => {
                     </div>
                     <div>
                       <span className="text-gray-500 block text-[10px] font-mono">End Date</span>
-                      <span className="text-white font-bold">May 20, 2026 06:00 PM</span>
+                      <span className="text-white font-bold">{eventEndFormatted}</span>
                     </div>
                     <div>
                       <span className="text-gray-500 block text-[10px] font-mono">Registration</span>
-                      <span className="text-white font-bold">May 1 – May 15, 2026</span>
+                      <span className="text-white font-bold">Open</span>
                     </div>
                     <div>
                       <span className="text-gray-500 block text-[10px] font-mono">Eligibility</span>
@@ -763,7 +970,7 @@ const ProfessionalRoomDetail = () => {
                     </div>
                     <div>
                       <span className="text-gray-500 block text-[10px] font-mono">Start Date</span>
-                      <span className="text-white font-bold">May 18, 2026 10:00 AM</span>
+                      <span className="text-white font-bold">Active</span>
                     </div>
                     <div>
                       <span className="text-gray-500 block text-[10px] font-mono">Timezone</span>
@@ -772,7 +979,6 @@ const ProfessionalRoomDetail = () => {
                   </div>
                 </div>
 
-                {/* Sections Summary */}
                 <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
                   <div className="flex items-center justify-between border-b border-white/10 pb-3">
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -811,7 +1017,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 2: INSTRUCTIONS */}
             {activeSidebarTab === "instructions" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
@@ -841,7 +1046,7 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 3: ANNOUNCEMENTS */}
+            {/* TAB 3: ANNOUNCEMENTS — DIRECTIVE 4: HIDE POST FORM FROM PARTICIPANTS */}
             {activeSidebarTab === "announcements" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -850,10 +1055,10 @@ const ProfessionalRoomDetail = () => {
                   </h3>
                 </div>
 
-                {/* Post Form if Host */}
+                {/* POST ANNOUNCEMENT FORM — RENDERED ONLY WHEN isHost === true */}
                 {isHost && (
-                  <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-4 space-y-3">
-                    <h4 className="text-xs font-bold text-purple-300">Post Announcement</h4>
+                  <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-4 space-y-3 shadow-xl">
+                    <h4 className="text-xs font-bold text-purple-300">Post Broadcast Announcement</h4>
                     <input
                       type="text"
                       placeholder="Title..."
@@ -871,7 +1076,7 @@ const ProfessionalRoomDetail = () => {
                     <button
                       onClick={handlePostAnnouncement}
                       disabled={postingAnn}
-                      className="px-4 py-2 rounded-xl bg-[#FF00C8] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                      className="px-4 py-2 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold cursor-pointer disabled:opacity-50 transition"
                     >
                       Broadcast 📢
                     </button>
@@ -883,10 +1088,17 @@ const ProfessionalRoomDetail = () => {
                     <p className="text-xs text-gray-500 text-center py-8">No announcements broadcasted yet.</p>
                   ) : (
                     announcements.map((a) => (
-                      <div key={a.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+                      <div key={a.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2 relative">
                         <div className="flex items-center justify-between">
                           <h4 className="text-xs font-bold text-white">{a.title}</h4>
-                          <span className="text-[10px] font-mono text-gray-500">{a.created_at}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono text-gray-500">{new Date(a.created_at || Date.now()).toLocaleDateString()}</span>
+                            {isHost && (
+                              <button onClick={() => handleDeleteAnnouncement(a.id)} className="text-red-400 hover:text-red-300 p-1 cursor-pointer">
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-xs text-gray-300 leading-relaxed">{a.content}</p>
                       </div>
@@ -896,7 +1108,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 4: SECTIONS */}
             {activeSidebarTab === "sections" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -950,7 +1161,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 5: SUBMISSIONS — DIRECTIVE: CANDIDATES SEE ONLY THEIR OWN RESULTS */}
             {activeSidebarTab === "submissions" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -961,7 +1171,6 @@ const ProfessionalRoomDetail = () => {
                 </div>
 
                 {!isHost ? (
-                  /* PARTICIPANT VIEW — CAN ONLY SEE THEIR OWN RESULT */
                   userSubmission ? (
                     <div className="p-6 rounded-2xl bg-[#06060c] border border-emerald-500/30 space-y-4">
                       <div className="flex items-center justify-between">
@@ -984,10 +1193,6 @@ const ProfessionalRoomDetail = () => {
                           <span>Submitted At:</span>
                           <span className="text-white font-mono">{new Date(userSubmission.submitted_at || Date.now()).toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between text-gray-400">
-                          <span>Anti-Cheat Status:</span>
-                          <span className="text-emerald-400 font-bold">✓ Zero Flagged Violations</span>
-                        </div>
                       </div>
                     </div>
                   ) : (
@@ -995,7 +1200,7 @@ const ProfessionalRoomDetail = () => {
                       <CheckCircle size={32} className="text-gray-600 mx-auto" />
                       <h4 className="text-sm font-bold text-white">No Submission Recorded Yet</h4>
                       <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                        Complete your assessment tasks in the sections environment to view your private test score and performance evaluation.
+                        Complete your assessment tasks in the sections environment to view your test score.
                       </p>
                       <button
                         onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
@@ -1006,7 +1211,6 @@ const ProfessionalRoomDetail = () => {
                     </div>
                   )
                 ) : (
-                  /* HOST / ORGANIZER VIEW — FULL SUBMISSIONS ROSTER */
                   <div className="space-y-3">
                     {submissions.length === 0 ? (
                       <p className="text-xs text-gray-500 text-center py-8">No candidate submissions recorded yet.</p>
@@ -1031,7 +1235,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 6: LEADERBOARD */}
             {activeSidebarTab === "leaderboard" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -1067,7 +1270,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 7: DISCUSSION */}
             {activeSidebarTab === "discussion" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -1076,7 +1278,6 @@ const ProfessionalRoomDetail = () => {
                   </h3>
                 </div>
 
-                {/* Post Question Form */}
                 <div className="bg-[#07070e] border border-white/10 rounded-2xl p-4 space-y-3">
                   <h4 className="text-xs font-bold text-gray-300">Ask a Question / Post Doubt</h4>
                   <input
@@ -1088,7 +1289,7 @@ const ProfessionalRoomDetail = () => {
                   />
                   <textarea
                     rows={2}
-                    placeholder="Describe your question or doubt..."
+                    placeholder="Describe your question..."
                     value={discContent}
                     onChange={(e) => setDiscContent(e.target.value)}
                     className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white outline-none"
@@ -1104,7 +1305,7 @@ const ProfessionalRoomDetail = () => {
 
                 <div className="space-y-3">
                   {discussions.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-8">Discussion feed is quiet. Be the first to ask a question!</p>
+                    <p className="text-xs text-gray-500 text-center py-8">Discussion feed is quiet.</p>
                   ) : (
                     discussions.map((d) => (
                       <div key={d.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1.5">
@@ -1120,7 +1321,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 8: ORGANIZERS */}
             {activeSidebarTab === "organizers" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
@@ -1136,9 +1336,9 @@ const ProfessionalRoomDetail = () => {
                     )}
                     <div>
                       <h4 className="text-sm font-bold text-white flex items-center gap-1">
-                        {room.org_name || "TechNova University"} <ShieldCheck size={14} className="text-[#00F0FF]" />
+                        {room.org_name || "Verified Organization"} <ShieldCheck size={14} className="text-[#00F0FF]" />
                       </h4>
-                      <p className="text-gray-400 text-[11px]">{room.org_email || "contact@technova.edu"}</p>
+                      <p className="text-gray-400 text-[11px]">{room.org_email || "contact@organizer.edu"}</p>
                     </div>
                   </div>
 
@@ -1158,7 +1358,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 9: RESOURCES */}
             {activeSidebarTab === "resources" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
@@ -1178,7 +1377,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 10: HELP & SUPPORT */}
             {activeSidebarTab === "help" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
@@ -1194,7 +1392,7 @@ const ProfessionalRoomDetail = () => {
             )}
           </div>
 
-          {/* RIGHT SIDEBAR (3 Columns ~24%) */}
+          {/* RIGHT SIDEBAR */}
           <div className="lg:col-span-3 space-y-6">
             {/* Announcements Box */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-4">
@@ -1206,12 +1404,16 @@ const ProfessionalRoomDetail = () => {
               </div>
 
               <div className="space-y-3">
-                {announcements.slice(0, 3).map((a) => (
-                  <div key={a.id} className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
-                    <span className="text-xs font-bold text-white block truncate">{a.title}</span>
-                    <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">{a.content}</p>
-                  </div>
-                ))}
+                {announcements.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center py-4">No announcements yet.</p>
+                ) : (
+                  announcements.slice(0, 3).map((a) => (
+                    <div key={a.id} className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                      <span className="text-xs font-bold text-white block truncate">{a.title}</span>
+                      <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">{a.content}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -1250,39 +1452,51 @@ const ProfessionalRoomDetail = () => {
         </div>
       </main>
 
-      {/* BOTTOM STICKY BAR matching Reference Image (No Footer) */}
-      <div className="sticky bottom-0 z-40 border-t border-white/10 bg-[#07070e]/95 backdrop-blur-md px-6 py-3 shadow-2xl">
+      {/* DIRECTIVE 5: TALLER & MORE READABLE BOTTOM FIXED FOOTER */}
+      <div className="sticky bottom-0 z-40 border-t border-white/10 bg-[#07070e]/95 backdrop-blur-md px-6 py-4.5 sm:py-5 shadow-2xl">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono">
-          <div className="flex items-center gap-6 overflow-x-auto w-full sm:w-auto">
-            <div className="flex items-center gap-2">
-              <Zap size={16} className="text-purple-400" />
+          <div className="flex items-center gap-6 sm:gap-10 overflow-x-auto w-full sm:w-auto">
+            {/* User gBits Balance */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <Zap size={18} className="text-purple-400" />
+              </div>
               <div>
-                <span className="text-white font-bold block">338 gBits</span>
-                <span className="text-[9px] text-gray-500">Your Balance</span>
+                <span className="text-white text-sm font-black font-mono block leading-none">{userGbits} gBits</span>
+                <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-1 block">Your Balance</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 border-l border-white/10 pl-6">
-              <Trophy size={16} className="text-amber-400" />
+            {/* Target Rank */}
+            <div className="flex items-center gap-3 border-l border-white/10 pl-6 sm:pl-10">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <Trophy size={18} className="text-amber-400" />
+              </div>
               <div>
-                <span className="text-white font-bold block">{userRankDisplay}</span>
-                <span className="text-[9px] text-gray-500">Target Rank</span>
+                <span className="text-white text-sm font-black font-mono block leading-none">{userRankDisplay}</span>
+                <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-1 block">Target Rank</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 border-l border-white/10 pl-6">
-              <Award size={16} className="text-[#00F0FF]" />
+            {/* Total Points */}
+            <div className="flex items-center gap-3 border-l border-white/10 pl-6 sm:pl-10">
+              <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center shrink-0">
+                <Award size={18} className="text-[#00F0FF]" />
+              </div>
               <div>
-                <span className="text-white font-bold block">{totalPossible}</span>
-                <span className="text-[9px] text-gray-500">Total Points</span>
+                <span className="text-white text-sm font-black font-mono block leading-none">{totalPossible}</span>
+                <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-1 block">Total Points</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 border-l border-white/10 pl-6">
-              <Calendar size={16} className="text-purple-400" />
+            {/* Event Ends Time */}
+            <div className="flex items-center gap-3 border-l border-white/10 pl-6 sm:pl-10">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <Calendar size={18} className="text-purple-400" />
+              </div>
               <div>
-                <span className="text-white font-bold block">May 20, 06:00 PM</span>
-                <span className="text-[9px] text-gray-500">Event Ends</span>
+                <span className="text-white text-sm font-black font-mono block leading-none">{eventEndFormatted}</span>
+                <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-1 block">Event Ends</span>
               </div>
             </div>
           </div>
@@ -1290,9 +1504,9 @@ const ProfessionalRoomDetail = () => {
           <button
             type="button"
             onClick={() => showToast("🎧 Live support assistant activated.")}
-            className="px-4 py-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0"
+            className="px-5 py-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg"
           >
-            <HelpCircle size={14} /> Need Help?
+            <HelpCircle size={15} /> Need Help?
           </button>
         </div>
       </div>
