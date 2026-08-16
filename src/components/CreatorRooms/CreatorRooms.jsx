@@ -133,6 +133,8 @@ const CreatorRooms = () => {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
   const [myRoomIds, setMyRoomIds] = useState(new Set());
+  const [totalCommittedBuilders, setTotalCommittedBuilders] = useState(0);
+  const [consistencyRate, setConsistencyRate] = useState("—");
   const [openModal, setOpenModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(null);
@@ -148,11 +150,54 @@ const CreatorRooms = () => {
       .select("*")
       .order("created_at", { ascending: false });
 
+    const creatorRooms = (dbRooms || []).filter((r) => {
+      const title = (r.name || r.title || "").toLowerCase();
+      return (
+        r.room_type !== "professional" &&
+        !title.includes("mit arena") &&
+        !title.includes("ai hackathon")
+      );
+    });
+
     if (error) {
       console.error("Error fetching rooms:", error);
       setRooms([]);
     } else {
-      setRooms(dbRooms || []);
+      setRooms(creatorRooms);
+    }
+
+    if (creatorRooms.length > 0) {
+      const creatorRoomIds = creatorRooms.map((r) => r.id);
+
+      // 1. Calculate Real Committed Builders Count from Database
+      const { data: membersData } = await supabase
+        .from("room_members")
+        .select("user_id")
+        .in("room_id", creatorRoomIds);
+
+      if (membersData && membersData.length > 0) {
+        const uniqueUsers = new Set(membersData.map((m) => m.user_id));
+        setTotalCommittedBuilders(uniqueUsers.size);
+      } else {
+        setTotalCommittedBuilders(0);
+      }
+
+      // 2. Calculate Real Consistency Rate from Database Check-ins
+      const { data: checkinData } = await supabase
+        .from("room_checkins")
+        .select("is_on_time")
+        .in("room_id", creatorRoomIds);
+
+      if (checkinData && checkinData.length > 0) {
+        const onTimeCount = checkinData.filter((c) => c.is_on_time !== false).length;
+        const ratePct = Math.round((onTimeCount / checkinData.length) * 100);
+        setConsistencyRate(`${ratePct}%`);
+      } else {
+        setConsistencyRate("—");
+      }
+    } else {
+      setTotalCommittedBuilders(0);
+      setConsistencyRate("—");
     }
 
     if (user) {
@@ -271,16 +316,8 @@ const CreatorRooms = () => {
     }
   };
 
-  // EXCLUDE ALL PROFESSIONAL ROOMS & PRO ARENA TITLES (MIT Arena Battle & AI Hackathons)
   const filtered = rooms.filter((r) => {
     const title = (r.name || r.title || "").toLowerCase();
-    const isPro =
-      r.room_type === "professional" ||
-      title.includes("mit arena") ||
-      title.includes("ai hackathon");
-
-    if (isPro) return false;
-
     return (
       title.includes(search.toLowerCase()) ||
       (r.category || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -289,8 +326,7 @@ const CreatorRooms = () => {
     );
   });
 
-  const totalMembers = filtered.reduce((acc, r) => acc + (r.member_count || 1), 0);
-
+  // REAL CALCULATED HERO STATS FROM DATABASE
   const statItems = [
     {
       value: formatNumber(filtered.length),
@@ -298,12 +334,12 @@ const CreatorRooms = () => {
       sublabel: "Accountability hubs",
     },
     {
-      value: formatNumber(totalMembers),
+      value: totalCommittedBuilders > 0 ? formatNumber(totalCommittedBuilders) : "0",
       label: "BUILDERS COMMITTED",
       sublabel: "Daily check-ins",
     },
     {
-      value: "94%",
+      value: consistencyRate,
       label: "CONSISTENCY RATE",
       sublabel: "Streak completions",
     },
@@ -339,7 +375,7 @@ const CreatorRooms = () => {
               size="xl"
             />
 
-            {/* Stats */}
+            {/* Real Stats */}
             <div className="flex justify-center gap-10 flex-wrap my-8">
               {statItems.map((s, i) => (
                 <StatCard
