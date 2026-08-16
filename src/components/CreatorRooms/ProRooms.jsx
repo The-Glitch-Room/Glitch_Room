@@ -47,7 +47,7 @@ const ProRoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
               <ShieldCheck size={10} /> PRO ARENA
             </span>
             <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-300">
-              {room.category || "Assessment"}
+              {room.category || "AI & Algorithms"}
             </span>
           </div>
 
@@ -97,6 +97,27 @@ const ProRoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
   );
 };
 
+const defaultProRooms = [
+  {
+    id: "pro-1",
+    name: "MIT Arena Battle",
+    description: "This is a three-stage Arena Battle evaluating algorithms & speed.",
+    category: "AI & Algorithms",
+    room_type: "professional",
+    host: "Samar",
+    member_count: 24,
+  },
+  {
+    id: "pro-2",
+    name: "AI Hackathons",
+    description: "Solve AI challenges, prompt injection defense, and LLM optimization.",
+    category: "AI/ML",
+    room_type: "professional",
+    host: "Parul Singh",
+    member_count: 18,
+  },
+];
+
 const ProRooms = () => {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
@@ -110,37 +131,28 @@ const ProRooms = () => {
     const { data: userRes } = await supabase.auth.getUser();
     const user = userRes?.user;
 
-    // Fetch ONLY Professional Rooms
-    const { data: dbRooms, error } = await supabase
+    const { data: dbRooms } = await supabase
       .from("rooms")
       .select("*")
-      .eq("room_type", "professional")
       .order("created_at", { ascending: false });
 
-    if (error || !dbRooms || dbRooms.length === 0) {
-      // High quality fallback Pro Rooms if database has none yet
-      setRooms([
-        {
-          id: "pro-1",
-          name: "MIT Arena Battle",
-          description: "This is a three-stage Arena Battle evaluating algorithms & speed.",
-          category: "AI & Algorithms",
-          room_type: "professional",
-          host: "Samar",
-          member_count: 24,
-        },
-        {
-          id: "pro-2",
-          name: "AI Hackathons & Prompt Engine",
-          description: "Solve AI challenges, prompt injection defense, and LLM optimization.",
-          category: "AI/ML",
-          room_type: "professional",
-          host: "Parul Singh",
-          member_count: 18,
-        },
-      ]);
+    if (dbRooms && dbRooms.length > 0) {
+      const proOnly = dbRooms.filter((r) => {
+        const title = (r.name || r.title || "").toLowerCase();
+        return (
+          r.room_type === "professional" ||
+          title.includes("mit arena") ||
+          title.includes("ai hackathon")
+        );
+      });
+
+      if (proOnly.length > 0) {
+        setRooms(proOnly);
+      } else {
+        setRooms(defaultProRooms);
+      }
     } else {
-      setRooms(dbRooms);
+      setRooms(defaultProRooms);
     }
 
     if (user) {
@@ -197,11 +209,11 @@ const ProRooms = () => {
       (r.description || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalCandidates = rooms.reduce((acc, r) => acc + (r.member_count || 1), 0);
+  const totalCandidates = filtered.reduce((acc, r) => acc + (r.member_count || 1), 0);
 
   const statItems = [
     {
-      value: formatNumber(rooms.length),
+      value: formatNumber(filtered.length),
       label: "PRO ARENAS",
       sublabel: "Active evaluation hubs",
     },

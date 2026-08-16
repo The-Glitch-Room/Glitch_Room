@@ -46,7 +46,7 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -4 }}
       transition={{ duration: 0.2 }}
-      className="group relative bg-[#0f0f1a] border border-white/10 hover:border-purple-500/40 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 overflow-hidden hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] shadow-xl"
+      className="group relative bg-[#0f0f1a] border border-white/10 hover:border-purple-500/40 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 overflow-hidden hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] shadow-xl font-sans"
     >
       <div className="absolute top-0 left-0 h-[2px] w-0 group-hover:w-full transition-all duration-500 rounded-t-2xl bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
 
@@ -220,6 +220,7 @@ const CreatorRooms = () => {
         goal_pledge: roomData.goal_pledge,
         duration_type: roomData.duration_type,
         checkin_frequency: roomData.checkin_frequency,
+        room_type: "creator",
       };
 
       const { data: newRoom, error } = await supabase
@@ -240,6 +241,7 @@ const CreatorRooms = () => {
               access: "public",
               created_by: user.id,
               host: user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator",
+              room_type: "creator",
             },
           ])
           .select()
@@ -269,19 +271,29 @@ const CreatorRooms = () => {
     }
   };
 
-  const filtered = rooms.filter(
-    (r) =>
-      (r.name || r.title || "").toLowerCase().includes(search.toLowerCase()) ||
+  // EXCLUDE ALL PROFESSIONAL ROOMS & PRO ARENA TITLES (MIT Arena Battle & AI Hackathons)
+  const filtered = rooms.filter((r) => {
+    const title = (r.name || r.title || "").toLowerCase();
+    const isPro =
+      r.room_type === "professional" ||
+      title.includes("mit arena") ||
+      title.includes("ai hackathon");
+
+    if (isPro) return false;
+
+    return (
+      title.includes(search.toLowerCase()) ||
       (r.category || "").toLowerCase().includes(search.toLowerCase()) ||
       (r.description || "").toLowerCase().includes(search.toLowerCase()) ||
       (r.goal_pledge || "").toLowerCase().includes(search.toLowerCase())
-  );
+    );
+  });
 
-  const totalMembers = rooms.reduce((acc, r) => acc + (r.member_count || 1), 0);
+  const totalMembers = filtered.reduce((acc, r) => acc + (r.member_count || 1), 0);
 
   const statItems = [
     {
-      value: formatNumber(rooms.length),
+      value: formatNumber(filtered.length),
       label: "ACTIVE SQUADS",
       sublabel: "Accountability hubs",
     },
@@ -381,7 +393,7 @@ const CreatorRooms = () => {
               className="text-center py-24 border border-dashed border-white/10 rounded-3xl bg-[#0f0f18]/60 p-8"
             >
               <div className="text-5xl mb-4">🎯</div>
-              <p className="text-white text-lg font-bold">No accountability rooms found.</p>
+              <p className="text-white text-lg font-bold">No creator rooms found.</p>
               <p className="text-gray-400 text-xs mt-2 mb-6 max-w-md mx-auto">
                 Be the first to create a goal-driven squad and invite peers to stay consistent together!
               </p>
