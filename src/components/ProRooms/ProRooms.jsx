@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../Navbar";
 import Footer from "../Footer";
 import GlitchBackground from "../GlitchBackground";
+import PageHeading from "../PageHeading";
+import StatCard from "../StatCard";
+import Button from "../Button";
 import {
   Zap,
   Users,
@@ -56,6 +59,11 @@ const STATUSES = [
   "Results Published",
 ];
 
+const formatNumber = (n) => {
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+  return String(n);
+};
+
 const ProRooms = () => {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
@@ -67,7 +75,7 @@ const ProRooms = () => {
   const [selectedType, setSelectedType] = useState("All Types");
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [sortBy, setSortBy] = useState("Newest");
-  const [activeTab, setActiveTab] = useState("all"); // 'all', 'live', 'upcoming', 'registration_open', 'completed'
+  const [activeTab, setActiveTab] = useState("all");
 
   // Statistics State (Calculated from Real Database Data)
   const [stats, setStats] = useState({
@@ -200,247 +208,217 @@ const ProRooms = () => {
     ).length,
   };
 
+  const statItems = [
+    {
+      value: formatNumber(stats.activeRoomsCount),
+      label: "ACTIVE PRO ROOMS",
+      sublabel: "Live & Active",
+    },
+    {
+      value: stats.participantsEvaluatedCount > 0 ? formatNumber(stats.participantsEvaluatedCount) : "0",
+      label: "PARTICIPANTS EVALUATED",
+      sublabel: "Assessments Completed",
+    },
+    {
+      value: stats.totalRewardsVal,
+      label: "TOTAL REWARDS & PRIZES",
+      sublabel: "gBits & Prize Pools",
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20 relative overflow-hidden">
-      <Navbar />
+    <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans">
+      <GlitchBackground />
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full relative z-10">
-        <GlitchBackground />
+      {/* Grid Overlay matching Creator Rooms */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `linear-gradient(rgba(0,240,255,0.15) 1px, transparent 1px),
+                            linear-gradient(90deg, rgba(0,240,255,0.15) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
+          maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
+          WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
+        }}
+      />
 
-        {/* HERO SECTION — Matching Image 3 Creator Rooms Page */}
-        <div className="text-center mb-12 relative max-w-3xl mx-auto">
-          {/* Eyebrow Pill */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-block text-[11px] font-mono font-bold uppercase tracking-widest text-[#FF00C8] mb-3"
-          >
-            COMPETE • EVALUATE • PROVE
-          </motion.div>
+      <div className="relative z-10 flex flex-col flex-1">
+        <Navbar />
 
-          {/* Main Title with Glitch Style */}
-          <motion.h1
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-4"
-          >
-            Pro Rooms
-          </motion.h1>
+        {/* ── HERO HEADER (EXACT CREATOR ROOMS TEMPLATE) ── */}
+        <section className="relative pt-36 md:pt-44 pb-12 px-6 mb-8 md:mb-16 text-center">
+          <div className="relative z-10 max-w-4xl mx-auto text-center">
+            <PageHeading
+              eyebrow="COMPETE • EVALUATE • PROVE"
+              title="Pro Rooms"
+              subtitle="Join professional events, hackathons, competitions, hiring assessments, and skill-based challenges hosted by verified colleges, companies, and organizations."
+              accent="cyan"
+              size="xl"
+            />
 
-          <div className="w-16 h-1 bg-[#FF00C8] mx-auto rounded-full mb-4 shadow-[0_0_10px_#FF00C8]" />
-
-          {/* Description */}
-          <motion.p
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-sm sm:text-base text-gray-400 leading-relaxed max-w-2xl mx-auto"
-          >
-            Join professional events, hackathons, competitions, hiring assessments, and skill-based challenges hosted by verified colleges, companies, and organizations.
-          </motion.p>
-
-          {/* THREE CENTERED STATISTICS — Matching Image 3 Layout */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="grid grid-cols-1 sm:grid-cols-3 gap-6 my-8 py-4 border-y border-white/10 max-w-2xl mx-auto"
-          >
-            <div>
-              <div className="text-3xl font-black text-white font-mono">
-                {stats.activeRoomsCount}
-              </div>
-              <div className="text-xs font-bold text-gray-300 uppercase tracking-wider mt-1">
-                Active Pro Rooms
-              </div>
-              <div className="text-[10px] text-gray-500 italic">Live & Active</div>
-            </div>
-
-            <div>
-              <div className="text-3xl font-black text-white font-mono">
-                {stats.participantsEvaluatedCount}
-              </div>
-              <div className="text-xs font-bold text-gray-300 uppercase tracking-wider mt-1">
-                Participants Evaluated
-              </div>
-              <div className="text-[10px] text-gray-500 italic">Assessments Completed</div>
-            </div>
-
-            <div>
-              <div className="text-3xl font-black text-[#00F0FF] font-mono">
-                {stats.totalRewardsVal}
-              </div>
-              <div className="text-xs font-bold text-gray-300 uppercase tracking-wider mt-1">
-                Total Rewards & Prizes
-              </div>
-              <div className="text-[10px] text-gray-500 italic">gBits & Prize Pools</div>
-            </div>
-          </motion.div>
-
-          {/* HOST CTA BUTTON (Solid Pink Button — User Directive: No gradient, solid pink only) */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-            className="flex justify-center"
-          >
-            <button
-              onClick={() => navigate("/pro-rooms/create")}
-              className="px-8 py-3.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white font-bold text-sm shadow-xl shadow-[#FF00C8]/25 transition-all hover:scale-105 cursor-pointer flex items-center gap-2"
-            >
-              <Plus size={18} /> Host a Pro Room
-            </button>
-          </motion.div>
-        </div>
-
-        {/* MAIN LISTING CONTAINER — Matching Image 2 Design */}
-        <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
-          {/* SEARCH & DROPDOWN FILTERS */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            {/* Search Input */}
-            <div className="md:col-span-5 relative">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search Pro Rooms by title, organization, or skill..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#06060c] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-gray-500 outline-none focus:border-[#00F0FF]"
-              />
-            </div>
-
-            {/* Dropdown Filters */}
-            <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-              >
-                {EVENT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-              >
-                <option value="Newest">Newest</option>
-                <option value="Starting Soon">Starting Soon</option>
-                <option value="Highest Reward">Highest Reward</option>
-              </select>
-            </div>
-          </div>
-
-          {/* EVENT STATUS TABS matching Image 2 */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/10">
-            {[
-              { id: "all", label: `All Events (${tabCounts.all})` },
-              { id: "live", label: `🔴 Live Now (${tabCounts.live})` },
-              { id: "upcoming", label: `📅 Upcoming (${tabCounts.upcoming})` },
-              { id: "registration_open", label: `📝 Registration Open (${tabCounts.registration_open})` },
-              { id: "completed", label: `✓ Completed (${tabCounts.completed})` },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  activeTab === tab.id
-                    ? "bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF]"
-                    : "bg-white/5 border border-white/5 text-gray-400 hover:text-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* PRO ROOM CARDS GRID — Exactly 3 cards per row on Desktop (User Directive: 3 rooms cards per row) */}
-          {loading ? (
-            <div className="py-20 text-center">
-              <div className="w-10 h-10 border-2 border-t-transparent border-[#FF00C8] rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-xs text-gray-400 font-mono">Fetching Pro Rooms...</p>
-            </div>
-          ) : filteredRooms.length === 0 ? (
-            /* POLISHED EMPTY STATE */
-            <div className="bg-[#07070e] border border-white/10 rounded-2xl p-10 text-center space-y-4 my-6">
-              <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-300">
-                <Building2 size={28} />
-              </div>
-              <h3 className="text-lg font-bold text-white">No Pro Rooms Yet</h3>
-              <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
-                Professional assessments, hackathons, competitions, and hiring events will appear here when organizations start hosting them.
-              </p>
-              <button
-                type="button"
-                onClick={() => navigate("/pro-rooms/create")}
-                className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/20 transition cursor-pointer inline-flex items-center gap-2"
-              >
-                <Plus size={16} /> Host a Pro Room
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-              {filteredRooms.map((room) => (
-                <ProRoomCard
-                  key={room.id}
-                  room={room}
-                  onSelect={() => navigate(`/pro-rooms/${room.id}`)}
+            {/* Bare Real Stats without Horizontal Border Lines */}
+            <div className="flex justify-center gap-10 flex-wrap my-8">
+              {statItems.map((s, i) => (
+                <StatCard
+                  key={i}
+                  value={s.value}
+                  label={s.label}
+                  sublabel={s.sublabel}
+                  accent="cyan"
+                  variant="bare"
+                  delay={0.2 + i * 0.1}
                 />
               ))}
             </div>
-          )}
 
-          {/* BOTTOM ORGANIZATION HOST BANNER — Matching Image 2 Bottom Card */}
-          <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
-                <Building2 size={24} className="text-purple-300" />
+            {/* CTA Button matching Creator Rooms Pill Button */}
+            <div className="flex justify-center" onClick={() => navigate("/pro-rooms/create")}>
+              <Button content="+ Host a Pro Room" accent="pink" />
+            </div>
+          </div>
+        </section>
+
+        {/* ── MAIN LISTING CONTAINER ── */}
+        <section className="max-w-6xl mx-auto px-6 w-full mb-16">
+          <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
+            {/* SEARCH & DROPDOWN FILTERS */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+              {/* Search Input */}
+              <div className="md:col-span-5 relative">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search Pro Rooms by title, organization, or skill..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#06060c] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-gray-500 outline-none focus:border-[#00F0FF]"
+                />
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-white">Are you an organization or college?</h4>
-                <p className="text-xs text-gray-400">Host your hackathons, assessments, and competitions on Glitch Room.</p>
+
+              {/* Dropdown Filters */}
+              <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+                >
+                  {EVENT_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+                >
+                  {STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+                >
+                  <option value="Newest">Newest</option>
+                  <option value="Starting Soon">Starting Soon</option>
+                  <option value="Highest Reward">Highest Reward</option>
+                </select>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => navigate("/pro-rooms/create")}
-              className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0"
-            >
-              Host a Pro Room <Plus size={16} />
-            </button>
+            {/* EVENT STATUS TABS */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/10">
+              {[
+                { id: "all", label: `All Events (${tabCounts.all})` },
+                { id: "live", label: `🔴 Live Now (${tabCounts.live})` },
+                { id: "upcoming", label: `📅 Upcoming (${tabCounts.upcoming})` },
+                { id: "registration_open", label: `📝 Registration Open (${tabCounts.registration_open})` },
+                { id: "completed", label: `✓ Completed (${tabCounts.completed})` },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                    activeTab === tab.id
+                      ? "bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF]"
+                      : "bg-white/5 border border-white/5 text-gray-400 hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* PRO ROOM CARDS GRID — 3 Cards per Row */}
+            {loading ? (
+              <div className="py-20 text-center">
+                <div className="w-10 h-10 border-2 border-t-transparent border-[#FF00C8] rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-xs text-gray-400 font-mono">Fetching Pro Rooms...</p>
+              </div>
+            ) : filteredRooms.length === 0 ? (
+              /* POLISHED EMPTY STATE */
+              <div className="bg-[#07070e] border border-white/10 rounded-2xl p-10 text-center space-y-4 my-6">
+                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-300">
+                  <Building2 size={28} />
+                </div>
+                <h3 className="text-lg font-bold text-white">No Pro Rooms Yet</h3>
+                <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+                  Professional assessments, hackathons, competitions, and hiring events will appear here when organizations start hosting them.
+                </p>
+                <div className="flex justify-center" onClick={() => navigate("/pro-rooms/create")}>
+                  <Button content="+ Host a Pro Room" accent="pink" />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+                {filteredRooms.map((room) => (
+                  <ProRoomCard
+                    key={room.id}
+                    room={room}
+                    onSelect={() => navigate(`/pro-rooms/${room.id}`)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* BOTTOM ORGANIZATION HOST BANNER */}
+            <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 shadow-xl">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                  <Building2 size={24} className="text-purple-300" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Are you an organization or college?</h4>
+                  <p className="text-xs text-gray-400">Host your hackathons, assessments, and competitions on Glitch Room.</p>
+                </div>
+              </div>
+
+              <div onClick={() => navigate("/pro-rooms/create")}>
+                <Button content="Host a Pro Room +" accent="pink" />
+              </div>
+            </div>
           </div>
-        </div>
-      </main>
+        </section>
+      </div>
 
       <Footer />
     </div>
