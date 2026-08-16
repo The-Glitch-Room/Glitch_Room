@@ -40,6 +40,8 @@ import {
   Check,
   Globe,
   MessageCircle,
+  Plus,
+  Send,
 } from "lucide-react";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import { supabase } from "../../supabaseClient";
@@ -53,7 +55,9 @@ const ProfessionalRoomDetail = () => {
   const [sections, setSections] = useState([]);
   const [registrations, setRegistrations] = useState([]);
   const [submissions, setSubmissions] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [discussions, setDiscussions] = useState([]);
   const [userSubmission, setUserSubmission] = useState(null);
   const [userRegistration, setUserRegistration] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -61,12 +65,20 @@ const ProfessionalRoomDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeSidebarTab, setActiveSidebarTab] = useState("overview");
   const [isFollowingOrg, setIsFollowingOrg] = useState(false);
-  const [showMoreDesc, setShowMoreDesc] = useState(false);
 
   // Dropdowns States
   const [showNotifications, setShowNotifications] = useState(false);
   const [showThreeDotMenu, setShowThreeDotMenu] = useState(false);
   const [notifications, setNotifications] = useState([]);
+
+  // Form States for Discussion & Announcement
+  const [discTitle, setDiscTitle] = useState("");
+  const [discContent, setDiscContent] = useState("");
+  const [postingDisc, setPostingDisc] = useState(false);
+
+  const [annTitle, setAnnTitle] = useState("");
+  const [annContent, setAnnContent] = useState("");
+  const [postingAnn, setPostingAnn] = useState(false);
 
   // Toast State
   const [toastMsg, setToastMsg] = useState("");
@@ -75,8 +87,8 @@ const ProfessionalRoomDetail = () => {
     setTimeout(() => setToastMsg(""), 3500);
   };
 
-  // Live Timer State
-  const [timeLeft, setTimeLeft] = useState({ hours: "04", mins: "32", secs: "18" });
+  // Live Countdown State
+  const [timeLeft, setTimeLeft] = useState({ hours: "00", mins: "00", secs: "00" });
 
   const fetchRoomData = async () => {
     setLoading(true);
@@ -94,49 +106,42 @@ const ProfessionalRoomDetail = () => {
 
       const currentRoom = roomData || {
         id,
-        name: "AI Innovation Hackathon 2026",
-        title: "AI Innovation Hackathon 2026",
-        short_description: "Build innovative AI solutions that solve real-world problems. Showcase your creativity, technical skills, and problem-solving abilities.",
-        detailed_description: "A 48-hour virtual hackathon where innovators, developers, and dreamers come together to build AI-powered solutions for industries such as healthcare, education, sustainability, and more.",
-        category: "AI / Machine Learning",
-        event_type: "Hackathon",
-        org_name: "TechNova University",
-        org_logo: "https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=120",
-        cover_image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
-        reg_start_at: "2026-04-28T10:00:00Z",
-        reg_end_at: "2026-05-15T10:00:00Z",
-        event_start_at: "2026-05-18T10:00:00Z",
-        event_end_at: "2026-05-20T18:00:00Z",
+        name: "Pro Assessment Arena",
+        title: "Pro Assessment Arena",
+        short_description: "Time-bound professional evaluation arena for candidates.",
+        detailed_description: "Comprehensive evaluation arena featuring timed sections, automated code execution, and leaderboards.",
+        category: "Software Engineering",
+        event_type: "Technical Assessment",
+        org_name: "Verified Organization",
+        org_logo: null,
+        cover_image: null,
+        reg_start_at: new Date().toISOString(),
+        reg_end_at: new Date(Date.now() + 86400000).toISOString(),
+        event_start_at: new Date().toISOString(),
+        event_end_at: new Date(Date.now() + 172800000).toISOString(),
         timezone: "IST (UTC +05:30)",
         duration_minutes: 2880,
         status: "registration_open",
         max_participants: 500,
-        participation_type: "team",
-        max_team_size: 4,
-        gbits_prize_pool: 2500,
-        total_possible_score: 1200,
+        participation_type: "individual",
+        max_team_size: 1,
+        gbits_prize_pool: 1000,
+        total_possible_score: 300,
         passing_score: 50,
       };
 
       setRoom(currentRoom);
 
-      // 2. Fetch Sections
+      // 2. Fetch Sections & Question Counts
       const { data: secData } = await supabase
         .from("pro_room_sections")
-        .select("*, pro_room_questions(id)")
+        .select("*, pro_room_questions(id, points)")
         .eq("room_id", id)
         .order("order_index", { ascending: true });
 
-      setSections(secData && secData.length > 0 ? secData : [
-        { id: "sec-1", section_name: "Problem Statement & Guidelines", description: "Read the problem statement and event guidelines carefully.", status: "completed", order_index: 1 },
-        { id: "sec-2", section_name: "Idea Submission", description: "Submit your team idea and problem approach.", status: "completed", order_index: 2 },
-        { id: "sec-3", section_name: "Development Phase", description: "Build your solution and implement your idea.", status: "in_progress", progress: 60, order_index: 3 },
-        { id: "sec-4", section_name: "Final Submission", description: "Submit your final solution with all required deliverables.", status: "locked", order_index: 4 },
-        { id: "sec-5", section_name: "Presentation & Demo", description: "Present your solution to the judges.", status: "locked", order_index: 5 },
-        { id: "sec-6", section_name: "FAQ & Clarifications", description: "Get your doubts clarified by the organizers.", status: "upcoming", order_index: 6 },
-      ]);
+      setSections(secData || []);
 
-      // 3. Fetch User Registration
+      // 3. Fetch User Registration & User's OWN Submission (Candidate Privacy Directive)
       if (uid) {
         const { data: reg } = await supabase
           .from("pro_room_registrations")
@@ -146,7 +151,6 @@ const ProfessionalRoomDetail = () => {
           .maybeSingle();
         setUserRegistration(reg);
 
-        // Fetch User Submission
         const { data: sub } = await supabase
           .from("pro_room_submissions")
           .select("*")
@@ -156,74 +160,66 @@ const ProfessionalRoomDetail = () => {
         setUserSubmission(sub);
       }
 
-      // 4. Fetch Registrations Count
+      // 4. Fetch All Submissions (ONLY IF HOST / ORGANIZER)
+      const isHostUser = uid && currentRoom.host_id === uid;
+      if (isHostUser) {
+        const { data: allSubs } = await supabase
+          .from("pro_room_submissions")
+          .select("*, profiles(full_name, username, avatar_url)")
+          .eq("room_id", id);
+        setSubmissions(allSubs || []);
+      }
+
+      // 5. Fetch Registrations Count
       const { data: regList } = await supabase
         .from("pro_room_registrations")
         .select("id")
         .eq("room_id", id);
       setRegistrations(regList || []);
 
-      // 5. Fetch Announcements
+      // 6. Fetch Leaderboard
+      const { data: lbData } = await supabase
+        .from("pro_room_leaderboard")
+        .select("*, profiles(full_name, username, avatar_url)")
+        .eq("room_id", id)
+        .order("total_score", { ascending: false });
+      setLeaderboard(lbData || []);
+
+      // 7. Fetch Announcements
       const { data: annData } = await supabase
         .from("pro_room_announcements")
         .select("*")
         .eq("room_id", id)
         .order("created_at", { ascending: false });
+      setAnnouncements(annData || []);
 
-      setAnnouncements(
-        annData && annData.length > 0
-          ? annData
-          : [
-              {
-                id: "a1",
-                title: "Hackathon has officially begun! 🚀",
-                content: "All the best to everyone. Build, innovate, and have fun!",
-                created_at: "May 18, 10:00 AM",
-              },
-              {
-                id: "a2",
-                title: "Clarification on Submission",
-                content: "Final submission must include GitHub repo and demo video.",
-                created_at: "May 18, 11:15 AM",
-              },
-              {
-                id: "a3",
-                title: "Mentor Office Hours",
-                content: "Join our mentors on Discord between 2PM - 4PM for any help.",
-                created_at: "May 18, 01:30 PM",
-              },
-            ]
-      );
+      // 8. Fetch Discussions
+      const { data: discData } = await supabase
+        .from("pro_room_discussions")
+        .select("*, profiles(full_name, username, avatar_url)")
+        .eq("room_id", id)
+        .order("created_at", { ascending: false });
+      setDiscussions(discData || []);
 
-      // 6. Set Room-Specific Dynamic Notifications
+      // 9. Set Room-Specific Dynamic Notifications
       setNotifications([
         {
           id: "n1",
-          title: "Assessment starts in 30 minutes",
+          title: "Assessment Environment Live",
           subtitle: currentRoom.name,
-          time: "5 min ago",
+          time: "Just now",
           read: false,
-          type: "alert",
         },
         {
           id: "n2",
-          title: "New announcement from organizer",
-          subtitle: "Final submission guidelines updated",
-          time: "20 min ago",
+          title: "Official guidelines available",
+          subtitle: "Check Instructions tab for rules",
+          time: "10 min ago",
           read: false,
-          type: "announcement",
-        },
-        {
-          id: "n3",
-          title: "Your submission was received",
-          subtitle: "Section 2 — Idea Submission",
-          time: "1 hr ago",
-          read: false,
-          type: "submission",
         },
       ]);
     } catch (err) {
-      console.error(err);
+      console.error("Error loading room data:", err);
     } finally {
       setLoading(false);
     }
@@ -232,10 +228,10 @@ const ProfessionalRoomDetail = () => {
   useEffect(() => {
     fetchRoomData();
 
-    // Timer Countdown logic
+    // Live Countdown Timer
     const timer = setInterval(() => {
       const now = new Date();
-      const end = room?.event_end_at ? new Date(room.event_end_at) : new Date(Date.now() + 16338000);
+      const end = room?.event_end_at ? new Date(room.event_end_at) : new Date(Date.now() + 172800000);
       const diff = end - now;
       if (diff > 0) {
         const hrs = String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, "0");
@@ -259,6 +255,52 @@ const ProfessionalRoomDetail = () => {
     showToast("🔗 Room link copied to clipboard!");
   };
 
+  const handlePostDiscussion = async () => {
+    if (!discTitle || !discContent) return;
+    setPostingDisc(true);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      await supabase.from("pro_room_discussions").insert({
+        room_id: id,
+        user_id: authData?.user?.id,
+        title: discTitle,
+        content: discContent,
+      });
+
+      setDiscTitle("");
+      setDiscContent("");
+      showToast("💬 Question posted to discussion feed!");
+      fetchRoomData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPostingDisc(false);
+    }
+  };
+
+  const handlePostAnnouncement = async () => {
+    if (!annTitle || !annContent) return;
+    setPostingAnn(true);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      await supabase.from("pro_room_announcements").insert({
+        room_id: id,
+        author_id: authData?.user?.id,
+        title: annTitle,
+        content: annContent,
+      });
+
+      setAnnTitle("");
+      setAnnContent("");
+      showToast("📢 Broadcast announcement posted!");
+      fetchRoomData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPostingAnn(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#070709] flex items-center justify-center">
@@ -271,6 +313,12 @@ const ProfessionalRoomDetail = () => {
   const isHost = currentUserId && room?.host_id === currentUserId;
   const isTeamEvent = room?.participation_type === "team" || room?.participation_type === "both";
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Compute User Specific Rank & Score
+  const myRankItem = leaderboard.find((l) => l.user_id === currentUserId);
+  const userRankDisplay = myRankItem ? `#${myRankItem.rank}` : "—";
+  const userScoreDisplay = userSubmission?.total_score || myRankItem?.total_score || 0;
+  const totalPossible = room?.total_possible_score || 300;
 
   return (
     <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans relative">
@@ -300,7 +348,7 @@ const ProfessionalRoomDetail = () => {
           <ArrowLeft size={16} /> Back to Pro Rooms
         </button>
 
-        {/* Right Actions: Share, Bell, 3-Dot Menu */}
+        {/* Right Actions */}
         <div className="flex items-center gap-3 relative">
           <button
             type="button"
@@ -310,7 +358,7 @@ const ProfessionalRoomDetail = () => {
             <Share2 size={14} /> Share Room
           </button>
 
-          {/* 🔔 ROOM-SPECIFIC NOTIFICATION BELL DROPDOWN */}
+          {/* 🔔 ROOM-SPECIFIC NOTIFICATION BELL */}
           <div className="relative">
             <button
               type="button"
@@ -372,7 +420,7 @@ const ProfessionalRoomDetail = () => {
             </AnimatePresence>
           </div>
 
-          {/* ⋮ ROLE-BASED 3-DOT MENU DROPDOWN */}
+          {/* ⋮ ROLE-BASED 3-DOT MENU */}
           <div className="relative">
             <button
               type="button"
@@ -404,7 +452,7 @@ const ProfessionalRoomDetail = () => {
                         onClick={() => navigate(`/pro-rooms/${id}/dashboard`)}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
                       >
-                        <BarChart2 size={14} className="text-[#00F0FF]" /> Organizer Command Dashboard
+                        <BarChart2 size={14} className="text-[#00F0FF]" /> Command Dashboard
                       </button>
                       <button
                         onClick={() => navigate(`/pro-rooms/create?edit=${id}`)}
@@ -413,10 +461,13 @@ const ProfessionalRoomDetail = () => {
                         <Edit3 size={14} className="text-purple-400" /> Edit Room Configuration
                       </button>
                       <button
-                        onClick={() => showToast("📢 Broadcast announcement modal launched!")}
+                        onClick={() => {
+                          setActiveSidebarTab("announcements");
+                          setShowThreeDotMenu(false);
+                        }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
                       >
-                        <Megaphone size={14} className="text-amber-400" /> Post Broadcast Announcement
+                        <Megaphone size={14} className="text-amber-400" /> Post Announcement
                       </button>
                       <div className="my-1 border-t border-white/10" />
                     </>
@@ -429,16 +480,10 @@ const ProfessionalRoomDetail = () => {
                         Team Management
                       </div>
                       <button
-                        onClick={() => showToast("👥 Team member invite modal opened!")}
+                        onClick={() => showToast("👥 Team member invite link generated!")}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
                       >
                         <UserPlus size={14} className="text-[#00F0FF]" /> Invite Team Member
-                      </button>
-                      <button
-                        onClick={() => showToast("⚙️ Manage team roster")}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
-                      >
-                        <Users size={14} className="text-gray-300" /> Manage Team Roster
                       </button>
                       <div className="my-1 border-t border-white/10" />
                     </>
@@ -455,7 +500,7 @@ const ProfessionalRoomDetail = () => {
                     }}
                     className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
                   >
-                    <Info size={14} className="text-gray-400" /> Event Details & Overview
+                    <Info size={14} className="text-gray-400" /> Event Overview
                   </button>
                   <button
                     onClick={() => {
@@ -464,7 +509,7 @@ const ProfessionalRoomDetail = () => {
                     }}
                     className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2"
                   >
-                    <FileText size={14} className="text-gray-400" /> View Official Guidelines
+                    <FileText size={14} className="text-gray-400" /> View Guidelines
                   </button>
                   <button
                     onClick={handleShareRoom}
@@ -473,7 +518,7 @@ const ProfessionalRoomDetail = () => {
                     <Share2 size={14} className="text-gray-400" /> Share Room Link
                   </button>
                   <button
-                    onClick={() => showToast("⚠️ Issue report submitted to host.")}
+                    onClick={() => showToast("⚠️ Issue report submitted.")}
                     className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-red-400 hover:text-red-300 flex items-center gap-2"
                   >
                     <AlertTriangle size={14} /> Report an Issue
@@ -486,12 +531,11 @@ const ProfessionalRoomDetail = () => {
       </div>
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full relative z-10 space-y-6">
-        {/* ROOM HEADER & TOP 4 STATS CARDS GRID matching Reference Image */}
+        {/* ROOM HEADER & TOP 4 STATS CARDS GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* Room Header Info Box (7 Columns ~60%) */}
           <div className="lg:col-span-7 bg-[#0c0c16] border border-white/10 rounded-3xl p-6 flex flex-col justify-between shadow-2xl space-y-4">
             <div className="flex items-start gap-4">
-              {/* Cover Banner Thumbnail */}
               <div className="w-28 sm:w-36 h-28 sm:h-32 rounded-2xl overflow-hidden border border-white/10 shrink-0 bg-[#12121e]">
                 {room.cover_image ? (
                   <img src={room.cover_image} alt={room.name} className="w-full h-full object-cover" />
@@ -502,7 +546,6 @@ const ProfessionalRoomDetail = () => {
                 )}
               </div>
 
-              {/* Title & Badges */}
               <div className="space-y-2 min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
@@ -523,10 +566,9 @@ const ProfessionalRoomDetail = () => {
                   {room.name || room.title}
                 </h1>
 
-                {/* Organizer & Follow */}
                 <div className="flex items-center gap-3 text-xs">
                   <span className="text-gray-300 font-bold flex items-center gap-1">
-                    By {room.org_name || "TechNova University"}
+                    By {room.org_name || "Verified Organization"}
                     <ShieldCheck size={13} className="text-[#00F0FF]" />
                   </span>
                   <button
@@ -544,7 +586,6 @@ const ProfessionalRoomDetail = () => {
               </div>
             </div>
 
-            {/* Quick Links */}
             <div className="flex items-center gap-4 pt-3 border-t border-white/5 text-xs font-mono">
               <a href={room.website || "#"} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-[#00F0FF] flex items-center gap-1.5">
                 <Globe size={13} /> Website
@@ -558,7 +599,7 @@ const ProfessionalRoomDetail = () => {
             </div>
           </div>
 
-          {/* TOP 4 STATS CARDS GRID matching Reference Image (5 Columns ~40%) */}
+          {/* TOP 4 STATS CARDS GRID (5 Columns ~40%) */}
           <div className="lg:col-span-5 grid grid-cols-2 gap-3">
             {/* Card 1: Time Remaining */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
@@ -573,7 +614,7 @@ const ProfessionalRoomDetail = () => {
                   <span>HRS</span><span>MINS</span><span>SECS</span>
                 </div>
               </div>
-              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Ends May 20, 2026 06:00 PM</span>
+              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Active Timeline</span>
             </div>
 
             {/* Card 2: Your Progress */}
@@ -583,25 +624,29 @@ const ProfessionalRoomDetail = () => {
               </div>
               <div className="my-2 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white">
-                  66%
+                  {userSubmission ? `${userSubmission.percentage || 100}%` : "0%"}
                 </div>
-                <span className="text-[11px] text-gray-300 font-bold">4 / 6 Sections Completed</span>
+                <span className="text-[11px] text-gray-300 font-bold">
+                  {sections.length > 0 ? `${userSubmission ? sections.length : 0} / ${sections.length} Sections` : "0 Sections"}
+                </span>
               </div>
-              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Active Submission Phase</span>
+              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Assessment Phase</span>
             </div>
 
-            {/* Card 3: Your Rank & Score */}
+            {/* Card 3: Your Rank */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
                 <span className="flex items-center gap-1"><Trophy size={13} className="text-amber-400" /> Your Rank</span>
               </div>
               <div className="my-2">
                 <div className="text-xl font-black text-white font-mono">
-                  17 <span className="text-xs text-gray-500 font-normal">/ 432</span>
+                  {userRankDisplay} <span className="text-xs text-gray-500 font-normal">/ {registrations.length || 1}</span>
                 </div>
-                <span className="text-[11px] text-emerald-400 font-mono font-bold">Score: 842 / 1200</span>
+                <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                  Score: {userScoreDisplay} / {totalPossible}
+                </span>
               </div>
-              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Top 5% Standing</span>
+              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Official Standings</span>
             </div>
 
             {/* Card 4: Participants */}
@@ -611,18 +656,18 @@ const ProfessionalRoomDetail = () => {
               </div>
               <div className="my-2">
                 <div className="text-2xl font-black text-white font-mono">
-                  {registrations.length || 432}
+                  {registrations.length}
                 </div>
                 <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                  Online: 128 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  Capacity: {room?.max_participants || 500}
                 </span>
               </div>
-              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Active Candidates</span>
+              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Registered Roster</span>
             </div>
           </div>
         </div>
 
-        {/* 3-COLUMN MAIN BODY LAYOUT matching Reference Image */}
+        {/* 3-COLUMN MAIN BODY LAYOUT */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* LEFT SIDEBAR TABS & ORGANIZER CARD (2 Columns ~18%) */}
           <div className="lg:col-span-2 space-y-4">
@@ -634,7 +679,7 @@ const ProfessionalRoomDetail = () => {
                 { id: "sections", label: "Sections", icon: Layers, count: sections.length },
                 { id: "submissions", label: "Submissions", icon: CheckCircle },
                 { id: "leaderboard", label: "Leaderboard", icon: Trophy },
-                { id: "discussion", label: "Discussion", icon: MessageSquare, count: 12 },
+                { id: "discussion", label: "Discussion", icon: MessageSquare, count: discussions.length },
                 { id: "organizers", label: "Organizers", icon: Building2 },
                 { id: "resources", label: "Resources", icon: Folder },
                 { id: "help", label: "Help & Support", icon: HelpCircle },
@@ -673,10 +718,10 @@ const ProfessionalRoomDetail = () => {
                 <Building2 size={28} className="text-[#00F0FF] mx-auto" />
               )}
               <h5 className="text-xs font-bold text-white flex items-center justify-center gap-1">
-                {room.org_name || "TechNova University"} <ShieldCheck size={12} className="text-[#00F0FF]" />
+                {room.org_name || "Verified Organization"} <ShieldCheck size={12} className="text-[#00F0FF]" />
               </h5>
               <button
-                onClick={() => showToast("Organizer Profile Modal launched!")}
+                onClick={() => setActiveSidebarTab("organizers")}
                 className="w-full py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-gray-300 transition cursor-pointer"
               >
                 View Profile
@@ -684,188 +729,496 @@ const ProfessionalRoomDetail = () => {
             </div>
           </div>
 
-          {/* CENTER MAIN CONTENT AREA (7 Columns ~58%) */}
+          {/* CENTER MAIN CONTENT AREA (7 Columns ~58%) — DYNAMICALLY SWITCHES BASED ON ACTIVE TAB */}
           <div className="lg:col-span-7 space-y-6">
-            {/* About This Event Card */}
-            <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
-              <div className="space-y-3">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Info size={16} className="text-purple-400" /> About This Event
-                </h3>
-                <p className="text-xs text-gray-300 leading-relaxed">
-                  {room.detailed_description || room.short_description}
-                </p>
-              </div>
+            {/* TAB 1: OVERVIEW */}
+            {activeSidebarTab === "overview" && (
+              <div className="space-y-6">
+                <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                  <div className="space-y-3">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <Info size={16} className="text-purple-400" /> About This Event
+                    </h3>
+                    <p className="text-xs text-gray-300 leading-relaxed">
+                      {room.detailed_description || room.short_description}
+                    </p>
+                  </div>
 
-              {/* Metadata Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10 text-xs">
-                <div>
-                  <span className="text-gray-500 block text-[10px] font-mono">Team Event</span>
-                  <span className="text-white font-bold">{isTeamEvent ? `2 - ${room.max_team_size || 4} Members` : "Individual"}</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10 text-xs">
+                    <div>
+                      <span className="text-gray-500 block text-[10px] font-mono">Team Event</span>
+                      <span className="text-white font-bold">{isTeamEvent ? `2 - ${room.max_team_size || 4} Members` : "Individual"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[10px] font-mono">End Date</span>
+                      <span className="text-white font-bold">May 20, 2026 06:00 PM</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[10px] font-mono">Registration</span>
+                      <span className="text-white font-bold">May 1 – May 15, 2026</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[10px] font-mono">Eligibility</span>
+                      <span className="text-white font-bold">{room.target_college || "Open for all students"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[10px] font-mono">Start Date</span>
+                      <span className="text-white font-bold">May 18, 2026 10:00 AM</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block text-[10px] font-mono">Timezone</span>
+                      <span className="text-white font-bold">{room.timezone || "IST (UTC +05:30)"}</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px] font-mono">End Date</span>
-                  <span className="text-white font-bold">May 20, 2026 06:00 PM</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px] font-mono">Registration</span>
-                  <span className="text-white font-bold">May 1 – May 15, 2026</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px] font-mono">Eligibility</span>
-                  <span className="text-white font-bold">{room.target_college || "Open for all students"}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px] font-mono">Start Date</span>
-                  <span className="text-white font-bold">May 18, 2026 10:00 AM</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px] font-mono">Timezone</span>
-                  <span className="text-white font-bold">{room.timezone || "IST (UTC +05:30)"}</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Assessment / Competition Sections List Card matching Reference Image */}
-            <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Layers size={16} className="text-[#00F0FF]" /> Assessment Sections
-                </h3>
-                <span className="text-xs font-mono text-purple-400 font-bold hover:underline cursor-pointer">
-                  View All Sections ›
-                </span>
-              </div>
+                {/* Sections Summary */}
+                <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <Layers size={16} className="text-[#00F0FF]" /> Assessment Sections ({sections.length})
+                    </h3>
+                    <span onClick={() => setActiveSidebarTab("sections")} className="text-xs font-mono text-purple-400 font-bold hover:underline cursor-pointer">
+                      View All Sections ›
+                    </span>
+                  </div>
 
-              <div className="space-y-3">
-                {sections.map((sec, idx) => {
-                  const isCompleted = sec.status === "completed";
-                  const isInProgress = sec.status === "in_progress";
-                  const isLocked = sec.status === "locked";
-
-                  return (
-                    <div
-                      key={sec.id || idx}
-                      onClick={() => !isLocked && navigate(`/pro-rooms/${id}/assessment`)}
-                      className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 cursor-pointer ${
-                        isInProgress
-                          ? "bg-[#121222] border-purple-500/50 shadow-lg shadow-purple-500/10"
-                          : isCompleted
-                          ? "bg-white/[0.02] border-emerald-500/30"
-                          : "bg-white/[0.02] border-white/5 opacity-60"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <span
-                          className={`w-7 h-7 rounded-xl font-mono text-xs font-bold flex items-center justify-center shrink-0 ${
-                            isCompleted
-                              ? "bg-emerald-500 text-black"
-                              : isInProgress
-                              ? "bg-purple-600 text-white"
-                              : "bg-white/10 text-gray-400"
-                          }`}
+                  {sections.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-6">No assessment sections configured yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {sections.map((sec, idx) => (
+                        <div
+                          key={sec.id || idx}
+                          onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
+                          className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-[#00F0FF]/40 transition flex items-center justify-between gap-4 cursor-pointer"
                         >
-                          {idx + 1}
-                        </span>
-
-                        <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-white truncate">{sec.section_name}</h4>
-                          <p className="text-[11px] text-gray-400 truncate">{sec.description || "Read guidelines and complete assessment tasks."}</p>
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <span className="w-7 h-7 rounded-xl bg-purple-500/20 text-purple-300 font-mono text-xs font-bold flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <h4 className="text-xs font-bold text-white truncate">{sec.section_name}</h4>
+                              <p className="text-[11px] text-gray-400 truncate">{sec.description || `${sec.time_limit_minutes || 30} Mins • ${sec.total_points || 50} Points`}</p>
+                            </div>
+                          </div>
+                          <ChevronRight size={16} className="text-gray-500 shrink-0" />
                         </div>
-                      </div>
-
-                      {/* Status Pills */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        {isCompleted && (
-                          <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-1">
-                            COMPLETED <Check size={12} />
-                          </span>
-                        )}
-
-                        {isInProgress && (
-                          <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 flex items-center gap-1">
-                            IN PROGRESS (60% Submitted)
-                          </span>
-                        )}
-
-                        {isLocked && (
-                          <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-gray-500/10 border border-gray-500/30 text-gray-400 flex items-center gap-1">
-                            LOCKED <Lock size={12} />
-                          </span>
-                        )}
-
-                        <ChevronRight size={16} className="text-gray-500" />
-                      </div>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT SIDEBAR (3 Columns ~24%) */}
-          <div className="lg:col-span-3 space-y-6">
-            {/* Announcements Box matching Reference Image */}
-            <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
-                  <Megaphone size={14} className="text-purple-400" /> Announcements
-                </h4>
-                <span className="text-[10px] font-mono text-purple-400 cursor-pointer">View All</span>
-              </div>
-
-              <div className="space-y-3">
-                {announcements.map((a) => (
-                  <div key={a.id} className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
-                    <div className="flex items-center justify-between text-xs font-bold text-white">
-                      <span className="truncate">{a.title}</span>
-                    </div>
-                    <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">{a.content}</p>
-                    <span className="text-[9px] font-mono text-gray-500 block pt-1">{a.created_at || "Recent Update"}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Your Team Box (for Team Events) matching Reference Image */}
-            {isTeamEvent && (
-              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest">Your Team</h4>
-                  <span onClick={() => showToast("Team roster manager launched!")} className="text-[10px] font-mono text-purple-400 cursor-pointer">
-                    Manage
-                  </span>
+                  )}
                 </div>
+              </div>
+            )}
 
-                <div className="flex items-center gap-3 pt-1">
-                  <div className="w-9 h-9 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0">
-                    <Users size={16} />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-white block">Neural Ninjas</span>
-                    <span className="text-[10px] text-gray-400">4 Members</span>
-                  </div>
-                </div>
+            {/* TAB 2: INSTRUCTIONS */}
+            {activeSidebarTab === "instructions" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                  <FileText size={16} className="text-[#00F0FF]" /> Official Guidelines & Rules
+                </h3>
 
-                {/* Team Avatars Stack */}
-                <div className="flex items-center gap-1.5 pt-2">
-                  {["N", "A", "R"].map((initial, i) => (
-                    <div key={i} className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 border border-black text-[10px] font-bold flex items-center justify-center text-white">
-                      {initial}
-                    </div>
-                  ))}
-                  <div className="w-7 h-7 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold flex items-center justify-center text-gray-300">
-                    +1
+                <div className="space-y-4 text-gray-300 leading-relaxed">
+                  <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20">
+                    <h4 className="font-bold text-purple-300 mb-1">1. Assessment Environment & Integrity</h4>
+                    <p className="text-gray-400">All submissions are monitored by automated focus tracking. Switching tabs or windows during coding tasks will log warning events to your submission report.</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+                    <h4 className="font-bold text-white">2. Evaluation & Negative Marking</h4>
+                    <ul className="list-disc pl-4 space-y-1 text-gray-400">
+                      <li>Coding problems are evaluated against hidden unit test cases.</li>
+                      <li>Passing score threshold for qualification is {room?.passing_score || 50} points.</li>
+                      <li>Negative marking policy: {room?.negative_marking ? "Enabled (-5 pts on wrong MCQ)" : "Disabled"}.</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+                    <h4 className="font-bold text-white">3. Tie-Breaker Rules</h4>
+                    <p className="text-gray-400">In case of equal total scores, rank is determined by shortest completion time and submission speed.</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Quick Actions Box matching Reference Image */}
+            {/* TAB 3: ANNOUNCEMENTS */}
+            {activeSidebarTab === "announcements" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Megaphone size={16} className="text-amber-400" /> Broadcast Announcements ({announcements.length})
+                  </h3>
+                </div>
+
+                {/* Post Form if Host */}
+                {isHost && (
+                  <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-4 space-y-3">
+                    <h4 className="text-xs font-bold text-purple-300">Post Announcement</h4>
+                    <input
+                      type="text"
+                      placeholder="Title..."
+                      value={annTitle}
+                      onChange={(e) => setAnnTitle(e.target.value)}
+                      className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                    <textarea
+                      rows={2}
+                      placeholder="Broadcast message content..."
+                      value={annContent}
+                      onChange={(e) => setAnnContent(e.target.value)}
+                      className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white outline-none"
+                    />
+                    <button
+                      onClick={handlePostAnnouncement}
+                      disabled={postingAnn}
+                      className="px-4 py-2 rounded-xl bg-[#FF00C8] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      Broadcast 📢
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {announcements.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-8">No announcements broadcasted yet.</p>
+                  ) : (
+                    announcements.map((a) => (
+                      <div key={a.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-white">{a.title}</h4>
+                          <span className="text-[10px] font-mono text-gray-500">{a.created_at}</span>
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed">{a.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: SECTIONS */}
+            {activeSidebarTab === "sections" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Layers size={16} className="text-[#00F0FF]" /> Assessment Sections ({sections.length})
+                  </h3>
+                  <button
+                    onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
+                    className="px-4 py-2 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center gap-1.5"
+                  >
+                    Start Assessment <ArrowRight size={14} />
+                  </button>
+                </div>
+
+                {sections.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center py-10">No sections configured for this assessment.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {sections.map((sec, idx) => (
+                      <div key={sec.id || idx} className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-xl bg-purple-600 text-white font-mono text-xs font-bold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <h4 className="text-xs font-bold text-white">{sec.section_name}</h4>
+                              <p className="text-[11px] text-gray-400">{sec.description || `${sec.time_limit_minutes || 30} Mins • ${sec.total_points || 50} Points`}</p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[#00F0FF] font-bold">
+                            {sec.section_type?.toUpperCase() || "MCQ / CODING"}
+                          </span>
+                        </div>
+
+                        <div className="pt-2 flex items-center justify-between text-xs border-t border-white/5">
+                          <span className="text-gray-400 font-mono text-[11px]">
+                            {sec.pro_room_questions?.length || 5} Questions • {sec.total_points || 50} Points
+                          </span>
+                          <button
+                            onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
+                            className="px-4 py-1.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer flex items-center gap-1"
+                          >
+                            Launch Section <ArrowRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 5: SUBMISSIONS — DIRECTIVE: CANDIDATES SEE ONLY THEIR OWN RESULTS */}
+            {activeSidebarTab === "submissions" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <CheckCircle size={16} className="text-emerald-400" />
+                    {isHost ? "Candidate Submissions & Grading Roster" : "Your Performance & Submission Result"}
+                  </h3>
+                </div>
+
+                {!isHost ? (
+                  /* PARTICIPANT VIEW — CAN ONLY SEE THEIR OWN RESULT */
+                  userSubmission ? (
+                    <div className="p-6 rounded-2xl bg-[#06060c] border border-emerald-500/30 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs text-gray-400 block font-mono">Submission Status</span>
+                          <span className="text-sm font-bold text-emerald-400 uppercase">{userSubmission.status || "Completed"}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs text-gray-400 block font-mono">Your Score</span>
+                          <span className="text-xl font-black text-white font-mono">{userSubmission.total_score || 0} / {totalPossible}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2 text-xs">
+                        <div className="flex justify-between text-gray-400">
+                          <span>Percentage:</span>
+                          <span className="text-white font-bold">{userSubmission.percentage || 100}%</span>
+                        </div>
+                        <div className="flex justify-between text-gray-400">
+                          <span>Submitted At:</span>
+                          <span className="text-white font-mono">{new Date(userSubmission.submitted_at || Date.now()).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-400">
+                          <span>Anti-Cheat Status:</span>
+                          <span className="text-emerald-400 font-bold">✓ Zero Flagged Violations</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 space-y-3">
+                      <CheckCircle size={32} className="text-gray-600 mx-auto" />
+                      <h4 className="text-sm font-bold text-white">No Submission Recorded Yet</h4>
+                      <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                        Complete your assessment tasks in the sections environment to view your private test score and performance evaluation.
+                      </p>
+                      <button
+                        onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
+                        className="px-5 py-2.5 rounded-xl bg-[#FF00C8] text-white text-xs font-bold cursor-pointer"
+                      >
+                        Start Assessment Now →
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  /* HOST / ORGANIZER VIEW — FULL SUBMISSIONS ROSTER */
+                  <div className="space-y-3">
+                    {submissions.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-8">No candidate submissions recorded yet.</p>
+                    ) : (
+                      submissions.map((sub, sIdx) => (
+                        <div key={sub.id || sIdx} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="text-white font-bold block">{sub.profiles?.full_name || sub.profiles?.username || "Candidate"}</span>
+                            <span className="text-[10px] text-gray-500 font-mono">Score: {sub.total_score} pts • {sub.percentage}%</span>
+                          </div>
+                          <button
+                            onClick={() => navigate(`/pro-rooms/${id}/dashboard`)}
+                            className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold hover:bg-purple-500/30 cursor-pointer"
+                          >
+                            Grade & Review
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 6: LEADERBOARD */}
+            {activeSidebarTab === "leaderboard" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Trophy size={16} className="text-amber-400" /> Official Standings & Leaderboard ({leaderboard.length})
+                  </h3>
+                </div>
+
+                {leaderboard.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center py-10">Leaderboard standings will update after submissions are evaluated.</p>
+                ) : (
+                  <div className="divide-y divide-white/5">
+                    {leaderboard.map((lb, idx) => {
+                      const isMe = lb.user_id === currentUserId;
+                      return (
+                        <div
+                          key={lb.id || idx}
+                          className={`py-3 px-4 rounded-xl flex items-center justify-between text-xs transition ${
+                            isMe ? "bg-[#FF00C8]/15 border border-[#FF00C8]/30 font-bold" : "hover:bg-white/[0.02]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-gray-400 w-6">#{idx + 1}</span>
+                            <span className="text-white font-bold">{lb.profiles?.full_name || lb.profiles?.username || "Candidate"}</span>
+                            {isMe && <span className="text-[10px] text-[#FF00C8] font-mono">(You)</span>}
+                          </div>
+                          <span className="font-mono font-bold text-amber-400">{lb.total_score} Pts</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 7: DISCUSSION */}
+            {activeSidebarTab === "discussion" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <MessageSquare size={16} className="text-[#00F0FF]" /> Q&A Discussion Feed ({discussions.length})
+                  </h3>
+                </div>
+
+                {/* Post Question Form */}
+                <div className="bg-[#07070e] border border-white/10 rounded-2xl p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-gray-300">Ask a Question / Post Doubt</h4>
+                  <input
+                    type="text"
+                    placeholder="Question Title..."
+                    value={discTitle}
+                    onChange={(e) => setDiscTitle(e.target.value)}
+                    className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                  <textarea
+                    rows={2}
+                    placeholder="Describe your question or doubt..."
+                    value={discContent}
+                    onChange={(e) => setDiscContent(e.target.value)}
+                    className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white outline-none"
+                  />
+                  <button
+                    onClick={handlePostDiscussion}
+                    disabled={postingDisc}
+                    className="px-4 py-2 rounded-xl bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/40 text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    Post Question 💬
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {discussions.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-8">Discussion feed is quiet. Be the first to ask a question!</p>
+                  ) : (
+                    discussions.map((d) => (
+                      <div key={d.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">{d.title}</span>
+                          <span className="text-[10px] text-gray-500 font-mono">By {d.profiles?.full_name || "Candidate"}</span>
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed">{d.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 8: ORGANIZERS */}
+            {activeSidebarTab === "organizers" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                  <Building2 size={16} className="text-purple-400" /> Host & Organizer Information
+                </h3>
+
+                <div className="p-6 rounded-2xl bg-[#06060c] border border-white/10 space-y-4 text-xs">
+                  <div className="flex items-center gap-4">
+                    {room.org_logo ? (
+                      <img src={room.org_logo} alt="Logo" className="w-14 h-14 rounded-2xl object-cover border border-white/10" />
+                    ) : (
+                      <Building2 size={32} className="text-[#00F0FF]" />
+                    )}
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-1">
+                        {room.org_name || "TechNova University"} <ShieldCheck size={14} className="text-[#00F0FF]" />
+                      </h4>
+                      <p className="text-gray-400 text-[11px]">{room.org_email || "contact@technova.edu"}</p>
+                    </div>
+                  </div>
+
+                  <p className="text-gray-300 leading-relaxed">
+                    Verified organization hosting high-stakes technical assessments and competitions on Glitch Room.
+                  </p>
+
+                  <a
+                    href={room.website || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 font-bold text-xs border border-purple-500/30"
+                  >
+                    Visit Official Website <ExternalLink size={12} />
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 9: RESOURCES */}
+            {activeSidebarTab === "resources" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                  <Folder size={16} className="text-[#00F0FF]" /> Event Resources & Materials
+                </h3>
+                <div className="space-y-3 text-xs">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                    <div>
+                      <span className="text-white font-bold block">Problem Dataset & API Specifications</span>
+                      <span className="text-[10px] text-gray-500 font-mono">ZIP Archive • 12 MB</span>
+                    </div>
+                    <button onClick={() => showToast("📥 Download started.")} className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-300 cursor-pointer">
+                      Download
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 10: HELP & SUPPORT */}
+            {activeSidebarTab === "help" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
+                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                  <HelpCircle size={16} className="text-amber-400" /> Candidate Help & Support
+                </h3>
+                <p className="text-gray-300 leading-relaxed">
+                  If you encounter technical issues during code execution or assessment tasks, reach out to event mentors or submit a direct query.
+                </p>
+                <button onClick={() => showToast("🎧 Support assistant notified.")} className="px-5 py-2.5 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer">
+                  Request Support Assistant
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT SIDEBAR (3 Columns ~24%) */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Announcements Box */}
+            <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
+                  <Megaphone size={14} className="text-purple-400" /> Announcements
+                </h4>
+                <span onClick={() => setActiveSidebarTab("announcements")} className="text-[10px] font-mono text-purple-400 cursor-pointer">View All</span>
+              </div>
+
+              <div className="space-y-3">
+                {announcements.slice(0, 3).map((a) => (
+                  <div key={a.id} className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                    <span className="text-xs font-bold text-white block truncate">{a.title}</span>
+                    <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">{a.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Actions Box */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-3">
               <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest mb-2">Quick Actions</h4>
 
-              {/* Solid Pink Primary Action Button (User Directive) */}
               <button
                 type="button"
                 onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
@@ -886,7 +1239,7 @@ const ProfessionalRoomDetail = () => {
 
               <button
                 type="button"
-                onClick={() => showToast("💬 Question submitted to host mentors.")}
+                onClick={() => setActiveSidebarTab("discussion")}
                 className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-gray-300 hover:text-white transition cursor-pointer flex items-center justify-between px-4"
               >
                 <span>Ask a Doubt</span>
@@ -897,7 +1250,7 @@ const ProfessionalRoomDetail = () => {
         </div>
       </main>
 
-      {/* BOTTOM STICKY BAR matching Reference Image (No Footer on this page) */}
+      {/* BOTTOM STICKY BAR matching Reference Image (No Footer) */}
       <div className="sticky bottom-0 z-40 border-t border-white/10 bg-[#07070e]/95 backdrop-blur-md px-6 py-3 shadow-2xl">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono">
           <div className="flex items-center gap-6 overflow-x-auto w-full sm:w-auto">
@@ -912,7 +1265,7 @@ const ProfessionalRoomDetail = () => {
             <div className="flex items-center gap-2 border-l border-white/10 pl-6">
               <Trophy size={16} className="text-amber-400" />
               <div>
-                <span className="text-white font-bold block">Top 10</span>
+                <span className="text-white font-bold block">{userRankDisplay}</span>
                 <span className="text-[9px] text-gray-500">Target Rank</span>
               </div>
             </div>
@@ -920,7 +1273,7 @@ const ProfessionalRoomDetail = () => {
             <div className="flex items-center gap-2 border-l border-white/10 pl-6">
               <Award size={16} className="text-[#00F0FF]" />
               <div>
-                <span className="text-white font-bold block">{room?.total_possible_score || 1200}</span>
+                <span className="text-white font-bold block">{totalPossible}</span>
                 <span className="text-[9px] text-gray-500">Total Points</span>
               </div>
             </div>
