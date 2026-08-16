@@ -14,6 +14,8 @@ import { Zap } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { getLevelFromXP } from "../utils/pointsHelper";
 
+const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
+
 const dropdownLinks = [
   { to: "/profile", icon: FiUser, label: "Your Profile" },
   { to: "/console", icon: FiGrid, label: "Console" },
@@ -29,7 +31,7 @@ const NavbarUserSection = ({ user: propUser }) => {
     name: "",
     username: "",
     email: "",
-    avatarUrl: null,
+    avatarUrl: DEFAULT_AVATAR,
     points: 0,
     level: 1,
   });
@@ -75,11 +77,12 @@ const NavbarUserSection = ({ user: propUser }) => {
 
     const username = rawUsername.startsWith("@") ? rawUsername : `@${rawUsername}`;
 
+    // Single source of truth avatar resolution matching Profile page
     const avatarUrl =
       dbProfile?.avatar_url ||
       userMeta?.avatar_url ||
       userMeta?.picture ||
-      null;
+      DEFAULT_AVATAR;
 
     setUserProfile({
       name,
@@ -98,10 +101,12 @@ const NavbarUserSection = ({ user: propUser }) => {
     const handleProfileUpdate = () => fetchFullUserProfile();
     window.addEventListener("profile_updated", handleProfileUpdate);
     window.addEventListener("points_updated", handleProfileUpdate);
+    window.addEventListener("gbits_updated", handleProfileUpdate);
 
     return () => {
       window.removeEventListener("profile_updated", handleProfileUpdate);
       window.removeEventListener("points_updated", handleProfileUpdate);
+      window.removeEventListener("gbits_updated", handleProfileUpdate);
     };
   }, [propUser]);
 
@@ -136,8 +141,8 @@ const NavbarUserSection = ({ user: propUser }) => {
             alt={userProfile.name}
             className="w-full h-full object-cover"
             onError={(e) => {
-              // Fallback to initials if image fails to load
-              e.target.style.display = "none";
+              // Fallback to DEFAULT_AVATAR if custom image fails
+              e.currentTarget.src = DEFAULT_AVATAR;
             }}
           />
         ) : (
@@ -166,7 +171,7 @@ const NavbarUserSection = ({ user: propUser }) => {
                     alt={userProfile.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.style.display = "none";
+                      e.currentTarget.src = DEFAULT_AVATAR;
                     }}
                   />
                 ) : (

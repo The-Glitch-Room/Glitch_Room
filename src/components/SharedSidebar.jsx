@@ -80,6 +80,8 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
   useEffect(() => {
     let isMounted = true;
+    const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
+
     const fetchSidebarProfile = async () => {
       const { data: authData } = await supabase.auth.getUser();
       const currentUser = authData?.user;
@@ -93,7 +95,8 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       let avatar =
         avatarPreview ||
         user?.user_metadata?.avatar_url ||
-        currentUser?.user_metadata?.avatar_url;
+        currentUser?.user_metadata?.avatar_url ||
+        DEFAULT_AVATAR;
 
       if (currentUser) {
         const { data: dbProfile } = await supabase
@@ -107,7 +110,8 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
           avatar =
             avatarPreview ||
             dbProfile.avatar_url ||
-            currentUser?.user_metadata?.avatar_url;
+            currentUser?.user_metadata?.avatar_url ||
+            DEFAULT_AVATAR;
           if (typeof dbProfile.points === "number") {
             setCurrentXp(dbProfile.points);
           }
@@ -116,15 +120,22 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
       if (isMounted) {
         setProfileData({
-          username: name || "Creator",
+          username: name || "Builder",
           avatarUrl: avatar,
         });
       }
     };
 
     fetchSidebarProfile();
+
+    const handleUpdate = () => fetchSidebarProfile();
+    window.addEventListener("profile_updated", handleUpdate);
+    window.addEventListener("gbits_updated", handleUpdate);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("profile_updated", handleUpdate);
+      window.removeEventListener("gbits_updated", handleUpdate);
     };
   }, [user, avatarPreview]);
 

@@ -112,13 +112,23 @@ const CreatorRoomDetail = ({ roomId }) => {
     const uid = au?.user?.id;
     setUserId(uid);
 
+    const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
+
     if (uid) {
       const { data: uProf } = await supabase
         .from("profiles")
         .select("id, user_id, username, full_name, avatar_url")
         .eq("id", uid)
         .maybeSingle();
-      if (uProf) setUserProfile(uProf);
+
+      const userMeta = au?.user?.user_metadata;
+      const avatarUrl = uProf?.avatar_url || userMeta?.avatar_url || userMeta?.picture || DEFAULT_AVATAR;
+
+      setUserProfile({
+        ...uProf,
+        username: uProf?.username || uProf?.full_name || userMeta?.full_name || "Builder",
+        avatar_url: avatarUrl,
+      });
     }
 
     // 1. Fetch Room Record
@@ -161,7 +171,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           role: m.role,
           joined_at: m.joined_at,
           username: p?.username || p?.full_name || "Squad Member",
-          avatar_url: p?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+          avatar_url: p?.avatar_url || DEFAULT_AVATAR,
           streak: 0,
         };
       });
