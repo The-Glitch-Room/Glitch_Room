@@ -35,6 +35,8 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
     if (d === "7_day") return "7-Day Sprint";
     if (d === "14_day") return "14-Day Sprint";
     if (d === "30_day") return "30-Day Bootcamp";
+    if (d === "60_day") return "60-Day Sprint";
+    if (d === "100_day") return "100-Day Challenge";
     return "Ongoing Sprint";
   };
 
@@ -206,37 +208,60 @@ const CreatorRooms = () => {
     if (!user) return;
 
     try {
+      const roomPayload = {
+        name: roomData.title || roomData.name,
+        title: roomData.title || roomData.name,
+        description: roomData.description,
+        category: roomData.category || "General",
+        access: roomData.visibility === "Public" ? "public" : "private",
+        created_by: user.id,
+        host: user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator",
+        member_count: 1,
+        goal_pledge: roomData.goal_pledge,
+        duration_type: roomData.duration_type,
+        checkin_frequency: roomData.checkin_frequency,
+      };
+
       const { data: newRoom, error } = await supabase
         .from("rooms")
-        .insert([
-          {
-            name: roomData.title,
-            title: roomData.title,
-            description: roomData.description,
-            goal_pledge: roomData.goal_pledge,
-            category: roomData.category,
-            duration_type: roomData.duration_type,
-            checkin_frequency: roomData.checkin_frequency,
-            checkin_type: roomData.checkin_type,
-            access: "public",
-            created_by: user.id,
-            host: user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator",
-            member_count: 1,
-          },
-        ])
+        .insert([roomPayload])
         .select()
         .single();
 
+      if (error) {
+        console.warn("Retrying insert payload...", error);
+        const { data: fallbackRoom } = await supabase
+          .from("rooms")
+          .insert([
+            {
+              name: roomData.title,
+              description: roomData.description,
+              category: roomData.category,
+              access: "public",
+              created_by: user.id,
+              host: user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator",
+            },
+          ])
+          .select()
+          .single();
+
+        if (fallbackRoom) {
+          await supabase.from("room_members").insert([
+            { room_id: fallbackRoom.id, user_id: user.id, role: "host" },
+          ]);
+          setOpenModal(false);
+          await fetchRooms();
+          navigate(`/creator-rooms/${fallbackRoom.id}`);
+          return;
+        }
+      }
+
       if (newRoom) {
         await supabase.from("room_members").insert([
-          {
-            room_id: newRoom.id,
-            user_id: user.id,
-            role: "host",
-          },
+          { room_id: newRoom.id, user_id: user.id, role: "host" },
         ]);
         setOpenModal(false);
-        fetchRooms();
+        await fetchRooms();
         navigate(`/creator-rooms/${newRoom.id}`);
       }
     } catch (e) {

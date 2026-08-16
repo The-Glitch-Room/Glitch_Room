@@ -133,7 +133,6 @@ const CreateRoomModal = ({ close, create }) => {
   };
 
   const isStep1Valid = title.trim().length > 0 && description.trim().length > 0 && goalPledge.trim().length > 0;
-  const isStep2Valid = selectedProofTypes.length > 0;
 
   const handlePublish = async (isDraft = false) => {
     if (!isStep1Valid || submitting) return;
@@ -202,6 +201,8 @@ const CreateRoomModal = ({ close, create }) => {
       is_draft: isDraft,
     };
 
+    // System Rule: Validate -> Close Modal Immediately -> Save to Database
+    close();
     await create(roomPayload);
     setSubmitting(false);
   };
