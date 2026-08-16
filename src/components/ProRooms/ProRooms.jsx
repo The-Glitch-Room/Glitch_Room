@@ -16,174 +16,189 @@ import {
   Building2,
   Calendar,
   Filter,
+  Layers,
 } from "lucide-react";
-import Button from "../Button";
-import PageHeading from "../PageHeading";
-import StatCard from "../StatCard";
 import ProRoomCard, { getProRoomLifecycleState } from "./ProRoomCard";
-import CreateProRoomModal from "./CreateProRoomModal";
 import { supabase } from "../../supabaseClient";
 
-const formatNumber = (n) => {
-  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
-  return String(n);
-};
+const CATEGORIES = [
+  "All Categories",
+  "AI / Machine Learning",
+  "Web Development",
+  "Data Structures & Algorithms",
+  "Cybersecurity",
+  "Data Science",
+  "Cloud & DevOps",
+  "Aptitude",
+  "Software Engineering",
+  "Other",
+];
 
-const defaultSeedProRooms = [
-  {
-    id: "pro-mit-arena",
-    name: "MIT Arena Battle — AI Systems & Algorithmic Design",
-    title: "MIT Arena Battle — AI Systems & Algorithmic Design",
-    short_description: "Pro assessment testing real-time neural network optimization, system latency reduction, and concurrent data pipelines.",
-    org_name: "MIT CSAIL & Glitch Engine",
-    category: "AI & Algorithms",
-    event_type: "Hiring Assessment",
-    gbits_prize_pool: 2500,
-    duration_minutes: 180,
-    status: "registration_open",
-    member_count: 48,
-  },
-  {
-    id: "pro-hackathon-2026",
-    name: "Global Glitch AI Hackathon 2026",
-    title: "Global Glitch AI Hackathon 2026",
-    short_description: "48-Hour innovation challenge to build autonomous agentic workflows and multi-agent web applications.",
-    org_name: "Glitch AI Labs",
-    category: "Hackathon",
-    event_type: "Hackathon",
-    gbits_prize_pool: 5000,
-    duration_minutes: 2880,
-    status: "live",
-    member_count: 124,
-  },
-  {
-    id: "pro-cyber-ctf",
-    name: "CyberShield CTF — Offensive Security & Zero-Day",
-    title: "CyberShield CTF — Offensive Security & Zero-Day",
-    short_description: "High-octane cybersecurity assessment with binary exploitation, web security, and cryptographic reverse engineering.",
-    org_name: "ZeroDay Security Guild",
-    category: "Cybersecurity",
-    event_type: "CTF",
-    gbits_prize_pool: 1500,
-    duration_minutes: 240,
-    status: "upcoming",
-    member_count: 82,
-  },
+const EVENT_TYPES = [
+  "All Types",
+  "Hackathon",
+  "Hiring Assessment",
+  "Coding Contest",
+  "MCQ Competition",
+  "Technical Assessment",
+  "College Fest",
+  "CTF",
+  "Innovation Challenge",
+];
+
+const STATUSES = [
+  "All Status",
+  "Live",
+  "Registration Open",
+  "Upcoming",
+  "Submission Closed",
+  "Evaluation",
+  "Results Published",
 ];
 
 const ProRooms = () => {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
-  const [userMemberships, setUserMemberships] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [selectedType, setSelectedType] = useState("All");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Live Stats
+  // Filters State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [selectedType, setSelectedType] = useState("All Types");
+  const [selectedStatus, setSelectedStatus] = useState("All Status");
+  const [sortBy, setSortBy] = useState("Newest");
+  const [activeTab, setActiveTab] = useState("all"); // 'all', 'live', 'upcoming', 'registration_open', 'completed'
+
+  // Statistics State (Calculated from Real Database Data)
   const [stats, setStats] = useState({
-    activeArenas: 0,
-    totalCandidates: 0,
-    rewardPool: 0,
+    activeRoomsCount: 0,
+    participantsEvaluatedCount: 0,
+    totalRewardsVal: "0 gBits",
   });
 
-  const fetchProRoomsData = async () => {
+  const fetchProRoomsFromDB = async () => {
     setLoading(true);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData?.user?.id;
-      setCurrentUserId(uid);
-
-      // Fetch Pro Rooms from database
-      const { data: dbRooms } = await supabase
+      // 1. Fetch Rooms from Supabase
+      const { data: dbRooms, error } = await supabase
         .from("pro_rooms")
         .select("*")
         .order("created_at", { ascending: false });
 
-      const finalRooms = dbRooms && dbRooms.length > 0 ? dbRooms : defaultSeedProRooms;
-      setRooms(finalRooms);
+      const roomList = dbRooms || [];
+      setRooms(roomList);
 
-      // Fetch candidate registrations for user
-      if (uid) {
-        const { data: regData } = await supabase
-          .from("pro_room_registrations")
-          .select("room_id")
-          .eq("user_id", uid);
+      // 2. Fetch Submissions Count from Supabase
+      const { count: subsCount } = await supabase
+        .from("pro_room_submissions")
+        .select("*", { count: "exact", head: true });
 
-        setUserMemberships((regData || []).map((r) => r.room_id));
-      }
+      // 3. Compute Stats
+      const liveCount = roomList.filter((r) => {
+        const state = getProRoomLifecycleState(r);
+        return state.isLive;
+      }).length;
 
-      // Calculate stats
-      const activeCount = finalRooms.filter((r) => r.status !== "archived").length;
-      const totalCandidates = finalRooms.reduce((acc, r) => acc + (r.member_count || r.registrations_count || 12), 0);
-      const totalPrize = finalRooms.reduce((acc, r) => acc + (r.gbits_prize_pool || 500), 0);
+      const totalRewards = roomList.reduce(
+        (sum, r) => sum + Number(r.gbits_prize_pool || 0),
+        0
+      );
+
+      const formattedRewards =
+        totalRewards > 0
+          ? totalRewards >= 1000
+            ? `${(totalRewards / 1000).toFixed(1).replace(/\.0$/, "")}k gBits`
+            : `${totalRewards} gBits`
+          : "0 gBits";
 
       setStats({
-        activeArenas: activeCount,
-        totalCandidates,
-        rewardPool: totalPrize,
+        activeRoomsCount: liveCount,
+        participantsEvaluatedCount: subsCount || 0,
+        totalRewardsVal: formattedRewards,
       });
     } catch (err) {
-      console.error(err);
-      setRooms(defaultSeedProRooms);
+      console.error("Error fetching pro rooms data:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProRoomsData();
+    fetchProRoomsFromDB();
   }, []);
 
-  // Filter logic
-  const filteredRooms = rooms.filter((room) => {
-    const lifecycle = getProRoomLifecycleState(room);
+  // Filtering Logic
+  const filteredRooms = rooms
+    .filter((room) => {
+      // Search
+      const search = searchQuery.toLowerCase();
+      const matchesSearch =
+        (room.name || room.title || "").toLowerCase().includes(search) ||
+        (room.org_name || "").toLowerCase().includes(search) ||
+        (room.category || "").toLowerCase().includes(search) ||
+        (room.required_skills || "").toLowerCase().includes(search);
 
-    // Search filter
-    const matchesSearch =
-      (room.name || room.title || "").toLowerCase().includes(search.toLowerCase()) ||
-      (room.org_name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (room.category || "").toLowerCase().includes(search.toLowerCase());
+      // Category
+      const matchesCategory =
+        selectedCategory === "All Categories" ||
+        (room.category || "").toLowerCase() === selectedCategory.toLowerCase();
 
-    // Type filter
-    const matchesType =
-      selectedType === "All" ||
-      (room.event_type || "").toLowerCase() === selectedType.toLowerCase() ||
-      (room.category || "").toLowerCase() === selectedType.toLowerCase();
+      // Type
+      const matchesType =
+        selectedType === "All Types" ||
+        (room.event_type || "").toLowerCase() === selectedType.toLowerCase();
 
-    // Status filter
-    let matchesStatus = true;
-    if (selectedStatus === "Live") matchesStatus = lifecycle.isLive;
-    else if (selectedStatus === "Registration Open") matchesStatus = lifecycle.label === "Registration Open";
-    else if (selectedStatus === "Upcoming") matchesStatus = lifecycle.label === "Upcoming";
-    else if (selectedStatus === "Evaluation") matchesStatus = lifecycle.label === "Evaluation in Progress";
-    else if (selectedStatus === "Results") matchesStatus = lifecycle.label === "Results Published";
+      // Status
+      const state = getProRoomLifecycleState(room);
+      let matchesStatus = true;
+      if (selectedStatus === "Live") matchesStatus = state.isLive;
+      else if (selectedStatus === "Registration Open")
+        matchesStatus = state.label === "REGISTRATION OPEN";
+      else if (selectedStatus === "Upcoming") matchesStatus = state.label === "UPCOMING";
+      else if (selectedStatus === "Evaluation") matchesStatus = state.label === "Evaluation";
+      else if (selectedStatus === "Results Published")
+        matchesStatus = state.label === "Results Published";
 
-    return matchesSearch && matchesType && matchesStatus;
-  });
+      // Tab filter
+      let matchesTab = true;
+      if (activeTab === "live") matchesTab = state.isLive;
+      else if (activeTab === "upcoming") matchesTab = state.label === "UPCOMING";
+      else if (activeTab === "registration_open")
+        matchesTab = state.label === "REGISTRATION OPEN";
+      else if (activeTab === "completed")
+        matchesTab =
+          state.label === "Results Published" || state.label === "Submission Closed";
 
-  const eventTypes = [
-    "All",
-    "Hackathon",
-    "Hiring Assessment",
-    "Coding Contest",
-    "MCQ Competition",
-    "Technical Assessment",
-    "College Fest",
-    "CTF",
-    "AI/ML",
-  ];
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesType &&
+        matchesStatus &&
+        matchesTab
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === "Starting Soon") {
+        return new Date(a.event_start_at || 0) - new Date(b.event_start_at || 0);
+      }
+      if (sortBy === "Highest Reward") {
+        return (b.gbits_prize_pool || 0) - (a.gbits_prize_pool || 0);
+      }
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
 
-  const statusFilters = [
-    "All",
-    "Live",
-    "Registration Open",
-    "Upcoming",
-    "Evaluation",
-    "Results",
-  ];
+  // Calculate Tab Counts
+  const tabCounts = {
+    all: rooms.length,
+    live: rooms.filter((r) => getProRoomLifecycleState(r).isLive).length,
+    upcoming: rooms.filter((r) => getProRoomLifecycleState(r).label === "UPCOMING").length,
+    registration_open: rooms.filter((r) => getProRoomLifecycleState(r).label === "REGISTRATION OPEN").length,
+    completed: rooms.filter(
+      (r) =>
+        getProRoomLifecycleState(r).label === "Results Published" ||
+        getProRoomLifecycleState(r).label === "Submission Closed"
+    ).length,
+  };
 
   return (
     <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20 relative overflow-hidden">
@@ -192,162 +207,240 @@ const ProRooms = () => {
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full relative z-10">
         <GlitchBackground />
 
-        {/* Hero Header */}
-        <div className="text-center mb-12 relative">
+        {/* HERO SECTION — Matching Image 3 Creator Rooms Page */}
+        <div className="text-center mb-12 relative max-w-3xl mx-auto">
+          {/* Eyebrow Pill */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[#00F0FF] text-xs font-mono font-bold uppercase tracking-widest mb-4 shadow-[0_0_15px_rgba(0,240,255,0.15)]"
+            className="inline-block text-[11px] font-mono font-bold uppercase tracking-widest text-[#FF00C8] mb-3"
           >
-            <ShieldCheck size={14} /> PRO ARENAS & ASSESSMENT ENGINE
+            COMPETE • EVALUATE • PROVE
           </motion.div>
 
-          <PageHeading
-            title="Compete, Get Evaluated & Prove Your Skills"
-            subtitle="Professional time-bound assessment arenas, hackathons, hiring drives, and college fest competitions hosted by verified universities, companies, and organizers."
-            center
-          />
+          {/* Main Title with Glitch Style */}
+          <motion.h1
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-4"
+          >
+            Pro Rooms
+          </motion.h1>
 
-          {/* Action Trigger for Creating Pro Room */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
+          <div className="w-16 h-1 bg-[#FF00C8] mx-auto rounded-full mb-4 shadow-[0_0_10px_#FF00C8]" />
+
+          {/* Description */}
+          <motion.p
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mt-6 flex flex-wrap items-center justify-center gap-4"
+            className="text-sm sm:text-base text-gray-400 leading-relaxed max-w-2xl mx-auto"
+          >
+            Join professional events, hackathons, competitions, hiring assessments, and skill-based challenges hosted by verified colleges, companies, and organizations.
+          </motion.p>
+
+          {/* THREE CENTERED STATISTICS — Matching Image 3 Layout */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="grid grid-cols-1 sm:grid-cols-3 gap-6 my-8 py-4 border-y border-white/10 max-w-2xl mx-auto"
+          >
+            <div>
+              <div className="text-3xl font-black text-white font-mono">
+                {stats.activeRoomsCount}
+              </div>
+              <div className="text-xs font-bold text-gray-300 uppercase tracking-wider mt-1">
+                Active Pro Rooms
+              </div>
+              <div className="text-[10px] text-gray-500 italic">Live & Active</div>
+            </div>
+
+            <div>
+              <div className="text-3xl font-black text-white font-mono">
+                {stats.participantsEvaluatedCount}
+              </div>
+              <div className="text-xs font-bold text-gray-300 uppercase tracking-wider mt-1">
+                Participants Evaluated
+              </div>
+              <div className="text-[10px] text-gray-500 italic">Assessments Completed</div>
+            </div>
+
+            <div>
+              <div className="text-3xl font-black text-[#00F0FF] font-mono">
+                {stats.totalRewardsVal}
+              </div>
+              <div className="text-xs font-bold text-gray-300 uppercase tracking-wider mt-1">
+                Total Rewards & Prizes
+              </div>
+              <div className="text-[10px] text-gray-500 italic">gBits & Prize Pools</div>
+            </div>
+          </motion.div>
+
+          {/* HOST CTA BUTTON (Solid Pink Button — User Directive: No gradient, solid pink only) */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="flex justify-center"
           >
             <button
               onClick={() => navigate("/pro-rooms/create")}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#00F0FF] via-purple-600 to-[#FF00C8] hover:from-[#00F0FF] hover:to-purple-500 text-white font-bold text-sm flex items-center gap-2 shadow-xl shadow-[#00F0FF]/20 transition-all cursor-pointer hover:scale-105"
+              className="px-8 py-3.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white font-bold text-sm shadow-xl shadow-[#FF00C8]/25 transition-all hover:scale-105 cursor-pointer flex items-center gap-2"
             >
-              <Plus size={18} /> Create Pro Room / Host Assessment
+              <Plus size={18} /> Host a Pro Room
             </button>
           </motion.div>
         </div>
 
-        {/* Live KPI Statistics Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-          <StatCard
-            label="Active Assessment Arenas"
-            value={formatNumber(stats.activeArenas)}
-            change="100% Verified Hosts"
-            color="cyan"
-            icon={ShieldCheck}
-          />
-          <StatCard
-            label="Candidates Evaluated"
-            value={formatNumber(stats.totalCandidates)}
-            change="Real-time Evaluation"
-            color="purple"
-            icon={Users}
-          />
-          <StatCard
-            label="Total Rewards & Prize Pool"
-            value={`${formatNumber(stats.rewardPool)} gBits`}
-            change="Certificates & Badges"
-            color="pink"
-            icon={Trophy}
-          />
-        </div>
-
-        {/* Search & Filters Controls */}
-        <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5 mb-8 space-y-4 backdrop-blur-md shadow-2xl">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* MAIN LISTING CONTAINER — Matching Image 2 Design */}
+        <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
+          {/* SEARCH & DROPDOWN FILTERS */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
             {/* Search Input */}
-            <div className="relative w-full md:w-96">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+            <div className="md:col-span-5 relative">
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search Pro Rooms by title, organization, or skill..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-[#07070e] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#00F0FF]/50 transition"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#06060c] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-gray-500 outline-none focus:border-[#00F0FF]"
               />
             </div>
 
-            {/* Event Type Filter Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-              {eventTypes.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    selectedType === type
-                      ? "bg-[#00F0FF]/20 border border-[#00F0FF]/50 text-[#00F0FF]"
-                      : "bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
+            {/* Dropdown Filters */}
+            <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+              >
+                {EVENT_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+              >
+                <option value="Newest">Newest</option>
+                <option value="Starting Soon">Starting Soon</option>
+                <option value="Highest Reward">Highest Reward</option>
+              </select>
             </div>
           </div>
 
-          {/* Status Lifecycle Filter Bar */}
-          <div className="pt-3 border-t border-white/5 flex flex-wrap items-center gap-2 text-xs font-mono">
-            <span className="text-gray-500 flex items-center gap-1 shrink-0 mr-2">
-              <Filter size={12} /> Lifecycle Status:
-            </span>
-            {statusFilters.map((st) => (
+          {/* EVENT STATUS TABS matching Image 2 */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/10">
+            {[
+              { id: "all", label: `All Events (${tabCounts.all})` },
+              { id: "live", label: `🔴 Live Now (${tabCounts.live})` },
+              { id: "upcoming", label: `📅 Upcoming (${tabCounts.upcoming})` },
+              { id: "registration_open", label: `📝 Registration Open (${tabCounts.registration_open})` },
+              { id: "completed", label: `✓ Completed (${tabCounts.completed})` },
+            ].map((tab) => (
               <button
-                key={st}
-                onClick={() => setSelectedStatus(st)}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  selectedStatus === st
-                    ? "bg-purple-500/20 border border-purple-500/50 text-purple-300"
-                    : "bg-white/5 border border-white/5 text-gray-500 hover:text-gray-300"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  activeTab === tab.id
+                    ? "bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF]"
+                    : "bg-white/5 border border-white/5 text-gray-400 hover:text-white"
                 }`}
               >
-                {st}
+                {tab.label}
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Pro Rooms List Grid */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-10 h-10 border-2 border-t-transparent border-[#00F0FF] rounded-full animate-spin" />
-          </div>
-        ) : filteredRooms.length === 0 ? (
-          <div className="text-center py-16 bg-[#0d0d16] border border-white/10 rounded-2xl p-8">
-            <ShieldCheck size={48} className="mx-auto text-gray-600 mb-3" />
-            <h3 className="text-lg font-bold text-white mb-1">No Pro Rooms Found</h3>
-            <p className="text-gray-400 text-xs mb-4 max-w-sm mx-auto">
-              No professional assessment arenas match your search query or filter selection. Be the first to host an assessment!
-            </p>
+          {/* PRO ROOM CARDS GRID — Exactly 3 cards per row on Desktop (User Directive: 3 rooms cards per row) */}
+          {loading ? (
+            <div className="py-20 text-center">
+              <div className="w-10 h-10 border-2 border-t-transparent border-[#FF00C8] rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-xs text-gray-400 font-mono">Fetching Pro Rooms...</p>
+            </div>
+          ) : filteredRooms.length === 0 ? (
+            /* POLISHED EMPTY STATE */
+            <div className="bg-[#07070e] border border-white/10 rounded-2xl p-10 text-center space-y-4 my-6">
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-300">
+                <Building2 size={28} />
+              </div>
+              <h3 className="text-lg font-bold text-white">No Pro Rooms Yet</h3>
+              <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+                Professional assessments, hackathons, competitions, and hiring events will appear here when organizations start hosting them.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/pro-rooms/create")}
+                className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/20 transition cursor-pointer inline-flex items-center gap-2"
+              >
+                <Plus size={16} /> Host a Pro Room
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+              {filteredRooms.map((room) => (
+                <ProRoomCard
+                  key={room.id}
+                  room={room}
+                  onSelect={() => navigate(`/pro-rooms/${room.id}`)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* BOTTOM ORGANIZATION HOST BANNER — Matching Image 2 Bottom Card */}
+          <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 shadow-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <Building2 size={24} className="text-purple-300" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">Are you an organization or college?</h4>
+                <p className="text-xs text-gray-400">Host your hackathons, assessments, and competitions on Glitch Room.</p>
+              </div>
+            </div>
+
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-5 py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-[#00F0FF] text-xs font-bold transition hover:bg-cyan-500/30 cursor-pointer"
+              type="button"
+              onClick={() => navigate("/pro-rooms/create")}
+              className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0"
             >
-              + Create Pro Room
+              Host a Pro Room <Plus size={16} />
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRooms.map((room) => (
-              <ProRoomCard
-                key={room.id}
-                room={room}
-                isRegistered={userMemberships.includes(room.id)}
-                onEnter={(id) => navigate(`/pro-rooms/${id}`)}
-              />
-            ))}
-          </div>
-        )}
+        </div>
       </main>
-
-      {/* Create Pro Room Modal */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <CreateProRoomModal
-            onClose={() => setShowCreateModal(false)}
-            onRoomCreated={() => {
-              setShowCreateModal(false);
-              fetchProRoomsData();
-            }}
-          />
-        )}
-      </AnimatePresence>
 
       <Footer />
     </div>

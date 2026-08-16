@@ -9,12 +9,13 @@ import {
   Building2,
   Calendar,
   Zap,
+  Bell,
 } from "lucide-react";
 
 export const getProRoomLifecycleState = (room) => {
   if (!room) return { label: "Upcoming", color: "cyan", isLive: false };
   const now = new Date();
-  
+
   const regStart = room.reg_start_at ? new Date(room.reg_start_at) : null;
   const regEnd = room.reg_end_at ? new Date(room.reg_end_at) : null;
   const eventStart = room.event_start_at ? new Date(room.event_start_at) : null;
@@ -24,129 +25,167 @@ export const getProRoomLifecycleState = (room) => {
     return { label: "Results Published", color: "purple", isLive: false };
   }
   if (room.status === "evaluation") {
-    return { label: "Evaluation in Progress", color: "amber", isLive: false };
+    return { label: "Evaluation", color: "amber", isLive: false };
   }
   if (eventEnd && now > eventEnd) {
     return { label: "Submission Closed", color: "gray", isLive: false };
   }
   if (eventStart && now >= eventStart && (!eventEnd || now <= eventEnd)) {
-    return { label: "🔴 LIVE ASSESSMENT", color: "red", isLive: true };
+    return { label: "🔴 LIVE", color: "red", isLive: true };
   }
   if (regStart && now >= regStart && (!regEnd || now <= regEnd)) {
-    return { label: "Registration Open", color: "emerald", isLive: false };
+    return { label: "REGISTRATION OPEN", color: "emerald", isLive: false };
   }
-  return { label: "Upcoming", color: "cyan", isLive: false };
+  return { label: "UPCOMING", color: "purple", isLive: false };
 };
 
-const ProRoomCard = ({ room, isRegistered, onEnter }) => {
+const ProRoomCard = ({ room, isRegistered, onSelect }) => {
   const lifecycle = getProRoomLifecycleState(room);
+
+  // Formatting dates
+  const formatDateRange = () => {
+    try {
+      if (room.event_start_at && room.event_end_at) {
+        const start = new Date(room.event_start_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
+        const end = new Date(room.event_end_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
+        return `${start} – ${end}`;
+      }
+    } catch (e) {}
+    return "Dates TBA";
+  };
+
+  const getButtonText = () => {
+    if (lifecycle.isLive) return "Enter Room →";
+    if (lifecycle.label === "REGISTRATION OPEN") return "Register Now →";
+    if (lifecycle.label === "UPCOMING") return "View Details →";
+    if (lifecycle.label === "Results Published" || lifecycle.label === "Submission Closed")
+      return "View Results →";
+    return "View Details →";
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -6 }}
       transition={{ duration: 0.2 }}
-      className="group relative bg-[#0d0d16] border border-cyan-500/20 hover:border-cyan-500/50 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 overflow-hidden hover:shadow-[0_0_30px_rgba(0,240,255,0.15)] shadow-xl font-sans"
+      className="group relative bg-[#0b0b14] border border-white/10 hover:border-[#FF00C8]/50 rounded-2xl flex flex-col justify-between transition-all duration-300 overflow-hidden shadow-xl font-sans"
     >
-      {/* Top Accent Line */}
-      <div className="absolute top-0 left-0 h-[2px] w-0 group-hover:w-full transition-all duration-500 rounded-t-2xl bg-gradient-to-r from-[#00F0FF] via-purple-500 to-[#FF00C8]" />
+      {/* Top Banner Image with Overlay Badges */}
+      <div className="h-44 w-full relative overflow-hidden bg-[#12121e]">
+        {room.cover_image ? (
+          <img
+            src={room.cover_image}
+            alt={room.name || room.title}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-purple-900/40 via-black to-cyan-900/30 flex items-center justify-center p-4">
+            <Building2 size={32} className="text-gray-600" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b14] via-transparent to-black/50" />
 
-      <div>
-        {/* Header Badges & Organization */}
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2.5 min-w-0">
+        {/* Top Badges: Status & Event Type */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
+          <span
+            className={`text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${
+              lifecycle.isLive
+                ? "bg-red-500/80 border-red-400 text-white animate-pulse"
+                : lifecycle.color === "emerald"
+                ? "bg-emerald-500/80 border-emerald-400 text-white"
+                : lifecycle.color === "purple"
+                ? "bg-purple-600/80 border-purple-400 text-white"
+                : "bg-cyan-500/80 border-cyan-400 text-white"
+            }`}
+          >
+            {lifecycle.label}
+          </span>
+
+          <span className="text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-black/60 border border-white/20 text-gray-300 backdrop-blur-md">
+            {room.event_type || room.category || "Hackathon"}
+          </span>
+        </div>
+      </div>
+
+      {/* Body Content */}
+      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+        <div className="space-y-2.5">
+          {/* Organization Info */}
+          <div className="flex items-center gap-2">
             {room.org_logo ? (
               <img
                 src={room.org_logo}
                 alt={room.org_name}
-                className="w-9 h-9 rounded-xl object-cover border border-white/10 shrink-0 bg-[#161622]"
+                className="w-5 h-5 rounded-md object-cover border border-white/10 shrink-0 bg-[#161622]"
                 onError={(e) => {
                   e.currentTarget.style.display = "none";
                 }}
               />
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
-                <Building2 size={16} className="text-[#00F0FF]" />
-              </div>
+              <Building2 size={14} className="text-[#00F0FF] shrink-0" />
             )}
-            <div className="min-w-0">
-              <span className="text-white text-xs font-bold truncate flex items-center gap-1">
-                {room.org_name || "Verified Examiner"}
-                <ShieldCheck size={12} className="text-[#00F0FF] shrink-0" />
-              </span>
-              <span className="text-[10px] text-gray-500 block truncate">
-                {room.event_type || "Technical Competition"}
-              </span>
-            </div>
+            <span className="text-xs font-bold text-gray-300 truncate flex items-center gap-1">
+              By {room.org_name || "Verified Organization"}
+              <ShieldCheck size={13} className="text-[#00F0FF] shrink-0" />
+            </span>
           </div>
 
-          {/* Lifecycle Status Pill */}
-          <span
-            className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full shrink-0 border uppercase flex items-center gap-1.5 ${
-              lifecycle.isLive
-                ? "bg-red-500/10 border-red-500/40 text-red-400 animate-pulse"
-                : lifecycle.color === "emerald"
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                : lifecycle.color === "purple"
-                ? "bg-purple-500/10 border-purple-500/30 text-purple-300"
-                : "bg-cyan-500/10 border-cyan-500/30 text-[#00F0FF]"
-            }`}
-          >
-            {lifecycle.label}
-          </span>
+          {/* Room Title */}
+          <h3 className="text-base font-bold text-white group-hover:text-[#FF00C8] transition-colors leading-snug line-clamp-1">
+            {room.name || room.title}
+          </h3>
+
+          {/* Short Description */}
+          <p className="text-gray-400 text-xs leading-relaxed line-clamp-2">
+            {room.short_description || room.detailed_description || "Professional assessment arena for developers."}
+          </p>
         </div>
 
-        {/* Title */}
-        <h3 className="text-base font-bold text-white group-hover:text-[#00F0FF] transition-colors leading-snug mb-2 line-clamp-1">
-          {room.name || room.title}
-        </h3>
-
-        {/* Description */}
-        <p className="text-gray-400 text-xs leading-relaxed line-clamp-2 mb-4">
-          {room.short_description || room.description || "High-stakes technical assessment arena with automated code and criteria evaluation."}
-        </p>
-
-        {/* Tags & Metadata */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-300">
-            {room.category || "Assessment"}
-          </span>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/25 text-purple-300 flex items-center gap-1">
-            <Zap size={10} className="text-amber-400" /> {room.gbits_prize_pool || 500} gBits Prize
-          </span>
-          {isRegistered && (
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-green-500/10 border border-green-500/30 text-green-400 font-bold">
-              ✓ Registered
+        {/* Metadata Details List matching Image 2 */}
+        <div className="space-y-2 pt-2 border-t border-white/5 text-xs text-gray-300">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-gray-400">
+              <Calendar size={13} className="text-purple-400" /> Date
             </span>
-          )}
+            <span className="font-mono text-white font-semibold">{formatDateRange()}</span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-gray-400">
+              <Users size={13} className="text-[#00F0FF]" /> Participants
+            </span>
+            <span className="font-mono text-white font-semibold">
+              {room.max_participants ? `${room.max_participants} Participants` : "Open Capacity"}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-gray-400">
+              <Trophy size={13} className="text-amber-400" /> Prize Pool
+            </span>
+            <span className="font-mono text-amber-400 font-bold">
+              {room.gbits_prize_pool ? `${room.gbits_prize_pool} gBits` : room.prize_details || "gBits Rewards"}
+            </span>
+          </div>
         </div>
 
-        {/* Stats Row */}
-        <div className="flex items-center justify-between text-xs font-mono text-gray-500 pt-3 border-t border-white/5 mb-4">
-          <span className="flex items-center gap-1.5">
-            <Users size={13} className="text-[#00F0FF]" />
-            {room.member_count || room.registrations_count || 12} Candidates
-          </span>
-          <span className="flex items-center gap-1.5 text-gray-400">
-            <Clock size={13} /> {room.duration_minutes || 120} Mins
-          </span>
-        </div>
-      </div>
-
-      {/* Action Button */}
-      <div>
+        {/* Solid Pink Button (User Directive: No gradient button, use only solid pink) */}
         <button
           type="button"
-          onClick={() => onEnter(room.id)}
-          className={`w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg ${
-            lifecycle.isLive
-              ? "bg-gradient-to-r from-red-600 via-purple-600 to-[#FF00C8] hover:from-red-500 hover:to-[#FF00C8] text-white shadow-red-500/20"
-              : "bg-gradient-to-r from-[#00F0FF]/80 to-purple-600 hover:from-[#00F0FF] hover:to-purple-500 text-white shadow-[#00F0FF]/20"
-          }`}
+          onClick={onSelect}
+          className="w-full py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center justify-center gap-1.5 mt-2"
         >
-          {lifecycle.isLive ? "Enter Live Assessment" : "View Assessment Arena"}{" "}
-          <ArrowRight size={14} />
+          {getButtonText()}
         </button>
       </div>
     </motion.div>
