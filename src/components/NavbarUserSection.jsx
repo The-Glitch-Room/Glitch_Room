@@ -10,7 +10,9 @@ import {
   FiSettings,
   FiHelpCircle,
 } from "react-icons/fi";
+import { Zap } from "lucide-react";
 import { supabase } from "../supabaseClient";
+import { getLevelFromXP } from "../utils/pointsHelper";
 
 const dropdownLinks = [
   { to: "/profile", icon: FiUser, label: "Your Profile" },
@@ -21,28 +23,87 @@ const dropdownLinks = [
   { to: "/help", icon: FiHelpCircle, label: "Help & Support" },
 ];
 
-const NavbarUserSection = ({ user }) => {
+const NavbarUserSection = ({ user: propUser }) => {
   const [openDropdown, setOpenDropdown] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [userProfile, setUserProfile] = useState({
+    name: "",
+    username: "",
+    email: "",
+    avatarUrl: null,
+    points: 0,
+    level: 1,
+  });
   const dropdownRef = useRef(null);
 
-  const username =
-    user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
-  const initials = username.slice(0, 2).toUpperCase();
+  const fetchFullUserProfile = async () => {
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUser = authData?.user || propUser;
+    if (!currentUser) return;
+
+    const userId = currentUser.id;
+    const userMeta = currentUser.user_metadata;
+
+    // 1. Fetch Profile record from Supabase
+    const { data: dbProfile } = await supabase
+      .from("profiles")
+      .select("full_name, username, avatar_url, points")
+      .eq("id", userId)
+      .maybeSingle();
+
+    // 2. Fetch User Points from Supabase
+    const { data: ptsData } = await supabase
+      .from("user_points")
+      .select("points")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const points = ptsData?.points ?? dbProfile?.points ?? 0;
+    const level = getLevelFromXP(points);
+
+    const name =
+      dbProfile?.full_name ||
+      userMeta?.full_name ||
+      userMeta?.name ||
+      dbProfile?.username ||
+      currentUser?.email?.split("@")[0] ||
+      "Glitch Builder";
+
+    const rawUsername =
+      dbProfile?.username ||
+      userMeta?.username ||
+      (name ? `@${name.toLowerCase().replace(/\s+/g, "")}` : "@glitcher");
+
+    const username = rawUsername.startsWith("@") ? rawUsername : `@${rawUsername}`;
+
+    const avatarUrl =
+      dbProfile?.avatar_url ||
+      userMeta?.avatar_url ||
+      userMeta?.picture ||
+      null;
+
+    setUserProfile({
+      name,
+      username,
+      email: currentUser?.email || "",
+      avatarUrl,
+      points,
+      level,
+    });
+  };
 
   useEffect(() => {
-    const fetchAvatar = async () => {
-      const userId = user?.id;
-      if (!userId) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("avatar_url")
-        .eq("id", userId)
-        .single();
-      if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+    fetchFullUserProfile();
+
+    // Listen for profile updates & points changes anywhere on the site
+    const handleProfileUpdate = () => fetchFullUserProfile();
+    window.addEventListener("profile_updated", handleProfileUpdate);
+    window.addEventListener("points_updated", handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener("profile_updated", handleProfileUpdate);
+      window.removeEventListener("points_updated", handleProfileUpdate);
     };
-    fetchAvatar();
-  }, [user]);
+  }, [propUser]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -59,27 +120,34 @@ const NavbarUserSection = ({ user }) => {
     window.location.reload();
   };
 
+  const initials = (userProfile.name || "GB").slice(0, 2).toUpperCase();
+
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Avatar trigger — increased slightly to w-10 h-10 for enhanced readability */}
+    <div className="relative font-sans" ref={dropdownRef}>
+      {/* Avatar trigger button */}
       <button
         onClick={() => setOpenDropdown(!openDropdown)}
-        className="relative w-10 h-10 rounded-xl overflow-hidden ring-1 ring-white/15 hover:ring-white/35 transition-all duration-200 cursor-pointer shadow-md"
+        className="relative w-10 h-10 rounded-xl overflow-hidden ring-1 ring-white/15 hover:ring-[#00F0FF]/50 transition-all duration-200 cursor-pointer shadow-md flex items-center justify-center bg-[#101018]"
+        title={userProfile.name}
       >
-        {avatarUrl ? (
+        {userProfile.avatarUrl ? (
           <img
-            src={avatarUrl}
-            alt="avatar"
+            src={userProfile.avatarUrl}
+            alt={userProfile.name}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              // Fallback to initials if image fails to load
+              e.target.style.display = "none";
+            }}
           />
         ) : (
-          <div className="w-full h-full bg-[#1a1a1e] flex items-center justify-center text-sm font-black text-white">
+          <div className="w-full h-full bg-gradient-to-br from-purple-600/40 to-[#00F0FF]/40 flex items-center justify-center text-xs font-black text-white">
             {initials}
           </div>
         )}
       </button>
 
-      {/* Dropdown */}
+      {/* Dropdown Menu */}
       <AnimatePresence>
         {openDropdown && (
           <motion.div
@@ -87,51 +155,67 @@ const NavbarUserSection = ({ user }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.97 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute right-0 mt-2.5 w-56 bg-[#0a0a0c] border border-white/10 rounded-2xl shadow-2xl py-2 z-50 overflow-hidden"
+            className="absolute right-0 mt-2.5 w-64 bg-[#0a0a0c] border border-white/15 rounded-2xl shadow-2xl py-2 z-50 overflow-hidden"
           >
-            {/* User info header — increased avatar & font sizes */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 mb-1">
-              <div className="w-9 h-9 rounded-xl overflow-hidden ring-1 ring-white/15 shrink-0">
-                {avatarUrl ? (
+            {/* User Info Header */}
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10 mb-1 bg-white/[0.02]">
+              <div className="w-10 h-10 rounded-xl overflow-hidden ring-1 ring-purple-500/40 shrink-0 bg-[#101018] flex items-center justify-center">
+                {userProfile.avatarUrl ? (
                   <img
-                    src={avatarUrl}
-                    alt="avatar"
+                    src={userProfile.avatarUrl}
+                    alt={userProfile.name}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = "none";
+                    }}
                   />
                 ) : (
-                  <div className="w-full h-full bg-[#1a1a1e] flex items-center justify-center text-xs font-black text-white">
+                  <div className="w-full h-full bg-gradient-to-br from-purple-600/40 to-[#00F0FF]/40 flex items-center justify-center text-xs font-black text-white">
                     {initials}
                   </div>
                 )}
               </div>
-              <div className="min-w-0">
-                <p className="text-white text-sm font-bold truncate">
-                  {username}
+
+              <div className="min-w-0 flex-1">
+                <p className="text-white text-sm font-bold truncate leading-snug">
+                  {userProfile.name}
                 </p>
-                <p className="text-gray-400 text-xs truncate font-medium">
-                  {user?.email}
+                <p className="text-[#00F0FF] text-[11px] font-mono truncate">
+                  {userProfile.username}
                 </p>
+
+                {/* Level & gBits Badges */}
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[#00F0FF]">
+                    Level {userProfile.level}
+                  </span>
+                  <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 flex items-center gap-1">
+                    <Zap size={9} className="text-amber-400" /> {userProfile.points} gBits
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Links — increased font size to text-sm font-medium */}
-            {dropdownLinks.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={() => setOpenDropdown(false)}
-                className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/[0.06] font-medium transition-all"
-              >
-                <item.icon size={15} className="shrink-0 text-gray-400" />
-                {item.label}
-              </Link>
-            ))}
+            {/* Links */}
+            <div className="py-1">
+              {dropdownLinks.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setOpenDropdown(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-xs text-gray-300 hover:text-white hover:bg-white/[0.06] font-semibold transition-all"
+                >
+                  <item.icon size={15} className="shrink-0 text-gray-400" />
+                  {item.label}
+                </Link>
+              ))}
+            </div>
 
-            {/* Divider + logout */}
-            <div className="border-t border-white/10 mt-1.5 pt-1.5">
+            {/* Logout Divider */}
+            <div className="border-t border-white/10 mt-1 pt-1">
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 font-semibold hover:bg-red-500/10 transition-all cursor-pointer"
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-red-400 font-bold hover:bg-red-500/10 transition-all cursor-pointer"
               >
                 <FiLogOut size={15} className="shrink-0" />
                 Logout

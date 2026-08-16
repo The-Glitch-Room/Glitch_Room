@@ -744,6 +744,7 @@ export default function YourProfile() {
 
     setEditSaved(true);
     await fetchProfile();
+    window.dispatchEvent(new Event("profile_updated"));
     setTimeout(() => {
       setEditSaved(false);
       setShowEditPanel(false);
