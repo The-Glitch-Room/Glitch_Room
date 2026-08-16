@@ -33,6 +33,7 @@ import HelpPage from "./components/HelpPage";
 import Settings from "./components/Settings";
 import FixBug from "./components/FixBug";
 import CreatorRooms from "./components/CreatorRooms/CreatorRooms";
+import ProRooms from "./components/CreatorRooms/ProRooms";
 import FixCreativeSpark from "./components/FixCreativeSpark";
 import FixAIChallenge from "./components/FixAIChallenge";
 import ArenaEvents from "./components/ArenaEvents";
@@ -49,24 +50,16 @@ import DailyFactBubble from "./components/DailyFactBubble";
 import AdminDashboard from "./components/AdminDashboard";
 import EarnRules from "./components/EarnRules";
 
-// NOTE: BossBattle, UIRecreation, and AIvsHuman are on hold post-launch —
-// their components still exist in /components but are intentionally
-// unrouted and unimported here. Re-add one at a time when ready.
-
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 const ProtectedRoute = ({ children }) => {
   const { user, loading, openAuth } = useAuth();
 
   useEffect(() => {
-    // Only react once we actually know whether there's a user or not —
-    // never fire this while the initial session check is still loading.
     if (!loading && !user) {
       openAuth();
     }
   }, [loading, user]);
 
-  // While we're still checking the session, render nothing (avoids the
-  // login modal flashing open on every refresh before auth resolves).
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#080810]">
@@ -82,7 +75,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// ── Admin Route wrapper (requires user + profiles.is_admin = true) ──────────
+// ── Admin-only Route wrapper ───────────────────────────────────────────────
 const AdminRoute = ({ children }) => {
   const { user, loading, openAuth } = useAuth();
   const [checkingAdmin, setCheckingAdmin] = useState(true);
@@ -170,22 +163,23 @@ const AnimatedRoutes = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/community" element={<Community />} />
         <Route path="/community/:postId" element={<CommunityPost />} />
+        <Route path="/creator-rooms" element={<CreatorRooms />} />
+        <Route path="/creator-rooms/:id" element={<RoomDetail />} />
+        <Route path="/pro-rooms" element={<ProRooms />} />
+        <Route path="/pro-rooms/:id" element={<RoomDetail />} />
         <Route path="/room/:id" element={<RoomDetail />} />
         <Route path="/arena-voting" element={<ArenaVotingFeed />} />
         <Route path="/earn-rules" element={<EarnRules />} />
 
         {/* ── Legacy route redirects ── */}
-        {/* Hall of Fame was merged into Terminal Wall's "All-Time Legends" tab */}
         <Route
           path="/hall-of-fame"
           element={<Navigate to="/terminal-wall" replace />}
         />
-        {/* Old Leaderboard now lives as Terminal Wall's "Live Rankings" tab */}
         <Route
           path="/leaderboard"
           element={<Navigate to="/terminal-wall" replace />}
         />
-        {/* Dashboard renamed to Console */}
         <Route path="/dashboard" element={<Navigate to="/console" replace />} />
 
         {/* ── Protected routes (require login) ── */}
@@ -222,14 +216,6 @@ const AnimatedRoutes = () => {
           }
         />
         <Route
-          path="/creator-rooms"
-          element={
-            <ProtectedRoute>
-              <CreatorRooms />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/terminal-wall"
           element={
             <ProtectedRoute>
@@ -257,29 +243,30 @@ const AnimatedRoutes = () => {
 
 // ── App root ─────────────────────────────────────────────────────────────────
 const App = () => {
-  // Splash screen state
-  const [showSplash, setShowSplash] = useState(
-    () => !sessionStorage.getItem("splash_shown"),
-  );
+  const [showSplash, setShowSplash] = useState(true);
 
-  const handleSplashComplete = () => {
-    sessionStorage.setItem("splash_shown", "true");
-    setShowSplash(false);
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <>
-      {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
-
+    <AuthProvider>
       <Router>
-        <AuthProvider>
-          <ScrollToHashElement />
-          <AnimatedRoutes />
-          <BottomNav />
-          <DailyFactBubble />
-        </AuthProvider>
+        <ScrollToHashElement />
+        <DailyFactBubble />
+        {showSplash ? (
+          <SplashScreen onFinish={() => setShowSplash(false)} />
+        ) : (
+          <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans">
+            <AnimatedRoutes />
+            <BottomNav />
+          </div>
+        )}
       </Router>
-    </>
+    </AuthProvider>
   );
 };
 
