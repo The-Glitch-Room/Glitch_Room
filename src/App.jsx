@@ -33,7 +33,10 @@ import HelpPage from "./components/HelpPage";
 import Settings from "./components/Settings";
 import FixBug from "./components/FixBug";
 import CreatorRooms from "./components/CreatorRooms/CreatorRooms";
-import ProRooms from "./components/CreatorRooms/ProRooms";
+import ProRooms from "./components/ProRooms/ProRooms";
+import ProfessionalRoomDetail from "./components/ProRooms/ProfessionalRoomDetail";
+import ProRoomAssessment from "./components/ProRooms/ProRoomAssessment";
+import ProRoomDashboard from "./components/ProRooms/ProRoomDashboard";
 import FixCreativeSpark from "./components/FixCreativeSpark";
 import FixAIChallenge from "./components/FixAIChallenge";
 import ArenaEvents from "./components/ArenaEvents";
@@ -166,7 +169,23 @@ const AnimatedRoutes = () => {
         <Route path="/creator-rooms" element={<CreatorRooms />} />
         <Route path="/creator-rooms/:id" element={<RoomDetail />} />
         <Route path="/pro-rooms" element={<ProRooms />} />
-        <Route path="/pro-rooms/:id" element={<RoomDetail />} />
+        <Route path="/pro-rooms/:id" element={<ProfessionalRoomDetail />} />
+        <Route
+          path="/pro-rooms/:id/assessment"
+          element={
+            <ProtectedRoute>
+              <ProRoomAssessment />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pro-rooms/:id/dashboard"
+          element={
+            <ProtectedRoute>
+              <ProRoomDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/room/:id" element={<RoomDetail />} />
         <Route path="/arena-voting" element={<ArenaVotingFeed />} />
         <Route path="/earn-rules" element={<EarnRules />} />

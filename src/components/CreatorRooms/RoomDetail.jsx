@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import CreatorRoomDetail from "./CreatorRoomDetail";
-import ProfessionalRoomDetail from "./ProfessionalRoomDetail";
+import ProfessionalRoomDetail from "../ProRooms/ProfessionalRoomDetail";
 
 const RoomDetail = () => {
   const { id } = useParams();
