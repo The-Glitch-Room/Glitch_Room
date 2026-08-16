@@ -523,8 +523,16 @@ export default function YourProfile() {
         .from("avatars")
         .getPublicUrl(fileName);
 
+      const newAvatarUrl = urlData.publicUrl;
       setAvatarLoadError(false);
-      setEditForm((prev) => ({ ...prev, avatar_url: urlData.publicUrl }));
+      setAvatarPreview(newAvatarUrl);
+      setEditForm((prev) => ({ ...prev, avatar_url: newAvatarUrl }));
+
+      // Immediately sync new avatar across site
+      localStorage.setItem(`glitch_avatar_${userId}`, newAvatarUrl);
+      await supabase.from("profiles").update({ avatar_url: newAvatarUrl }).eq("id", userId);
+      await supabase.auth.updateUser({ data: { avatar_url: newAvatarUrl } });
+      window.dispatchEvent(new CustomEvent("profile_updated", { detail: { avatar_url: newAvatarUrl } }));
     } catch (err) {
       console.error(err);
       setEditError("Couldn't upload image.");

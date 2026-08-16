@@ -76,12 +76,12 @@ const NavbarUserSection = ({ user: propUser }) => {
 
     const username = rawUsername.startsWith("@") ? rawUsername : `@${rawUsername}`;
 
-    // Read real user avatar directly from database or user metadata or cached avatar — ZERO hardcoded images!
+    // ALWAYS PRIORITIZE LATEST UPLOADED AVATAR (cachedAvatar / dbProfile.avatar_url)!
     const avatarUrl =
+      cachedAvatar ||
       dbProfile?.avatar_url ||
       userMeta?.avatar_url ||
       userMeta?.picture ||
-      cachedAvatar ||
       null;
 
     setUserProfile({
@@ -137,6 +137,7 @@ const NavbarUserSection = ({ user: propUser }) => {
       >
         {userProfile.avatarUrl ? (
           <img
+            key={userProfile.avatarUrl}
             src={userProfile.avatarUrl}
             alt={userProfile.name}
             className="w-full h-full object-cover"
@@ -166,6 +167,7 @@ const NavbarUserSection = ({ user: propUser }) => {
               <div className="w-10 h-10 rounded-xl overflow-hidden ring-1 ring-purple-500/40 shrink-0 bg-[#101018] flex items-center justify-center">
                 {userProfile.avatarUrl ? (
                   <img
+                    key={userProfile.avatarUrl}
                     src={userProfile.avatarUrl}
                     alt={userProfile.name}
                     className="w-full h-full object-cover"
