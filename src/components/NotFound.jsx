@@ -164,11 +164,6 @@ const NotFound = () => {
             >
               404
             </h1>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="px-4 py-1.5 rounded-full bg-[#0d0d14]/90 border border-red-500/30 text-red-400 font-mono text-xs tracking-widest uppercase flex items-center gap-2 shadow-2xl backdrop-blur-md">
-                <AlertTriangle size={14} className="animate-pulse" /> MATRIX_SECTOR_NOT_FOUND
-              </span>
-            </div>
           </div>
 
           {/* Error Message & Details */}
@@ -178,38 +173,6 @@ const NotFound = () => {
           <p className="text-gray-400 text-sm sm:text-base leading-relaxed max-w-lg mb-8">
             The page you requested glitched into non-existence or moved to another dimension. Don't worry — your progress and gBits remain safe.
           </p>
-
-          {/* Interactive Diagnostic Terminal Box */}
-          <div className="w-full max-w-md bg-[#0f0f18]/90 border border-white/10 rounded-2xl p-4 mb-8 text-left shadow-2xl backdrop-blur-md pointer-events-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-3 text-xs font-mono text-gray-500">
-              <span className="flex items-center gap-2">
-                <Terminal size={13} className="text-[#00F0FF]" /> SYSTEM_DIAGNOSTIC
-              </span>
-              <span className="text-gray-600">0x404_VOID</span>
-            </div>
-
-            <div className="space-y-1.5 text-xs font-mono text-gray-400 mb-4">
-              <p>
-                <span className="text-[#FF00C8]">[$]</span> locate_route --path="{window.location.pathname}"
-              </p>
-              <p className="text-red-400">
-                [!] ERROR: 404 NULL_POINTER_EXCEPTION
-              </p>
-              <p className="text-gray-500">
-                [*] RECOMMENDATION: Return to core network or execute auto-repair.
-              </p>
-            </div>
-
-            {/* Quick Diagnostic Repair Button */}
-            <button
-              onClick={handleReboot}
-              disabled={rebooting}
-              className="w-full py-2.5 rounded-xl bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 border border-[#00F0FF]/30 text-[#00F0FF] font-mono text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <RefreshCw size={13} className={rebooting ? "animate-spin" : ""} />
-              {rebooting ? "REBOOTING MATRIX..." : "RUN AUTO-REPAIR & GO HOME"}
-            </button>
-          </div>
 
           {/* CTA Buttons */}
           <div className="flex flex-wrap gap-4 justify-center pointer-events-auto">
