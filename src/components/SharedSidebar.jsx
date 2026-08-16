@@ -80,11 +80,12 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
   useEffect(() => {
     let isMounted = true;
-    const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
 
     const fetchSidebarProfile = async () => {
       const { data: authData } = await supabase.auth.getUser();
       const currentUser = authData?.user;
+      const userId = currentUser?.id;
+      const cachedAvatar = userId ? localStorage.getItem(`glitch_avatar_${userId}`) : null;
 
       let name =
         user?.user_metadata?.full_name ||
@@ -96,7 +97,8 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
         avatarPreview ||
         user?.user_metadata?.avatar_url ||
         currentUser?.user_metadata?.avatar_url ||
-        DEFAULT_AVATAR;
+        cachedAvatar ||
+        null;
 
       if (currentUser) {
         const { data: dbProfile } = await supabase
@@ -111,7 +113,8 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             avatarPreview ||
             dbProfile.avatar_url ||
             currentUser?.user_metadata?.avatar_url ||
-            DEFAULT_AVATAR;
+            cachedAvatar ||
+            null;
           if (typeof dbProfile.points === "number") {
             setCurrentXp(dbProfile.points);
           }

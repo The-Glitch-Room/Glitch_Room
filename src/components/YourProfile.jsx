@@ -662,6 +662,7 @@ export default function YourProfile() {
       data: {
         full_name: editForm.full_name,
         username: editForm.username,
+        avatar_url: editForm.avatar_url || null,
         tagline: editForm.tagline,
         headline: editForm.tagline,
         bio: editForm.bio,
@@ -669,6 +670,12 @@ export default function YourProfile() {
         banner_url: editForm.banner_url || null,
       },
     });
+
+    if (editForm.avatar_url) {
+      localStorage.setItem(`glitch_avatar_${userId}`, editForm.avatar_url);
+    } else {
+      localStorage.removeItem(`glitch_avatar_${userId}`);
+    }
 
     if (editForm.banner_url) {
       localStorage.setItem(`glitch_banner_${userId}`, editForm.banner_url);

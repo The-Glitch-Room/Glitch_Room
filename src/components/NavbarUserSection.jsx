@@ -14,8 +14,6 @@ import { Zap } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { getLevelFromXP } from "../utils/pointsHelper";
 
-const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
-
 const dropdownLinks = [
   { to: "/profile", icon: FiUser, label: "Your Profile" },
   { to: "/console", icon: FiGrid, label: "Console" },
@@ -31,7 +29,7 @@ const NavbarUserSection = ({ user: propUser }) => {
     name: "",
     username: "",
     email: "",
-    avatarUrl: DEFAULT_AVATAR,
+    avatarUrl: null,
     points: 0,
     level: 1,
   });
@@ -44,6 +42,7 @@ const NavbarUserSection = ({ user: propUser }) => {
 
     const userId = currentUser.id;
     const userMeta = currentUser.user_metadata;
+    const cachedAvatar = userId ? localStorage.getItem(`glitch_avatar_${userId}`) : null;
 
     // 1. Fetch Profile record from Supabase
     const { data: dbProfile } = await supabase
@@ -77,12 +76,13 @@ const NavbarUserSection = ({ user: propUser }) => {
 
     const username = rawUsername.startsWith("@") ? rawUsername : `@${rawUsername}`;
 
-    // Single source of truth avatar resolution matching Profile page
+    // Read real user avatar directly from database or user metadata or cached avatar — ZERO hardcoded images!
     const avatarUrl =
       dbProfile?.avatar_url ||
       userMeta?.avatar_url ||
       userMeta?.picture ||
-      DEFAULT_AVATAR;
+      cachedAvatar ||
+      null;
 
     setUserProfile({
       name,
@@ -141,8 +141,7 @@ const NavbarUserSection = ({ user: propUser }) => {
             alt={userProfile.name}
             className="w-full h-full object-cover"
             onError={(e) => {
-              // Fallback to DEFAULT_AVATAR if custom image fails
-              e.currentTarget.src = DEFAULT_AVATAR;
+              e.currentTarget.style.display = "none";
             }}
           />
         ) : (
@@ -171,7 +170,7 @@ const NavbarUserSection = ({ user: propUser }) => {
                     alt={userProfile.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.currentTarget.src = DEFAULT_AVATAR;
+                      e.currentTarget.style.display = "none";
                     }}
                   />
                 ) : (
