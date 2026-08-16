@@ -230,18 +230,6 @@ const ProRooms = () => {
     <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans">
       <GlitchBackground />
 
-      {/* Grid Overlay matching Creator Rooms */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(rgba(0,240,255,0.15) 1px, transparent 1px),
-                            linear-gradient(90deg, rgba(0,240,255,0.15) 1px, transparent 1px)`,
-          backgroundSize: "60px 60px",
-          maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
-          WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
-        }}
-      />
-
       <div className="relative z-10 flex flex-col flex-1">
         <Navbar />
 
