@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import Navbar from "../Navbar";
-import Footer from "../Footer";
 import GlitchBackground from "../GlitchBackground";
 import {
   FiCheck,
@@ -424,7 +422,7 @@ const CreateProRoomPage = () => {
 
       showToast("🚀 Pro Room published successfully!");
       setTimeout(() => {
-        navigate(`/pro-rooms/${roomId}`);
+        navigate("/pro-rooms");
       }, 1200);
     } catch (err) {
       console.error(err);
@@ -448,7 +446,22 @@ const CreateProRoomPage = () => {
 
   return (
     <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20 relative overflow-hidden">
-      <Navbar />
+      {/* Studio Header Bar (No Navbar) */}
+      <div className="border-b border-white/10 bg-[#07070e]/80 backdrop-blur-md px-6 py-3.5 flex items-center justify-between z-20 relative">
+        <button
+          type="button"
+          onClick={() => navigate("/pro-rooms")}
+          className="flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-white transition cursor-pointer"
+        >
+          <FiArrowLeft size={16} /> Back to Pro Rooms
+        </button>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono font-bold text-[#00F0FF] uppercase tracking-widest bg-[#00F0FF]/10 px-3 py-1 rounded-full border border-[#00F0FF]/30">
+            PRO ROOM CREATION STUDIO
+          </span>
+        </div>
+      </div>
 
       {/* Toast Notification */}
       <AnimatePresence>
@@ -1379,8 +1392,6 @@ const CreateProRoomPage = () => {
           </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 };
