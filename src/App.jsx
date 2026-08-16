@@ -34,6 +34,7 @@ import Settings from "./components/Settings";
 import FixBug from "./components/FixBug";
 import CreatorRooms from "./components/CreatorRooms/CreatorRooms";
 import ProRooms from "./components/ProRooms/ProRooms";
+import CreateProRoomPage from "./components/ProRooms/CreateProRoomPage";
 import ProfessionalRoomDetail from "./components/ProRooms/ProfessionalRoomDetail";
 import ProRoomAssessment from "./components/ProRooms/ProRoomAssessment";
 import ProRoomDashboard from "./components/ProRooms/ProRoomDashboard";
@@ -169,6 +170,14 @@ const AnimatedRoutes = () => {
         <Route path="/creator-rooms" element={<CreatorRooms />} />
         <Route path="/creator-rooms/:id" element={<RoomDetail />} />
         <Route path="/pro-rooms" element={<ProRooms />} />
+        <Route
+          path="/pro-rooms/create"
+          element={
+            <ProtectedRoute>
+              <CreateProRoomPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/pro-rooms/:id" element={<ProfessionalRoomDetail />} />
         <Route
           path="/pro-rooms/:id/assessment"

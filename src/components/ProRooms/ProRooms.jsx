@@ -216,7 +216,7 @@ const ProRooms = () => {
             className="mt-6 flex flex-wrap items-center justify-center gap-4"
           >
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => navigate("/pro-rooms/create")}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#00F0FF] via-purple-600 to-[#FF00C8] hover:from-[#00F0FF] hover:to-purple-500 text-white font-bold text-sm flex items-center gap-2 shadow-xl shadow-[#00F0FF]/20 transition-all cursor-pointer hover:scale-105"
             >
               <Plus size={18} /> Create Pro Room / Host Assessment
