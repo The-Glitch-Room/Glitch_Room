@@ -4,10 +4,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { fetchTotalChallengeCount } from "../utils/challengeCountHelper";
 import { fetchActiveRoomsStats } from "../utils/roomCountHelper";
-import SectionEyebrow from "./SectionEyebrow";
 import StatCard from "./StatCard";
 import Button from "./Button";
-import GlitchBackground from "./GlitchBackground";
 
 const formatNumber = (n) => {
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K+";
@@ -47,7 +45,6 @@ const Hero = () => {
   useEffect(() => {
     fetchStats();
 
-    // Realtime subscriptions on rooms and pro_rooms
     const roomsChannel = supabase
       .channel("hero-rooms")
       .on(
@@ -100,67 +97,88 @@ const Hero = () => {
 
       {/* Radial glow center */}
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full pointer-events-none z-0 opacity-30"
+        className="absolute inset-0 z-0"
         style={{
           background:
-            "radial-gradient(circle, rgba(168,85,247,0.3) 0%, rgba(0,240,255,0.1) 40%, transparent 70%)",
+            "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(214,0,255,0.12) 0%, transparent 70%)",
         }}
       />
 
-      <div className="relative z-10 max-w-4xl mx-auto flex flex-col items-center">
-        {/* Eyebrow */}
-        <SectionEyebrow content="CODE • COLLABORATE • CONQUER" accent="cyan" />
+      {/* Floating orbs */}
+      <motion.div
+        animate={{ y: [0, -20, 0], opacity: [0.4, 0.7, 0.4] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute top-24 left-16 w-40 h-40 rounded-full blur-3xl z-0"
+        style={{ background: "rgba(0,240,255,0.15)" }}
+      />
+      <motion.div
+        animate={{ y: [0, 20, 0], opacity: [0.3, 0.6, 0.3] }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 2,
+        }}
+        className="absolute bottom-32 right-20 w-56 h-56 rounded-full blur-3xl z-0"
+        style={{ background: "rgba(255,0,200,0.12)" }}
+      />
 
-        {/* Main Title */}
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-5xl mx-auto flex flex-col items-center pt-6">
+        {/* Heading */}
         <motion.h1
-          initial={{ opacity: 0, y: 20 }}
+          className="glitchh-text text-4xl md:text-6xl text-center"
+          data-text="WHERE CHAOS SPARKS CREATIVITY"
+          initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight leading-none mb-6 mt-4 font-sans"
+          transition={{ duration: 1, ease: "easeOut" }}
         >
-          Step into the{" "}
-          <span
-            className="text-[#FF00C8]"
-            style={{
-              textShadow:
-                "0 0 20px rgba(255,0,200,0.6), 0 0 40px rgba(255,0,200,0.3)",
-            }}
-          >
-            Glitch Room
-          </span>{" "}
-          — where imagination meets chaos. Fix bugs, spark ideas, and build with
-          others.
+          WHERE CHAOS SPARKS CREATIVITY
         </motion.h1>
 
-        {/* Action Buttons */}
-        <motion.div
+        {/* Subtitle */}
+        <motion.p
+          className="text-base md:text-lg text-gray-300 max-w-xl mt-8 mb-10 leading-relaxed"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="flex flex-wrap justify-center gap-4 mb-14"
+          transition={{ delay: 0.6, duration: 0.8 }}
+        >
+          Step into the{" "}
+          <span className="text-[#FF00C8] font-bold">Glitch Room</span> — where
+          imagination meets chaos. Fix bugs, spark ideas, and build with others.
+        </motion.p>
+
+        {/* Buttons */}
+        <motion.div
+          className="flex flex-wrap gap-6 justify-center"
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.9, duration: 0.7 }}
         >
           <Link to="/join-room">
             <Button content="Join a Room" accent="pink" />
           </Link>
+
           <Link to="/creator-rooms">
-            <Button content="Host a Room" variant="outline" accent="pink" />
+            <Button content="Host a Room" variant="outline" accent="purple" />
           </Link>
         </motion.div>
 
-        {/* Bare Stat Cards Row */}
+        {/* Stats row */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.6 }}
-          className="flex flex-wrap justify-center gap-6 sm:gap-12 w-full max-w-2xl"
+          transition={{ delay: 1.2, duration: 0.8 }}
+          className="relative z-10 mt-10 grid grid-cols-3 gap-2.5 sm:gap-4 w-full max-w-xl mx-auto"
         >
-          {statItems.map((item, idx) => (
+          {statItems.map((stat, i) => (
             <StatCard
-              key={idx}
-              value={item.value}
-              label={item.label}
-              accent={item.accent}
-              delay={0.1 * idx}
+              key={i}
+              value={stat.value}
+              label={stat.label}
+              accent={stat.accent}
+              variant="boxed"
+              delay={1.3 + i * 0.1}
             />
           ))}
         </motion.div>
