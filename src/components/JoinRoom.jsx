@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Button from "./Button";
 import PageHeading from "./PageHeading";
+import GlitchBackground from "./GlitchBackground";
 import { fetchActiveRoomsStats } from "../utils/roomCountHelper";
 
 const JoinRoom = () => {
