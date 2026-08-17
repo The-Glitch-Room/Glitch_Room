@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { fetchTotalChallengeCount } from "../utils/challengeCountHelper";
+import { fetchActiveRoomsStats } from "../utils/roomCountHelper";
 import SectionEyebrow from "./SectionEyebrow";
 import StatCard from "./StatCard";
 import Button from "./Button";
@@ -21,53 +22,53 @@ const Hero = () => {
   });
 
   const fetchStats = async () => {
-    // Unique creators (distinct created_by from rooms)
-    const { data: creatorsData } = await supabase
-      .from("rooms")
-      .select("created_by");
-    const uniqueCreators = new Set(
-      (creatorsData || []).map((r) => r.created_by),
-    ).size;
+    // 1. Unique creators (distinct created_by from rooms + host_id from pro_rooms)
+    const { data: creatorRooms } = await supabase.from("rooms").select("created_by");
+    const { data: proRooms } = await supabase.from("pro_rooms").select("host_id");
 
-    // Dynamically calculate combined total challenges across Explore + Arena
+    const creatorSet = new Set([
+      ...(creatorRooms || []).map((r) => r.created_by).filter(Boolean),
+      ...(proRooms || []).map((r) => r.host_id).filter(Boolean),
+    ]);
+
+    // 2. Dynamically calculate combined total challenges across Explore + Arena
     const totalChallenges = await fetchTotalChallengeCount();
 
-    // Active rooms count
-    const { count: roomsCount } = await supabase
-      .from("rooms")
-      .select("*", { count: "exact", head: true });
+    // 3. Dynamic total active rooms count across Creator Rooms + Pro Rooms combined
+    const roomStats = await fetchActiveRoomsStats();
 
     setStats({
-      creators: uniqueCreators,
+      creators: creatorSet.size || 1,
       challenges: totalChallenges,
-      roomsActive: roomsCount || 0,
+      roomsActive: roomStats.totalActiveRooms,
     });
   };
 
   useEffect(() => {
     fetchStats();
 
+    // Realtime subscriptions on rooms and pro_rooms
     const roomsChannel = supabase
       .channel("hero-rooms")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rooms" },
-        () => fetchStats(),
+        () => fetchStats()
       )
       .subscribe();
 
-    const eventsChannel = supabase
-      .channel("hero-events")
+    const proRoomsChannel = supabase
+      .channel("hero-pro-rooms")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "arena_events" },
-        () => fetchStats(),
+        { event: "*", schema: "public", table: "pro_rooms" },
+        () => fetchStats()
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(roomsChannel);
-      supabase.removeChannel(eventsChannel);
+      supabase.removeChannel(proRoomsChannel);
     };
   }, []);
 
@@ -99,88 +100,67 @@ const Hero = () => {
 
       {/* Radial glow center */}
       <div
-        className="absolute inset-0 z-0"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full pointer-events-none z-0 opacity-30"
         style={{
           background:
-            "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(214,0,255,0.12) 0%, transparent 70%)",
+            "radial-gradient(circle, rgba(168,85,247,0.3) 0%, rgba(0,240,255,0.1) 40%, transparent 70%)",
         }}
       />
 
-      {/* Floating orbs */}
-      <motion.div
-        animate={{ y: [0, -20, 0], opacity: [0.4, 0.7, 0.4] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute top-24 left-16 w-40 h-40 rounded-full blur-3xl z-0"
-        style={{ background: "rgba(0,240,255,0.15)" }}
-      />
-      <motion.div
-        animate={{ y: [0, 20, 0], opacity: [0.3, 0.6, 0.3] }}
-        transition={{
-          duration: 8,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 2,
-        }}
-        className="absolute bottom-32 right-20 w-56 h-56 rounded-full blur-3xl z-0"
-        style={{ background: "rgba(255,0,200,0.12)" }}
-      />
+      <div className="relative z-10 max-w-4xl mx-auto flex flex-col items-center">
+        {/* Eyebrow */}
+        <SectionEyebrow content="CODE • COLLABORATE • CONQUER" accent="cyan" />
 
-      {/* Content */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto flex flex-col items-center pt-6">
-        {/* Heading */}
+        {/* Main Title */}
         <motion.h1
-          className="glitchh-text text-4xl md:text-6xl text-center"
-          data-text="WHERE CHAOS SPARKS CREATIVITY"
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease: "easeOut" }}
-        >
-          WHERE CHAOS SPARKS CREATIVITY
-        </motion.h1>
-
-        {/* Subtitle */}
-        <motion.p
-          className="text-base md:text-lg text-gray-300 max-w-xl mt-8 mb-10 leading-relaxed"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.8 }}
+          transition={{ duration: 0.6 }}
+          className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight leading-none mb-6 mt-4 font-sans"
         >
           Step into the{" "}
-          <span className="text-[#FF00C8] font-bold">Glitch Room</span> — where
-          imagination meets chaos. Fix bugs, spark ideas, and build with others.
-        </motion.p>
+          <span
+            className="text-[#FF00C8]"
+            style={{
+              textShadow:
+                "0 0 20px rgba(255,0,200,0.6), 0 0 40px rgba(255,0,200,0.3)",
+            }}
+          >
+            Glitch Room
+          </span>{" "}
+          — where imagination meets chaos. Fix bugs, spark ideas, and build with
+          others.
+        </motion.h1>
 
-        {/* Buttons */}
+        {/* Action Buttons */}
         <motion.div
-          className="flex flex-wrap gap-6 justify-center"
-          initial={{ opacity: 0, scale: 0.85 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.9, duration: 0.7 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.6 }}
+          className="flex flex-wrap justify-center gap-4 mb-14"
         >
           <Link to="/join-room">
             <Button content="Join a Room" accent="pink" />
           </Link>
-
-          <Link to="/host-room">
-            <Button content="Host a Room" variant="outline" accent="purple" />
+          <Link to="/creator-rooms">
+            <Button content="Host a Room" variant="outline" accent="pink" />
           </Link>
         </motion.div>
 
-        {/* Stats row */}
+        {/* Bare Stat Cards Row */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2, duration: 0.8 }}
-          className="relative z-10 mt-10 grid grid-cols-3 gap-2.5 sm:gap-4 w-full max-w-xl mx-auto"
+          transition={{ delay: 0.4, duration: 0.6 }}
+          className="flex flex-wrap justify-center gap-6 sm:gap-12 w-full max-w-2xl"
         >
-          {statItems.map((stat, i) => (
+          {statItems.map((item, idx) => (
             <StatCard
-              key={i}
-              value={stat.value}
-              label={stat.label}
-              accent={stat.accent}
-              variant="boxed"
-              delay={1.3 + i * 0.1}
+              key={idx}
+              value={item.value}
+              label={item.label}
+              accent={item.accent}
+              delay={0.1 * idx}
             />
           ))}
         </motion.div>

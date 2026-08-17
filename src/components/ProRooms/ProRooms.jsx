@@ -102,10 +102,7 @@ const ProRooms = () => {
         .select("*", { count: "exact", head: true });
 
       // 3. Compute Stats
-      const liveCount = roomList.filter((r) => {
-        const state = getProRoomLifecycleState(r);
-        return state.isLive;
-      }).length;
+      const liveCount = roomList.length;
 
       const totalRewards = roomList.reduce(
         (sum, r) => sum + Number(r.gbits_prize_pool || 0),
