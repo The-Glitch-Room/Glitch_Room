@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "../Navbar";
 import Footer from "../Footer";
 import CreateRoomModal from "./CreateRoomModal";
@@ -213,9 +213,14 @@ const CreatorRooms = () => {
     setLoading(false);
   };
 
+  const location = useLocation();
+
   useEffect(() => {
     fetchRooms();
-  }, []);
+    if (location.state?.openCreateModal || location.search.includes("create=true")) {
+      setOpenModal(true);
+    }
+  }, [location]);
 
   const handleJoin = async (room) => {
     const { data: userRes } = await supabase.auth.getUser();
