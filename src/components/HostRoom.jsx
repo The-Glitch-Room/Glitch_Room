@@ -17,7 +17,7 @@ const HostRoom = () => {
   const navigate = useNavigate();
 
   const handleCreateCreatorRoom = () => {
-    navigate("/creator-rooms", { state: { openCreateModal: true } });
+    navigate("/creator-rooms?create=true", { state: { openCreateModal: true } });
   };
 
   const handleCreateProRoom = () => {

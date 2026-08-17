@@ -159,7 +159,7 @@ const Hero = () => {
             <Button content="Join a Room" accent="pink" />
           </Link>
 
-          <Link to="/creator-rooms">
+          <Link to="/host-room">
             <Button content="Host a Room" variant="outline" accent="purple" />
           </Link>
         </motion.div>
