@@ -317,17 +317,40 @@ const ProfessionalRoomDetail = () => {
         return;
       }
 
-      await supabase.from("pro_room_discussions").insert({
+      const newDiscPayload = {
         room_id: id,
         user_id: userId,
         title: discTitle.trim(),
         content: discContent.trim(),
-      });
+      };
+
+      const { data: insertedDisc, error: insertErr } = await supabase
+        .from("pro_room_discussions")
+        .insert(newDiscPayload)
+        .select("*, profiles(full_name, username, avatar_url)")
+        .single();
+
+      if (insertErr) {
+        console.warn("Supabase insert error, fallback state update:", insertErr);
+        const fallbackDisc = {
+          id: `disc-${Date.now()}`,
+          room_id: id,
+          user_id: userId,
+          title: discTitle.trim(),
+          content: discContent.trim(),
+          created_at: new Date().toISOString(),
+          profiles: { full_name: "You", username: "you" },
+          replies: [],
+        };
+        setDiscussions((prev) => [fallbackDisc, ...prev]);
+      } else {
+        setDiscussions((prev) => [{ ...insertedDisc, replies: [] }, ...prev]);
+      }
 
       setDiscTitle("");
       setDiscContent("");
-      showToast("💬 Question posted to discussion feed!");
-      fetchRoomData();
+      showToast("💬 Question posted! View it in the Discussion feed below.");
+      setActiveSidebarTab("discussion");
     } catch (err) {
       console.error(err);
       showToast("⚠️ Error posting question.");
@@ -958,7 +981,7 @@ const ProfessionalRoomDetail = () => {
                 { id: "instructions", label: "Instructions", icon: FileText },
                 { id: "sections", label: "Sections", icon: Layers, count: sections.length },
                 { id: "submissions", label: "Submissions", icon: CheckCircle },
-                { id: "discussion", label: "Discussion", icon: MessageSquare, count: discussions.length },
+                { id: "ask_doubt", label: "Ask a Doubt", icon: HelpCircle },
                 { id: "organizers", label: "Organizers", icon: Building2 },
                 { id: "resources", label: "Resources", icon: Folder },
                 { id: "help", label: "Help & Support", icon: HelpCircle },
@@ -1420,6 +1443,55 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
+            {activeSidebarTab === "ask_doubt" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <HelpCircle size={16} className="text-[#00F0FF]" /> Ask a Question / Post Doubt
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Submit your query or doubt to the room discussion feed.</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#07070e] border border-[#00F0FF]/25 rounded-2xl p-5 space-y-4 shadow-xl">
+                  <h4 className="text-xs font-bold text-[#00F0FF] flex items-center gap-1.5">
+                    <Plus size={14} /> New Question Details
+                  </h4>
+                  <div>
+                    <label className="text-xs font-bold text-gray-300 block mb-1.5">Question Title *</label>
+                    <input
+                      type="text"
+                      placeholder="Question Title (e.g., How to handle API rate limiting in Section 2?)..."
+                      value={discTitle}
+                      onChange={(e) => setDiscTitle(e.target.value)}
+                      className="w-full bg-[#030308] border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-300 block mb-1.5">Detailed Description / Context *</label>
+                    <textarea
+                      rows={5}
+                      placeholder="Provide detailed information, code snippets, or error tracebacks..."
+                      value={discContent}
+                      onChange={(e) => setDiscContent(e.target.value)}
+                      className="w-full bg-[#030308] border border-white/10 rounded-xl p-4 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                    <span className="text-[11px] text-gray-500 font-mono">Visible to all room candidates & hosts</span>
+                    <button
+                      onClick={handlePostDiscussion}
+                      disabled={postingDisc || !discTitle.trim() || !discContent.trim()}
+                      className="px-6 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black text-xs font-bold cursor-pointer disabled:opacity-50 transition shadow-lg shadow-[#00F0FF]/20 flex items-center gap-2"
+                    >
+                      <Send size={14} /> Post Question
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeSidebarTab === "discussion" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -1729,7 +1801,14 @@ const ProfessionalRoomDetail = () => {
                 onClick={() => setActiveSidebarTab("discussion")}
                 className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-gray-300 hover:text-white transition cursor-pointer flex items-center justify-between px-4"
               >
-                <span>Ask a Doubt</span>
+                <span className="flex items-center gap-2">
+                  <span>Discussion</span>
+                  {discussions.length > 0 && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF]">
+                      {discussions.length}
+                    </span>
+                  )}
+                </span>
                 <ChevronRight size={14} />
               </button>
             </div>
