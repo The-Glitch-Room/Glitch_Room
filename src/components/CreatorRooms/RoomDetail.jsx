@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { Search, ArrowLeft } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import CreatorRoomDetail from "./CreatorRoomDetail";
 import ProfessionalRoomDetail from "../ProRooms/ProfessionalRoomDetail";
@@ -17,7 +18,7 @@ const RoomDetail = () => {
       setLoading(true);
       setError(false);
       try {
-        const { data, error: err } = await supabase
+        const { data } = await supabase
           .from("rooms")
           .select("id, room_type")
           .eq("id", id)
@@ -63,24 +64,21 @@ const RoomDetail = () => {
 
   if (error || !room) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#080810] text-white">
+      <div className="flex items-center justify-center min-h-screen bg-[#080810] text-white font-sans">
         <div className="text-center">
-          <p className="text-4xl mb-3">ðŸ”</p>
+          <Search size={40} className="mx-auto mb-3 text-gray-500" />
           <p className="text-gray-400">Room not found.</p>
           <button
             onClick={() => navigate("/creator-rooms")}
-            className="mt-4 text-cyan-400 text-sm hover:underline cursor-pointer"
+            className="mt-4 text-cyan-400 text-sm hover:underline cursor-pointer flex items-center justify-center gap-1 mx-auto"
           >
-            â† Back to Rooms
+            <ArrowLeft size={14} /> Back to Rooms
           </button>
         </div>
       </div>
     );
   }
 
-  // Dispatch based on room_type:
-  // room_type = "professional" -> ProfessionalRoomDetail
-  // room_type = "creator" or NULL -> CreatorRoomDetail (backward compatibility)
   if (room.room_type === "professional") {
     return <ProfessionalRoomDetail roomId={id} />;
   }
@@ -89,5 +87,3 @@ const RoomDetail = () => {
 };
 
 export default RoomDetail;
-
-
