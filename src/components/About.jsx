@@ -11,27 +11,31 @@ import { Heart, Users, Cpu, Globe, Target, Compass } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { fetchTotalChallengeCount } from "../utils/challengeCountHelper";
 
-// ── Four rules of the room ──────────────────────────────────────────────────
+// ── The Glitch Room Code (Four rules of the room) ─────────────────────────────
 const RULES = [
   {
+    code: "RULE // 01",
     icon: <Heart size={20} />,
     title: "Creativity first",
     desc: "We optimize for weird, beautiful, human-made work — not engagement metrics.",
   },
   {
+    code: "RULE // 02",
     icon: <Users size={20} />,
-    title: "Community-owned",
-    desc: "The room is shaped by its members. You vote on the calendar, the rules, and the drops.",
+    title: "Community-powered",
+    desc: "The room grows with its community. Create challenges, share ideas, compete, and shape what happens next.",
   },
   {
+    code: "RULE // 03",
     icon: <Cpu size={20} />,
-    title: "Tech as a toy",
-    desc: "Shaders, canvas, WebGL, AI — all fair game. We treat the browser like a playground.",
+    title: "Tech is a playground",
+    desc: "Code, AI, data, creativity — all fair game. We turn technology into a playground for experimentation.",
   },
   {
+    code: "RULE // 04",
     icon: <Globe size={20} />,
-    title: "Open access",
-    desc: "A free tier that is actually useful. No paywalls on the core creative loop.",
+    title: "Open to experimentation",
+    desc: "Everyone should have a chance to participate, experiment, create, and learn without unnecessary barriers.",
   },
 ];
 
@@ -311,12 +315,12 @@ const About = () => {
           </div>
         </section>
 
-        {/* ── FOUR RULES OF THE ROOM ── */}
+        {/* ── THE GLITCH ROOM CODE (FOUR RULES) ── */}
         <section className="py-20 px-6 bg-transparent">
           <div className="max-w-6xl mx-auto">
             <PageHeading
-              eyebrow="What We Value"
-              title="Four rules of the room"
+              eyebrow="WHAT WE VALUE"
+              title="The Glitch Room Code"
               accent="purple"
               layout="inline"
             />
@@ -327,26 +331,43 @@ const About = () => {
                   key={i}
                   initial={{ opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: i * 0.1 }}
+                  whileHover={{ y: -5 }}
+                  transition={{ duration: 0.3, delay: i * 0.08 }}
                   viewport={{ once: true }}
-                  className="relative p-6 bg-[#111118]/85 backdrop-blur-sm rounded-2xl border transition-all overflow-hidden"
-                  style={{ borderColor: `rgba(${ACCENT_RULES_RGB}, 0.18)` }}
+                  className="group relative p-6 bg-gradient-to-b from-[#12111d]/90 via-[#0e0e16]/85 to-[#090910]/90 backdrop-blur-md rounded-2xl border border-purple-500/20 hover:border-purple-500/60 hover:shadow-[0_0_25px_rgba(168,85,247,0.15)] transition-all duration-300 overflow-hidden shadow-lg flex flex-col justify-between"
                 >
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-                    style={{
-                      background: `rgba(${ACCENT_RULES_RGB}, 0.12)`,
-                      color: ACCENT_RULES,
-                    }}
-                  >
-                    {rule.icon}
+                  {/* Top Glowing Hover Accent Line */}
+                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#A855F7] to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
+
+                  <div>
+                    {/* Header: Icon & Rule Code Badge */}
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <div
+                        className="w-11 h-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
+                        style={{
+                          background: `rgba(${ACCENT_RULES_RGB}, 0.14)`,
+                          color: ACCENT_RULES,
+                          border: `1px solid rgba(${ACCENT_RULES_RGB}, 0.25)`,
+                        }}
+                      >
+                        {rule.icon}
+                      </div>
+
+                      <span className="text-[10px] font-mono font-bold tracking-wider text-purple-400/60 group-hover:text-purple-300 transition-colors uppercase">
+                        {rule.code}
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <h4 className="text-base sm:text-lg font-black text-white mb-2 leading-snug group-hover:text-purple-300 transition-colors">
+                      {rule.title}
+                    </h4>
+
+                    {/* Description */}
+                    <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">
+                      {rule.desc}
+                    </p>
                   </div>
-                  <h4 className="text-lg font-bold text-white mb-2">
-                    {rule.title}
-                  </h4>
-                  <p className="text-gray-400 text-sm leading-relaxed">
-                    {rule.desc}
-                  </p>
                 </motion.div>
               ))}
             </div>
