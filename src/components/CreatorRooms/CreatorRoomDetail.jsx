@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import Navbar from "../Navbar";
+import Footer from "../Footer";
 import GlitchBackground from "../GlitchBackground";
 import { updatePoints } from "../../utils/pointsHelper";
 import {
