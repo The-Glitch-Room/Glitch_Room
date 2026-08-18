@@ -76,6 +76,7 @@ const ProfessionalRoomDetail = () => {
   const [showThreeDotMenu, setShowThreeDotMenu] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [showDiscussionModal, setShowDiscussionModal] = useState(false);
 
   // Form States for Discussion & Announcement
   const [discTitle, setDiscTitle] = useState("");
@@ -349,8 +350,8 @@ const ProfessionalRoomDetail = () => {
 
       setDiscTitle("");
       setDiscContent("");
-      showToast("💬 Question posted! View it in the Discussion feed below.");
-      setActiveSidebarTab("discussion");
+      showToast("💬 Question posted successfully! Opening Discussion feed...");
+      setShowDiscussionModal(true);
     } catch (err) {
       console.error(err);
       showToast("⚠️ Error posting question.");
@@ -1493,187 +1494,25 @@ const ProfessionalRoomDetail = () => {
             )}
 
             {activeSidebarTab === "discussion" && (
-              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <div>
-                    <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <MessageSquare size={16} className="text-[#00F0FF]" /> Q&A Discussion Feed ({discussions.length})
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Ask questions, share solutions, and engage with the community.</p>
-                  </div>
-                </div>
-
-                {/* POST QUESTION FORM */}
-                <div className="bg-[#07070e] border border-[#00F0FF]/25 rounded-2xl p-4 space-y-3 shadow-xl">
-                  <h4 className="text-xs font-bold text-[#00F0FF] flex items-center gap-1.5">
-                    <Plus size={14} /> Ask a Question / Post Doubt
-                  </h4>
-                  <input
-                    type="text"
-                    placeholder="Question Title (e.g., How to handle API rate limiting in Section 2?)..."
-                    value={discTitle}
-                    onChange={(e) => setDiscTitle(e.target.value)}
-                    className="w-full bg-[#030308] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
-                  />
-                  <textarea
-                    rows={3}
-                    placeholder="Provide details or paste relevant context..."
-                    value={discContent}
-                    onChange={(e) => setDiscContent(e.target.value)}
-                    className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
-                  />
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-gray-500 font-mono">Visible to all candidates & hosts</span>
-                    <button
-                      onClick={handlePostDiscussion}
-                      disabled={postingDisc || !discTitle.trim() || !discContent.trim()}
-                      className="px-5 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black text-xs font-bold cursor-pointer disabled:opacity-50 transition shadow-lg shadow-[#00F0FF]/20 flex items-center gap-1.5"
-                    >
-                      <Send size={13} /> Post Question
-                    </button>
-                  </div>
-                </div>
-
-                {/* DISCUSSIONS LIST */}
-                <div className="space-y-4 pt-2">
-                  {discussions.length === 0 ? (
-                    <div className="text-center py-12 space-y-3 bg-[#06060c] border border-white/5 rounded-2xl p-6">
-                      <MessageSquare size={32} className="text-gray-600 mx-auto" />
-                      <h4 className="text-sm font-bold text-white">No Discussions Posted Yet</h4>
-                      <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                        Be the first to post a question or doubt in this room!
-                      </p>
-                    </div>
-                  ) : (
-                    discussions.map((d) => {
-                      const isMyDisc = d.user_id === currentUserId;
-                      const canDeleteDisc = isMyDisc || isHost;
-                      const repliesList = d.replies || [];
-                      const isExpanded = expandedDiscIds[d.id] ?? true;
-
-                      return (
-                        <div key={d.id} className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3 shadow-lg hover:border-white/20 transition">
-                          {/* Question Header */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 min-w-0 flex-1">
-                              <div className="w-8 h-8 rounded-full bg-purple-900/50 border border-purple-500/30 flex items-center justify-center text-xs font-bold text-purple-300 shrink-0 uppercase">
-                                {d.profiles?.full_name?.charAt(0) || d.profiles?.username?.charAt(0) || "U"}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h4 className="text-sm font-bold text-white leading-tight flex items-center gap-2 flex-wrap">
-                                  {d.title}
-                                  {d.user_id === room?.host_id && (
-                                    <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
-                                      HOST
-                                    </span>
-                                  )}
-                                  {isMyDisc && (
-                                    <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-[#00F0FF]">
-                                      YOU
-                                    </span>
-                                  )}
-                                </h4>
-                                <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-1">
-                                  <span>{d.profiles?.full_name || d.profiles?.username || "Candidate"}</span>
-                                  <span>•</span>
-                                  <span>{new Date(d.created_at || Date.now()).toLocaleDateString()} at {new Date(d.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Moderation / Delete Controls */}
-                            {canDeleteDisc && (
-                              <button
-                                onClick={() => handleDeleteDiscussion(d.id)}
-                                title={isHost && !isMyDisc ? "Host Moderate / Delete" : "Delete your post"}
-                                className="text-gray-500 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10 transition cursor-pointer shrink-0"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Question Content */}
-                          <p className="text-xs text-gray-300 leading-relaxed pl-11 whitespace-pre-wrap">
-                            {d.content}
-                          </p>
-
-                          {/* Thread Footer & Reply Toggle */}
-                          <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs pl-11">
-                            <button
-                              onClick={() => toggleExpandDisc(d.id)}
-                              className="text-gray-400 hover:text-[#00F0FF] text-[11px] font-mono font-bold flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <MessageCircle size={13} className="text-[#00F0FF]" />
-                              <span>{repliesList.length} {repliesList.length === 1 ? "Reply" : "Replies"}</span>
-                            </button>
-                          </div>
-
-                          {/* Replies Thread Section */}
-                          {isExpanded && (
-                            <div className="pl-11 pt-2 space-y-3">
-                              {repliesList.map((r) => {
-                                const isMyReply = r.user_id === currentUserId;
-                                const canDeleteReply = isMyReply || isHost;
-                                return (
-                                  <div key={r.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5 relative">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-purple-300">
-                                          {r.profiles?.full_name || r.profiles?.username || "Participant"}
-                                        </span>
-                                        {r.user_id === room?.host_id && (
-                                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">HOST</span>
-                                        )}
-                                        {isMyReply && (
-                                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-[#00F0FF]">YOU</span>
-                                        )}
-                                        <span className="text-[10px] text-gray-500 font-mono">
-                                          {new Date(r.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                      </div>
-                                      {canDeleteReply && (
-                                        <button
-                                          onClick={() => handleDeleteReply(d.id, r.id)}
-                                          className="text-gray-500 hover:text-red-400 p-0.5 cursor-pointer"
-                                        >
-                                          <Trash2 size={12} />
-                                        </button>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-gray-300 leading-relaxed">{r.content}</p>
-                                  </div>
-                                );
-                              })}
-
-                              {/* Reply Input Box */}
-                              <div className="flex items-center gap-2 pt-1">
-                                <input
-                                  type="text"
-                                  placeholder="Write a reply..."
-                                  value={replyTextMap[d.id] || ""}
-                                  onChange={(e) => setReplyTextMap({ ...replyTextMap, [d.id]: e.target.value })}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
-                                      e.preventDefault();
-                                      handlePostReply(d.id);
-                                    }
-                                  }}
-                                  className="flex-1 bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
-                                />
-                                <button
-                                  onClick={() => handlePostReply(d.id)}
-                                  className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold cursor-pointer transition shrink-0 flex items-center gap-1"
-                                >
-                                  Reply <Send size={11} />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-8 shadow-2xl text-center space-y-4">
+                <MessageSquare size={40} className="text-[#00F0FF] mx-auto" />
+                <h3 className="text-base font-bold text-white">Q&A Discussion Feed</h3>
+                <p className="text-xs text-gray-400 max-w-md mx-auto">
+                  View all room questions, solutions, and community discussions in the dedicated Discussion Modal.
+                </p>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => setShowDiscussionModal(true)}
+                    className="px-6 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black text-xs font-bold cursor-pointer transition shadow-lg shadow-[#00F0FF]/20 flex items-center gap-2"
+                  >
+                    <MessageSquare size={15} /> Open Discussion Feed ({discussions.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveSidebarTab("ask_doubt")}
+                    className="px-5 py-2.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold cursor-pointer transition flex items-center gap-1.5"
+                  >
+                    <Plus size={14} /> Ask a Doubt
+                  </button>
                 </div>
               </div>
             )}
@@ -1899,6 +1738,191 @@ const ProfessionalRoomDetail = () => {
               >
                 Delete Room
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DISCUSSION FEED MODAL */}
+      {showDiscussionModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-[#0c0c16] border border-white/15 rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#07070e]">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <MessageSquare size={18} className="text-[#00F0FF]" /> Q&A Discussion Feed ({discussions.length})
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">View questions, solutions, and community discussions.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setShowDiscussionModal(false);
+                    setActiveSidebarTab("ask_doubt");
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#00F0FF]/15 hover:bg-[#00F0FF]/25 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold cursor-pointer transition flex items-center gap-1.5"
+                >
+                  <Plus size={13} /> Ask a Doubt
+                </button>
+                <button
+                  onClick={() => setShowDiscussionModal(false)}
+                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Feed List ONLY (No Question-Posting Form) */}
+            <div className="p-6 overflow-y-auto space-y-4 flex-1">
+              {discussions.length === 0 ? (
+                <div className="text-center py-16 space-y-3 bg-[#06060c] border border-white/5 rounded-2xl p-6">
+                  <MessageSquare size={36} className="text-gray-600 mx-auto" />
+                  <h4 className="text-sm font-bold text-white">No Discussions Posted Yet</h4>
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                    Be the first to post a question or doubt in this room!
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowDiscussionModal(false);
+                      setActiveSidebarTab("ask_doubt");
+                    }}
+                    className="mt-2 px-5 py-2 rounded-xl bg-[#00F0FF] text-black text-xs font-bold cursor-pointer"
+                  >
+                    Ask a Doubt Now
+                  </button>
+                </div>
+              ) : (
+                discussions.map((d) => {
+                  const isMyDisc = d.user_id === currentUserId;
+                  const canDeleteDisc = isMyDisc || isHost;
+                  const repliesList = d.replies || [];
+                  const isExpanded = expandedDiscIds[d.id] ?? true;
+
+                  return (
+                    <div key={d.id} className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3 shadow-lg hover:border-white/20 transition">
+                      {/* Question Header */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className="w-8 h-8 rounded-full bg-purple-900/50 border border-purple-500/30 flex items-center justify-center text-xs font-bold text-purple-300 shrink-0 uppercase">
+                            {d.profiles?.full_name?.charAt(0) || d.profiles?.username?.charAt(0) || "U"}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-bold text-white leading-tight flex items-center gap-2 flex-wrap">
+                              {d.title}
+                              {d.user_id === room?.host_id && (
+                                <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                                  HOST
+                                </span>
+                              )}
+                              {isMyDisc && (
+                                <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-[#00F0FF]">
+                                  YOU
+                                </span>
+                              )}
+                            </h4>
+                            <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-1">
+                              <span>{d.profiles?.full_name || d.profiles?.username || "Candidate"}</span>
+                              <span>•</span>
+                              <span>{new Date(d.created_at || Date.now()).toLocaleDateString()} at {new Date(d.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Moderation / Delete Controls */}
+                        {canDeleteDisc && (
+                          <button
+                            onClick={() => handleDeleteDiscussion(d.id)}
+                            title={isHost && !isMyDisc ? "Host Moderate / Delete" : "Delete your post"}
+                            className="text-gray-500 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10 transition cursor-pointer shrink-0"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Question Content */}
+                      <p className="text-xs text-gray-300 leading-relaxed pl-11 whitespace-pre-wrap">
+                        {d.content}
+                      </p>
+
+                      {/* Thread Footer & Reply Toggle */}
+                      <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs pl-11">
+                        <button
+                          onClick={() => toggleExpandDisc(d.id)}
+                          className="text-gray-400 hover:text-[#00F0FF] text-[11px] font-mono font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <MessageCircle size={13} className="text-[#00F0FF]" />
+                          <span>{repliesList.length} {repliesList.length === 1 ? "Reply" : "Replies"}</span>
+                        </button>
+                      </div>
+
+                      {/* Replies Thread Section */}
+                      {isExpanded && (
+                        <div className="pl-11 pt-2 space-y-3">
+                          {repliesList.map((r) => {
+                            const isMyReply = r.user_id === currentUserId;
+                            const canDeleteReply = isMyReply || isHost;
+                            return (
+                              <div key={r.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5 relative">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-purple-300">
+                                      {r.profiles?.full_name || r.profiles?.username || "Participant"}
+                                    </span>
+                                    {r.user_id === room?.host_id && (
+                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">HOST</span>
+                                    )}
+                                    {isMyReply && (
+                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-[#00F0FF]">YOU</span>
+                                    )}
+                                    <span className="text-[10px] text-gray-500 font-mono">
+                                      {new Date(r.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                  {canDeleteReply && (
+                                    <button
+                                      onClick={() => handleDeleteReply(d.id, r.id)}
+                                      className="text-gray-500 hover:text-red-400 p-0.5 cursor-pointer"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-300 leading-relaxed">{r.content}</p>
+                              </div>
+                            );
+                          })}
+
+                          {/* Reply Input Box */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <input
+                              type="text"
+                              placeholder="Write a reply..."
+                              value={replyTextMap[d.id] || ""}
+                              onChange={(e) => setReplyTextMap({ ...replyTextMap, [d.id]: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handlePostReply(d.id);
+                                }
+                              }}
+                              className="flex-1 bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                            />
+                            <button
+                              onClick={() => handlePostReply(d.id)}
+                              className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold cursor-pointer transition shrink-0 flex items-center gap-1"
+                            >
+                              Reply <Send size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
