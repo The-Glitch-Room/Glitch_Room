@@ -37,93 +37,137 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
     if (d === "30_day") return "30-Day Bootcamp";
     if (d === "60_day") return "60-Day Sprint";
     if (d === "100_day") return "100-Day Challenge";
-    return "Ongoing Sprint";
+    return "Ongoing Squad";
+  };
+
+  const getBannerGradient = (category) => {
+    const cat = (category || "").toLowerCase();
+    if (cat.includes("coding") || cat.includes("dsa") || cat.includes("tech")) {
+      return "from-cyan-900/60 via-purple-950/80 to-slate-950";
+    }
+    if (cat.includes("design") || cat.includes("spark") || cat.includes("creative")) {
+      return "from-pink-900/60 via-purple-950/80 to-slate-950";
+    }
+    if (cat.includes("ai") || cat.includes("debug")) {
+      return "from-teal-900/60 via-indigo-950/80 to-slate-950";
+    }
+    return "from-purple-900/60 via-indigo-950/80 to-slate-950";
   };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4 }}
-      transition={{ duration: 0.2 }}
-      className="group relative bg-[#0f0f1a] border border-white/10 hover:border-purple-500/40 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 overflow-hidden hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] shadow-xl font-sans"
+      whileHover={{ y: -6 }}
+      transition={{ duration: 0.25 }}
+      className="group relative bg-[#0c0c16] border border-white/10 hover:border-purple-500/50 rounded-3xl flex flex-col justify-between transition-all duration-300 overflow-hidden hover:shadow-[0_0_35px_rgba(168,85,247,0.2)] shadow-xl font-sans"
     >
-      <div className="absolute top-0 left-0 h-[2px] w-0 group-hover:w-full transition-all duration-500 rounded-t-2xl bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
+      {/* Top Hover Accent Bar */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] w-full z-20 bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#FF00C8] opacity-80 group-hover:opacity-100 transition-opacity" />
 
-      <div>
-        {/* Header Badges */}
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-300">
-              <Sparkles size={9} /> {room.category || "Accountability"}
-            </span>
-            <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400">
-              <Calendar size={9} /> {getDurationLabel(room.duration_type)}
-            </span>
-          </div>
+      {/* TOP BANNER SECTION (Pro Room Inspired) */}
+      <div className={`relative h-28 sm:h-32 w-full bg-gradient-to-br ${getBannerGradient(room.category)} overflow-hidden border-b border-white/10`}>
+        {/* Cyber Pattern Texture */}
+        <div
+          className="absolute inset-0 opacity-20 pointer-events-none"
+          style={{
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px)`,
+            backgroundSize: "20px 20px",
+          }}
+        />
 
-          {isMember && (
-            <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 shrink-0">
-              <CheckCircle size={9} /> Committed
-            </span>
-          )}
-        </div>
-
-        {/* Title */}
-        <h3 className="text-base font-bold text-white group-hover:text-purple-300 transition-colors leading-snug mb-2">
-          {room.name || room.title}
-        </h3>
-
-        {/* Goal Pledge Box */}
-        {room.goal_pledge && (
-          <div className="bg-[#07070d] border border-white/5 rounded-xl p-3 mb-3 flex items-start gap-2">
-            <Target size={14} className="text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-gray-300 font-mono line-clamp-2">
-              <strong className="text-amber-400">Pledge:</strong> {room.goal_pledge}
-            </p>
-          </div>
-        )}
-
-        {/* Description */}
-        <p className="text-gray-400 text-xs leading-relaxed line-clamp-2 mb-4">
-          {room.description || "Daily check-in and consistency squad for builders."}
-        </p>
-
-        {/* Meta */}
-        <div className="flex items-center gap-4 text-xs font-mono text-gray-500 mb-4 pt-3 border-t border-white/5">
-          <span className="flex items-center gap-1">
-            <Users size={12} className="text-purple-400" /> {room.member_count || 1} Squad Members
+        {/* Top Floating Badges */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
+          <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-[#00F0FF] shadow-sm">
+            <Sparkles size={10} /> {room.category || "Accountability"}
           </span>
-          <span className="flex items-center gap-1 text-amber-400">
-            <Flame size={12} /> Active Streaks
-          </span>
+
+          <div className="flex items-center gap-1.5">
+            <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-amber-500/30 text-amber-300 shadow-sm">
+              <Calendar size={10} /> {getDurationLabel(room.duration_type)}
+            </span>
+
+            {isMember && (
+              <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/40 text-emerald-300 shadow-sm">
+                <CheckCircle size={10} /> Joined
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Host & Actions */}
-      <div className="pt-3 border-t border-white/5">
-        <p className="text-[11px] text-gray-500 mb-3">
-          Host: <span className="text-gray-300 font-semibold">{room.host || "Glitch Creator"}</span>
-        </p>
+      {/* CARD BODY CONTENT */}
+      <div className="p-5 sm:p-6 space-y-4 flex-1 flex flex-col justify-between relative -mt-6">
+        {/* Host Avatar & Name (Overlapping Banner) */}
+        <div className="flex items-center gap-2.5 relative z-10 mb-0.5">
+          <div className="w-10 h-10 rounded-2xl bg-[#141224] border border-purple-500/40 flex items-center justify-center text-purple-300 font-bold text-sm shadow-md shrink-0 uppercase font-mono">
+            {room.host ? room.host.charAt(0) : "C"}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] text-gray-400 font-mono flex items-center gap-1">
+              Host: <span className="text-white font-semibold truncate">{room.host || "Glitch Creator"}</span>
+              <ShieldCheck size={12} className="text-[#00F0FF] shrink-0" />
+            </p>
+          </div>
+        </div>
 
-        {isMember ? (
-          <button
-            type="button"
-            onClick={() => onEnter(room.id)}
-            className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-300 shadow-md"
-          >
-            Enter Accountability Hub <ArrowRight size={14} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onJoin(room)}
-            disabled={joining === room.id}
-            className="w-full py-2.5 rounded-xl text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 bg-gradient-to-r from-[#FF00C8]/80 to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 shadow-lg shadow-[#FF00C8]/20"
-          >
-            {joining === room.id ? "Joining..." : "Commit & Join Squad →"}
-          </button>
-        )}
+        <div>
+          {/* Room Title */}
+          <h3 className="text-lg font-black text-white group-hover:text-purple-300 transition-colors leading-snug mb-3">
+            {room.name || room.title}
+          </h3>
+
+          {/* Goal Pledge Box */}
+          {room.goal_pledge && (
+            <div className="bg-[#05050b] border border-amber-500/25 rounded-2xl p-3.5 mb-3 flex items-start gap-2.5 shadow-inner">
+              <Target size={15} className="text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-gray-200 font-mono leading-relaxed line-clamp-2">
+                <strong className="text-amber-400 uppercase text-[10px] tracking-wider block mb-0.5">Pledge:</strong>
+                {room.goal_pledge}
+              </p>
+            </div>
+          )}
+
+          {/* Description */}
+          <p className="text-gray-400 text-xs leading-relaxed line-clamp-2 mb-4">
+            {room.description || "Daily check-in and consistency squad for builders."}
+          </p>
+        </div>
+
+        {/* Metadata Row */}
+        <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs font-mono text-gray-400">
+          <span className="flex items-center gap-1.5">
+            <Users size={13} className="text-[#00F0FF]" />
+            <strong className="text-white font-sans">{room.member_count || 1}</strong> Squad Members
+          </span>
+
+          <span className="flex items-center gap-1 text-amber-400 font-semibold">
+            <Flame size={13} /> Active Streaks
+          </span>
+        </div>
+
+        {/* Action Button */}
+        <div className="pt-2">
+          {isMember ? (
+            <button
+              type="button"
+              onClick={() => onEnter(room.id)}
+              className="w-full py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border bg-purple-600/15 hover:bg-purple-600/30 border-purple-500/40 text-purple-300 shadow-md"
+            >
+              Enter Squad Hub <ArrowRight size={14} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onJoin(room)}
+              disabled={joining === room.id}
+              className="w-full py-3 rounded-2xl text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 bg-gradient-to-r from-[#FF00C8] via-purple-600 to-[#00F0FF] hover:opacity-95 shadow-lg shadow-[#FF00C8]/25"
+            >
+              {joining === room.id ? "Joining Squad..." : "Commit & Join Squad →"}
+            </button>
+          )}
+        </div>
       </div>
     </motion.div>
   );

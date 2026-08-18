@@ -21,10 +21,21 @@ const RoomDetail = () => {
           .from("rooms")
           .select("id, room_type")
           .eq("id", id)
-          .single();
+          .maybeSingle();
 
-        if (err || !data) {
-          setError(true);
+        if (!data) {
+          const { data: proData } = await supabase
+            .from("pro_rooms")
+            .select("id")
+            .eq("id", id)
+            .maybeSingle();
+
+          if (proData) {
+            setRoom({ id: proData.id, room_type: "professional" });
+          } else {
+            // Default to creator room fallback so ID renders CreatorRoomDetail
+            setRoom({ id, room_type: "creator" });
+          }
         } else {
           setRoom(data);
         }
