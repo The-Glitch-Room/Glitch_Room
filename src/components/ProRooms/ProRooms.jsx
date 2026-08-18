@@ -77,6 +77,12 @@ const ProRooms = () => {
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [sortBy, setSortBy] = useState("Newest");
   const [activeTab, setActiveTab] = useState("all");
+  // Statistics State (Calculated from Real Database Data)
+  const [stats, setStats] = useState({
+    activeRoomsCount: 0,
+    participantsEvaluatedCount: 0,
+    totalRewardsVal: "0 gBits",
+  });
 
   // Registration State
   const [userRegistrations, setUserRegistrations] = useState({});
