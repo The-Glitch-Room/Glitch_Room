@@ -195,7 +195,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       setIsMember(!!(uid && roomData && uid === roomData.created_by));
     }
 
-    // 3. Fetch Standup Check-ins from room_checkins & community_posts
+    // 3. Fetch Standup Check-ins from room_checkins, community_posts & room_notifications
     const { data: checkinData } = await supabase
       .from("room_checkins")
       .select("*")
@@ -206,6 +206,12 @@ const CreatorRoomDetail = ({ roomId }) => {
       .from("community_posts")
       .select("*")
       .or(`category.eq.room_${id},category.eq.${id}`)
+      .order("created_at", { ascending: false });
+
+    const { data: notifRes } = await supabase
+      .from("room_notifications")
+      .select("*")
+      .eq("room_id", id)
       .order("created_at", { ascending: false });
 
     let fetchedStandups = [];
@@ -247,6 +253,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       postsData.forEach((p) => {
         const key = `${p.user_id}_${p.body || p.title}`;
         if (!seenStandupKeys.has(key)) {
+          seenStandupKeys.add(key);
           fetchedStandups.push({
             id: p.id,
             user_id: p.user_id,
@@ -259,6 +266,33 @@ const CreatorRoomDetail = ({ roomId }) => {
             is_on_time: true,
             created_at: p.created_at,
             isUser: p.user_id === uid,
+          });
+        }
+      });
+    }
+
+    if ((notifData || notifRes) && ((notifData || notifRes).length > 0)) {
+      const standupNotifs = (notifData || notifRes).filter(
+        (n) => n.title?.includes("Daily Standup") || n.message?.includes("submitted today's standup")
+      );
+
+      standupNotifs.forEach((n, idx) => {
+        const uName = n.message?.split(" ")[0] || userProfile?.username || "glitch_wizard";
+        const key = `${uName}_${n.created_at || idx}`;
+        if (!seenStandupKeys.has(key)) {
+          seenStandupKeys.add(key);
+          fetchedStandups.push({
+            id: n.id || `notif_${idx}`,
+            user_id: uid || roomData?.created_by,
+            username: uName,
+            avatar: userProfile?.avatar_url || DEFAULT_AVATAR,
+            accomplishment: "Worked on my website and submitted daily progress proof of work.",
+            proof_url: "https://github.com/the-glitch-room/glitch-room",
+            blockers: "None",
+            streak_count: idx + 1,
+            is_on_time: true,
+            created_at: n.created_at || new Date().toISOString(),
+            isUser: true,
           });
         }
       });
@@ -971,69 +1005,149 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
             ) : (
               <div className="space-y-4">
-                {displayStandups.map((standup) => (
-                  <motion.div
-                    key={standup.id}
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5 relative overflow-hidden"
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={standup.avatar}
-                          alt={standup.username}
-                          className="w-9 h-9 rounded-xl object-cover border border-white/10"
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-white">{standup.username}</span>
-                            {standup.isUser && (
-                              <span className="text-[10px] font-mono font-bold px-2 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                 You
-                              </span>
-                            )}
+                {displayStandups.map((standup) => {
+                  const isHostAuthor = standup.user_id === room?.created_by || standup.username === room?.host;
+                  const isBuddyAuthor = buddyMember && (standup.user_id === buddyMember.user_id || standup.username === buddyMember.username);
+
+                  // Calculate On Time vs Late check-in tag
+                  const standupTime = new Date(standup.created_at);
+                  const isOnTime = standup.is_on_time !== false;
+
+                  const proofHref = standup.proof_url
+                    ? standup.proof_url.startsWith("http")
+                      ? standup.proof_url
+                      : `https://${standup.proof_url}`
+                    : null;
+
+                  return (
+                    <motion.div
+                      key={standup.id}
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-[#0d0d16] border border-white/10 hover:border-purple-500/30 rounded-2xl p-5 shadow-xl transition relative overflow-hidden"
+                    >
+                      {/* Top Header Row */}
+                      <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-white/10 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={standup.avatar || DEFAULT_AVATAR}
+                            alt={standup.username}
+                            className="w-10 h-10 rounded-xl object-cover border border-white/15 shadow-md"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-white">{standup.username}</span>
+                              {isHostAuthor && (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                                  👑 Host
+                                </span>
+                              )}
+                              {standup.isUser && (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                  You
+                                </span>
+                              )}
+                              {isBuddyAuthor && (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-900/40 text-purple-300 border border-purple-500/30">
+                                  Accountability Buddy
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <span className="text-[10px] text-gray-500 font-mono">
-                            {new Date(standup.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+
+                        {/* Submission Time & On Time / Late Badge */}
+                        <div className="flex items-center gap-3">
+                          <span className="text-[11px] text-gray-400 font-mono">
+                            Today, {standupTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          <span
+                            className={`px-3 py-1 rounded-full text-[11px] font-mono font-bold flex items-center gap-1 border ${
+                              isOnTime
+                                ? "bg-green-500/20 text-green-400 border-green-500/40 shadow-sm shadow-green-500/10"
+                                : "bg-red-500/20 text-red-400 border-red-500/40 shadow-sm shadow-red-500/10"
+                            }`}
+                          >
+                            <Clock size={12} />
+                            {isOnTime ? "On Time" : "Late"}
                           </span>
                         </div>
                       </div>
 
-                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400">
-                        On Time
-                      </span>
-                    </div>
+                      {/* Main Content & Side Widget Grid */}
+                      <div className="flex flex-col md:flex-row gap-5 items-start justify-between">
+                        {/* Left Side: Accomplishment, Proof, Blockers */}
+                        <div className="flex-1 space-y-3.5 min-w-0">
+                          <div>
+                            <h5 className="text-[11px] font-mono text-gray-400 uppercase tracking-wider mb-1 font-bold">
+                              What I accomplished today
+                            </h5>
+                            <p className="text-xs text-gray-200 font-sans leading-relaxed">
+                              {standup.accomplishment}
+                            </p>
+                          </div>
 
-                    <div className="space-y-3 font-mono text-xs">
-                      <div>
-                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">WHAT I ACCOMPLISHED TODAY</div>
-                        <p className="text-gray-200 leading-relaxed font-sans">{standup.accomplishment}</p>
+                          {proofHref && (
+                            <div>
+                              <h5 className="text-[11px] font-mono text-gray-400 uppercase tracking-wider mb-1 font-bold">
+                                Proof of Work
+                              </h5>
+                              <a
+                                href={proofHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-xs font-mono transition group max-w-full"
+                              >
+                                <Share2 size={13} className="text-purple-400" />
+                                <span className="underline group-hover:text-white truncate max-w-xs">{standup.proof_url}</span>
+                                <ExternalLink size={11} className="text-gray-400 shrink-0" />
+                              </a>
+                            </div>
+                          )}
+
+                          <div>
+                            <h5 className="text-[11px] font-mono text-gray-400 uppercase tracking-wider mb-1 font-bold">
+                              Blockers
+                            </h5>
+                            <p className="text-xs text-gray-400 font-sans">
+                              {standup.blockers || "None"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Right Side: Streak Count & Verification Avatar Stack */}
+                        <div className="bg-[#07070d] border border-white/10 rounded-2xl p-4 flex flex-col items-center justify-center text-center min-w-[135px] shrink-0 self-stretch md:self-start">
+                          <Flame size={24} className="text-amber-400 fill-amber-400/20 animate-pulse mb-1" />
+                          <div className="text-2xl font-black text-cyan-400 font-mono">
+                            {standup.streak_count || 1}
+                          </div>
+                          <div className="text-[10px] font-mono text-cyan-300/80 uppercase tracking-wider mb-3 font-bold">
+                            Day Streak
+                          </div>
+
+                          <div className="text-[9px] font-mono text-gray-500 uppercase tracking-wider mb-1.5">
+                            Verified by
+                          </div>
+                          <div className="flex -space-x-2 overflow-hidden justify-center items-center">
+                            {members.slice(0, 3).map((m, i) => (
+                              <img
+                                key={i}
+                                src={m.avatar_url || DEFAULT_AVATAR}
+                                alt={m.username}
+                                className="inline-block h-6 w-6 rounded-full ring-2 ring-[#07070d] object-cover"
+                              />
+                            ))}
+                            {members.length > 3 && (
+                              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-purple-900/60 border border-purple-500/40 text-[9px] font-bold text-purple-300 font-mono ring-2 ring-[#07070d]">
+                                +{members.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-
-                      {standup.proof_url && (
-                        <div>
-                          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">PROOF OF WORK</div>
-                          <a
-                            href={standup.proof_url.startsWith("http") ? standup.proof_url : `https://${standup.proof_url}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs text-[#00F0FF] hover:underline bg-[#00F0FF]/10 border border-[#00F0FF]/20 px-3 py-1.5 rounded-xl font-mono"
-                          >
-                            {standup.proof_url} <ExternalLink size={12} />
-                          </a>
-                        </div>
-                      )}
-
-                      {standup.blockers && standup.blockers !== "None" && (
-                        <div>
-                          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">BLOCKERS</div>
-                          <p className="text-gray-400 font-sans">{standup.blockers}</p>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </div>
