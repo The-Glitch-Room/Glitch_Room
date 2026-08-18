@@ -195,7 +195,15 @@ const CreatorRoomDetail = ({ roomId }) => {
       setIsMember(!!(uid && roomData && uid === roomData.created_by));
     }
 
-    // 3. Fetch Standup Check-ins from room_checkins, community_posts & room_notifications
+    // 3. Fetch Room Notifications FIRST so notifList is available for standup synthesis & activity feed
+    const { data: notifList } = await supabase
+      .from("room_notifications")
+      .select("*")
+      .eq("room_id", id)
+      .order("created_at", { ascending: false });
+    setNotifications(notifList || []);
+
+    // 4. Fetch Standup Check-ins from room_checkins & community_posts
     const { data: checkinData } = await supabase
       .from("room_checkins")
       .select("*")
@@ -206,12 +214,6 @@ const CreatorRoomDetail = ({ roomId }) => {
       .from("community_posts")
       .select("*")
       .or(`category.eq.room_${id},category.eq.${id}`)
-      .order("created_at", { ascending: false });
-
-    const { data: notifRes } = await supabase
-      .from("room_notifications")
-      .select("*")
-      .eq("room_id", id)
       .order("created_at", { ascending: false });
 
     let fetchedStandups = [];
@@ -271,8 +273,8 @@ const CreatorRoomDetail = ({ roomId }) => {
       });
     }
 
-    if ((notifData || notifRes) && ((notifData || notifRes).length > 0)) {
-      const standupNotifs = (notifData || notifRes).filter(
+    if (notifList && notifList.length > 0) {
+      const standupNotifs = notifList.filter(
         (n) => n.title?.includes("Daily Standup") || n.message?.includes("submitted today's standup")
       );
 
@@ -315,20 +317,12 @@ const CreatorRoomDetail = ({ roomId }) => {
       );
     }
 
-    // 4. Fetch Room Buddies
+    // 5. Fetch Room Buddies
     const { data: buddyData } = await supabase
       .from("room_buddies")
       .select("*")
       .eq("room_id", id);
     setBuddies(buddyData || []);
-
-    // 5. Fetch Room Notifications for unread count & activity
-    const { data: notifData } = await supabase
-      .from("room_notifications")
-      .select("*")
-      .eq("room_id", id)
-      .order("created_at", { ascending: false });
-    setNotifications(notifData || []);
 
     setLoading(false);
   };
