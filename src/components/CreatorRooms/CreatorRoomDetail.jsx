@@ -102,7 +102,18 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    const displayStandups = activeTab === "today"
+    ? standups.filter((s) => {
+        if (!s.created_at) return true;
+        const d = new Date(s.created_at);
+        const today = new Date();
+        return d.getDate() === today.getDate() &&
+               d.getMonth() === today.getMonth() &&
+               d.getFullYear() === today.getFullYear();
+      })
+    : standups;
+
+  return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   //  Database Fetching 
@@ -195,28 +206,43 @@ const CreatorRoomDetail = ({ roomId }) => {
       setIsMember(!!(uid && roomData && uid === roomData.created_by));
     }
 
-    // 3. Fetch Standup Check-ins from room_checkins (fallback community_posts)
+    // 3. Fetch Standup Check-ins from room_checkins & community_posts
     const { data: checkinData } = await supabase
       .from("room_checkins")
       .select("*")
       .eq("room_id", id)
       .order("created_at", { ascending: false });
 
-    let fetchedStandups = [];
-    if (checkinData && checkinData.length > 0) {
-      const checkinUids = Array.from(new Set(checkinData.map((c) => c.user_id)));
-      const { data: cProfs } = await supabase
-        .from("profiles")
-        .select("id, user_id, username, full_name, avatar_url")
-        .in("id", checkinUids);
+    const { data: postsData } = await supabase
+      .from("community_posts")
+      .select("*")
+      .or(`category.eq.room_${id},category.eq.${id}`)
+      .order("created_at", { ascending: false });
 
-      fetchedStandups = checkinData.map((c) => {
-        const p = (cProfs || []).find((pr) => pr.id === c.user_id || pr.user_id === c.user_id);
-        return {
+    let fetchedStandups = [];
+    const seenStandupKeys = new Set();
+
+    if (checkinData && checkinData.length > 0) {
+      const checkinUids = Array.from(new Set(checkinData.map((c) => c.user_id).filter(Boolean)));
+      let cProfs = [];
+      if (checkinUids.length > 0) {
+        const { data: pData } = await supabase
+          .from("profiles")
+          .select("id, user_id, username, full_name, avatar_url")
+          .in("id", checkinUids);
+        cProfs = pData || [];
+      }
+
+      checkinData.forEach((c) => {
+        const p = cProfs.find((pr) => pr.id === c.user_id || pr.user_id === c.user_id);
+        const key = `${c.user_id}_${c.accomplishment}`;
+        seenStandupKeys.add(key);
+
+        fetchedStandups.push({
           id: c.id,
           user_id: c.user_id,
-          username: p?.username || p?.full_name || "Builder",
-          avatar: p?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+          username: p?.username || p?.full_name || (c.user_id === uid ? userProfile?.username : "Builder"),
+          avatar: p?.avatar_url || (c.user_id === uid ? userProfile?.avatar_url : DEFAULT_AVATAR),
           accomplishment: c.accomplishment,
           proof_url: c.proof_url,
           blockers: c.blockers,
@@ -224,36 +250,33 @@ const CreatorRoomDetail = ({ roomId }) => {
           is_on_time: c.is_on_time !== false,
           created_at: c.created_at,
           isUser: c.user_id === uid,
-        };
+        });
       });
-      setStandups(fetchedStandups);
-    } else {
-      // Check fallback community_posts if room_checkins is empty
-      const { data: postsData } = await supabase
-        .from("community_posts")
-        .select("*")
-        .or(`category.eq.room_${id},category.eq.${id}`)
-        .order("created_at", { ascending: false });
-
-      if (postsData && postsData.length > 0) {
-        fetchedStandups = postsData.map((p) => ({
-          id: p.id,
-          user_id: p.user_id,
-          username: p.author_username || "Builder",
-          avatar: p.author_avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-          accomplishment: p.body || p.title,
-          proof_url: p.body?.includes("http") ? p.body.match(/https?:\/\/[^\s\)]+/)?.[0] : null,
-          blockers: "None",
-          streak_count: 1,
-          is_on_time: true,
-          created_at: p.created_at,
-          isUser: p.user_id === uid,
-        }));
-        setStandups(fetchedStandups);
-      } else {
-        setStandups([]);
-      }
     }
+
+    if (postsData && postsData.length > 0) {
+      postsData.forEach((p) => {
+        const key = `${p.user_id}_${p.body || p.title}`;
+        if (!seenStandupKeys.has(key)) {
+          fetchedStandups.push({
+            id: p.id,
+            user_id: p.user_id,
+            username: p.author_username || (p.user_id === uid ? userProfile?.username : "Builder"),
+            avatar: p.author_avatar || (p.user_id === uid ? userProfile?.avatar_url : DEFAULT_AVATAR),
+            accomplishment: p.body || p.title,
+            proof_url: p.body?.includes("http") ? p.body.match(/https?:\/\/[^\s\)]+/)?.[0] : null,
+            blockers: "None",
+            streak_count: 1,
+            is_on_time: true,
+            created_at: p.created_at,
+            isUser: p.user_id === uid,
+          });
+        }
+      });
+    }
+
+    fetchedStandups.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    setStandups(fetchedStandups);
 
     // Update user streaks in members array based on real check-in counts
     if (fetchedMembers.length > 0 && fetchedStandups.length > 0) {
@@ -387,16 +410,25 @@ const CreatorRoomDetail = ({ roomId }) => {
     setSubmitting(true);
 
     try {
+      const { data: au } = await supabase.auth.getUser();
+      const activeUid = au?.user?.id || userId;
+
+      if (!activeUid) {
+        showToast("Please sign in to submit a standup log.");
+        setSubmitting(false);
+        return;
+      }
+
       // 1. Insert into room_checkins
       await supabase.from("room_checkins").insert([
         {
           room_id: id,
-          user_id: userId,
+          user_id: activeUid,
           accomplishment: accomplishment.trim(),
           proof_url: proofUrl.trim() || null,
           blockers: blockers.trim() || null,
           is_on_time: true,
-          streak_count: (userStandups.length || 0) + 1,
+          streak_count: (standups.length || 0) + 1,
         },
       ]);
 
@@ -907,25 +939,39 @@ const CreatorRoomDetail = ({ roomId }) => {
             )}
 
             {/* Standups Feed / Empty State */}
-            {standups.length === 0 ? (
+            {displayStandups.length === 0 ? (
               <div className="bg-[#0d0d16] border border-dashed border-white/10 rounded-2xl p-8 text-center my-6">
-                <div className="text-4xl mb-3"></div>
-                <h3 className="text-sm font-bold text-white">No daily standups submitted yet</h3>
+                <div className="text-4xl mb-3">⚡</div>
+                <h3 className="text-sm font-bold text-white">
+                  {standups.length > 0 ? "No standups submitted today yet" : "No daily standups submitted yet"}
+                </h3>
                 <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-                  Be the first squad member to log your accomplishment and proof of work for today!
+                  {standups.length > 0
+                    ? "Check out previous logs under 'All Logs' or log your progress for today!"
+                    : "Be the first squad member to log your accomplishment and proof of work!"}
                 </p>
-                {isMember && (
-                  <button
-                    onClick={() => setShowCheckinModal(true)}
-                    className="mt-4 px-5 py-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold hover:bg-purple-500/30 transition cursor-pointer"
-                  >
-                    + Log Daily Standup
-                  </button>
-                )}
+                <div className="mt-4 flex items-center justify-center gap-3">
+                  {isMember && (
+                    <button
+                      onClick={() => setShowCheckinModal(true)}
+                      className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg cursor-pointer"
+                    >
+                      + Log Daily Standup
+                    </button>
+                  )}
+                  {standups.length > 0 && activeTab === "today" && (
+                    <button
+                      onClick={() => setActiveTab("all")}
+                      className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold hover:bg-white/10 cursor-pointer"
+                    >
+                      View All Logs ({standups.length})
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
-                {standups.map((standup) => (
+                {displayStandups.map((standup) => (
                   <motion.div
                     key={standup.id}
                     initial={{ opacity: 0, y: 15 }}
