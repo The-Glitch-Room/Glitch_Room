@@ -61,12 +61,13 @@ const ProRoomCard = ({ room, isRegistered, onSelect }) => {
   };
 
   const getButtonText = () => {
-    if (lifecycle.isLive) return "Enter Room →";
-    if (lifecycle.label === "REGISTRATION OPEN") return "Register Now →";
-    if (lifecycle.label === "UPCOMING") return "View Details →";
-    if (lifecycle.label === "Results Published" || lifecycle.label === "Submission Closed")
+    if (room.status === "results_published" || room.status === "evaluation") {
       return "View Results →";
-    return "View Details →";
+    }
+    if (isRegistered) {
+      return "Enter Room →";
+    }
+    return "Register Now →";
   };
 
   return (

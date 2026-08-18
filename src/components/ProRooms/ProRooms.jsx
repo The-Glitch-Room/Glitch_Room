@@ -22,6 +22,7 @@ import {
   Layers,
 } from "lucide-react";
 import ProRoomCard, { getProRoomLifecycleState } from "./ProRoomCard";
+import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
 import { supabase } from "../../supabaseClient";
 
 const CATEGORIES = [
@@ -77,16 +78,21 @@ const ProRooms = () => {
   const [sortBy, setSortBy] = useState("Newest");
   const [activeTab, setActiveTab] = useState("all");
 
-  // Statistics State (Calculated from Real Database Data)
-  const [stats, setStats] = useState({
-    activeRoomsCount: 0,
-    participantsEvaluatedCount: 0,
-    totalRewardsVal: "0 gBits",
-  });
+  // Registration State
+  const [userRegistrations, setUserRegistrations] = useState({});
+  const [selectedRegRoom, setSelectedRegRoom] = useState(null);
+  const [toastMsg, setToastMsg] = useState("");
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3500);
+  };
 
   const fetchProRoomsFromDB = async () => {
     setLoading(true);
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id;
+
       // 1. Fetch Rooms from Supabase
       const { data: dbRooms, error } = await supabase
         .from("pro_rooms")
@@ -96,12 +102,26 @@ const ProRooms = () => {
       const roomList = dbRooms || [];
       setRooms(roomList);
 
-      // 2. Fetch Submissions Count from Supabase
+      // 2. Fetch User Registrations from Supabase
+      if (uid) {
+        const { data: regs } = await supabase
+          .from("pro_room_registrations")
+          .select("room_id, status")
+          .eq("user_id", uid);
+
+        if (regs) {
+          const map = {};
+          regs.forEach((r) => (map[r.room_id] = r.status));
+          setUserRegistrations(map);
+        }
+      }
+
+      // 3. Fetch Submissions Count from Supabase
       const { count: subsCount } = await supabase
         .from("pro_room_submissions")
         .select("*", { count: "exact", head: true });
 
-      // 3. Compute Stats
+      // 4. Compute Stats
       const liveCount = roomList.length;
 
       const totalRewards = roomList.reduce(
@@ -375,13 +395,23 @@ const ProRooms = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-                {filteredRooms.map((room) => (
-                  <ProRoomCard
-                    key={room.id}
-                    room={room}
-                    onSelect={() => navigate(`/pro-rooms/${room.id}`)}
-                  />
-                ))}
+                {filteredRooms.map((room) => {
+                  const isReg = Boolean(userRegistrations[room.id]);
+                  return (
+                    <ProRoomCard
+                      key={room.id}
+                      room={room}
+                      isRegistered={isReg}
+                      onSelect={() => {
+                        if (isReg) {
+                          navigate(`/pro-rooms/${room.id}`);
+                        } else {
+                          setSelectedRegRoom(room);
+                        }
+                      }}
+                    />
+                  );
+                })}
               </div>
             )}
 
@@ -404,6 +434,27 @@ const ProRooms = () => {
           </div>
         </section>
       </div>
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#0c0c16] border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-bold px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2">
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Pro Room Registration Modal */}
+      <ProRoomRegistrationModal
+        isOpen={Boolean(selectedRegRoom)}
+        onClose={() => setSelectedRegRoom(null)}
+        room={selectedRegRoom}
+        showToast={showToast}
+        onRegistrationSuccess={(payload) => {
+          if (selectedRegRoom) {
+            setUserRegistrations((prev) => ({ ...prev, [selectedRegRoom.id]: "approved" }));
+            navigate(`/pro-rooms/${selectedRegRoom.id}`);
+          }
+        }}
+      />
 
       <Footer />
     </div>

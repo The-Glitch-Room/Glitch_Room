@@ -44,6 +44,7 @@ import {
   Send,
   LogOut,
 } from "lucide-react";
+import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import { supabase } from "../../supabaseClient";
 
@@ -68,8 +69,9 @@ const ProfessionalRoomDetail = () => {
   const [activeSidebarTab, setActiveSidebarTab] = useState("overview");
   const [isFollowingOrg, setIsFollowingOrg] = useState(false);
 
-  // Dynamic Database Host Verification
+  // Dynamic Database Host & Registration Verification
   const isHost = Boolean(currentUserId && room && (room.host_id === currentUserId || room.created_by === currentUserId));
+  const isRegistered = isHost || Boolean(userRegistration && userRegistration.status === "approved");
 
   // Dropdowns States
   const [showNotifications, setShowNotifications] = useState(false);
@@ -77,6 +79,7 @@ const ProfessionalRoomDetail = () => {
   const [notifications, setNotifications] = useState([]);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [showDiscussionModal, setShowDiscussionModal] = useState(false);
+  const [showRegModal, setShowRegModal] = useState(false);
 
   // Form States for Discussion & Announcement
   const [discTitle, setDiscTitle] = useState("");
@@ -1128,6 +1131,26 @@ const ProfessionalRoomDetail = () => {
             {/* STANDARD ROOM NAVIGATION TABS */}
             {activeSidebarTab === "overview" && (
               <div className="space-y-6">
+                {!isRegistered && (
+                  <div className="bg-[#07070e] border border-[#00F0FF]/30 rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center shrink-0">
+                        <Sparkles size={20} className="text-[#00F0FF]" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Registration Open for this Pro Room</h4>
+                        <p className="text-xs text-gray-400">Register now for automatic approval and instant access to assessment sections.</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowRegModal(true)}
+                      className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer whitespace-nowrap"
+                    >
+                      Register Now →
+                    </button>
+                  </div>
+                )}
+
                 <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                   <div className="space-y-3">
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1295,15 +1318,33 @@ const ProfessionalRoomDetail = () => {
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <Layers size={16} className="text-[#00F0FF]" /> Assessment Sections ({sections.length})
                   </h3>
-                  <button
-                    onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
-                    className="px-4 py-2 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center gap-1.5"
-                  >
-                    Start Assessment <ArrowRight size={14} />
-                  </button>
+                  {isRegistered && (
+                    <button
+                      onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
+                      className="px-4 py-2 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center gap-1.5"
+                    >
+                      Start Assessment <ArrowRight size={14} />
+                    </button>
+                  )}
                 </div>
 
-                {sections.length === 0 ? (
+                {!isRegistered ? (
+                  <div className="bg-[#07070e] border border-cyan-500/30 rounded-2xl p-10 text-center space-y-4 my-4">
+                    <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mx-auto text-[#00F0FF]">
+                      <Lock size={28} />
+                    </div>
+                    <h3 className="text-base font-bold text-white">Registration Required</h3>
+                    <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
+                      You must register for this Pro Room before you can view assessment questions, launch timed sections, or submit solutions.
+                    </p>
+                    <button
+                      onClick={() => setShowRegModal(true)}
+                      className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer"
+                    >
+                      Register Now to Unlock
+                    </button>
+                  </div>
+                ) : sections.length === 0 ? (
                   <p className="text-xs text-gray-500 text-center py-10">No sections configured for this assessment.</p>
                 ) : (
                   <div className="space-y-4">
@@ -1927,6 +1968,18 @@ const ProfessionalRoomDetail = () => {
           </div>
         </div>
       )}
+
+      {/* PRO ROOM REGISTRATION MODAL */}
+      <ProRoomRegistrationModal
+        isOpen={showRegModal}
+        onClose={() => setShowRegModal(false)}
+        room={room}
+        showToast={showToast}
+        onRegistrationSuccess={(payload) => {
+          setUserRegistration(payload);
+          fetchRoomData();
+        }}
+      />
     </div>
   );
 };
