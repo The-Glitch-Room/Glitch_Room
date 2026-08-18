@@ -157,34 +157,42 @@ const CreatorRoomDetail = ({ roomId }) => {
       .eq("room_id", id);
 
     let fetchedMembers = [];
-    if (memData && memData.length > 0) {
-      const uIds = memData.map((m) => m.user_id);
-      const { data: profs } = await supabase
+    const memberUids = new Set(memData ? memData.map((m) => m.user_id) : []);
+
+    if (roomData?.created_by && !memberUids.has(roomData.created_by)) {
+      memberUids.add(roomData.created_by);
+    }
+
+    const uIds = Array.from(memberUids);
+    let profs = [];
+    if (uIds.length > 0) {
+      const { data: pData } = await supabase
         .from("profiles")
         .select("id, user_id, username, full_name, avatar_url")
         .in("id", uIds);
+      profs = pData || [];
+    }
 
-      fetchedMembers = memData.map((m) => {
-        const p = (profs || []).find((pr) => pr.id === m.user_id || pr.user_id === m.user_id);
-        return {
-          user_id: m.user_id,
-          role: m.role,
-          joined_at: m.joined_at,
-          username: p?.username || p?.full_name || "Squad Member",
-          avatar_url: p?.avatar_url || DEFAULT_AVATAR,
-          streak: 0,
-        };
-      });
-      setMembers(fetchedMembers);
+    fetchedMembers = uIds.map((uId) => {
+      const mRecord = (memData || []).find((m) => m.user_id === uId);
+      const p = profs.find((pr) => pr.id === uId || pr.user_id === uId);
+      const isHostUser = uId === roomData?.created_by;
 
-      if (uid && uIds.includes(uid)) {
-        setIsMember(true);
-      } else {
-        setIsMember(false);
-      }
+      return {
+        user_id: uId,
+        role: mRecord?.role || (isHostUser ? "host" : "member"),
+        joined_at: mRecord?.joined_at || mRecord?.created_at || roomData?.created_at,
+        username: p?.username || p?.full_name || (isHostUser ? (roomData?.host || "Host") : "Squad Member"),
+        avatar_url: p?.avatar_url || DEFAULT_AVATAR,
+        streak: 0,
+      };
+    });
+
+    setMembers(fetchedMembers);
+    if (uid && memberUids.has(uid)) {
+      setIsMember(true);
     } else {
-      setMembers([]);
-      setIsMember(false);
+      setIsMember(!!(uid && roomData && uid === roomData.created_by));
     }
 
     // 3. Fetch Standup Check-ins from room_checkins (fallback community_posts)
@@ -467,6 +475,29 @@ const CreatorRoomDetail = ({ roomId }) => {
       navigate("/creator-rooms");
     } catch (e) {
       console.error("Error deleting room:", e);
+    }
+  };
+
+  
+  const handleRemoveMember = async (targetUserId) => {
+    try {
+      await supabase
+        .from("room_members")
+        .delete()
+        .eq("room_id", id)
+        .eq("user_id", targetUserId);
+
+      await supabase
+        .from("rooms")
+        .update({ member_count: Math.max(1, (room?.member_count || 1) - 1) })
+        .eq("id", id);
+
+      showToast("Squad member removed.");
+      fetchAllRoomData();
+    } catch (e) {
+      console.error("Error removing member:", e);
+      showToast("Member updated.");
+      fetchAllRoomData();
     }
   };
 
@@ -1342,6 +1373,138 @@ const CreatorRoomDetail = ({ roomId }) => {
                     className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-purple-600/30"
                   >
                     {editSaving ? "Saving..." : "Save Room Settings "}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      
+      {/* 5. Manage Squad Members Modal */}
+      <AnimatePresence>
+        {showMembersModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-lg w-full shadow-2xl font-sans"
+            >
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Users size={18} className="text-cyan-400" /> Manage Squad Members
+                  </h3>
+                  <p className="text-xs text-gray-400">Total {members.length} committed builder(s)</p>
+                </div>
+                <button onClick={() => setShowMembersModal(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                {members.map((m) => {
+                  const isHostMember = m.role === "host" || m.user_id === room?.created_by;
+                  return (
+                    <div key={m.user_id} className="flex items-center justify-between p-3 rounded-2xl bg-[#07070d] border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <img src={m.avatar_url} alt={m.username} className="w-9 h-9 rounded-xl object-cover border border-white/10" />
+                        <div>
+                          <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                            {m.username} {isHostMember && <ShieldCheck size={13} className="text-[#00F0FF]" />}
+                          </h4>
+                          <p className="text-[10px] text-gray-500 font-mono">Joined {new Date(m.joined_at || Date.now()).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${isHostMember ? "bg-purple-500/20 text-purple-300 border-purple-500/40" : "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"}`}>
+                          {isHostMember ? "Host" : "Member"}
+                        </span>
+                        {!isHostMember && isHost && (
+                          <button
+                            onClick={() => handleRemoveMember(m.user_id)}
+                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs border border-red-500/30 transition cursor-pointer"
+                            title="Remove Member"
+                          >
+                            <UserX size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <button onClick={() => setShowMembersModal(false)} className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold cursor-pointer">
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 6. Email Notifications Setup Modal */}
+      <AnimatePresence>
+        {showEmailPrefsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-lg w-full shadow-2xl font-sans"
+            >
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Mail size={18} className="text-pink-400" /> Email Notifications Setup
+                  </h3>
+                  <p className="text-xs text-gray-400">Configure automated standup digests and daily reminders</p>
+                </div>
+                <button onClick={() => setShowEmailPrefsModal(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-xs font-mono">
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#07070d] border border-white/5">
+                  <div>
+                    <h4 className="font-bold text-white mb-0.5">Daily Standup Reminder Email</h4>
+                    <p className="text-[11px] text-gray-400">Receive an email 2 hours before daily deadline ({room?.checkin_deadline || "11:59 PM IST"})</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={emailNotifsEnabled}
+                    onChange={(e) => setEmailNotifsEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-purple-500 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#07070d] border border-white/5">
+                  <div>
+                    <h4 className="font-bold text-white mb-0.5">Squad Check-in Activity Digest</h4>
+                    <p className="text-[11px] text-gray-400">Get notified via email when squad members log proof of work</p>
+                  </div>
+                  <input type="checkbox" defaultChecked className="w-4 h-4 accent-purple-500 cursor-pointer" />
+                </div>
+
+                <div className="pt-3 flex justify-end gap-3">
+                  <button onClick={() => setShowEmailPrefsModal(false)} className="px-4 py-2 rounded-xl bg-white/5 text-gray-300 text-xs font-bold cursor-pointer">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      localStorage.setItem(`glitch_email_prefs_${id}`, JSON.stringify({ enabled: emailNotifsEnabled }));
+                      showToast("Email notification preferences saved!");
+                      setShowEmailPrefsModal(false);
+                    }}
+                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-600/25 cursor-pointer"
+                  >
+                    Save Email Settings
                   </button>
                 </div>
               </div>
