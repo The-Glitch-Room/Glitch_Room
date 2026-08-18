@@ -929,7 +929,7 @@ const ProfessionalRoomDetail = () => {
                   <Layers size={16} className="text-[#00F0FF]" /> Assessment Configuration
                 </h3>
                 <p className="text-gray-400">Manage your timed sections and question bank.</p>
-                <button onClick={() => navigate(`/pro-rooms/create?edit=${id}`)} className="px-4 py-2 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer">
+                <button onClick={() => navigate(`/pro-rooms/create?edit=${id}&step=4`)} className="px-4 py-2 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer">
                   Open Creation Studio Editor →
                 </button>
               </div>

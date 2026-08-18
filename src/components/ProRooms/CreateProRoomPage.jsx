@@ -83,7 +83,13 @@ const CreateProRoomPage = () => {
   const editRoomId = searchParams.get("edit");
   const initialStepParam = searchParams.get("step");
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(() => {
+    if (initialStepParam) {
+      const stepNum = Number(initialStepParam);
+      if (stepNum >= 1 && stepNum <= 6) return stepNum;
+    }
+    return 1;
+  });
   const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
