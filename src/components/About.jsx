@@ -7,7 +7,7 @@ import StatCard from "./StatCard";
 import Button from "./Button";
 import GlitchBackground from "./GlitchBackground";
 import { useAuth } from "./AuthContext";
-import { Heart, Users, Cpu, Globe } from "lucide-react";
+import { Heart, Users, Cpu, Globe, Target, Compass } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { fetchTotalChallengeCount } from "../utils/challengeCountHelper";
 
@@ -182,39 +182,132 @@ const About = () => {
 
         {/* ── MISSION & VISION ── */}
         <section className="py-16 px-6 bg-transparent">
-          <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-6">
-            {[
-              {
-                label: "Our Mission",
-                text: "Give every young creator a low-pressure, high-signal place to make, share, and level up — without the algorithm anxiety of traditional social platforms.",
-                accent: "#00F0FF",
-              },
-              {
-                label: "Our Vision",
-                text: "A generation of creators who treat the web as a canvas, who ship fast and share freely, and who learn by doing in public.",
-                accent: "#FF00C8",
-              },
-            ].map((card, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                viewport={{ once: true }}
-                className="relative p-7 bg-[#111118]/85 backdrop-blur-sm rounded-2xl border border-white/5 overflow-hidden"
-              >
-                <div
-                  className="absolute top-0 left-0 right-0 h-[2px]"
-                  style={{
-                    background: `linear-gradient(90deg, transparent, ${card.accent}, transparent)`,
-                  }}
-                />
-                <p className="text-lg font-bold text-white mb-3">{card.label}</p>
-                <p className="text-gray-400 text-base leading-relaxed">
-                  {card.text}
-                </p>
-              </motion.div>
-            ))}
+          <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-6 sm:gap-8">
+            {/* MISSION CARD */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -6 }}
+              transition={{ duration: 0.3 }}
+              viewport={{ once: true }}
+              className="group relative p-7 sm:p-8 bg-gradient-to-br from-[#0d0f18]/90 via-[#0d0e15]/85 to-[#070b12]/90 backdrop-blur-md rounded-3xl border border-[#00F0FF]/20 hover:border-[#00F0FF]/60 hover:shadow-[0_0_30px_rgba(0,240,255,0.15)] transition-all duration-300 overflow-hidden shadow-xl"
+            >
+              {/* Top Accent Line */}
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#00F0FF] to-transparent opacity-80 group-hover:opacity-100 transition-opacity" />
+
+              {/* Technical Cyber Grid Texture */}
+              <div
+                className="absolute inset-0 opacity-[0.04] pointer-events-none group-hover:opacity-[0.08] transition-opacity"
+                style={{
+                  backgroundImage: `linear-gradient(rgba(0,240,255,0.4) 1px, transparent 1px),
+                                    linear-gradient(90deg, rgba(0,240,255,0.4) 1px, transparent 1px)`,
+                  backgroundSize: "24px 24px",
+                }}
+              />
+
+              {/* Corner Tech Bracket Indicator */}
+              <div className="absolute top-3 right-4 font-mono text-[10px] text-[#00F0FF]/40 tracking-widest uppercase select-none">
+                [SYS_ACTIVE]
+              </div>
+
+              {/* Header Bar: Tech Tag & Minimal Icon */}
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00F0FF] animate-pulse" />
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-[#00F0FF] uppercase">
+                    01 // MISSION.EXE
+                  </span>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/25 flex items-center justify-center text-[#00F0FF] group-hover:scale-110 transition-transform shadow-inner">
+                  <Target size={20} />
+                </div>
+              </div>
+
+              {/* Card Title */}
+              <h3 className="text-xl sm:text-2xl font-black text-white mb-3 tracking-tight group-hover:text-[#00F0FF] transition-colors">
+                Our Mission
+              </h3>
+
+              {/* Card Text with Cyan Highlighted Key Terms */}
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed relative z-10 font-sans">
+                Give every{" "}
+                <span className="text-[#00F0FF] font-semibold">
+                  young creator
+                </span>{" "}
+                a low-pressure,{" "}
+                <span className="text-[#00F0FF] font-semibold">
+                  high-signal place
+                </span>{" "}
+                to make, share, and level up — without the{" "}
+                <span className="text-gray-200 underline decoration-[#00F0FF]/30 underline-offset-4">
+                  algorithm anxiety
+                </span>{" "}
+                of traditional social platforms.
+              </p>
+            </motion.div>
+
+            {/* VISION CARD */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -6 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              viewport={{ once: true }}
+              className="group relative p-7 sm:p-8 bg-gradient-to-br from-[#160a1c]/90 via-[#0e0c18]/85 to-[#120716]/90 backdrop-blur-md rounded-3xl border border-[#FF00C8]/20 hover:border-[#FF00C8]/60 hover:shadow-[0_0_30px_rgba(255,0,200,0.15)] transition-all duration-300 overflow-hidden shadow-xl"
+            >
+              {/* Top Accent Line */}
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#FF00C8] to-transparent opacity-80 group-hover:opacity-100 transition-opacity" />
+
+              {/* Technical Cyber Grid Texture */}
+              <div
+                className="absolute inset-0 opacity-[0.04] pointer-events-none group-hover:opacity-[0.08] transition-opacity"
+                style={{
+                  backgroundImage: `linear-gradient(rgba(255,0,200,0.4) 1px, transparent 1px),
+                                    linear-gradient(90deg, rgba(255,0,200,0.4) 1px, transparent 1px)`,
+                  backgroundSize: "24px 24px",
+                }}
+              />
+
+              {/* Corner Tech Bracket Indicator */}
+              <div className="absolute top-3 right-4 font-mono text-[10px] text-[#FF00C8]/40 tracking-widest uppercase select-none">
+                [GOAL_CORE]
+              </div>
+
+              {/* Header Bar: Tech Tag & Minimal Icon */}
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF00C8] animate-pulse" />
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-[#FF00C8] uppercase">
+                    02 // VISION.EXE
+                  </span>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-[#FF00C8]/10 border border-[#FF00C8]/25 flex items-center justify-center text-[#FF00C8] group-hover:scale-110 transition-transform shadow-inner">
+                  <Compass size={20} />
+                </div>
+              </div>
+
+              {/* Card Title */}
+              <h3 className="text-xl sm:text-2xl font-black text-white mb-3 tracking-tight group-hover:text-[#FF00C8] transition-colors">
+                Our Vision
+              </h3>
+
+              {/* Card Text with Magenta/Purple Highlighted Key Terms */}
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed relative z-10 font-sans">
+                A generation of creators who{" "}
+                <span className="text-[#FF00C8] font-semibold">
+                  treat the web as a canvas
+                </span>
+                , who{" "}
+                <span className="text-[#FF00C8] font-semibold">
+                  ship fast
+                </span>{" "}
+                and share freely, and who{" "}
+                <span className="text-white font-semibold underline decoration-[#FF00C8]/30 underline-offset-4">
+                  learn by doing in public
+                </span>
+                .
+              </p>
+            </motion.div>
           </div>
         </section>
 
