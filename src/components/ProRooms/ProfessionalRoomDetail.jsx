@@ -1003,6 +1003,36 @@ const ProfessionalRoomDetail = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* ❓ DYNAMIC HOST FAQ / COMMON QUESTIONS ACCORDION */}
+                {Array.isArray(room.custom_app_questions) && room.custom_app_questions.filter(q => q && (q.question || q.title)).length > 0 && (
+                  <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                      <HelpCircle size={16} className="text-[#00F0FF]" /> Frequently Asked Questions (FAQ)
+                    </h3>
+
+                    <div className="space-y-3">
+                      {room.custom_app_questions
+                        .filter(q => q && (q.question || q.title))
+                        .map((faq, idx) => (
+                          <details
+                            key={faq.id || idx}
+                            className="group p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-purple-500/30 transition text-xs cursor-pointer"
+                          >
+                            <summary className="font-bold text-white flex items-center justify-between gap-3 list-none">
+                              <span className="flex items-center gap-2">
+                                <span className="text-purple-400 font-mono font-bold">Q:</span> {faq.question || faq.title}
+                              </span>
+                              <ChevronRight size={14} className="text-gray-500 group-open:rotate-90 transition-transform" />
+                            </summary>
+                            <div className="mt-3 pt-3 border-t border-white/5 text-gray-300 leading-relaxed pl-6">
+                              <span className="text-emerald-400 font-mono font-bold">A:</span> {faq.answer || "Answer will be updated by the host."}
+                            </div>
+                          </details>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

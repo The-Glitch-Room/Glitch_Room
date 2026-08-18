@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlitchBackground from "../GlitchBackground";
 import {
@@ -79,6 +79,10 @@ const QUESTION_TYPES = [
 
 const CreateProRoomPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editRoomId = searchParams.get("edit");
+  const initialStepParam = searchParams.get("step");
+
   const [currentStep, setCurrentStep] = useState(1);
   const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -134,10 +138,126 @@ const CreateProRoomPage = () => {
     exp_level: "All Levels",
     require_application: true,
     custom_app_questions: [
-      { id: "q1", question: "Why do you want to participate in this hackathon?", type: "text" },
-      { id: "q2", question: "Provide link to your GitHub or Portfolio", type: "url" },
+      { id: "q1", question: "Do I get a participation certificate?", answer: "Yes, all eligible candidates who complete the assessment will receive a verified certificate." },
+      { id: "q2", question: "Where do I submit my code?", answer: "Submit your solution directly inside the timed assessment section environment." },
     ],
   });
+
+  // Pre-load room configuration & set initial step when editing
+  useEffect(() => {
+    if (initialStepParam) {
+      const stepNum = Number(initialStepParam);
+      if (stepNum >= 1 && stepNum <= 6) {
+        setCurrentStep(stepNum);
+      }
+    }
+
+    if (editRoomId) {
+      const fetchExistingRoom = async () => {
+        try {
+          const { data: rData } = await supabase
+            .from("pro_rooms")
+            .select("*")
+            .eq("id", editRoomId)
+            .maybeSingle();
+
+          if (rData) {
+            setBasicInfo({
+              name: rData.name || rData.title || "",
+              event_type: rData.event_type || "Hackathon",
+              short_description: rData.short_description || "",
+              category: rData.category || "AI / Machine Learning",
+              detailed_description: rData.detailed_description || "",
+              org_name: rData.org_name || "",
+              org_email: rData.org_email || "",
+              organizer_name: rData.organizer_name || "",
+              website: rData.website || "",
+              org_logo: rData.org_logo || "",
+              cover_image: rData.cover_image || "",
+            });
+
+            if (rData.reg_start_at && rData.event_end_at) {
+              setSchedule({
+                reg_start_at: rData.reg_start_at ? rData.reg_start_at.slice(0, 16) : "",
+                reg_end_at: rData.reg_end_at ? rData.reg_end_at.slice(0, 16) : "",
+                event_start_at: rData.event_start_at ? rData.event_start_at.slice(0, 16) : "",
+                event_end_at: rData.event_end_at ? rData.event_end_at.slice(0, 16) : "",
+                timezone: rData.timezone || "IST (UTC+5:30)",
+                allow_late_entry: rData.allow_late_entry ?? true,
+                mode: rData.mode || "Online",
+                submission_deadline: rData.event_end_at ? rData.event_end_at.slice(0, 16) : "",
+              });
+            }
+
+            setEligibility({
+              access_type: rData.access_type || "public",
+              max_participants: rData.max_participants || 500,
+              participation_type: rData.participation_type || "team",
+              max_team_size: rData.max_team_size || 4,
+              min_glitch_level: rData.min_glitch_level || 1,
+              required_skills: rData.required_skills || "",
+              target_college: rData.target_college || "All Universities",
+              target_degree: rData.target_degree || "All Degrees",
+              target_branch: rData.target_branch || "All Branches",
+              grad_years: rData.grad_years || "All",
+              exp_level: rData.exp_level || "All Levels",
+              require_application: rData.require_application ?? true,
+              custom_app_questions: Array.isArray(rData.custom_app_questions)
+                ? rData.custom_app_questions
+                : [],
+            });
+
+            setEvaluation({
+              eval_method: rData.eval_method || "Automatic + Manual",
+              passing_score: rData.passing_score || 50,
+              negative_marking: rData.negative_marking ?? false,
+              partial_scoring: rData.partial_scoring ?? true,
+              tie_breaker_rule: rData.tie_breaker_rule || "score_speed",
+              gbits_prize_pool: rData.gbits_prize_pool || 2500,
+              has_participation_certificate: rData.has_participation_certificate ?? true,
+              has_winner_certificate: rData.has_winner_certificate ?? true,
+              has_achievement_badge: rData.has_achievement_badge ?? true,
+              prize_details: rData.prize_details || "",
+            });
+          }
+
+          // Fetch Sections & Questions
+          const { data: sData } = await supabase
+            .from("pro_room_sections")
+            .select("*, pro_room_questions(*)")
+            .eq("room_id", editRoomId)
+            .order("order_index", { ascending: true });
+
+          if (sData && sData.length > 0) {
+            setSections(
+              sData.map((s) => ({
+                id: s.id,
+                section_name: s.section_name,
+                section_type: s.section_type,
+                order_index: s.order_index,
+                time_limit_minutes: s.time_limit_minutes,
+                total_points: s.total_points,
+                questions: (s.pro_room_questions || []).map((q) => ({
+                  id: q.id,
+                  question_text: q.question_text,
+                  question_type: q.question_type,
+                  difficulty: q.difficulty,
+                  points: q.points,
+                  options: q.options || [],
+                  correct_answer: q.correct_answer || "",
+                  test_cases: q.test_cases || [],
+                })),
+              }))
+            );
+          }
+        } catch (err) {
+          console.error("Error fetching room data for edit:", err);
+        }
+      };
+
+      fetchExistingRoom();
+    }
+  }, [editRoomId, initialStepParam]);
 
   // STEP 4: Assessment Sections & Question Builder State
   const [sections, setSections] = useState([
@@ -231,13 +351,13 @@ const CreateProRoomPage = () => {
     return { label: "Upcoming", bg: "bg-purple-500/10 text-purple-300 border-purple-500/30" };
   };
 
-  // Handlers for dynamic custom application questions
+  // Handlers for dynamic Host FAQ / Common Questions
   const addAppQuestion = () => {
     setEligibility({
       ...eligibility,
       custom_app_questions: [
         ...eligibility.custom_app_questions,
-        { id: `q-${Date.now()}`, question: "New Custom Application Question", type: "text" },
+        { id: `q-${Date.now()}`, question: "", answer: "" },
       ],
     });
   };
@@ -376,15 +496,29 @@ const CreateProRoomPage = () => {
         prize_details: evaluation.prize_details,
       };
 
-      const { data: createdRoom, error: roomErr } = await supabase
-        .from("pro_rooms")
-        .insert(roomPayload)
-        .select()
-        .single();
+      let roomId = editRoomId;
 
-      if (roomErr) throw roomErr;
+      if (editRoomId) {
+        const { error: roomErr } = await supabase
+          .from("pro_rooms")
+          .update(roomPayload)
+          .eq("id", editRoomId);
 
-      const roomId = createdRoom.id;
+        if (roomErr) throw roomErr;
+
+        // Clean up old sections and questions for this room
+        await supabase.from("pro_room_questions").delete().eq("room_id", editRoomId);
+        await supabase.from("pro_room_sections").delete().eq("room_id", editRoomId);
+      } else {
+        const { data: createdRoom, error: roomErr } = await supabase
+          .from("pro_rooms")
+          .insert(roomPayload)
+          .select()
+          .single();
+
+        if (roomErr) throw roomErr;
+        roomId = createdRoom.id;
+      }
 
       // Insert Sections & Questions
       for (let i = 0; i < sections.length; i++) {
@@ -420,9 +554,9 @@ const CreateProRoomPage = () => {
         }
       }
 
-      showToast("🚀 Pro Room published successfully!");
+      showToast(editRoomId ? "🚀 Pro Room updated successfully!" : "🚀 Pro Room published successfully!");
       setTimeout(() => {
-        navigate("/pro-rooms");
+        navigate(`/pro-rooms/${roomId}`);
       }, 1200);
     } catch (err) {
       console.error(err);
@@ -953,43 +1087,78 @@ const CreateProRoomPage = () => {
                     />
                   </div>
 
-                  {/* Custom Registration Questions */}
+                  {/* Host-Created FAQ / Common Questions */}
                   <div className="pt-4 border-t border-white/5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-gray-300">Custom Registration Questions</h4>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-300">Host FAQ / Common Questions</h4>
+                        <p className="text-[11px] text-gray-500">Create common Q&As for candidates to view on the Room Overview page.</p>
+                      </div>
                       <button
                         type="button"
                         onClick={addAppQuestion}
-                        className="px-3 py-1 rounded-lg bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
                       >
-                        <FiPlus /> Add Question
+                        <FiPlus /> Add FAQ Question
                       </button>
                     </div>
 
-                    {eligibility.custom_app_questions.map((aq) => (
-                      <div key={aq.id} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={aq.question}
-                          onChange={(e) =>
-                            setEligibility({
-                              ...eligibility,
-                              custom_app_questions: eligibility.custom_app_questions.map((q) =>
-                                q.id === aq.id ? { ...q, question: e.target.value } : q
-                              ),
-                            })
-                          }
-                          className="flex-1 bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeAppQuestion(aq.id)}
-                          className="text-red-400 hover:text-red-300 p-2 cursor-pointer"
-                        >
-                          <FiTrash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
+                    {eligibility.custom_app_questions.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-4 bg-[#06060c] border border-white/5 rounded-xl">
+                        No FAQ questions created yet. Click "+ Add FAQ Question" to add common Q&As.
+                      </p>
+                    ) : (
+                      eligibility.custom_app_questions.map((aq, qIdx) => (
+                        <div key={aq.id || qIdx} className="p-3.5 rounded-xl bg-[#06060c] border border-white/10 space-y-2.5 relative">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-mono text-purple-400 font-bold uppercase">Question #{qIdx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAppQuestion(aq.id)}
+                              className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
+                            >
+                              <FiTrash2 size={13} />
+                            </button>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 block mb-1">Question Title</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Do I get a participation certificate?"
+                              value={aq.question || ""}
+                              onChange={(e) =>
+                                setEligibility({
+                                  ...eligibility,
+                                  custom_app_questions: eligibility.custom_app_questions.map((q) =>
+                                    q.id === aq.id ? { ...q, question: e.target.value } : q
+                                  ),
+                                })
+                              }
+                              className="w-full bg-[#030308] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#00F0FF]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 block mb-1">Answer / Explanation</label>
+                            <textarea
+                              rows={2}
+                              placeholder="e.g. Yes, all eligible candidates who complete the assessment will receive a verified certificate."
+                              value={aq.answer || ""}
+                              onChange={(e) =>
+                                setEligibility({
+                                  ...eligibility,
+                                  custom_app_questions: eligibility.custom_app_questions.map((q) =>
+                                    q.id === aq.id ? { ...q, answer: e.target.value } : q
+                                  ),
+                                })
+                              }
+                              className="w-full bg-[#030308] border border-white/10 rounded-lg p-3 text-xs text-white outline-none focus:border-[#00F0FF]"
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
