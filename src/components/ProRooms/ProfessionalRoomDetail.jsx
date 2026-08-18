@@ -68,6 +68,9 @@ const ProfessionalRoomDetail = () => {
   const [activeSidebarTab, setActiveSidebarTab] = useState("overview");
   const [isFollowingOrg, setIsFollowingOrg] = useState(false);
 
+  // Dynamic Database Host Verification
+  const isHost = Boolean(currentUserId && room && (room.host_id === currentUserId || room.created_by === currentUserId));
+
   // Dropdowns States
   const [showNotifications, setShowNotifications] = useState(false);
   const [showThreeDotMenu, setShowThreeDotMenu] = useState(false);
@@ -253,13 +256,13 @@ const ProfessionalRoomDetail = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [id, room]);
+  }, [room?.event_end_at]);
 
   useEffect(() => {
     if (!loading && room && !isHost && activeSidebarTab.startsWith("host_")) {
       setActiveSidebarTab("overview");
     }
-  }, [isHost, activeSidebarTab, loading, room]);
+  }, [isHost, activeSidebarTab, loading]);
 
   const markNotificationRead = (notifId) => {
     setNotifications((prev) =>
@@ -337,7 +340,6 @@ const ProfessionalRoomDetail = () => {
   }
 
   const lifecycle = getProRoomLifecycleState(room);
-  const isHost = currentUserId && room?.host_id === currentUserId;
   const isTeamEvent = room?.participation_type === "team" || room?.participation_type === "both";
   const unreadCount = notifications.filter((n) => !n.read).length;
 
