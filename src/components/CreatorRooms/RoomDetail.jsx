@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "../../supabaseClient";
@@ -65,13 +65,13 @@ const RoomDetail = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#080810] text-white">
         <div className="text-center">
-          <p className="text-4xl mb-3">🔍</p>
+          <p className="text-4xl mb-3">ðŸ”</p>
           <p className="text-gray-400">Room not found.</p>
           <button
             onClick={() => navigate("/creator-rooms")}
             className="mt-4 text-cyan-400 text-sm hover:underline cursor-pointer"
           >
-            ← Back to Rooms
+            â† Back to Rooms
           </button>
         </div>
       </div>
@@ -89,3 +89,5 @@ const RoomDetail = () => {
 };
 
 export default RoomDetail;
+
+

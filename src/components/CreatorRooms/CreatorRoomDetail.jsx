@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+﻿import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
@@ -105,7 +105,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ── Database Fetching ───────────────────────────────────────────────────────
+  // â”€â”€ Database Fetching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchAllRoomData = async () => {
     setLoading(true);
     const { data: au } = await supabase.auth.getUser();
@@ -283,7 +283,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     fetchAllRoomData();
   }, [id]);
 
-  // ── Dispatch Notification Architecture ──────────────────────────────────────
+  // â”€â”€ Dispatch Notification Architecture â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const sendRoomNotification = async ({ type, title, message, targetUserId }) => {
     try {
       // 1. Insert In-App Notification
@@ -309,11 +309,11 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
   };
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  // â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
-    showToast("🔗 Room link copied to clipboard!");
+    showToast("ðŸ”— Room link copied to clipboard!");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -343,7 +343,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       });
 
       setIsMember(true);
-      showToast("🎉 Successfully committed & joined squad!");
+      showToast("ðŸŽ‰ Successfully committed & joined squad!");
       fetchAllRoomData();
     } catch (e) {
       console.error("Error joining squad:", e);
@@ -416,7 +416,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         message: `${userProfile?.username || "A builder"} submitted today's standup & proof of work!`,
       });
 
-      showToast("🔥 Daily Standup logged! +35 gBits awarded!");
+      showToast("ðŸ”¥ Daily Standup logged! +35 gBits awarded!");
       setAccomplishment("");
       setProofUrl("");
       setBlockers("");
@@ -424,7 +424,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       fetchAllRoomData();
     } catch (e) {
       console.error("Checkin submission error:", e);
-      showToast("⚠️ Failed to log standup. Please try again.");
+      showToast("âš ï¸ Failed to log standup. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -445,7 +445,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         })
         .eq("id", id);
 
-      showToast("✨ Room settings updated successfully!");
+      showToast("âœ¨ Room settings updated successfully!");
       setShowEditModal(false);
       fetchAllRoomData();
     } catch (e) {
@@ -457,13 +457,13 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const handleDeleteRoom = async () => {
     if (deleteConfirmText.trim().toLowerCase() !== (room?.name || room?.title || "").toLowerCase()) {
-      showToast("⚠️ Room title does not match. Deletion cancelled.");
+      showToast("âš ï¸ Room title does not match. Deletion cancelled.");
       return;
     }
 
     try {
       await supabase.from("rooms").delete().eq("id", id);
-      showToast("🗑️ Room permanently deleted.");
+      showToast("ðŸ—‘ï¸ Room permanently deleted.");
       navigate("/creator-rooms");
     } catch (e) {
       console.error("Error deleting room:", e);
@@ -472,7 +472,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const handlePairBuddies = async () => {
     if (members.length < 2) {
-      showToast("⚠️ Need at least 2 squad members to pair accountability buddies.");
+      showToast("âš ï¸ Need at least 2 squad members to pair accountability buddies.");
       return;
     }
 
@@ -486,7 +486,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           user2_id: u2,
         },
       ]);
-      showToast("🤝 Accountability buddies successfully paired!");
+      showToast("ðŸ¤ Accountability buddies successfully paired!");
       fetchAllRoomData();
     } catch (e) {
       console.warn("Buddy pairing notice:", e);
@@ -500,13 +500,13 @@ const CreatorRoomDetail = ({ roomId }) => {
         .update({ is_read: true })
         .eq("room_id", id);
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-      showToast("✓ All notifications marked as read.");
+      showToast("âœ“ All notifications marked as read.");
     } catch (e) {
       console.error(e);
     }
   };
 
-  // ── Calculated Real Statistics ──────────────────────────────────────────────
+  // â”€â”€ Calculated Real Statistics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#070709]">
@@ -524,7 +524,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between font-sans">
         <Navbar />
         <div className="flex flex-col items-center justify-center flex-1 py-36 text-center px-6">
-          <div className="text-6xl mb-4">🔍</div>
+          <div className="text-6xl mb-4">ðŸ”</div>
           <h2 className="text-2xl font-bold text-white mb-2">Creator Room Not Found</h2>
           <p className="text-gray-400 text-xs max-w-md mb-6">
             This room record does not exist or has been removed from the database.
@@ -533,7 +533,7 @@ const CreatorRoomDetail = ({ roomId }) => {
             onClick={() => navigate("/creator-rooms")}
             className="px-6 py-2.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold hover:bg-purple-500/30 transition cursor-pointer"
           >
-            ← Back to Creator Rooms
+            â† Back to Creator Rooms
           </button>
         </div>
       </div>
@@ -571,7 +571,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       <div className="relative z-10 flex flex-col flex-1">
         <Navbar />
 
-        {/* ── TOP NAV BAR ── */}
+        {/* â”€â”€ TOP NAV BAR â”€â”€ */}
         <div className="pt-24 px-6 max-w-7xl mx-auto w-full flex items-center justify-between">
           <button
             onClick={() => navigate("/creator-rooms")}
@@ -688,7 +688,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           </div>
         </div>
 
-        {/* ── ROOM HEADER BANNER ── */}
+        {/* â”€â”€ ROOM HEADER BANNER â”€â”€ */}
         <section className="max-w-7xl mx-auto px-6 pt-6 pb-4 w-full">
           <div className="relative bg-[#0d0d18] border border-white/10 rounded-3xl p-6 md:p-8 overflow-hidden shadow-2xl">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
@@ -697,7 +697,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               {/* Room Metadata */}
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-[#FF00C8]/20 border border-purple-500/30 flex items-center justify-center text-3xl shadow-inner shrink-0">
-                  {room.cover_icon || "⚡"}
+                  {room.cover_icon || "âš¡"}
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -757,7 +757,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                   <div className="flex justify-between text-[10px] font-mono text-gray-500 pt-1">
                     <span>{completedDays} / {totalSprintDays} Days Completed</span>
-                    <span className="text-green-400 font-semibold">On Track ✓</span>
+                    <span className="text-green-400 font-semibold">On Track âœ“</span>
                   </div>
                 </div>
               </div>
@@ -765,7 +765,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           </div>
         </section>
 
-        {/* ── MAIN 3-COLUMN GRID ── */}
+        {/* â”€â”€ MAIN 3-COLUMN GRID â”€â”€ */}
         <section className="max-w-7xl mx-auto px-6 py-6 w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* LEFT COLUMN: Goals & Policy (3 Cols) */}
@@ -813,7 +813,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                 disabled={joining}
                 className="w-full py-3 rounded-xl text-white text-xs font-bold bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 transition shadow-lg shadow-[#FF00C8]/20 cursor-pointer"
               >
-                {joining ? "Joining..." : "Commit & Join Squad →"}
+                {joining ? "Joining..." : "Commit & Join Squad â†’"}
               </button>
             ) : (
               <button
@@ -878,7 +878,7 @@ const CreatorRoomDetail = ({ roomId }) => {
             {/* Standups Feed / Empty State */}
             {standups.length === 0 ? (
               <div className="bg-[#0d0d16] border border-dashed border-white/10 rounded-2xl p-8 text-center my-6">
-                <div className="text-4xl mb-3">🎯</div>
+                <div className="text-4xl mb-3">ðŸŽ¯</div>
                 <h3 className="text-sm font-bold text-white">No daily standups submitted yet</h3>
                 <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
                   Be the first squad member to log your accomplishment and proof of work for today!
@@ -913,7 +913,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                             <span className="text-xs font-bold text-white">{standup.username}</span>
                             {standup.isUser && (
                               <span className="text-[10px] font-mono font-bold px-2 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                👑 You
+                                ðŸ‘‘ You
                               </span>
                             )}
                           </div>
@@ -1013,7 +1013,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-white truncate">{buddyMember.username}</p>
-                    <p className="text-[10px] text-green-400 font-mono">Paired Partner ✓</p>
+                    <p className="text-[10px] text-green-400 font-mono">Paired Partner âœ“</p>
                   </div>
                 </div>
               ) : (
@@ -1054,7 +1054,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         </section>
       </div>
 
-      {/* ── STICKY BOTTOM STATISTICS BAR ── */}
+      {/* â”€â”€ STICKY BOTTOM STATISTICS BAR â”€â”€ */}
       <div className="sticky bottom-0 z-40 bg-[#0a0a14]/95 backdrop-blur-2xl border-t border-white/10 px-6 py-3.5 shadow-2xl">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-8 flex-wrap">
@@ -1086,14 +1086,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                 onClick={() => setShowCheckinModal(true)}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/20 cursor-pointer"
               >
-                Log Today's Standup →
+                Log Today's Standup â†’
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* ── MODALS & DRAWERS ── */}
+      {/* â”€â”€ MODALS & DRAWERS â”€â”€ */}
 
       {/* 1. Daily Standup Check-in Modal */}
       <AnimatePresence>
@@ -1160,7 +1160,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     disabled={submitting || !accomplishment.trim()}
                     className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-[#FF00C8]/20"
                   >
-                    {submitting ? "Submitting..." : "Submit Standup & Claim +35 gBits →"}
+                    {submitting ? "Submitting..." : "Submit Standup & Claim +35 gBits â†’"}
                   </button>
                 </div>
               </div>
@@ -1191,7 +1191,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                 {notifications.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="text-3xl mb-2">🔔</div>
+                    <div className="text-3xl mb-2">ðŸ””</div>
                     <p className="text-xs text-gray-400 font-mono">No room notifications yet.</p>
                   </div>
                 ) : (
@@ -1219,7 +1219,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   onClick={handleMarkNotifsRead}
                   className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-xs font-bold text-purple-300 transition cursor-pointer"
                 >
-                  ✓ Mark All as Read
+                  âœ“ Mark All as Read
                 </button>
               )}
             </motion.div>
@@ -1271,7 +1271,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   disabled={deleteConfirmText.trim().toLowerCase() !== (room?.name || room?.title || "").toLowerCase()}
                   className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-red-600/30"
                 >
-                  Confirm Delete Room 🗑️
+                  Confirm Delete Room ðŸ—‘ï¸
                 </button>
               </div>
             </motion.div>
@@ -1341,7 +1341,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     disabled={editSaving || !editTitle.trim()}
                     className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-purple-600/30"
                   >
-                    {editSaving ? "Saving..." : "Save Room Settings ✨"}
+                    {editSaving ? "Saving..." : "Save Room Settings âœ¨"}
                   </button>
                 </div>
               </div>
@@ -1370,3 +1370,6 @@ const CreatorRoomDetail = ({ roomId }) => {
 };
 
 export default CreatorRoomDetail;
+
+
+

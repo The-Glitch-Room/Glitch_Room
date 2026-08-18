@@ -43,15 +43,15 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
   const getBannerGradient = (category) => {
     const cat = (category || "").toLowerCase();
     if (cat.includes("coding") || cat.includes("dsa") || cat.includes("tech")) {
-      return "from-cyan-900/60 via-purple-950/80 to-slate-950";
+      return "from-cyan-950/80 via-purple-950/90 to-[#0c0c16]";
     }
     if (cat.includes("design") || cat.includes("spark") || cat.includes("creative")) {
-      return "from-pink-900/60 via-purple-950/80 to-slate-950";
+      return "from-pink-950/80 via-purple-950/90 to-[#0c0c16]";
     }
     if (cat.includes("ai") || cat.includes("debug")) {
-      return "from-teal-900/60 via-indigo-950/80 to-slate-950";
+      return "from-teal-950/80 via-indigo-950/90 to-[#0c0c16]";
     }
-    return "from-purple-900/60 via-indigo-950/80 to-slate-950";
+    return "from-purple-950/80 via-indigo-950/90 to-[#0c0c16]";
   };
 
   return (
@@ -65,85 +65,88 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
       {/* Top Hover Accent Bar */}
       <div className="absolute top-0 left-0 right-0 h-[2px] w-full z-20 bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#FF00C8] opacity-80 group-hover:opacity-100 transition-opacity" />
 
-      {/* TOP BANNER SECTION (Pro Room Inspired) */}
-      <div className={`relative h-28 sm:h-32 w-full bg-gradient-to-br ${getBannerGradient(room.category)} overflow-hidden border-b border-white/10`}>
+      {/* TOP BANNER SECTION */}
+      <div className={`relative h-24 w-full bg-gradient-to-b ${getBannerGradient(room.category)} overflow-hidden border-b border-white/5 p-4 flex items-start justify-between`}>
         {/* Cyber Pattern Texture */}
         <div
           className="absolute inset-0 opacity-20 pointer-events-none"
           style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px)`,
-            backgroundSize: "20px 20px",
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+            backgroundSize: "24px 24px",
           }}
         />
 
         {/* Top Floating Badges */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
-          <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-[#00F0FF] shadow-sm">
-            <Sparkles size={10} /> {room.category || "Accountability"}
+        <span className="relative z-10 flex items-center gap-1.5 text-[10px] font-mono font-bold px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-[#00F0FF]">
+          <Sparkles size={11} /> {room.category || "Accountability"}
+        </span>
+
+        <div className="relative z-10 flex items-center gap-1.5">
+          <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-amber-500/30 text-amber-300">
+            <Calendar size={11} /> {getDurationLabel(room.duration_type)}
           </span>
 
-          <div className="flex items-center gap-1.5">
-            <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-amber-500/30 text-amber-300 shadow-sm">
-              <Calendar size={10} /> {getDurationLabel(room.duration_type)}
+          {isMember && (
+            <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/40 text-emerald-300">
+              <CheckCircle size={10} /> Joined
             </span>
-
-            {isMember && (
-              <span className="flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/40 text-emerald-300 shadow-sm">
-                <CheckCircle size={10} /> Joined
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
       {/* CARD BODY CONTENT */}
-      <div className="p-5 sm:p-6 space-y-4 flex-1 flex flex-col justify-between relative -mt-6">
-        {/* Host Avatar & Name (Overlapping Banner) */}
-        <div className="flex items-center gap-2.5 relative z-10 mb-0.5">
-          <div className="w-10 h-10 rounded-2xl bg-[#141224] border border-purple-500/40 flex items-center justify-center text-purple-300 font-bold text-sm shadow-md shrink-0 uppercase font-mono">
+      <div className="p-5 space-y-4 flex-1 flex flex-col justify-between relative">
+        {/* Host Avatar & Name */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-[#141224] border border-purple-500/50 flex items-center justify-center text-purple-300 font-bold text-xs shadow-md shrink-0 uppercase font-mono">
             {room.host ? room.host.charAt(0) : "C"}
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] text-gray-400 font-mono flex items-center gap-1">
-              Host: <span className="text-white font-semibold truncate">{room.host || "Glitch Creator"}</span>
-              <ShieldCheck size={12} className="text-[#00F0FF] shrink-0" />
-            </p>
+          <div className="flex items-center gap-1.5 text-xs min-w-0">
+            <span className="text-gray-400 font-mono">Host:</span>
+            <span className="font-bold text-white truncate">{room.host || "Glitch Creator"}</span>
+            <ShieldCheck size={14} className="text-[#00F0FF] shrink-0" />
           </div>
         </div>
 
-        <div>
+        <div className="space-y-3">
           {/* Room Title */}
-          <h3 className="text-lg font-black text-white group-hover:text-purple-300 transition-colors leading-snug mb-3">
+          <h3 className="text-lg font-black text-white group-hover:text-purple-300 transition-colors leading-snug">
             {room.name || room.title}
           </h3>
 
           {/* Goal Pledge Box */}
           {room.goal_pledge && (
-            <div className="bg-[#05050b] border border-amber-500/25 rounded-2xl p-3.5 mb-3 flex items-start gap-2.5 shadow-inner">
-              <Target size={15} className="text-amber-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-gray-200 font-mono leading-relaxed line-clamp-2">
-                <strong className="text-amber-400 uppercase text-[10px] tracking-wider block mb-0.5">Pledge:</strong>
-                {room.goal_pledge}
-              </p>
+            <div className="bg-[#05050b] border border-amber-500/30 rounded-2xl p-3.5 flex items-start gap-3 shadow-inner">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5 text-amber-400">
+                <Target size={14} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider block mb-0.5">
+                  PLEDGE:
+                </span>
+                <p className="text-xs text-gray-200 font-mono leading-relaxed line-clamp-2">
+                  {room.goal_pledge}
+                </p>
+              </div>
             </div>
           )}
 
           {/* Description */}
-          <p className="text-gray-400 text-xs leading-relaxed line-clamp-2 mb-4">
+          <p className="text-gray-400 text-xs leading-relaxed line-clamp-2">
             {room.description || "Daily check-in and consistency squad for builders."}
           </p>
         </div>
 
-        {/* Metadata Row */}
+        {/* Metadata Row (Squad Members & Active Uptime) */}
         <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs font-mono text-gray-400">
-          <span className="flex items-center gap-1.5">
-            <Users size={13} className="text-[#00F0FF]" />
-            <strong className="text-white font-sans">{room.member_count || 1}</strong> Squad Members
+          <span className="flex items-center gap-2">
+            <Users size={14} className="text-[#00F0FF]" />
+            <span className="text-white font-sans font-bold">{room.member_count || 1}</span> Squad Members
           </span>
 
-          <span className="flex items-center gap-1 text-amber-400 font-semibold">
-            <Flame size={13} /> Active Streaks
+          <span className="flex items-center gap-1.5 text-amber-400 font-bold">
+            <Zap size={14} className="text-amber-400 fill-amber-400/20" /> Active Uptime
           </span>
         </div>
 
@@ -153,7 +156,7 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
             <button
               type="button"
               onClick={() => onEnter(room.id)}
-              className="w-full py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border bg-purple-600/15 hover:bg-purple-600/30 border-purple-500/40 text-purple-300 shadow-md"
+              className="w-full py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border bg-purple-600/20 hover:bg-purple-600/35 border-purple-500/50 text-purple-300 shadow-md"
             >
               Enter Squad Hub <ArrowRight size={14} />
             </button>
@@ -162,7 +165,7 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
               type="button"
               onClick={() => onJoin(room)}
               disabled={joining === room.id}
-              className="w-full py-3 rounded-2xl text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 bg-gradient-to-r from-[#FF00C8] via-purple-600 to-[#00F0FF] hover:opacity-95 shadow-lg shadow-[#FF00C8]/25"
+              className="w-full py-3.5 rounded-2xl text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60 bg-gradient-to-r from-[#FF00C8] via-purple-600 to-[#00F0FF] hover:brightness-110 shadow-lg shadow-[#FF00C8]/25"
             >
               {joining === room.id ? "Joining Squad..." : "Commit & Join Squad →"}
             </button>
