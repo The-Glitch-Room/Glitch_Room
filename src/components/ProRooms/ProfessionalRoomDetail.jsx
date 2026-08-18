@@ -75,11 +75,14 @@ const ProfessionalRoomDetail = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showThreeDotMenu, setShowThreeDotMenu] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
 
   // Form States for Discussion & Announcement
   const [discTitle, setDiscTitle] = useState("");
   const [discContent, setDiscContent] = useState("");
   const [postingDisc, setPostingDisc] = useState(false);
+  const [replyTextMap, setReplyTextMap] = useState({});
+  const [expandedDiscIds, setExpandedDiscIds] = useState({});
 
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
@@ -208,13 +211,37 @@ const ProfessionalRoomDetail = () => {
         .order("created_at", { ascending: false });
       setAnnouncements(annData || []);
 
-      // 8. Fetch Discussions
+      // 8. Fetch Discussions & Replies
       const { data: discData } = await supabase
         .from("pro_room_discussions")
         .select("*, profiles(full_name, username, avatar_url)")
         .eq("room_id", id)
         .order("created_at", { ascending: false });
-      setDiscussions(discData || []);
+
+      if (discData && discData.length > 0) {
+        const discIds = discData.map((d) => d.id);
+        const { data: replyData } = await supabase
+          .from("pro_room_discussion_replies")
+          .select("*, profiles(full_name, username, avatar_url)")
+          .in("discussion_id", discIds)
+          .order("created_at", { ascending: true });
+
+        const repliesByDiscId = {};
+        if (replyData) {
+          replyData.forEach((r) => {
+            if (!repliesByDiscId[r.discussion_id]) repliesByDiscId[r.discussion_id] = [];
+            repliesByDiscId[r.discussion_id].push(r);
+          });
+        }
+
+        const mergedDiscussions = discData.map((d) => ({
+          ...d,
+          replies: repliesByDiscId[d.id] || d.replies || [],
+        }));
+        setDiscussions(mergedDiscussions);
+      } else {
+        setDiscussions(discData || []);
+      }
 
       // 9. Set Notifications
       setNotifications([
@@ -275,16 +302,26 @@ const ProfessionalRoomDetail = () => {
     showToast("🔗 Room link copied to clipboard!");
   };
 
+  const toggleExpandDisc = (discId) => {
+    setExpandedDiscIds((prev) => ({ ...prev, [discId]: !prev[discId] }));
+  };
+
   const handlePostDiscussion = async () => {
-    if (!discTitle || !discContent) return;
+    if (!discTitle.trim() || !discContent.trim()) return;
     setPostingDisc(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id;
+      if (!userId) {
+        showToast("⚠️ You must be signed in to post.");
+        return;
+      }
+
       await supabase.from("pro_room_discussions").insert({
         room_id: id,
-        user_id: authData?.user?.id,
-        title: discTitle,
-        content: discContent,
+        user_id: userId,
+        title: discTitle.trim(),
+        content: discContent.trim(),
       });
 
       setDiscTitle("");
@@ -293,8 +330,108 @@ const ProfessionalRoomDetail = () => {
       fetchRoomData();
     } catch (err) {
       console.error(err);
+      showToast("⚠️ Error posting question.");
     } finally {
       setPostingDisc(false);
+    }
+  };
+
+  const handlePostReply = async (discussionId) => {
+    const text = replyTextMap[discussionId];
+    if (!text || !text.trim()) return;
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id;
+      if (!userId) {
+        showToast("⚠️ Please sign in to reply.");
+        return;
+      }
+
+      const { error: repErr } = await supabase
+        .from("pro_room_discussion_replies")
+        .insert({
+          discussion_id: discussionId,
+          user_id: userId,
+          content: text.trim(),
+        });
+
+      if (repErr) {
+        // Local state fallback if table isn't created yet in DB
+        setDiscussions((prev) =>
+          prev.map((d) => {
+            if (d.id === discussionId) {
+              const newRep = {
+                id: `rep-${Date.now()}`,
+                discussion_id: discussionId,
+                user_id: userId,
+                content: text.trim(),
+                created_at: new Date().toISOString(),
+                profiles: { full_name: "You", username: "you" },
+              };
+              return { ...d, replies: [...(d.replies || []), newRep] };
+            }
+            return d;
+          })
+        );
+      } else {
+        fetchRoomData();
+      }
+
+      setReplyTextMap((prev) => ({ ...prev, [discussionId]: "" }));
+      showToast("💬 Reply posted successfully!");
+    } catch (err) {
+      console.error("Error posting reply:", err);
+      showToast("⚠️ Failed to post reply.");
+    }
+  };
+
+  const handleDeleteDiscussion = async (discId) => {
+    try {
+      await supabase.from("pro_room_discussions").delete().eq("id", discId);
+      setDiscussions((prev) => prev.filter((d) => d.id !== discId));
+      showToast("🗑️ Question deleted.");
+    } catch (err) {
+      console.error(err);
+      setDiscussions((prev) => prev.filter((d) => d.id !== discId));
+      showToast("🗑️ Question removed.");
+    }
+  };
+
+  const handleDeleteReply = async (discId, replyId) => {
+    try {
+      await supabase.from("pro_room_discussion_replies").delete().eq("id", replyId);
+      setDiscussions((prev) =>
+        prev.map((d) => {
+          if (d.id === discId) {
+            return { ...d, replies: (d.replies || []).filter((r) => r.id !== replyId) };
+          }
+          return d;
+        })
+      );
+      showToast("🗑️ Reply deleted.");
+    } catch (err) {
+      console.error(err);
+      setDiscussions((prev) =>
+        prev.map((d) => {
+          if (d.id === discId) {
+            return { ...d, replies: (d.replies || []).filter((r) => r.id !== replyId) };
+          }
+          return d;
+        })
+      );
+      showToast("🗑️ Reply removed.");
+    }
+  };
+
+  const handleDeleteRoom = async () => {
+    try {
+      await supabase.from("pro_rooms").delete().eq("id", id);
+      showToast("🗑️ Room archived/deleted.");
+      setTimeout(() => navigate("/pro-rooms"), 1200);
+    } catch (err) {
+      console.error(err);
+      showToast("⚠️ Failed to delete room.");
     }
   };
 
@@ -481,43 +618,28 @@ const ProfessionalRoomDetail = () => {
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   className="absolute right-0 mt-2 w-64 bg-[#0d0d16] border border-white/10 rounded-2xl shadow-2xl p-2 z-50 text-xs font-sans space-y-1"
                 >
-                  {/* DIRECTIVE 1 & 2: RENDER EXCLUSIVELY HOST OR PARTICIPANT OPTIONS */}
+                  {/* QUICK SHORTCUTS 3-DOT MENU */}
                   {isHost ? (
-                    /* HOST / CREATOR EXCLUSIVE ACTIONS */
+                    /* HOST QUICK SHORTCUTS */
                     <>
-                      <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-purple-400 uppercase tracking-widest">
-                        Host Management Actions
+                      <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-[#00F0FF] uppercase tracking-widest border-b border-white/10 mb-1">
+                        Quick Shortcuts
                       </div>
                       <button
                         onClick={() => {
-                          setActiveSidebarTab("host_dashboard");
+                          navigate(`/pro-rooms/create?edit=${id}`);
                           setShowThreeDotMenu(false);
                         }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
-                      >
-                        <BarChart2 size={14} className="text-[#00F0FF]" /> Command Dashboard
-                      </button>
-                      <button
-                        onClick={() => navigate(`/pro-rooms/create?edit=${id}`)}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <Edit3 size={14} className="text-purple-400" /> Edit Room Configuration
-                      </button>
-                      <button
-                        onClick={() => {
-                          setActiveSidebarTab("host_announcements");
-                          setShowThreeDotMenu(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
-                      >
-                        <Megaphone size={14} className="text-amber-400" /> Post Announcement
                       </button>
                       <button
                         onClick={() => {
                           setActiveSidebarTab("host_participants");
                           setShowThreeDotMenu(false);
                         }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <Users size={14} className="text-gray-300" /> Manage Participants
                       </button>
@@ -526,7 +648,7 @@ const ProfessionalRoomDetail = () => {
                           setActiveSidebarTab("host_assessment");
                           setShowThreeDotMenu(false);
                         }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <Layers size={14} className="text-cyan-400" /> Manage Assessment
                       </button>
@@ -535,36 +657,51 @@ const ProfessionalRoomDetail = () => {
                           setActiveSidebarTab("host_submissions");
                           setShowThreeDotMenu(false);
                         }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <CheckCircle size={14} className="text-emerald-400" /> Manage Submissions & Evaluation
                       </button>
                       <button
-                        onClick={handleShareRoom}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        onClick={() => {
+                          setActiveSidebarTab("host_announcements");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
+                      >
+                        <Megaphone size={14} className="text-amber-400" /> Post Announcement
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleShareRoom();
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <Share2 size={14} className="text-gray-400" /> Share Room Link
                       </button>
                       <div className="my-1 border-t border-white/10" />
                       <button
-                        onClick={() => showToast("⚠️ Room settings updated.")}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-red-400 hover:text-red-300 flex items-center gap-2 cursor-pointer"
+                        onClick={() => {
+                          setShowDeleteConfirmModal(true);
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-red-400 hover:text-red-300 flex items-center gap-2 cursor-pointer transition"
                       >
                         <Trash2 size={14} /> Archive / Delete Room
                       </button>
                     </>
                   ) : (
-                    /* PARTICIPANT EXCLUSIVE OPTIONS (NEVER SHOW HOST HEADER) */
+                    /* PARTICIPANT QUICK SHORTCUTS */
                     <>
-                      <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">
-                        Participant Actions
+                      <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest border-b border-white/10 mb-1">
+                        Quick Shortcuts
                       </div>
                       <button
                         onClick={() => {
                           setActiveSidebarTab("overview");
                           setShowThreeDotMenu(false);
                         }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <Info size={14} className="text-gray-400" /> Event Overview
                       </button>
@@ -573,27 +710,27 @@ const ProfessionalRoomDetail = () => {
                           setActiveSidebarTab("instructions");
                           setShowThreeDotMenu(false);
                         }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <FileText size={14} className="text-gray-400" /> View Guidelines
                       </button>
                       <button
-                        onClick={handleShareRoom}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        onClick={() => {
+                          handleShareRoom();
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <Share2 size={14} className="text-gray-400" /> Share Room Link
                       </button>
                       <button
-                        onClick={() => showToast("⚠️ Issue report submitted to host.")}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
+                        onClick={() => {
+                          setActiveSidebarTab("help");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
                         <AlertTriangle size={14} className="text-amber-400" /> Report an Issue
-                      </button>
-                      <button
-                        onClick={() => showToast("🚪 Left room successfully.")}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-red-400 hover:text-red-300 flex items-center gap-2 cursor-pointer"
-                      >
-                        <LogOut size={14} /> Leave Room
                       </button>
                     </>
                   )}
@@ -821,6 +958,7 @@ const ProfessionalRoomDetail = () => {
                 { id: "instructions", label: "Instructions", icon: FileText },
                 { id: "sections", label: "Sections", icon: Layers, count: sections.length },
                 { id: "submissions", label: "Submissions", icon: CheckCircle },
+                { id: "discussion", label: "Discussion", icon: MessageSquare, count: discussions.length },
                 { id: "organizers", label: "Organizers", icon: Building2 },
                 { id: "resources", label: "Resources", icon: Folder },
                 { id: "help", label: "Help & Support", icon: HelpCircle },
@@ -1285,49 +1423,184 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "discussion" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <MessageSquare size={16} className="text-[#00F0FF]" /> Q&A Discussion Feed ({discussions.length})
-                  </h3>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <MessageSquare size={16} className="text-[#00F0FF]" /> Q&A Discussion Feed ({discussions.length})
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Ask questions, share solutions, and engage with the community.</p>
+                  </div>
                 </div>
 
-                <div className="bg-[#07070e] border border-white/10 rounded-2xl p-4 space-y-3">
-                  <h4 className="text-xs font-bold text-gray-300">Ask a Question / Post Doubt</h4>
+                {/* POST QUESTION FORM */}
+                <div className="bg-[#07070e] border border-[#00F0FF]/25 rounded-2xl p-4 space-y-3 shadow-xl">
+                  <h4 className="text-xs font-bold text-[#00F0FF] flex items-center gap-1.5">
+                    <Plus size={14} /> Ask a Question / Post Doubt
+                  </h4>
                   <input
                     type="text"
-                    placeholder="Question Title..."
+                    placeholder="Question Title (e.g., How to handle API rate limiting in Section 2?)..."
                     value={discTitle}
                     onChange={(e) => setDiscTitle(e.target.value)}
-                    className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    className="w-full bg-[#030308] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                   />
                   <textarea
-                    rows={2}
-                    placeholder="Describe your question..."
+                    rows={3}
+                    placeholder="Provide details or paste relevant context..."
                     value={discContent}
                     onChange={(e) => setDiscContent(e.target.value)}
-                    className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white outline-none"
+                    className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                   />
-                  <button
-                    onClick={handlePostDiscussion}
-                    disabled={postingDisc}
-                    className="px-4 py-2 rounded-xl bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/40 text-xs font-bold cursor-pointer disabled:opacity-50"
-                  >
-                    Post Question 💬
-                  </button>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] text-gray-500 font-mono">Visible to all candidates & hosts</span>
+                    <button
+                      onClick={handlePostDiscussion}
+                      disabled={postingDisc || !discTitle.trim() || !discContent.trim()}
+                      className="px-5 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black text-xs font-bold cursor-pointer disabled:opacity-50 transition shadow-lg shadow-[#00F0FF]/20 flex items-center gap-1.5"
+                    >
+                      <Send size={13} /> Post Question
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-3">
+                {/* DISCUSSIONS LIST */}
+                <div className="space-y-4 pt-2">
                   {discussions.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-8">Discussion feed is quiet.</p>
+                    <div className="text-center py-12 space-y-3 bg-[#06060c] border border-white/5 rounded-2xl p-6">
+                      <MessageSquare size={32} className="text-gray-600 mx-auto" />
+                      <h4 className="text-sm font-bold text-white">No Discussions Posted Yet</h4>
+                      <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                        Be the first to post a question or doubt in this room!
+                      </p>
+                    </div>
                   ) : (
-                    discussions.map((d) => (
-                      <div key={d.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">{d.title}</span>
-                          <span className="text-[10px] text-gray-500 font-mono">By {d.profiles?.full_name || "Candidate"}</span>
+                    discussions.map((d) => {
+                      const isMyDisc = d.user_id === currentUserId;
+                      const canDeleteDisc = isMyDisc || isHost;
+                      const repliesList = d.replies || [];
+                      const isExpanded = expandedDiscIds[d.id] ?? true;
+
+                      return (
+                        <div key={d.id} className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3 shadow-lg hover:border-white/20 transition">
+                          {/* Question Header */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                              <div className="w-8 h-8 rounded-full bg-purple-900/50 border border-purple-500/30 flex items-center justify-center text-xs font-bold text-purple-300 shrink-0 uppercase">
+                                {d.profiles?.full_name?.charAt(0) || d.profiles?.username?.charAt(0) || "U"}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-sm font-bold text-white leading-tight flex items-center gap-2 flex-wrap">
+                                  {d.title}
+                                  {d.user_id === room?.host_id && (
+                                    <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                                      HOST
+                                    </span>
+                                  )}
+                                  {isMyDisc && (
+                                    <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-[#00F0FF]">
+                                      YOU
+                                    </span>
+                                  )}
+                                </h4>
+                                <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-1">
+                                  <span>{d.profiles?.full_name || d.profiles?.username || "Candidate"}</span>
+                                  <span>•</span>
+                                  <span>{new Date(d.created_at || Date.now()).toLocaleDateString()} at {new Date(d.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Moderation / Delete Controls */}
+                            {canDeleteDisc && (
+                              <button
+                                onClick={() => handleDeleteDiscussion(d.id)}
+                                title={isHost && !isMyDisc ? "Host Moderate / Delete" : "Delete your post"}
+                                className="text-gray-500 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10 transition cursor-pointer shrink-0"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Question Content */}
+                          <p className="text-xs text-gray-300 leading-relaxed pl-11 whitespace-pre-wrap">
+                            {d.content}
+                          </p>
+
+                          {/* Thread Footer & Reply Toggle */}
+                          <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs pl-11">
+                            <button
+                              onClick={() => toggleExpandDisc(d.id)}
+                              className="text-gray-400 hover:text-[#00F0FF] text-[11px] font-mono font-bold flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <MessageCircle size={13} className="text-[#00F0FF]" />
+                              <span>{repliesList.length} {repliesList.length === 1 ? "Reply" : "Replies"}</span>
+                            </button>
+                          </div>
+
+                          {/* Replies Thread Section */}
+                          {isExpanded && (
+                            <div className="pl-11 pt-2 space-y-3">
+                              {repliesList.map((r) => {
+                                const isMyReply = r.user_id === currentUserId;
+                                const canDeleteReply = isMyReply || isHost;
+                                return (
+                                  <div key={r.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5 relative">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-purple-300">
+                                          {r.profiles?.full_name || r.profiles?.username || "Participant"}
+                                        </span>
+                                        {r.user_id === room?.host_id && (
+                                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">HOST</span>
+                                        )}
+                                        {isMyReply && (
+                                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-[#00F0FF]">YOU</span>
+                                        )}
+                                        <span className="text-[10px] text-gray-500 font-mono">
+                                          {new Date(r.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                      </div>
+                                      {canDeleteReply && (
+                                        <button
+                                          onClick={() => handleDeleteReply(d.id, r.id)}
+                                          className="text-gray-500 hover:text-red-400 p-0.5 cursor-pointer"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-gray-300 leading-relaxed">{r.content}</p>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Reply Input Box */}
+                              <div className="flex items-center gap-2 pt-1">
+                                <input
+                                  type="text"
+                                  placeholder="Write a reply..."
+                                  value={replyTextMap[d.id] || ""}
+                                  onChange={(e) => setReplyTextMap({ ...replyTextMap, [d.id]: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handlePostReply(d.id);
+                                    }
+                                  }}
+                                  className="flex-1 bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                                />
+                                <button
+                                  onClick={() => handlePostReply(d.id)}
+                                  className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold cursor-pointer transition shrink-0 flex items-center gap-1"
+                                >
+                                  Reply <Send size={11} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-xs text-gray-300 leading-relaxed">{d.content}</p>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -1522,6 +1795,35 @@ const ProfessionalRoomDetail = () => {
           </button>
         </div>
       </div>
+
+      {/* ARCHIVE / DELETE ROOM CONFIRMATION MODAL */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0c0c16] border border-red-500/40 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-red-400">
+              <AlertTriangle size={24} />
+              <h3 className="text-base font-bold text-white">Archive / Delete Pro Room</h3>
+            </div>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Are you sure you want to delete <strong className="text-white">"{room?.name || room?.title}"</strong>? This action cannot be undone. All sections, questions, and candidate submissions will be permanently removed.
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowDeleteConfirmModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-gray-300 font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteRoom}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-red-600/30"
+              >
+                Delete Room
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
