@@ -253,7 +253,13 @@ const ProfessionalRoomDetail = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [id]);
+  }, [id, room]);
+
+  useEffect(() => {
+    if (!loading && room && !isHost && activeSidebarTab.startsWith("host_")) {
+      setActiveSidebarTab("overview");
+    }
+  }, [isHost, activeSidebarTab, loading, room]);
 
   const markNotificationRead = (notifId) => {
     setNotifications((prev) =>
@@ -497,7 +503,7 @@ const ProfessionalRoomDetail = () => {
                       </button>
                       <button
                         onClick={() => {
-                          setActiveSidebarTab("announcements");
+                          setActiveSidebarTab("host_announcements");
                           setShowThreeDotMenu(false);
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer"
@@ -666,9 +672,6 @@ const ProfessionalRoomDetail = () => {
               <a href="#" className="text-gray-400 hover:text-purple-300 flex items-center gap-1.5">
                 <MessageCircle size={13} /> Discord
               </a>
-              <button onClick={() => setActiveSidebarTab("announcements")} className="text-gray-400 hover:text-amber-400 flex items-center gap-1.5 cursor-pointer">
-                <Megaphone size={13} /> Announcements
-              </button>
             </div>
           </div>
 
@@ -757,6 +760,7 @@ const ProfessionalRoomDetail = () => {
                     { id: "host_participants", label: "Participants", icon: Users, count: registrations.length },
                     { id: "host_assessment", label: "Manage Assessment", icon: Layers, count: sections.length },
                     { id: "host_submissions", label: "Submissions & Grading", icon: CheckCircle, count: submissions.length },
+                    { id: "host_announcements", label: "Announcements", icon: Megaphone, count: announcements.length },
                   ].map((item) => {
                     const Icon = item.icon;
                     const isActive = activeSidebarTab === item.id;
@@ -791,7 +795,6 @@ const ProfessionalRoomDetail = () => {
               {[
                 { id: "overview", label: "Overview", icon: Eye },
                 { id: "instructions", label: "Instructions", icon: FileText },
-                { id: "announcements", label: "Announcements", icon: Megaphone, count: announcements.length },
                 { id: "sections", label: "Sections", icon: Layers, count: sections.length },
                 { id: "submissions", label: "Submissions", icon: CheckCircle },
                 { id: "leaderboard", label: "Leaderboard", icon: Trophy },
@@ -1046,8 +1049,8 @@ const ProfessionalRoomDetail = () => {
               </div>
             )}
 
-            {/* TAB 3: ANNOUNCEMENTS — DIRECTIVE 4: HIDE POST FORM FROM PARTICIPANTS */}
-            {activeSidebarTab === "announcements" && (
+            {/* HOST ANNOUNCEMENTS TAB (HOST EXCLUSIVE) */}
+            {activeSidebarTab === "host_announcements" && isHost && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1211,25 +1214,18 @@ const ProfessionalRoomDetail = () => {
                     </div>
                   )
                 ) : (
-                  <div className="space-y-3">
-                    {submissions.length === 0 ? (
-                      <p className="text-xs text-gray-500 text-center py-8">No candidate submissions recorded yet.</p>
-                    ) : (
-                      submissions.map((sub, sIdx) => (
-                        <div key={sub.id || sIdx} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs">
-                          <div>
-                            <span className="text-white font-bold block">{sub.profiles?.full_name || sub.profiles?.username || "Candidate"}</span>
-                            <span className="text-[10px] text-gray-500 font-mono">Score: {sub.total_score} pts • {sub.percentage}%</span>
-                          </div>
-                          <button
-                            onClick={() => navigate(`/pro-rooms/${id}/dashboard`)}
-                            className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold hover:bg-purple-500/30 cursor-pointer"
-                          >
-                            Grade & Review
-                          </button>
-                        </div>
-                      ))
-                    )}
+                  <div className="text-center py-10 space-y-3 bg-[#06060c] border border-white/10 rounded-2xl p-6">
+                    <CheckCircle size={28} className="text-[#00F0FF] mx-auto" />
+                    <h4 className="text-sm font-bold text-white">Host View — All Candidate Submissions</h4>
+                    <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                      As the room host, evaluate, grade, and review all candidate submissions under Host Management.
+                    </p>
+                    <button
+                      onClick={() => setActiveSidebarTab("host_submissions")}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold cursor-pointer transition"
+                    >
+                      Open Submissions & Grading Roster ({submissions.length}) →
+                    </button>
                   </div>
                 )}
               </div>
