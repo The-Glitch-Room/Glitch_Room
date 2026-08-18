@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 export const getProRoomLifecycleState = (room) => {
-  if (!room) return { label: "Upcoming", color: "cyan", isLive: false };
+  if (!room) return { label: "UPCOMING", color: "purple", isLive: false, key: "upcoming" };
   const now = new Date();
 
   const regStart = room.reg_start_at ? new Date(room.reg_start_at) : null;
@@ -22,21 +22,24 @@ export const getProRoomLifecycleState = (room) => {
   const eventEnd = room.event_end_at ? new Date(room.event_end_at) : null;
 
   if (room.status === "results_published") {
-    return { label: "Results Published", color: "purple", isLive: false };
+    return { label: "Results Published", color: "purple", isLive: false, key: "completed" };
   }
   if (room.status === "evaluation") {
-    return { label: "Evaluation", color: "amber", isLive: false };
+    return { label: "Evaluation", color: "amber", isLive: false, key: "completed" };
   }
   if (eventEnd && now > eventEnd) {
-    return { label: "Submission Closed", color: "gray", isLive: false };
+    return { label: "SUBMISSION CLOSED", color: "gray", isLive: false, key: "completed" };
   }
   if (eventStart && now >= eventStart && (!eventEnd || now <= eventEnd)) {
-    return { label: "🔴 LIVE", color: "red", isLive: true };
+    return { label: "🔴 LIVE", color: "red", isLive: true, key: "live" };
   }
   if (regStart && now >= regStart && (!regEnd || now <= regEnd)) {
-    return { label: "REGISTRATION OPEN", color: "emerald", isLive: false };
+    return { label: "REGISTRATION OPEN", color: "emerald", isLive: false, key: "registration_open" };
   }
-  return { label: "UPCOMING", color: "purple", isLive: false };
+  if (regEnd && now > regEnd && (!eventStart || now < eventStart)) {
+    return { label: "REGISTRATION CLOSED", color: "amber", isLive: false, key: "upcoming" };
+  }
+  return { label: "UPCOMING", color: "purple", isLive: false, key: "upcoming" };
 };
 
 const ProRoomCard = ({ room, isRegistered, onSelect }) => {
@@ -61,13 +64,23 @@ const ProRoomCard = ({ room, isRegistered, onSelect }) => {
   };
 
   const getButtonText = () => {
-    if (room.status === "results_published" || room.status === "evaluation") {
+    // 1. Completed / Ended events (SUBMISSION CLOSED / Results Published / Evaluation)
+    if (lifecycle.key === "completed") {
       return "View Results →";
     }
+
+    // 2. Already registered candidate
     if (isRegistered) {
       return "Enter Room →";
     }
-    return "Register Now →";
+
+    // 3. Live or Registration Open -> Candidate can register
+    if (lifecycle.key === "registration_open" || lifecycle.isLive) {
+      return "Register Now →";
+    }
+
+    // 4. Upcoming / Registration Closed
+    return "View Room →";
   };
 
   return (

@@ -55,9 +55,7 @@ const STATUSES = [
   "Live",
   "Registration Open",
   "Upcoming",
-  "Submission Closed",
-  "Evaluation",
-  "Results Published",
+  "Completed",
 ];
 
 const formatNumber = (n) => {
@@ -77,11 +75,12 @@ const ProRooms = () => {
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [sortBy, setSortBy] = useState("Newest");
   const [activeTab, setActiveTab] = useState("all");
-  // Statistics State (Calculated from Real Database Data)
+
+  // Statistics State (Calculated Dynamically from Database & Room Lifecycle)
   const [stats, setStats] = useState({
     activeRoomsCount: 0,
+    completedRoomsCount: 0,
     participantsEvaluatedCount: 0,
-    totalRewardsVal: "0 gBits",
   });
 
   // Registration State
@@ -127,25 +126,14 @@ const ProRooms = () => {
         .from("pro_room_submissions")
         .select("*", { count: "exact", head: true });
 
-      // 4. Compute Stats
-      const liveCount = roomList.length;
-
-      const totalRewards = roomList.reduce(
-        (sum, r) => sum + Number(r.gbits_prize_pool || 0),
-        0
-      );
-
-      const formattedRewards =
-        totalRewards > 0
-          ? totalRewards >= 1000
-            ? `${(totalRewards / 1000).toFixed(1).replace(/\.0$/, "")}k gBits`
-            : `${totalRewards} gBits`
-          : "0 gBits";
+      // 4. Compute Dynamic Hero Stats
+      const liveCount = roomList.filter((r) => getProRoomLifecycleState(r).isLive).length;
+      const completedCount = roomList.filter((r) => getProRoomLifecycleState(r).key === "completed").length;
 
       setStats({
         activeRoomsCount: liveCount,
+        completedRoomsCount: completedCount,
         participantsEvaluatedCount: subsCount || 0,
-        totalRewardsVal: formattedRewards,
       });
     } catch (err) {
       console.error("Error fetching pro rooms data:", err);
@@ -183,22 +171,16 @@ const ProRooms = () => {
       const state = getProRoomLifecycleState(room);
       let matchesStatus = true;
       if (selectedStatus === "Live") matchesStatus = state.isLive;
-      else if (selectedStatus === "Registration Open")
-        matchesStatus = state.label === "REGISTRATION OPEN";
-      else if (selectedStatus === "Upcoming") matchesStatus = state.label === "UPCOMING";
-      else if (selectedStatus === "Evaluation") matchesStatus = state.label === "Evaluation";
-      else if (selectedStatus === "Results Published")
-        matchesStatus = state.label === "Results Published";
+      else if (selectedStatus === "Registration Open") matchesStatus = state.key === "registration_open";
+      else if (selectedStatus === "Upcoming") matchesStatus = state.key === "upcoming";
+      else if (selectedStatus === "Completed") matchesStatus = state.key === "completed";
 
       // Tab filter
       let matchesTab = true;
       if (activeTab === "live") matchesTab = state.isLive;
-      else if (activeTab === "upcoming") matchesTab = state.label === "UPCOMING";
-      else if (activeTab === "registration_open")
-        matchesTab = state.label === "REGISTRATION OPEN";
-      else if (activeTab === "completed")
-        matchesTab =
-          state.label === "Results Published" || state.label === "Submission Closed";
+      else if (activeTab === "upcoming") matchesTab = state.key === "upcoming";
+      else if (activeTab === "registration_open") matchesTab = state.key === "registration_open";
+      else if (activeTab === "completed") matchesTab = state.key === "completed";
 
       return (
         matchesSearch &&
@@ -218,34 +200,30 @@ const ProRooms = () => {
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
 
-  // Calculate Tab Counts
+  // Calculate Dynamic Tab Counts
   const tabCounts = {
     all: rooms.length,
     live: rooms.filter((r) => getProRoomLifecycleState(r).isLive).length,
-    upcoming: rooms.filter((r) => getProRoomLifecycleState(r).label === "UPCOMING").length,
-    registration_open: rooms.filter((r) => getProRoomLifecycleState(r).label === "REGISTRATION OPEN").length,
-    completed: rooms.filter(
-      (r) =>
-        getProRoomLifecycleState(r).label === "Results Published" ||
-        getProRoomLifecycleState(r).label === "Submission Closed"
-    ).length,
+    upcoming: rooms.filter((r) => getProRoomLifecycleState(r).key === "upcoming").length,
+    registration_open: rooms.filter((r) => getProRoomLifecycleState(r).key === "registration_open").length,
+    completed: rooms.filter((r) => getProRoomLifecycleState(r).key === "completed").length,
   };
 
   const statItems = [
     {
-      value: formatNumber(stats.activeRoomsCount),
+      value: formatNumber(stats.activeRoomsCount || 0),
       label: "ACTIVE PRO ROOMS",
       sublabel: "Live & Active",
     },
     {
-      value: stats.participantsEvaluatedCount > 0 ? formatNumber(stats.participantsEvaluatedCount) : "0",
+      value: formatNumber(stats.participantsEvaluatedCount || 0),
       label: "PARTICIPANTS EVALUATED",
       sublabel: "Assessments Completed",
     },
     {
-      value: stats.totalRewardsVal,
-      label: "TOTAL REWARDS & PRIZES",
-      sublabel: "gBits & Prize Pools",
+      value: formatNumber(stats.completedRoomsCount || 0),
+      label: "COMPLETED PRO ROOMS",
+      sublabel: "Assessments & Events Finished",
     },
   ];
 
@@ -256,8 +234,8 @@ const ProRooms = () => {
       <div className="relative z-10 flex flex-col flex-1">
         <Navbar />
 
-        {/* ── HERO HEADER (EXACT CREATOR ROOMS TEMPLATE) ── */}
-        <section className="relative pt-36 md:pt-44 pb-12 px-6 mb-8 md:mb-16 text-center">
+        {/* ── HERO HEADER ── */}
+        <section className="relative pt-36 md:pt-44 pb-12 px-6 mb-8 md:mb-12 text-center">
           <div className="relative z-10 max-w-4xl mx-auto text-center">
             <PageHeading
               eyebrow="COMPETE • EVALUATE • PROVE"
@@ -267,7 +245,7 @@ const ProRooms = () => {
               size="xl"
             />
 
-            {/* Bare Real Stats without Horizontal Border Lines */}
+            {/* Dynamic Hero Stats */}
             <div className="flex justify-center gap-10 flex-wrap my-8">
               {statItems.map((s, i) => (
                 <StatCard
@@ -282,16 +260,16 @@ const ProRooms = () => {
               ))}
             </div>
 
-            {/* CTA Button matching Creator Rooms Pill Button */}
+            {/* CTA Button */}
             <div className="flex justify-center" onClick={() => navigate("/pro-rooms/create")}>
               <Button content="+ Host a Pro Room" accent="pink" />
             </div>
           </div>
         </section>
 
-        {/* ── MAIN LISTING CONTAINER ── */}
-        <section className="max-w-6xl mx-auto px-6 w-full mb-16">
-          <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
+        {/* ── SEARCH & DROPDOWN FILTERS CONTAINER ── */}
+        <section className="max-w-6xl mx-auto px-6 w-full mb-8">
+          <div className="bg-[#0c0c16]/80 backdrop-blur-md border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl">
             {/* SEARCH & DROPDOWN FILTERS */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
               {/* Search Input */}
@@ -357,7 +335,7 @@ const ProRooms = () => {
             </div>
 
             {/* EVENT STATUS TABS */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/10">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 border-t border-white/10 pt-4">
               {[
                 { id: "all", label: `All Events (${tabCounts.all})` },
                 { id: "live", label: `🔴 Live Now (${tabCounts.live})` },
@@ -378,64 +356,66 @@ const ProRooms = () => {
                 </button>
               ))}
             </div>
+          </div>
+        </section>
 
-            {/* PRO ROOM CARDS GRID — 3 Cards per Row */}
-            {loading ? (
-              <div className="py-20 text-center">
-                <div className="w-10 h-10 border-2 border-t-transparent border-[#FF00C8] rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-xs text-gray-400 font-mono">Fetching Pro Rooms...</p>
+        {/* ── PRO ROOM CARDS GRID (Directly over GlitchBackground) ── */}
+        <section className="max-w-6xl mx-auto px-6 pb-24 w-full flex-1">
+          {loading ? (
+            <div className="py-20 text-center">
+              <div className="w-10 h-10 border-2 border-t-transparent border-[#FF00C8] rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-xs text-gray-400 font-mono">Fetching Pro Rooms...</p>
+            </div>
+          ) : filteredRooms.length === 0 ? (
+            <div className="bg-[#07070e]/80 border border-white/10 rounded-2xl p-10 text-center space-y-4 my-6 backdrop-blur-md">
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-300">
+                <Building2 size={28} />
               </div>
-            ) : filteredRooms.length === 0 ? (
-              /* POLISHED EMPTY STATE */
-              <div className="bg-[#07070e] border border-white/10 rounded-2xl p-10 text-center space-y-4 my-6">
-                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-300">
-                  <Building2 size={28} />
-                </div>
-                <h3 className="text-lg font-bold text-white">No Pro Rooms Yet</h3>
-                <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
-                  Professional assessments, hackathons, competitions, and hiring events will appear here when organizations start hosting them.
-                </p>
-                <div className="flex justify-center" onClick={() => navigate("/pro-rooms/create")}>
-                  <Button content="+ Host a Pro Room" accent="pink" />
-                </div>
+              <h3 className="text-lg font-bold text-white">No Pro Rooms Found</h3>
+              <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+                No rooms match your filter criteria. Try selecting another status tab or category.
+              </p>
+              <div className="flex justify-center" onClick={() => navigate("/pro-rooms/create")}>
+                <Button content="+ Host a Pro Room" accent="pink" />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-                {filteredRooms.map((room) => {
-                  const isReg = Boolean(userRegistrations[room.id]);
-                  return (
-                    <ProRoomCard
-                      key={room.id}
-                      room={room}
-                      isRegistered={isReg}
-                      onSelect={() => {
-                        if (isReg) {
-                          navigate(`/pro-rooms/${room.id}`);
-                        } else {
-                          setSelectedRegRoom(room);
-                        }
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredRooms.map((room) => {
+                const isReg = Boolean(userRegistrations[room.id]);
+                return (
+                  <ProRoomCard
+                    key={room.id}
+                    room={room}
+                    isRegistered={isReg}
+                    onSelect={() => {
+                      const state = getProRoomLifecycleState(room);
+                      if (isReg || state.key === "completed") {
+                        navigate(`/pro-rooms/${room.id}`);
+                      } else {
+                        setSelectedRegRoom(room);
+                      }
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
 
-            {/* BOTTOM ORGANIZATION HOST BANNER */}
-            <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 shadow-xl">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
-                  <Building2 size={24} className="text-purple-300" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">Are you an organization or college?</h4>
-                  <p className="text-xs text-gray-400">Host your hackathons, assessments, and competitions on Glitch Room.</p>
-                </div>
+          {/* BOTTOM ORGANIZATION HOST BANNER */}
+          <div className="bg-[#07070e]/80 border border-purple-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 mt-12 shadow-xl backdrop-blur-md">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <Building2 size={24} className="text-purple-300" />
               </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">Are you an organization or college?</h4>
+                <p className="text-xs text-gray-400">Host your hackathons, assessments, and competitions on Glitch Room.</p>
+              </div>
+            </div>
 
-              <div onClick={() => navigate("/pro-rooms/create")}>
-                <Button content="Host a Pro Room +" accent="pink" />
-              </div>
+            <div onClick={() => navigate("/pro-rooms/create")}>
+              <Button content="Host a Pro Room +" accent="pink" />
             </div>
           </div>
         </section>
