@@ -695,20 +695,42 @@ const ProfessionalRoomDetail = () => {
               <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Active Timeline</span>
             </div>
 
-            {/* Card 2: Your Progress */}
+            {/* Card 2: Roster Progress / Your Progress */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
                 <span className="flex items-center gap-1"><Zap size={13} className="text-[#00F0FF]" /> {isHost ? "Roster Progress" : "Your Progress"}</span>
               </div>
               <div className="my-2 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white">
-                  {isHost ? `${submissions.length > 0 ? Math.round((submissions.length / (registrations.length || 1)) * 100) : 0}%` : userSubmission ? `${userSubmission.percentage || 100}%` : "0%"}
-                </div>
-                <span className="text-[11px] text-gray-300 font-bold">
-                  {isHost ? `${submissions.length} / ${registrations.length} Submitted` : `${sections.length > 0 ? (userSubmission ? sections.length : 0) : 0} / ${sections.length} Sections`}
-                </span>
+                {isHost ? (
+                  registrations.length === 0 ? (
+                    <div>
+                      <span className="text-xs font-bold text-gray-400 block">No participants yet</span>
+                      <span className="text-[10px] text-gray-500 font-mono">Waiting for registrations</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
+                        {Math.round((submissions.length / registrations.length) * 100)}%
+                      </div>
+                      <span className="text-[11px] text-gray-300 font-bold">
+                        {submissions.length} / {registrations.length} Submitted
+                      </span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
+                      {userSubmission ? `${userSubmission.percentage || 100}%` : "0%"}
+                    </div>
+                    <span className="text-[11px] text-gray-300 font-bold">
+                      {userSubmission ? "Completed" : "Not Started"}
+                    </span>
+                  </>
+                )}
               </div>
-              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Assessment Phase</span>
+              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">
+                {isHost ? "Assessment Phase" : "Personal Progress"}
+              </span>
             </div>
 
             {/* Card 3: Your Rank */}
@@ -799,8 +821,6 @@ const ProfessionalRoomDetail = () => {
                 { id: "instructions", label: "Instructions", icon: FileText },
                 { id: "sections", label: "Sections", icon: Layers, count: sections.length },
                 { id: "submissions", label: "Submissions", icon: CheckCircle },
-                { id: "leaderboard", label: "Leaderboard", icon: Trophy },
-                { id: "discussion", label: "Discussion", icon: MessageSquare, count: discussions.length },
                 { id: "organizers", label: "Organizers", icon: Building2 },
                 { id: "resources", label: "Resources", icon: Folder },
                 { id: "help", label: "Help & Support", icon: HelpCircle },
@@ -982,42 +1002,6 @@ const ProfessionalRoomDetail = () => {
                       <span className="text-white font-bold">{room.timezone || "IST (UTC +05:30)"}</span>
                     </div>
                   </div>
-                </div>
-
-                <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <Layers size={16} className="text-[#00F0FF]" /> Assessment Sections ({sections.length})
-                    </h3>
-                    <span onClick={() => setActiveSidebarTab("sections")} className="text-xs font-mono text-purple-400 font-bold hover:underline cursor-pointer">
-                      View All Sections ›
-                    </span>
-                  </div>
-
-                  {sections.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-6">No assessment sections configured yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {sections.map((sec, idx) => (
-                        <div
-                          key={sec.id || idx}
-                          onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
-                          className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-[#00F0FF]/40 transition flex items-center justify-between gap-4 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3.5 min-w-0">
-                            <span className="w-7 h-7 rounded-xl bg-purple-500/20 text-purple-300 font-mono text-xs font-bold flex items-center justify-center shrink-0">
-                              {idx + 1}
-                            </span>
-                            <div className="min-w-0">
-                              <h4 className="text-xs font-bold text-white truncate">{sec.section_name}</h4>
-                              <p className="text-[11px] text-gray-400 truncate">{sec.description || `${sec.time_limit_minutes || 30} Mins • ${sec.total_points || 50} Points`}</p>
-                            </div>
-                          </div>
-                          <ChevronRight size={16} className="text-gray-500 shrink-0" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
