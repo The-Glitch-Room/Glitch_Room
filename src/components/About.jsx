@@ -35,27 +35,37 @@ const RULES = [
   },
 ];
 
-// ── Authentic Glitch Room Platform Timeline ──────────────────────────────────
+// ── Authentic Glitch Room Platform Journey Timeline ──────────────────────────
 const TIMELINE = [
   {
-    year: "PHASE 01 — 2024",
-    title: "Concept & Core Debug Engine",
-    desc: "Glitch Room was born out of a vision for a gamified, high-signal playground for Gen Z developers to break molds and debug real-world code snippets.",
+    phase: "PHASE 01 — MAY 2025",
+    title: "First External Validation — Unstop Playstorm",
+    desc: "Submitted the Glitch Room idea to Unstop Playstorm and successfully cleared Level 1 of the 2-level online event. This was the first major external validation of the idea.",
+    isCurrent: false,
   },
   {
-    year: "PHASE 02 — 2025",
-    title: "4 Multiverse Challenge Hubs",
-    desc: "Expanded into 4 specialized challenge categories: Glitches, Creative Sparks, Debug Mode, and AI-Powered Puzzles — building an extensive collection of 397+ interactive coding challenges.",
+    phase: "PHASE 02 — JUNE 2026",
+    title: "Buddha Startup PitchFest 1.0",
+    desc: "Participated in Buddha Startup PitchFest 1.0 and presented the Glitch Room idea. This experience helped refine the product vision and strengthened the startup direction.",
+    isCurrent: false,
   },
   {
-    year: "PHASE 03 — EARLY 2026",
-    title: "The 3-Stage Arena & Live Leaderboards",
-    desc: "Deployed the flagship Multi-Stage Competitive Arena ('Find the Glitch' → 'Twist Cards' → 'Pitch Wild'), community voting feed, Creator Rooms, and real-time Terminal Wall leaderboard.",
+    phase: "PHASE 03 — 2026",
+    title: "Taking Glitch Room to More Opportunities",
+    desc: "After PitchFest, continued submitting and presenting the Glitch Room idea across different startup, innovation, and entrepreneurship opportunities to validate and improve the concept.",
+    isCurrent: false,
   },
   {
-    year: "PHASE 04 — PRESENT",
-    title: "Creator Economy & gBits Ecosystem",
-    desc: "Integrated creator rewards, level progression thresholds, daily fact reactors, 7-day uptime streaks, and personalized profile showcases to reward active problem solvers.",
+    phase: "PHASE 04 — AUGUST 2026",
+    title: "CSJMU Incubation Cell Pitch",
+    desc: "Pitched Glitch Room at the CSJMU incubation cell, bringing the idea closer to an institutional startup/incubation environment.",
+    isCurrent: false,
+  },
+  {
+    phase: "PHASE 05 — PRESENT",
+    title: "Actively Building Glitch Room",
+    desc: "Glitch Room is now being actively developed into a functional platform, with continuous work on its product, features, rooms, assessments, community experience, and overall ecosystem.",
+    isCurrent: true,
   },
 ];
 
@@ -260,44 +270,70 @@ const About = () => {
               layout="inline"
             />
 
-            <div className="relative pl-10">
-              {/* Vertical line */}
+            <div className="relative pl-8 sm:pl-10">
+              {/* Vertical Glowing Line */}
               <div
-                className="absolute left-0 top-2 bottom-2 w-[2px]"
-                style={{ background: `rgba(0,240,255,0.3)` }}
+                className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full"
+                style={{
+                  background: `linear-gradient(to bottom, rgba(0,240,255,0.6), rgba(168,85,247,0.6) 70%, rgba(255,0,200,0.9))`,
+                  boxShadow: `0 0 8px rgba(0,240,255,0.3)`,
+                }}
               />
 
-              <div className="space-y-10">
+              <div className="space-y-8 sm:space-y-10">
                 {TIMELINE.map((item, i) => (
                   <motion.div
                     key={i}
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={{ opacity: 0, x: -25 }}
                     whileInView={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5, delay: i * 0.12 }}
+                    transition={{ duration: 0.5, delay: i * 0.1 }}
                     viewport={{ once: true }}
-                    className="relative"
+                    className="relative group"
                   >
-                    {/* Node */}
-                    <span
-                      className="absolute -left-[42px] top-6 w-3.5 h-3.5 rounded-full border-2"
-                      style={{
-                        borderColor: ACCENT_TIMELINE,
-                        background: "#0B0C10",
-                        boxShadow: `0 0 10px rgba(0,240,255,0.6)`,
-                      }}
-                    />
+                    {/* Node Dot */}
+                    {item.isCurrent ? (
+                      <span
+                        className="absolute -left-[38px] sm:-left-[46px] top-5 w-5 h-5 rounded-full border-2 border-[#FF00C8] bg-[#FF00C8] shadow-[0_0_16px_#FF00C8] animate-pulse z-10"
+                      />
+                    ) : (
+                      <span
+                        className="absolute -left-[36px] sm:-left-[44px] top-5 w-4 h-4 rounded-full border-2 border-[#00F0FF] bg-[#0B0C10] group-hover:bg-[#00F0FF] transition-colors shadow-[0_0_10px_rgba(0,240,255,0.6)] z-10"
+                      />
+                    )}
 
-                    <div className="bg-[#0f0f13]/85 backdrop-blur-sm border border-white/5 rounded-2xl p-6">
-                      <p
-                        className="text-xs font-bold uppercase tracking-widest mb-2 font-mono"
-                        style={{ color: ACCENT_TIMELINE }}
-                      >
-                        {item.year}
-                      </p>
-                      <h4 className="text-xl font-black text-white mb-2">
+                    {/* Card Content */}
+                    <div
+                      className={`relative backdrop-blur-md rounded-2xl p-5 sm:p-6 transition-all duration-300 shadow-xl overflow-hidden ${
+                        item.isCurrent
+                          ? "bg-gradient-to-br from-[#150a24]/90 via-[#0c0c16]/90 to-[#091322]/90 border border-[#FF00C8]/50 shadow-[0_0_30px_rgba(255,0,200,0.2)]"
+                          : "bg-[#0f0f14]/85 border border-white/10 hover:border-purple-500/40 hover:bg-[#13131c]/90"
+                      }`}
+                    >
+                      {item.isCurrent && (
+                        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#FF00C8]" />
+                      )}
+
+                      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                        <p
+                          className={`text-xs font-bold uppercase tracking-widest font-mono ${
+                            item.isCurrent ? "text-[#FF00C8]" : "text-[#00F0FF]"
+                          }`}
+                        >
+                          {item.phase}
+                        </p>
+
+                        {item.isCurrent && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FF00C8]/20 border border-[#FF00C8]/40 text-[#FF00C8] text-[10px] font-mono font-bold animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#FF00C8]" /> CURRENT STAGE
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 leading-snug">
                         {item.title}
                       </h4>
-                      <p className="text-gray-400 text-sm leading-relaxed">
+
+                      <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">
                         {item.desc}
                       </p>
                     </div>
