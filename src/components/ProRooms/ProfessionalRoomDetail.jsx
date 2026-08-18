@@ -45,6 +45,7 @@ import {
   LogOut,
 } from "lucide-react";
 import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
+import ProRoomHelpModal from "./ProRoomHelpModal";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import { supabase } from "../../supabaseClient";
 
@@ -73,13 +74,14 @@ const ProfessionalRoomDetail = () => {
   const isHost = Boolean(currentUserId && room && (room.host_id === currentUserId || room.created_by === currentUserId));
   const isRegistered = isHost || Boolean(userRegistration && userRegistration.status === "approved");
 
-  // Dropdowns States
+  // Dropdowns & Modal States
   const [showNotifications, setShowNotifications] = useState(false);
   const [showThreeDotMenu, setShowThreeDotMenu] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [showDiscussionModal, setShowDiscussionModal] = useState(false);
   const [showRegModal, setShowRegModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Form States for Discussion & Announcement
   const [discTitle, setDiscTitle] = useState("");
@@ -247,23 +249,64 @@ const ProfessionalRoomDetail = () => {
         setDiscussions(discData || []);
       }
 
-      // 9. Set Notifications
-      setNotifications([
-        {
-          id: "n1",
-          title: "Assessment Environment Live",
-          subtitle: currentRoom.name,
-          time: "Just now",
-          read: false,
-        },
-        {
-          id: "n2",
-          title: "Official guidelines available",
-          subtitle: "Check Instructions tab for rules",
-          time: "10 min ago",
-          read: false,
-        },
-      ]);
+      // 9. Fetch Dynamic Room Notifications
+      let dynamicNotifs = [];
+      try {
+        const { data: dbNotifs } = await supabase
+          .from("pro_room_notifications")
+          .select("*")
+          .eq("room_id", id)
+          .order("created_at", { ascending: false });
+
+        if (dbNotifs && dbNotifs.length > 0) {
+          dynamicNotifs = dbNotifs.map((n) => ({
+            id: n.id,
+            title: n.title,
+            subtitle: n.message || n.subtitle || "Room Update",
+            time: new Date(n.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            read: n.read || false,
+          }));
+        }
+      } catch (err) {
+        console.warn("Error fetching pro_room_notifications:", err);
+      }
+
+      // Synthesize activity notifications if DB table is empty
+      if (dynamicNotifs.length === 0) {
+        if (annData && annData.length > 0) {
+          annData.forEach((a, idx) => {
+            dynamicNotifs.push({
+              id: `ann-${a.id || idx}`,
+              title: `Announcement: ${a.title}`,
+              subtitle: a.content,
+              time: new Date(a.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              read: false,
+            });
+          });
+        }
+
+        if (userRegistration) {
+          dynamicNotifs.push({
+            id: `reg-${userRegistration.id || 'ok'}`,
+            title: "Registration Approved",
+            subtitle: `You are registered for ${currentRoom.name || currentRoom.title}`,
+            time: "Active",
+            read: true,
+          });
+        }
+
+        if (userSubmission) {
+          dynamicNotifs.push({
+            id: `sub-${userSubmission.id || 'ok'}`,
+            title: "Assessment Submission Recorded",
+            subtitle: `Total Score: ${userSubmission.total_score || 0} pts`,
+            time: "Recorded",
+            read: true,
+          });
+        }
+      }
+
+      setNotifications(dynamicNotifs);
     } catch (err) {
       console.error("Error loading room data:", err);
     } finally {
@@ -1747,7 +1790,7 @@ const ProfessionalRoomDetail = () => {
 
           <button
             type="button"
-            onClick={() => showToast("🎧 Live support assistant activated.")}
+            onClick={() => setShowHelpModal(true)}
             className="px-5 py-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg"
           >
             <HelpCircle size={15} /> Need Help?
@@ -1979,6 +2022,14 @@ const ProfessionalRoomDetail = () => {
           setUserRegistration(payload);
           fetchRoomData();
         }}
+      />
+
+      {/* DUAL SUPPORT HELP MODAL */}
+      <ProRoomHelpModal
+        isOpen={showHelpModal}
+        onClose={() => setShowHelpModal(false)}
+        room={room}
+        showToast={showToast}
       />
     </div>
   );
