@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import Navbar from "../Navbar";
-import Footer from "../Footer";
 import GlitchBackground from "../GlitchBackground";
 import { updatePoints } from "../../utils/pointsHelper";
 import {
@@ -154,7 +153,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     // 2. Fetch Room Members
     const { data: memData } = await supabase
       .from("room_members")
-      .select("user_id, role, joined_at")
+      .select("*")
       .eq("room_id", id);
 
     let fetchedMembers = [];
@@ -1060,9 +1059,9 @@ const CreatorRoomDetail = ({ roomId }) => {
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-8 flex-wrap">
             <div>
-              <div className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">CHECK-IN STREAK</div>
+              <div className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">ACTIVE UPTIME</div>
               <div className="text-base font-black text-amber-400 font-mono flex items-center gap-1">
-                <Flame size={16} /> {userStreak} Days
+                <Zap size={16} className="text-amber-400 fill-amber-400/20" /> {userStreak} Days
               </div>
             </div>
 
@@ -1364,8 +1363,6 @@ const CreatorRoomDetail = ({ roomId }) => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <Footer />
     </div>
   );
 };
