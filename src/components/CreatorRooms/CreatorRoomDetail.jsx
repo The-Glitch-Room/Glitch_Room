@@ -102,18 +102,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    const displayStandups = activeTab === "today"
-    ? standups.filter((s) => {
-        if (!s.created_at) return true;
-        const d = new Date(s.created_at);
-        const today = new Date();
-        return d.getDate() === today.getDate() &&
-               d.getMonth() === today.getMonth() &&
-               d.getFullYear() === today.getFullYear();
-      })
-    : standups;
-
-  return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   //  Database Fetching 
@@ -626,6 +615,17 @@ const CreatorRoomDetail = ({ roomId }) => {
   const myBuddy = buddies.find((b) => b.user1_id === userId || b.user2_id === userId);
   const buddyUserId = myBuddy ? (myBuddy.user1_id === userId ? myBuddy.user2_id : myBuddy.user1_id) : null;
   const buddyMember = members.find((m) => m.user_id === buddyUserId);
+
+  const displayStandups = activeTab === "today"
+    ? standups.filter((s) => {
+        if (!s.created_at) return true;
+        const d = new Date(s.created_at);
+        const today = new Date();
+        return d.getDate() === today.getDate() &&
+               d.getMonth() === today.getMonth() &&
+               d.getFullYear() === today.getFullYear();
+      })
+    : standups;
 
   return (
     <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans">
