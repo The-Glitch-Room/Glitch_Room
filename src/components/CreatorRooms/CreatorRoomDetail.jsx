@@ -4,6 +4,8 @@ import {
 import { motion,
   AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
+import { sendTestConfirmationEmail,
+  sendStandupDigestEmail } from "../../services/emailService";
 import Navbar from "../Navbar";
 import GlitchBackground from "../GlitchBackground";
 import { updatePoints } from "../../utils/pointsHelper";
@@ -482,6 +484,18 @@ const CreatorRoomDetail = ({ roomId }) => {
         title: "Daily Standup Logged",
         message: `${userProfile?.username || "A builder"} submitted today's standup & proof of work!`,
       });
+
+      // Trigger Resend Email Dispatch
+      const { data: auUser } = await supabase.auth.getUser();
+      if (auUser?.user?.email) {
+        sendStandupDigestEmail({
+          toEmail: auUser.user.email,
+          username: userProfile?.username || "Builder",
+          roomTitle: room?.title || room?.name || "Accountability Room",
+          accomplishment,
+          proofUrl,
+        });
+      }
 
       showToast(" Daily Standup logged! +35 gBits awarded!");
       setAccomplishment("");
@@ -1752,9 +1766,16 @@ const CreatorRoomDetail = ({ roomId }) => {
                     Cancel
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       localStorage.setItem(`glitch_email_prefs_${id}`, JSON.stringify({ enabled: emailNotifsEnabled }));
-                      showToast("Email notification preferences saved persistently!");
+                      const { data: au } = await supabase.auth.getUser();
+                      const userEmail = au?.user?.email;
+                      if (emailNotifsEnabled && userEmail) {
+                        sendTestConfirmationEmail(userEmail);
+                        showToast("Email preferences saved! Confirmation email sent to " + userEmail);
+                      } else {
+                        showToast("Email notification preferences saved!");
+                      }
                       setShowEmailPrefsModal(false);
                     }}
                     className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-600/25 cursor-pointer"
