@@ -180,7 +180,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
   return (
     <aside
-      className={`sticky top-[18vh] h-[calc(100vh-18vh)] overflow-y-auto border-r border-white/10 bg-[#070709] hidden md:flex flex-col shrink-0 transition-all duration-300 ${
+      className={`sticky top-[18vh] h-[calc(100vh-18vh)] overflow-y-auto no-scrollbar [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-r border-white/10 bg-[#070709] hidden md:flex flex-col shrink-0 transition-all duration-300 ${
         isCollapsed ? "w-[76px]" : "w-[268px]"
       }`}
     >

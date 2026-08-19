@@ -266,3 +266,13 @@ body {
 .glitch-bg {
   background: radial-gradient(circle at top, rgba(100, 0, 150, 0.4), black 60%);
 }
+
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
