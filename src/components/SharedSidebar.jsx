@@ -115,9 +115,16 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             currentUser?.user_metadata?.avatar_url ||
             cachedAvatar ||
             null;
-          if (typeof dbProfile.points === "number") {
-            setCurrentXp(dbProfile.points);
-          }
+        }
+
+        const { data: pts } = await supabase
+          .from("user_points")
+          .select("points")
+          .eq("user_id", currentUser.id)
+          .maybeSingle();
+
+        if (pts && typeof pts.points === "number") {
+          setCurrentXp(pts.points);
         }
       }
 

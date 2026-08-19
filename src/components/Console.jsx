@@ -243,7 +243,7 @@ const Console = () => {
 
     const [profRes, progRes, recentRes, allUsersRes, badgesRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).single(),
-      supabase.from("user_points").select("*").eq("user_id", userId).single(),
+      supabase.from("user_points").select("*").eq("user_id", userId).maybeSingle(),
       supabase
         .from("glitch_activity")
         .select("*")
