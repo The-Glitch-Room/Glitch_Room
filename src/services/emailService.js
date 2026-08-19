@@ -1,45 +1,49 @@
 // src/services/emailService.js
-// Handles live transactional email dispatching via Resend HTTP REST API
+// Handles live transactional email dispatching via Netlify Serverless Function & Resend API
 
 export const sendResendEmail = async ({ to, subject, html }) => {
-  // Support both VITE_RESEND_API_KEY and RESEND_API_KEY
-  const apiKey = import.meta.env.VITE_RESEND_API_KEY || import.meta.env.RESEND_API_KEY;
-
-  if (!apiKey) {
-    console.warn("Resend API Key missing. Please set VITE_RESEND_API_KEY in .env");
-    return { success: false, error: "API key missing" };
-  }
-
   try {
-    const response = await fetch("https://api.resend.com/emails", {
+    // 1. Try Netlify Backend Function (Bypasses CORS restrictions)
+    const netlifyRes = await fetch("/.netlify/functions/send-email", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey.trim()}`,
-      },
-      body: JSON.stringify({
-        from: "Glitch Room <onboarding@resend.dev>",
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, html }),
     });
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error("Resend API Error:", result);
-      // Helpful alert for testing mode limitation
-      if (result.message?.includes("only send testing emails to your own email")) {
-        console.warn("Resend Testing Restriction: You must send emails to the email address you signed up with on Resend until a custom domain is added.");
-      }
-      return { success: false, error: result.message || "Failed to send email" };
+    if (netlifyRes.ok) {
+      const data = await netlifyRes.json();
+      console.log("Email dispatched via Netlify Function:", data);
+      return { success: true, data };
     }
 
-    console.log("Resend Email Dispatched Successfully:", result);
-    return { success: true, data: result };
+    const netlifyErr = await netlifyRes.json().catch(() => ({}));
+    console.warn("Netlify function fallback warning:", netlifyErr);
+
+    // 2. Client-side fallback if direct API key available
+    const apiKey = import.meta.env.VITE_RESEND_API_KEY || import.meta.env.RESEND_API_KEY;
+    if (apiKey) {
+      const directRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey.trim()}`,
+        },
+        body: JSON.stringify({
+          from: "Glitch Room <onboarding@resend.dev>",
+          to: Array.isArray(to) ? to : [to],
+          subject,
+          html,
+        }),
+      });
+
+      const directData = await directRes.json();
+      if (directRes.ok) return { success: true, data: directData };
+      return { success: false, error: directData.message || "Resend error" };
+    }
+
+    return { success: false, error: netlifyErr.error || "Failed to send email" };
   } catch (err) {
-    console.error("Resend Email Exception:", err);
+    console.error("Email service exception:", err);
     return { success: false, error: err.message };
   }
 };
