@@ -2,10 +2,11 @@
 // Handles live transactional email dispatching via Resend HTTP REST API
 
 export const sendResendEmail = async ({ to, subject, html }) => {
-  const apiKey = import.meta.env.VITE_RESEND_API_KEY;
+  // Support both VITE_RESEND_API_KEY and RESEND_API_KEY
+  const apiKey = import.meta.env.VITE_RESEND_API_KEY || import.meta.env.RESEND_API_KEY;
 
   if (!apiKey) {
-    console.warn("VITE_RESEND_API_KEY is not defined in environment variables.");
+    console.warn("Resend API Key missing. Please set VITE_RESEND_API_KEY in .env");
     return { success: false, error: "API key missing" };
   }
 
@@ -14,7 +15,7 @@ export const sendResendEmail = async ({ to, subject, html }) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey.trim()}`,
       },
       body: JSON.stringify({
         from: "Glitch Room <onboarding@resend.dev>",
@@ -27,13 +28,18 @@ export const sendResendEmail = async ({ to, subject, html }) => {
     const result = await response.json();
 
     if (!response.ok) {
-      console.error("Resend API Error Payload:", result);
+      console.error("Resend API Error:", result);
+      // Helpful alert for testing mode limitation
+      if (result.message?.includes("only send testing emails to your own email")) {
+        console.warn("Resend Testing Restriction: You must send emails to the email address you signed up with on Resend until a custom domain is added.");
+      }
       return { success: false, error: result.message || "Failed to send email" };
     }
 
+    console.log("Resend Email Dispatched Successfully:", result);
     return { success: true, data: result };
   } catch (err) {
-    console.error("Resend Email Network Exception:", err);
+    console.error("Resend Email Exception:", err);
     return { success: false, error: err.message };
   }
 };
