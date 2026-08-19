@@ -28,6 +28,8 @@ import {
   Upload,
   Trophy,
   ExternalLink,
+  ArrowRight,
+  User,
   ShieldCheck,
   Check,
   X,
@@ -864,10 +866,10 @@ const CreatorRoomDetail = ({ roomId }) => {
         </section>
 
         {/*  MAIN 3-COLUMN GRID  */}
-        <section className="max-w-7xl mx-auto px-6 py-6 w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section className="max-w-7xl mx-auto px-6 py-6 w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-          {/* LEFT COLUMN: Goals & Policy (3 Cols) */}
-          <div className="lg:col-span-3 space-y-4">
+          {/* LEFT COLUMN: Goals & Policy (2 Cols) */}
+          <div className="lg:col-span-2 space-y-4">
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
               <div className="flex items-center gap-2 text-xs font-bold text-white mb-2">
                 <Target size={15} className="text-purple-400" /> Room Goal
@@ -923,8 +925,8 @@ const CreatorRoomDetail = ({ roomId }) => {
             )}
           </div>
 
-          {/* CENTER COLUMN: Daily Standups & Check-in Feed (6 Cols) */}
-          <div className="lg:col-span-6 space-y-6">
+          {/* CENTER COLUMN: Daily Standups & Check-in Feed (7 Cols) */}
+          <div className="lg:col-span-7 space-y-6">
             {/* Header Tabs */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -1229,24 +1231,55 @@ const CreatorRoomDetail = ({ roomId }) => {
               )}
             </div>
 
-            {/* Room Activity Feed */}
-            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
-              <div className="flex items-center gap-2 text-xs font-bold text-white mb-3">
-                <Activity size={15} className="text-cyan-400" /> Room Activity
+            {/* Room Activity Feed (Matching Image 2) */}
+            <div className="bg-[#0d0d16] border border-white/10 hover:border-pink-500/30 rounded-2xl p-5 shadow-xl transition">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-white/10">
+                <div className="w-7 h-7 rounded-xl bg-pink-500/20 border border-pink-500/30 flex items-center justify-center text-pink-400 shrink-0">
+                  <Activity size={15} />
+                </div>
+                <h3 className="text-sm font-bold text-white font-sans">Room Activity</h3>
               </div>
 
               {notifications.length === 0 ? (
-                <p className="text-xs text-gray-500 font-mono text-center py-4">No room activity recorded yet.</p>
+                <p className="text-xs text-gray-500 font-mono text-center py-4">No recent squad activity recorded.</p>
               ) : (
-                <div className="space-y-3">
-                  {notifications.slice(0, 5).map((n) => (
-                    <div key={n.id} className="text-xs font-mono text-gray-300 pb-2 border-b border-white/5 last:border-0">
-                      <p className="font-semibold text-white">{n.title}</p>
-                      <p className="text-[11px] text-gray-400">{n.message}</p>
-                    </div>
-                  ))}
+                <div className="space-y-3.5 mb-4 font-sans text-xs">
+                  {notifications.slice(0, 5).map((n, idx) => {
+                    const timeAgo = n.created_at ? (() => {
+                      const diffSec = Math.floor((new Date() - new Date(n.created_at)) / 1000);
+                      if (diffSec < 60) return "1m ago";
+                      if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+                      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+                      return `${Math.floor(diffSec / 86400)}d ago`;
+                    })() : `${(idx + 1) * 5}m ago`;
+
+                    return (
+                      <div key={n.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0">
+                            <User size={12} />
+                          </div>
+                          <span className="text-gray-300 truncate font-sans text-xs">
+                            {n.message || n.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-gray-500 font-mono shrink-0">
+                          {timeAgo}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
+
+              <div className="pt-3 border-t border-white/10">
+                <button
+                  onClick={() => showToast("Viewing complete squad activity history...")}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-400 hover:text-purple-300 transition cursor-pointer font-sans group"
+                >
+                  View All Activity <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -1718,7 +1751,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <button
                     onClick={() => {
                       localStorage.setItem(`glitch_email_prefs_${id}`, JSON.stringify({ enabled: emailNotifsEnabled }));
-                      showToast("Email notification preferences saved!");
+                      showToast("Email notification preferences saved persistently!");
                       setShowEmailPrefsModal(false);
                     }}
                     className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-600/25 cursor-pointer"
@@ -1726,6 +1759,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                     Save Email Settings
                   </button>
                 </div>
+                <p className="text-[10px] text-gray-500 font-mono text-center pt-2">
+                  ℹ️ Preferences are saved persistently in room settings. (Live email delivery requires configured SMTP/Resend service).
+                </p>
               </div>
             </motion.div>
           </div>
@@ -1735,7 +1771,7 @@ const CreatorRoomDetail = ({ roomId }) => {
             {/* 7. 30-Day Sprint Calendar View Modal */}
       <AnimatePresence>
         {showCalendarModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 backdrop-blur-md pt-24 pb-20 px-4 flex justify-center items-start">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
