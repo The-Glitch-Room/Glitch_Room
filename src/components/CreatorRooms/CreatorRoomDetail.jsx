@@ -111,7 +111,8 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    const uid = userId;
+  return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   //  Database Fetching 
@@ -1039,7 +1040,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <div className="flex items-center justify-between gap-3 mb-3 pb-2.5 border-b border-white/10 flex-wrap">
                         <div className="flex items-center gap-2.5">
                           <img
-                            src={(standup.isUser || standup.user_id === uid || standup.username === userProfile?.username)
+                            src={(standup.isUser || standup.user_id === userId || standup.username === userProfile?.username)
                               ? (userProfile?.avatar_url || standup.avatar)
                               : (standup.avatar || DEFAULT_AVATAR)}
                             alt={standup.username}
@@ -1143,7 +1144,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                             {members.slice(0, 3).map((m, i) => (
                               <img
                                 key={i}
-                                src={(m.user_id === uid || m.username === userProfile?.username) ? (userProfile?.avatar_url || m.avatar_url) : (m.avatar_url || DEFAULT_AVATAR)}
+                                src={(m.user_id === userId || m.username === userProfile?.username) ? (userProfile?.avatar_url || m.avatar_url) : (m.avatar_url || DEFAULT_AVATAR)}
                                 alt={m.username}
                                 className="inline-block h-5 w-5 rounded-full ring-1 ring-[#07070d] object-cover"
                               />
