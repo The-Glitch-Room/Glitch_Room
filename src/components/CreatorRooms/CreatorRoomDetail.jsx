@@ -917,7 +917,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Coins size={15} className="text-amber-400" /> Room Pool
               </div>
               <div className="text-xl font-black text-amber-400 font-mono">
-                {roomPoolGBits.toLocaleString()} gBits
+                {(roomPoolGBits || 0).toLocaleString()} gBits
               </div>
               <p className="text-[10px] text-gray-500 font-mono">Stakes from committed members</p>
             </div>

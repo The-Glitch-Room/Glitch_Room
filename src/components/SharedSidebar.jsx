@@ -362,7 +362,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
               />
             </div>
             <p className="text-xs font-mono text-gray-400 text-right font-medium">
-              {displayXp.toLocaleString()} / {nextLevelXP.toLocaleString()}
+              {(displayXp || 0).toLocaleString()} / {(nextLevelXP || 100).toLocaleString()}
             </p>
           </>
         ) : (

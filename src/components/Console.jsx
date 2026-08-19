@@ -553,7 +553,7 @@ const Console = () => {
                       total_gbits
                     </p>
                     <p className="text-5xl font-black text-white tabular-nums font-mono">
-                      {xp.toLocaleString()}
+                      {(xp || 0).toLocaleString()}
                     </p>
                   </div>
                 </div>

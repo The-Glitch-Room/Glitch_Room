@@ -1438,7 +1438,7 @@ export default function YourProfile() {
                   {inspectModalItem.category}
                 </span>
                 <span className="text-xs font-mono text-gray-400">
-                  {new Date(inspectModalItem.time).toLocaleString()}
+                  {new Date(inspectModalItem?.time || Date.now()).toLocaleString()}
                 </span>
               </div>
 

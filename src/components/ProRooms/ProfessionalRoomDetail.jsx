@@ -558,7 +558,7 @@ const ProfessionalRoomDetail = () => {
 
   // Format Event End Time
   const eventEndFormatted = room?.event_end_at
-    ? new Date(room.event_end_at).toLocaleString("en-US", {
+    ? new Date(room?.event_end_at || Date.now()).toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         hour: "2-digit",
@@ -1456,7 +1456,7 @@ const ProfessionalRoomDetail = () => {
                         </div>
                         <div className="flex justify-between text-gray-400">
                           <span>Submitted At:</span>
-                          <span className="text-white font-mono">{new Date(userSubmission.submitted_at || Date.now()).toLocaleString()}</span>
+                          <span className="text-white font-mono">{new Date(userSubmission?.submitted_at || Date.now()).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
