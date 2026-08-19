@@ -1772,7 +1772,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       const userEmail = au?.user?.email;
                       if (emailNotifsEnabled && userEmail) {
                         sendTestConfirmationEmail(userEmail);
-                        showToast("Email preferences saved! Confirmation email sent to " + userEmail);
+                        showToast("Email notification preferences saved persistently!");
                       } else {
                         showToast("Email notification preferences saved!");
                       }
