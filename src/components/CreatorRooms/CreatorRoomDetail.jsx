@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import {
+  useNavigate } from "react-router-dom";
+import { motion,
+  AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import Navbar from "../Navbar";
 import GlitchBackground from "../GlitchBackground";
@@ -13,12 +15,14 @@ import {
   Edit3,
   Calendar,
   Clock,
+  CheckCircle,
+  Coins,
+  Gift,
   Users,
   Globe,
   Lock,
   Flame,
   Target,
-  Coins,
   CheckCircle2,
   Send,
   Upload,
@@ -40,7 +44,7 @@ import {
   UserX,
   UserCheck,
   Mail,
-  AlertTriangle,
+  AlertTriangle
 } from "lucide-react";
 
 const CreatorRoomDetail = ({ roomId }) => {
@@ -73,6 +77,9 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showEmailPrefsModal, setShowEmailPrefsModal] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [calendarViewMode, setCalendarViewMode] = useState("personal");
+  const [selectedDayNum, setSelectedDayNum] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [emailNotifsEnabled, setEmailNotifsEnabled] = useState(true);
 
@@ -940,6 +947,12 @@ const CreatorRoomDetail = ({ roomId }) => {
                 >
                   All Logs
                 </button>
+                <button
+                  onClick={() => setShowCalendarModal(true)}
+                  className="px-3 py-1 rounded-lg transition cursor-pointer text-gray-400 hover:text-purple-300 hover:bg-white/5 flex items-center gap-1.5 font-bold"
+                >
+                  <Calendar size={13} className="text-purple-400" /> Calendar View
+                </button>
               </div>
             </div>
 
@@ -1239,42 +1252,94 @@ const CreatorRoomDetail = ({ roomId }) => {
         </section>
       </div>
 
-      {/*  STICKY BOTTOM STATISTICS BAR  */}
-      <div className="sticky bottom-0 z-40 bg-[#0a0a14]/95 backdrop-blur-2xl border-t border-white/10 px-6 py-3.5 shadow-2xl">
+      {/* STICKY BOTTOM STATISTICS BAR (Matching Image 1 & 2) */}
+      <div className="sticky bottom-0 z-40 bg-[#07070e]/95 backdrop-blur-2xl border-t border-white/10 px-6 py-3.5 shadow-2xl font-sans">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-8 flex-wrap">
-            <div>
-              <div className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">ACTIVE UPTIME</div>
-              <div className="text-base font-black text-amber-400 font-mono flex items-center gap-1">
-                <Zap size={16} className="text-amber-400 fill-amber-400/20" /> {userStreak} Days
+          <div className="flex items-center gap-6 lg:gap-8 flex-wrap">
+            {/* 1. Check-in Streak */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <Flame size={20} className="fill-amber-400/20" />
+              </div>
+              <div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">Check-in Streak</div>
+                <div className="text-sm font-black text-white font-mono">{userStreak} Days</div>
+                <div className="text-[10px] text-gray-400 font-sans">Keep it up!</div>
               </div>
             </div>
 
-            <div>
-              <div className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">TOTAL CHECK-INS</div>
-              <div className="text-base font-black text-white font-mono">
-                {userStandups.length} / {totalSprintDays}
+            <div className="h-8 w-px bg-white/10 hidden sm:block" />
+
+            {/* 2. Total Check-ins */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <CheckCircle size={20} />
+              </div>
+              <div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">Total Check-ins</div>
+                <div className="text-sm font-black text-white font-mono">{userStandups.length} / {totalSprintDays}</div>
+                <div className="text-[10px] text-gray-400 font-sans">This Sprint</div>
               </div>
             </div>
 
-            <div>
-              <div className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">GBITS AT STAKE</div>
-              <div className="text-base font-black text-purple-300 font-mono">
-                {room.entry_stake || 0} gBits
+            <div className="h-8 w-px bg-white/10 hidden sm:block" />
+
+            {/* 3. On-time Check-ins */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <Clock size={20} />
+              </div>
+              <div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">On-time Check-ins</div>
+                <div className="text-sm font-black text-white font-mono">
+                  {userStandups.filter((s) => s.is_on_time !== false).length}
+                </div>
+                <div className="text-[10px] text-emerald-400 font-mono">
+                  {userStandups.length > 0
+                    ? Math.round((userStandups.filter((s) => s.is_on_time !== false).length / userStandups.length) * 100)
+                    : 100}% on time
+                </div>
+              </div>
+            </div>
+
+            <div className="h-8 w-px bg-white/10 hidden sm:block" />
+
+            {/* 4. gBits at Stake */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <Coins size={20} />
+              </div>
+              <div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">gBits at Stake</div>
+                <div className="text-sm font-black text-amber-300 font-mono">{room.entry_stake || 50} gBits</div>
+                <div className="text-[10px] text-gray-400 font-sans">Your Stake</div>
+              </div>
+            </div>
+
+            <div className="h-8 w-px bg-white/10 hidden sm:block" />
+
+            {/* 5. Potential Reward */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                <Gift size={20} />
+              </div>
+              <div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">Potential Reward</div>
+                <div className="text-sm font-black text-pink-300 font-mono">
+                  {(room.entry_stake || 50) * Math.max(1, room.member_count || members.length || 1)}+ gBits
+                </div>
+                <div className="text-[10px] text-gray-400 font-sans">If you complete</div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {isMember && (
-              <button
-                onClick={() => setShowCheckinModal(true)}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/20 cursor-pointer"
-              >
-                Log Today's Standup 
-              </button>
-            )}
-          </div>
+          {/* CTA Button */}
+          <button
+            onClick={() => showToast(`Pool Reward: ${(room.entry_stake || 50) * Math.max(1, room.member_count || members.length || 1)} gBits for completing the sprint!`)}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 transition cursor-pointer shrink-0"
+          >
+            View Rewards
+          </button>
         </div>
       </div>
 
@@ -1662,6 +1727,307 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+            {/* 7. 30-Day Sprint Calendar View Modal */}
+      <AnimatePresence>
+        {showCalendarModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0b0b16] border border-white/15 rounded-3xl p-6 lg:p-8 max-w-4xl w-full shadow-2xl font-sans my-8 relative"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6 flex-wrap gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Calendar size={22} className="text-[#FF00C8]" /> 30-Day Sprint Calendar
+                  </h3>
+                  <p className="text-xs text-gray-400 font-mono">
+                    Track your daily check-in streak & proof of work progress
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {/* Host Squad View Toggle */}
+                  {isHost && (
+                    <div className="flex items-center bg-white/5 p-1 rounded-xl border border-white/10 text-xs font-mono">
+                      <button
+                        onClick={() => setCalendarViewMode("personal")}
+                        className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                          calendarViewMode === "personal"
+                            ? "bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30"
+                            : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        My Calendar
+                      </button>
+                      <button
+                        onClick={() => setCalendarViewMode("squad")}
+                        className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                          calendarViewMode === "squad"
+                            ? "bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30"
+                            : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        Squad Calendar
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setShowCalendarModal(false)}
+                    className="p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {calendarViewMode === "personal" ? (
+                <div>
+                  {/* Top Progress & Metrics Summary */}
+                  <div className="bg-[#07070d] border border-white/10 rounded-2xl p-5 mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+                        30-Day Progress
+                      </h4>
+                      <span className="text-xs font-mono font-bold text-cyan-400">
+                        {userStandups.length} / 30 Days Completed — {Math.round((userStandups.length / 30) * 100)}%
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden mb-5 border border-white/10">
+                      <div
+                        className="h-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF] transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.round((userStandups.length / 30) * 100))}%` }}
+                      />
+                    </div>
+
+                    {/* 4 Key Stat Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                      <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">🔥 Current Streak</div>
+                        <div className="text-base font-black text-amber-400">{userStreak} Days</div>
+                      </div>
+
+                      <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">✅ Completed</div>
+                        <div className="text-base font-black text-emerald-400">{userStandups.length}</div>
+                      </div>
+
+                      <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">❌ Missed</div>
+                        <div className="text-base font-black text-red-400">
+                          {Math.max(0, Math.min(30, Math.floor((new Date() - new Date(room.start_date || room.created_at)) / (1000 * 60 * 60 * 24))) - userStandups.length)}
+                        </div>
+                      </div>
+
+                      <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">⏳ Remaining</div>
+                        <div className="text-base font-black text-purple-300">
+                          {Math.max(0, 30 - userStandups.length)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 30-Day Grid */}
+                  <div className="mb-6">
+                    <div className="text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-3 flex items-center justify-between flex-wrap gap-2">
+                      <span>Sprint Days Grid (Days 1 — 30)</span>
+                      <div className="flex items-center gap-3 text-[10px]">
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Completed</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Pending (Today)</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Missed</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-600 inline-block" /> Upcoming</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2 font-mono">
+                      {Array.from({ length: 30 }, (_, i) => i + 1).map((dayNum) => {
+                        const startDate = new Date(room.start_date || room.created_at || Date.now());
+                        const dayDate = new Date(startDate);
+                        dayDate.setDate(startDate.getDate() + (dayNum - 1));
+
+                        const today = new Date();
+                        const isTodayDate = dayDate.toDateString() === today.toDateString();
+                        const isPastDate = dayDate < today && !isTodayDate;
+
+                        const hasStandup = userStandups.some((s) => {
+                          if (!s.created_at) return false;
+                          return new Date(s.created_at).toDateString() === dayDate.toDateString();
+                        }) || (dayNum <= userStandups.length);
+
+                        let statusSymbol = "⚪";
+                        let bgClass = "bg-white/5 border-white/10 text-gray-400";
+
+                        if (hasStandup) {
+                          statusSymbol = "🟢";
+                          bgClass = "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 font-bold";
+                        } else if (isTodayDate) {
+                          statusSymbol = "🟡";
+                          bgClass = "bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold animate-pulse";
+                        } else if (isPastDate) {
+                          statusSymbol = "🔴";
+                          bgClass = "bg-red-500/10 border-red-500/30 text-red-400";
+                        }
+
+                        const isSelected = selectedDayNum === dayNum;
+
+                        return (
+                          <button
+                            key={dayNum}
+                            onClick={() => setSelectedDayNum(dayNum)}
+                            className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${bgClass} ${
+                              isSelected ? "ring-2 ring-[#FF00C8] shadow-lg shadow-[#FF00C8]/30 scale-105" : "hover:border-white/30"
+                            }`}
+                          >
+                            <span className="text-[10px] text-gray-400">Day {dayNum}</span>
+                            <span className="text-base">{statusSymbol}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Selected Day Details Display */}
+                  {selectedDayNum !== null && (
+                    <div className="bg-[#07070d] border border-purple-500/30 rounded-2xl p-5 font-mono text-xs space-y-3">
+                      {(() => {
+                        const startDate = new Date(room.start_date || room.created_at || Date.now());
+                        const dayDate = new Date(startDate);
+                        dayDate.setDate(startDate.getDate() + (selectedDayNum - 1));
+
+                        const today = new Date();
+                        const isTodayDate = dayDate.toDateString() === today.toDateString();
+                        const isPastDate = dayDate < today && !isTodayDate;
+
+                        const standup = userStandups.find((s) => {
+                          if (!s.created_at) return false;
+                          return new Date(s.created_at).toDateString() === dayDate.toDateString();
+                        }) || (selectedDayNum <= userStandups.length ? userStandups[selectedDayNum - 1] : null);
+
+                        const dateFormatted = dayDate.toLocaleDateString([], { month: "short", day: "numeric" });
+
+                        if (standup) {
+                          return (
+                            <div>
+                              <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-3">
+                                <h4 className="font-bold text-white text-sm">
+                                  Day {selectedDayNum} — {dateFormatted}
+                                </h4>
+                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px]">
+                                  ✅ Completed
+                                </span>
+                              </div>
+                              <div className="space-y-2 text-gray-300">
+                                <p><strong className="text-white">Check-in:</strong> {new Date(standup.created_at || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                                <p><strong className="text-white">What I accomplished:</strong> {standup.accomplishment}</p>
+                                {standup.proof_url && (
+                                  <p className="flex items-center gap-1">
+                                    <strong className="text-white">Proof of Work:</strong>{" "}
+                                    <a href={standup.proof_url.startsWith("http") ? standup.proof_url : `https://${standup.proof_url}`} target="_blank" rel="noreferrer" className="text-cyan-400 underline truncate max-w-md">
+                                      {standup.proof_url}
+                                    </a>
+                                  </p>
+                                )}
+                                <p><strong className="text-white">Blockers:</strong> {standup.blockers || "None"}</p>
+                                <p><strong className="text-white">Streak:</strong> 🔥 {standup.streak_count || selectedDayNum} days</p>
+                              </div>
+                            </div>
+                          );
+                        } else if (isTodayDate) {
+                          return (
+                            <div className="text-center py-3">
+                              <h4 className="font-bold text-amber-300 text-sm mb-1">
+                                Day {selectedDayNum} — Today ({dateFormatted})
+                              </h4>
+                              <p className="text-gray-400 mb-3">🟡 Check-in pending for today!</p>
+                              {isMember && (
+                                <button
+                                  onClick={() => {
+                                    setShowCalendarModal(false);
+                                    setShowCheckinModal(true);
+                                  }}
+                                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white font-bold cursor-pointer shadow-lg"
+                                >
+                                  + Check-in Now
+                                </button>
+                              )}
+                            </div>
+                          );
+                        } else if (isPastDate) {
+                          return (
+                            <div>
+                              <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-2">
+                                <h4 className="font-bold text-white text-sm">
+                                  Day {selectedDayNum} — {dateFormatted}
+                                </h4>
+                                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 text-[11px]">
+                                  ❌ Missed
+                                </span>
+                              </div>
+                              <p className="text-gray-400">No check-in was submitted for this day.</p>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div>
+                              <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-2">
+                                <h4 className="font-bold text-white text-sm">
+                                  Day {selectedDayNum} — {dateFormatted}
+                                </h4>
+                                <span className="px-2.5 py-0.5 rounded-full bg-gray-600/20 text-gray-400 border border-gray-500/30 text-[11px]">
+                                  ⚪ Upcoming
+                                </span>
+                              </div>
+                              <p className="text-gray-400">This sprint day has not started yet. Keep your momentum going!</p>
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Squad Activity Overview for Host */
+                <div className="space-y-4 font-mono text-xs">
+                  <h4 className="text-sm font-bold text-white">Squad Participation Overview</h4>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {members.map((m) => {
+                      const mStandups = standups.filter((s) => s.user_id === m.user_id || s.username === m.username);
+                      const mPct = Math.round((mStandups.length / 30) * 100);
+                      return (
+                        <div key={m.user_id} className="p-4 rounded-2xl bg-[#07070d] border border-white/10 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <img src={m.avatar_url || DEFAULT_AVATAR} alt={m.username} className="w-9 h-9 rounded-xl object-cover border border-white/10" />
+                            <div>
+                              <h5 className="font-bold text-white">{m.username}</h5>
+                              <p className="text-[10px] text-gray-500">{mStandups.length} / 30 Days ({mPct}%)</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-amber-400 font-bold flex items-center gap-1">
+                              <Flame size={14} /> {mStandups.length}d
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-[10px]">
+                              {mStandups[0] ? `Latest: ${new Date(mStandups[0].created_at).toLocaleDateString()}` : "No check-ins"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}
