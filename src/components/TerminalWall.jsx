@@ -588,7 +588,7 @@ const TerminalWall = () => {
 
     const { data: usersRaw } = await supabase
       .from("profiles")
-      .select("full_name, username, avatar_url, points")
+      .select("full_name, username, avatar_url")
       .order("points", { ascending: false })
       .limit(20);
 

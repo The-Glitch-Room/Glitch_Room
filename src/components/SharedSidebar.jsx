@@ -103,7 +103,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       if (currentUser) {
         const { data: dbProfile } = await supabase
           .from("profiles")
-          .select("full_name, username, avatar_url, points")
+          .select("full_name, username, avatar_url")
           .eq("id", currentUser.id)
           .maybeSingle();
 

@@ -926,8 +926,8 @@ const CreatorRoomDetail = ({ roomId }) => {
             )}
           </div>
 
-          {/* CENTER COLUMN: Daily Standups & Check-in Feed (7 Cols) */}
-          <div className="lg:col-span-7 space-y-6">
+          {/* RIGHT MAIN FEED: Daily Standups & Check-ins (8 Cols) */}
+          <div className="lg:col-span-8 space-y-4">
             {/* Header Tabs */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
