@@ -9,17 +9,15 @@ import {
   User,
   MoreHorizontal,
   LayoutDashboard,
-  Trophy,
-  Star,
-  Gem,
+  Terminal,
+  Zap,
   Users,
+  ShieldCheck,
   MessageSquare,
   Settings,
   HelpCircle,
   LogOut,
   X,
-  Swords,
-  Palette,
 } from "lucide-react";
 
 // ── Bottom Nav Items ──────────────────────────────────────────────────────────
@@ -40,23 +38,22 @@ const MORE_ITEMS = [
     color: "#FF00C8",
   },
   {
-    path: "/leaderboard",
-    icon: Trophy,
-    label: "Leaderboard",
+    path: "/terminal-wall",
+    icon: Terminal,
+    label: "Terminal Wall",
     color: "#f59e0b",
   },
-  {
-    path: "/hall-of-fame",
-    icon: Star,
-    label: "Hall of Fame",
-    color: "#FFD700",
-  },
-  { path: "/points", icon: Gem, label: "Points & Badges", color: "#00F0FF" },
   {
     path: "/creator-rooms",
     icon: Users,
     label: "Creator Rooms",
     color: "#a855f7",
+  },
+  {
+    path: "/pro-rooms",
+    icon: ShieldCheck,
+    label: "Pro Rooms",
+    color: "#3b82f6",
   },
   {
     path: "/community",
@@ -65,18 +62,17 @@ const MORE_ITEMS = [
     color: "#FF00C8",
   },
   {
-    path: "/boss-battle",
-    icon: Swords,
-    label: "Boss Battle",
-    color: "#FF4500",
+    path: "/earn-rules",
+    icon: Zap,
+    label: "Earn Rules",
+    color: "#00F0FF",
   },
   {
-    path: "/ui-creation",
-    icon: Palette,
-    label: "UI Creation",
-    color: "#a855f7",
+    path: "/settings",
+    icon: Settings,
+    label: "Settings",
+    color: "#6b7280",
   },
-  { path: "/settings", icon: Settings, label: "Settings", color: "#6b7280" },
   {
     path: "/help",
     icon: HelpCircle,
@@ -156,7 +152,7 @@ const MoreSheet = ({ onClose, navigate }) => {
                   navigate(item.path);
                   onClose();
                 }}
-                className="flex flex-col items-center gap-2 p-3 rounded-2xl cursor-pointer transition-all"
+                className="flex flex-col items-center gap-2 p-3 rounded-2xl cursor-pointer transition-all hover:bg-white/5"
                 style={{
                   background: "rgba(255,255,255,0.03)",
                   border: "1px solid rgba(255,255,255,0.06)",
@@ -183,7 +179,7 @@ const MoreSheet = ({ onClose, navigate }) => {
         <div className="px-4 pb-6 pt-1">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-red-400 text-sm font-bold cursor-pointer transition-all"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-red-400 text-sm font-bold cursor-pointer transition-all hover:bg-red-500/15"
             style={{
               background: "rgba(239,68,68,0.08)",
               border: "1px solid rgba(239,68,68,0.15)",
