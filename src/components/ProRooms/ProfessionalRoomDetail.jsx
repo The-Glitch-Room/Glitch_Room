@@ -314,9 +314,13 @@ const ProfessionalRoomDetail = () => {
     }
   };
 
+  // 1. Fetch Room Data once on mount or when URL ID changes
   useEffect(() => {
     fetchRoomData();
+  }, [id]);
 
+  // 2. Separate countdown timer (does not re-trigger fetchRoomData)
+  useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
       const end = room?.event_end_at ? new Date(room.event_end_at) : new Date(Date.now() + 172800000);
@@ -548,10 +552,10 @@ const ProfessionalRoomDetail = () => {
 
   const lifecycle = getProRoomLifecycleState(room);
   const isTeamEvent = room?.participation_type === "team" || room?.participation_type === "both";
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = (notifications || []).filter((n) => !n.read).length;
 
   // Compute User Specific Rank & Score
-  const myRankItem = leaderboard.find((l) => l.user_id === currentUserId);
+  const myRankItem = (leaderboard || []).find((l) => l.user_id === currentUserId);
   const userRankDisplay = myRankItem ? `#${myRankItem.rank}` : "—";
   const userScoreDisplay = userSubmission?.total_score || myRankItem?.total_score || 0;
   const totalPossible = room?.total_possible_score || 300;
