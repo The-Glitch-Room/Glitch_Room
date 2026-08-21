@@ -61,7 +61,7 @@ const Navbar = () => {
           : "bg-transparent border-b border-white/5"
       }`}
     >
-      <nav className="max-w-7xl mx-auto px-2.5 sm:px-6 md:px-10 h-16 sm:h-20 flex justify-between items-center gap-1.5 sm:gap-4 overflow-hidden">
+      <nav className="max-w-7xl mx-auto px-2.5 sm:px-6 md:px-10 h-16 sm:h-20 flex justify-between items-center gap-1.5 sm:gap-4">
         {/* Logo */}
         <NavLink to="/" className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 group">
           <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg sm:rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-1 sm:p-1.5 transition-transform group-hover:scale-105 shadow-[0_0_12px_rgba(0,240,255,0.2)] shrink-0">
