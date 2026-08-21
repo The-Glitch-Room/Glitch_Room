@@ -697,8 +697,17 @@ const ProfessionalRoomDetail = () => {
                     /* HOST QUICK SHORTCUTS */
                     <>
                       <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-[#00F0FF] uppercase tracking-widest border-b border-white/10 mb-1">
-                        Quick Shortcuts
+                        Host Controls
                       </div>
+                      <button
+                        onClick={() => {
+                          setActiveSidebarTab("host_dashboard");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
+                      >
+                        <BarChart2 size={14} className="text-[#00F0FF]" /> Host Dashboard
+                      </button>
                       <button
                         onClick={() => {
                           navigate(`/pro-rooms/create?edit=${id}`);
@@ -979,19 +988,11 @@ const ProfessionalRoomDetail = () => {
           </div>
         </div>
 
-        {/* MOBILE HORIZONTAL NAVIGATION TAB BAR (lg:hidden) */}
-        <div className="lg:hidden sticky top-0 z-20 bg-[#070709]/95 backdrop-blur-md border-b border-white/10 py-2.5 -mx-4 px-4 overflow-x-auto no-scrollbar flex items-center gap-2 shadow-2xl">
+        {/* MOBILE HORIZONTAL NAVIGATION SLIDER (lg:hidden) */}
+        <div className="lg:hidden sticky top-0 z-20 bg-[#070709]/95 backdrop-blur-md border-b border-white/10 py-2.5 -mx-4 px-4 overflow-x-auto no-scrollbar [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex items-center gap-2 shadow-2xl max-w-full">
           {[
-            ...(isHost
-              ? [
-                  { id: "host_dashboard", label: "Dashboard", icon: BarChart2 },
-                  { id: "host_participants", label: "Participants", icon: Users, count: registrations.length },
-                  { id: "host_assessment", label: "Manage Assessment", icon: Layers, count: sections.length },
-                  { id: "host_submissions", label: "Submissions", icon: CheckCircle, count: submissions.length },
-                  { id: "host_announcements", label: "Announcements", icon: Megaphone, count: announcements.length },
-                ]
-              : []),
             { id: "overview", label: "Overview", icon: Eye },
+            { id: "announcements", label: "Announcements", icon: Megaphone, count: announcements.length },
             { id: "instructions", label: "Instructions", icon: FileText },
             { id: "sections", label: "Sections", icon: Layers, count: sections.length },
             { id: "submissions", label: "Submissions", icon: CheckCircle },
@@ -1007,7 +1008,10 @@ const ProfessionalRoomDetail = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveSidebarTab(item.id)}
+                onClick={(e) => {
+                  setActiveSidebarTab(item.id);
+                  e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                }}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   isActive
                     ? "bg-[#FF00C8] text-white shadow-lg shadow-[#FF00C8]/25"
@@ -1402,7 +1406,7 @@ const ProfessionalRoomDetail = () => {
             )}
 
             {/* HOST ANNOUNCEMENTS TAB (HOST EXCLUSIVE) */}
-            {activeSidebarTab === "host_announcements" && isHost && (
+            {(activeSidebarTab === "announcements" || activeSidebarTab === "host_announcements") && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1848,50 +1852,50 @@ const ProfessionalRoomDetail = () => {
       </main>
 
       {/* DIRECTIVE 5: TALLER & MORE READABLE BOTTOM FIXED FOOTER */}
-      <div className="sticky bottom-0 z-40 border-t border-white/10 bg-[#07070e]/95 backdrop-blur-md px-6 py-4.5 sm:py-5 shadow-2xl">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono">
-          <div className="flex items-center gap-6 sm:gap-10 overflow-x-auto w-full sm:w-auto">
+      <div className="sticky bottom-0 z-40 border-t border-white/10 bg-[#07070e]/95 backdrop-blur-md px-4 py-3 sm:py-4 shadow-2xl">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center justify-between sm:justify-start gap-4 sm:gap-8 overflow-x-auto w-full sm:w-auto no-scrollbar [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-1">
             {/* User gBits Balance */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
-                <Zap size={18} className="text-purple-400" />
+            <div className="flex flex-col items-center text-center gap-1 shrink-0 px-1 sm:px-0">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <Zap size={16} className="text-purple-400" />
               </div>
               <div>
-                <span className="text-white text-sm font-black font-mono block leading-none">{userGbits} gBits</span>
-                <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-1 block">Your Balance</span>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">{userGbits} gBits</span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">Your Balance</span>
               </div>
             </div>
 
             {/* Target Rank */}
-            <div className="flex items-center gap-3 border-l border-white/10 pl-6 sm:pl-10">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-                <Trophy size={18} className="text-amber-400" />
+            <div className="flex flex-col items-center text-center gap-1 shrink-0 border-l border-white/10 pl-3 sm:pl-8">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <Trophy size={16} className="text-amber-400" />
               </div>
               <div>
-                <span className="text-white text-sm font-black font-mono block leading-none">{userRankDisplay}</span>
-                <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-1 block">Target Rank</span>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">{userRankDisplay}</span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">Target Rank</span>
               </div>
             </div>
 
             {/* Total Points */}
-            <div className="flex items-center gap-3 border-l border-white/10 pl-6 sm:pl-10">
-              <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center shrink-0">
-                <Award size={18} className="text-[#00F0FF]" />
+            <div className="flex flex-col items-center text-center gap-1 shrink-0 border-l border-white/10 pl-3 sm:pl-8">
+              <div className="w-8 h-8 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center shrink-0">
+                <Award size={16} className="text-[#00F0FF]" />
               </div>
               <div>
-                <span className="text-white text-sm font-black font-mono block leading-none">{totalPossible}</span>
-                <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-1 block">Total Points</span>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">{totalPossible}</span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">Total Points</span>
               </div>
             </div>
 
             {/* Event Ends Time */}
-            <div className="flex items-center gap-3 border-l border-white/10 pl-6 sm:pl-10">
-              <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
-                <Calendar size={18} className="text-purple-400" />
+            <div className="flex flex-col items-center text-center gap-1 shrink-0 border-l border-white/10 pl-3 sm:pl-8">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <Calendar size={16} className="text-purple-400" />
               </div>
               <div>
-                <span className="text-white text-sm font-black font-mono block leading-none">{eventEndFormatted}</span>
-                <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-1 block">Event Ends</span>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">{eventEndFormatted}</span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">Event Ends</span>
               </div>
             </div>
           </div>
@@ -1899,7 +1903,7 @@ const ProfessionalRoomDetail = () => {
           <button
             type="button"
             onClick={() => setShowHelpModal(true)}
-            className="px-5 py-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg"
+            className="hidden sm:flex px-4 py-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-bold transition cursor-pointer items-center gap-2 shrink-0 shadow-lg"
           >
             <HelpCircle size={15} /> Need Help?
           </button>
