@@ -1046,7 +1046,7 @@ const ProfessionalRoomDetail = () => {
                     { id: "host_participants", label: "Participants", icon: Users, count: registrations.length },
                     { id: "host_assessment", label: "Manage Assessment", icon: Layers, count: sections.length },
                     { id: "host_submissions", label: "Submissions & Grading", icon: CheckCircle, count: submissions.length },
-                    { id: "host_announcements", label: "Announcements", icon: Megaphone, count: announcements.length },
+                    { id: "host_announcements", label: "Broadcast Announcement", icon: Megaphone, count: announcements.length },
                   ].map((item) => {
                     const Icon = item.icon;
                     const isActive = activeSidebarTab === item.id;
@@ -1406,7 +1406,35 @@ const ProfessionalRoomDetail = () => {
             )}
 
             {/* HOST ANNOUNCEMENTS TAB (HOST EXCLUSIVE) */}
-            {(activeSidebarTab === "announcements" || activeSidebarTab === "host_announcements") && (
+            {/* ROOM NAVIGATION ANNOUNCEMENTS TAB (VIEW ONLY FOR EVERYONE) */}
+            {activeSidebarTab === "announcements" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Megaphone size={16} className="text-[#00F0FF]" /> Announcements ({announcements.length})
+                  </h3>
+                </div>
+
+                <div className="space-y-4">
+                  {announcements.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-8">No announcements posted yet.</p>
+                  ) : (
+                    announcements.map((a) => (
+                      <div key={a.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2 relative">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-white">{a.title}</h4>
+                          <span className="text-[10px] font-mono text-gray-500">{new Date(a.created_at || Date.now()).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed">{a.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* HOST MANAGEMENT: BROADCAST ANNOUNCEMENT TAB (HOST ONLY) */}
+            {activeSidebarTab === "host_announcements" && isHost && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1414,34 +1442,34 @@ const ProfessionalRoomDetail = () => {
                   </h3>
                 </div>
 
-                {/* POST ANNOUNCEMENT FORM — RENDERED ONLY WHEN isHost === true */}
-                {isHost && (
-                  <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-4 space-y-3 shadow-xl">
-                    <h4 className="text-xs font-bold text-purple-300">Post Broadcast Announcement</h4>
-                    <input
-                      type="text"
-                      placeholder="Title..."
-                      value={annTitle}
-                      onChange={(e) => setAnnTitle(e.target.value)}
-                      className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none"
-                    />
-                    <textarea
-                      rows={2}
-                      placeholder="Broadcast message content..."
-                      value={annContent}
-                      onChange={(e) => setAnnContent(e.target.value)}
-                      className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white outline-none"
-                    />
-                    <button
-                      onClick={handlePostAnnouncement}
-                      disabled={postingAnn}
-                      className="px-4 py-2 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold cursor-pointer disabled:opacity-50 transition"
-                    >
-                      Broadcast 📢
-                    </button>
-                  </div>
-                )}
+                {/* POST ANNOUNCEMENT FORM */}
+                <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-4 space-y-3 shadow-xl">
+                  <h4 className="text-xs font-bold text-purple-300">Post Broadcast Announcement</h4>
+                  <input
+                    type="text"
+                    placeholder="Title..."
+                    value={annTitle}
+                    onChange={(e) => setAnnTitle(e.target.value)}
+                    className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#FF00C8]"
+                  />
+                  <textarea
+                    rows={3}
+                    placeholder="Broadcast message content..."
+                    value={annContent}
+                    onChange={(e) => setAnnContent(e.target.value)}
+                    className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-[#FF00C8]"
+                  />
+                  <button
+                    onClick={handlePostAnnouncement}
+                    disabled={postingAnn}
+                    className="px-5 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold cursor-pointer disabled:opacity-50 transition shadow-lg shadow-[#FF00C8]/25 flex items-center gap-2"
+                  >
+                    <span>Broadcast</span>
+                    <Megaphone size={13} />
+                  </button>
+                </div>
 
+                {/* ANNOUNCEMENTS LIST WITH DELETE */}
                 <div className="space-y-4">
                   {announcements.length === 0 ? (
                     <p className="text-xs text-gray-500 text-center py-8">No announcements broadcasted yet.</p>
@@ -1452,11 +1480,9 @@ const ProfessionalRoomDetail = () => {
                           <h4 className="text-xs font-bold text-white">{a.title}</h4>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-mono text-gray-500">{new Date(a.created_at || Date.now()).toLocaleDateString()}</span>
-                            {isHost && (
-                              <button onClick={() => handleDeleteAnnouncement(a.id)} className="text-red-400 hover:text-red-300 p-1 cursor-pointer">
-                                <Trash2 size={12} />
-                              </button>
-                            )}
+                            <button onClick={() => handleDeleteAnnouncement(a.id)} className="text-red-400 hover:text-red-300 p-1 cursor-pointer" title="Delete Announcement">
+                              <Trash2 size={13} />
+                            </button>
                           </div>
                         </div>
                         <p className="text-xs text-gray-300 leading-relaxed">{a.content}</p>
