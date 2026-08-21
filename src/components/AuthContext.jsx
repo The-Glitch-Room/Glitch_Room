@@ -67,7 +67,13 @@ export const AuthProvider = ({ children }) => {
       }
     );
 
-    return () => listener.subscription.unsubscribe();
+    const handleOpenAuth = () => setIsAuthOpen(true);
+    window.addEventListener("open_auth_modal", handleOpenAuth);
+
+    return () => {
+      listener.subscription.unsubscribe();
+      window.removeEventListener("open_auth_modal", handleOpenAuth);
+    };
   }, []);
 
   const openAuth = () => setIsAuthOpen(true);

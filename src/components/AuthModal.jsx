@@ -67,21 +67,40 @@ const AuthModal = ({ isOpen, onClose }) => {
         return;
       }
 
-      // Automatically link pending referral if invited with a code
       const newUserId = signUpData?.user?.id;
-      const storedRefCode =
-        localStorage.getItem("glitch_ref_code") ||
-        new URLSearchParams(window.location.search).get("ref");
-
-      if (newUserId && storedRefCode) {
+      if (newUserId) {
+        const cleanName = (fullName || "Glitcher").trim();
+        const username = `@${cleanName.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "")}_${newUserId.slice(0, 4)}`;
         try {
-          await linkReferralSignup(newUserId, storedRefCode);
-          localStorage.removeItem("glitch_ref_code");
+          await supabase.from("profiles").upsert(
+            {
+              id: newUserId,
+              full_name: cleanName,
+              username: username,
+              points: 100,
+            },
+            { onConflict: "id" }
+          );
         } catch (e) {
-          console.error("Link referral signup error:", e);
+          console.warn("Profile creation upsert warning:", e);
+        }
+
+        const storedRefCode =
+          localStorage.getItem("glitch_ref_code") ||
+          new URLSearchParams(window.location.search).get("ref");
+
+        if (storedRefCode) {
+          try {
+            await linkReferralSignup(newUserId, storedRefCode);
+            localStorage.removeItem("glitch_ref_code");
+          } catch (e) {
+            console.error("Link referral signup error:", e);
+          }
         }
       }
 
+      window.dispatchEvent(new Event("profile_updated"));
+      window.dispatchEvent(new Event("points_updated"));
       resetState();
       onClose();
     }

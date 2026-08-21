@@ -111,11 +111,31 @@ const Navbar = () => {
         </ul>
 
         {/* User profile / login button */}
-        <div className="flex items-center gap-4">
-          <NavbarUserSection />
+        <div className="flex items-center gap-3">
+          {user ? (
+            <NavbarUserSection user={user} />
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={openAuth}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-white/10 border border-white/10 transition cursor-pointer"
+              >
+                Log In
+              </button>
+              <button
+                type="button"
+                onClick={openAuth}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-[#FF00C8] hover:bg-[#d600a8] text-white transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer"
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
 
           {/* Mobile hamburger menu toggle */}
           <button
+            type="button"
             onClick={() => setShowMenu((prev) => !prev)}
             aria-label="Toggle menu"
             className="md:hidden text-gray-300 hover:text-white p-2 rounded-xl bg-white/5 border border-white/10 transition cursor-pointer"
@@ -151,6 +171,20 @@ const Navbar = () => {
                 {link.label}
               </NavLink>
             ))}
+            {!user && (
+              <div className="pt-3 border-t border-white/10 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    openAuth();
+                  }}
+                  className="w-full py-3 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-sm font-bold transition text-center shadow-lg cursor-pointer"
+                >
+                  Log In / Sign Up Free
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

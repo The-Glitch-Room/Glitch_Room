@@ -175,17 +175,26 @@ const MoreSheet = ({ onClose, navigate }) => {
           })}
         </div>
 
-        {/* Logout */}
+        {/* Auth Action */}
         <div className="px-4 pb-6 pt-1">
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-red-400 text-sm font-bold cursor-pointer transition-all hover:bg-red-500/15"
+            onClick={async () => {
+              const { data } = await supabase.auth.getUser();
+              if (data?.user) {
+                handleLogout();
+              } else {
+                onClose();
+                window.dispatchEvent(new CustomEvent("open_auth_modal"));
+              }
+            }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold cursor-pointer transition-all hover:bg-white/10"
             style={{
-              background: "rgba(239,68,68,0.08)",
-              border: "1px solid rgba(239,68,68,0.15)",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#00F0FF",
             }}
           >
-            <LogOut size={15} /> Logout
+            <LogOut size={15} /> Account Options / Log Out
           </button>
         </div>
       </motion.div>
