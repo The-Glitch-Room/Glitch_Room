@@ -979,10 +979,57 @@ const ProfessionalRoomDetail = () => {
           </div>
         </div>
 
+        {/* MOBILE HORIZONTAL NAVIGATION TAB BAR (lg:hidden) */}
+        <div className="lg:hidden sticky top-0 z-20 bg-[#070709]/95 backdrop-blur-md border-b border-white/10 py-2.5 -mx-4 px-4 overflow-x-auto no-scrollbar flex items-center gap-2 shadow-2xl">
+          {[
+            ...(isHost
+              ? [
+                  { id: "host_dashboard", label: "Dashboard", icon: BarChart2 },
+                  { id: "host_participants", label: "Participants", icon: Users, count: registrations.length },
+                  { id: "host_assessment", label: "Manage Assessment", icon: Layers, count: sections.length },
+                  { id: "host_submissions", label: "Submissions", icon: CheckCircle, count: submissions.length },
+                  { id: "host_announcements", label: "Announcements", icon: Megaphone, count: announcements.length },
+                ]
+              : []),
+            { id: "overview", label: "Overview", icon: Eye },
+            { id: "instructions", label: "Instructions", icon: FileText },
+            { id: "sections", label: "Sections", icon: Layers, count: sections.length },
+            { id: "submissions", label: "Submissions", icon: CheckCircle },
+            { id: "leaderboard", label: "Leaderboard", icon: Trophy, count: leaderboard.length },
+            { id: "discussion", label: "Discussion", icon: MessageSquare, count: discussions.length },
+            { id: "ask_doubt", label: "Ask a Doubt", icon: HelpCircle },
+            { id: "organizers", label: "Organizers", icon: Building2 },
+            { id: "resources", label: "Resources", icon: Folder },
+            { id: "help", label: "Help & Support", icon: HelpCircle },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = activeSidebarTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveSidebarTab(item.id)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  isActive
+                    ? "bg-[#FF00C8] text-white shadow-lg shadow-[#FF00C8]/25"
+                    : "bg-[#0c0c16] border border-white/10 text-gray-400 hover:text-white"
+                }`}
+              >
+                <Icon size={13} />
+                <span>{item.label}</span>
+                {item.count !== undefined && item.count > 0 && (
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-white/10 text-gray-400"}`}>
+                    {item.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* 3-COLUMN MAIN BODY LAYOUT */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pb-28 lg:pb-0">
           {/* LEFT SIDEBAR TABS */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="hidden lg:block lg:col-span-2 space-y-4">
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-2 space-y-1 shadow-xl text-xs font-bold">
               {/* DIRECTIVE 3: SEPARATE HOST VIEW TABS FROM PARTICIPANT TABS */}
               {isHost && (
@@ -1083,7 +1130,7 @@ const ProfessionalRoomDetail = () => {
           </div>
 
           {/* CENTER MAIN CONTENT AREA */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="col-span-1 lg:col-span-7 space-y-6">
             {/* HOST TABS (HOST EXCLUSIVE) */}
             {activeSidebarTab === "host_dashboard" && isHost && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
@@ -1234,6 +1281,63 @@ const ProfessionalRoomDetail = () => {
                       <span className="text-white font-bold">{room.timezone || "IST (UTC +05:30)"}</span>
                     </div>
                   </div>
+                </div>
+
+                {/* MOBILE ORGANIZER & QUICK ACTIONS CARD (lg:hidden) */}
+                <div className="lg:hidden bg-[#0c0c16] border border-white/10 rounded-3xl p-5 text-center space-y-3 shadow-xl">
+                  <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest block">Event by</span>
+                  {room.org_logo ? (
+                    <img src={room.org_logo} alt="Org Logo" className="w-12 h-12 rounded-2xl mx-auto object-cover border border-white/10" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-2xl bg-purple-900/40 border border-purple-500/30 mx-auto flex items-center justify-center">
+                      <Building2 size={24} className="text-[#00F0FF]" />
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center justify-center gap-1.5">
+                      {room.org_name || "TechNova University"}
+                      <ShieldCheck size={14} className="text-[#00F0FF]" />
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (room.org_website) window.open(room.org_website, "_blank");
+                      else showToast("Org Profile: " + (room.org_name || "Verified Organization"));
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-gray-200 transition cursor-pointer"
+                  >
+                    View Profile
+                  </button>
+                </div>
+
+                {/* MOBILE QUICK ACTIONS (lg:hidden) */}
+                <div className="lg:hidden bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-3">
+                  <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest mb-2">Quick Actions</h4>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
+                    className="w-full py-3 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center justify-between px-4"
+                  >
+                    <span>Go to Current Section</span>
+                    <ArrowRight size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSidebarTab("leaderboard")}
+                    className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 text-xs font-bold transition cursor-pointer flex items-center justify-between px-4"
+                  >
+                    <span>View Leaderboard</span>
+                    <ChevronRight size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSidebarTab("discussion")}
+                    className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 text-xs font-bold transition cursor-pointer flex items-center justify-between px-4"
+                  >
+                    <span>Discussion</span>
+                    <ChevronRight size={14} />
+                  </button>
                 </div>
 
                 {/* ❓ DYNAMIC HOST FAQ / COMMON QUESTIONS ACCORDION */}
@@ -1677,7 +1781,7 @@ const ProfessionalRoomDetail = () => {
           </div>
 
           {/* RIGHT SIDEBAR */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="hidden lg:block lg:col-span-3 space-y-6">
             {/* Announcements Box */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
