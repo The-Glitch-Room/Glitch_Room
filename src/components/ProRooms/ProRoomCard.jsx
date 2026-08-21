@@ -48,7 +48,7 @@ const ProRoomCard = ({ room, isRegistered, onSelect }) => {
   // Formatting dates
   const formatDateRange = () => {
     try {
-      if (room.event_start_at && room.event_end_at) {
+      if (room?.event_start_at && room?.event_end_at) {
         const start = new Date(room.event_start_at).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
@@ -96,7 +96,7 @@ const ProRoomCard = ({ room, isRegistered, onSelect }) => {
         {room.cover_image ? (
           <img
             src={room.cover_image}
-            alt={room.name || room.title}
+            alt={room?.name || room?.title || "Pro Room"}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             onError={(e) => {
               e.currentTarget.style.display = "none";

@@ -36,7 +36,7 @@ const ProRoomRegistrationModal = ({ isOpen, onClose, room, onRegistrationSuccess
   if (!isOpen || !room) return null;
 
   // Custom questions defined by host in room configuration
-  const customQuestions = room.custom_app_questions || room.custom_questions || [];
+  const customQuestions = Array.isArray(room?.custom_app_questions) ? room.custom_app_questions : (Array.isArray(room?.custom_questions) ? room.custom_questions : []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

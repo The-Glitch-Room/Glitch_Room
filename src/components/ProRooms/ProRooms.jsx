@@ -382,7 +382,7 @@ const ProRooms = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRooms.map((room) => {
-                const isReg = Boolean(userRegistrations[room.id]);
+                const isReg = Boolean(userRegistrations && room && userRegistrations[room.id]);
                 return (
                   <ProRoomCard
                     key={room.id}

@@ -552,7 +552,7 @@ const ProfessionalRoomDetail = () => {
 
   const lifecycle = getProRoomLifecycleState(room);
   const isTeamEvent = room?.participation_type === "team" || room?.participation_type === "both";
-  const unreadCount = (notifications || []).filter((n) => !n.read).length;
+  const unreadCount = (notifications || []).filter((n) => n && !n.read).length;
 
   // Compute User Specific Rank & Score
   const myRankItem = (leaderboard || []).find((l) => l.user_id === currentUserId);
@@ -1345,7 +1345,7 @@ const ProfessionalRoomDetail = () => {
                 </div>
 
                 {/* ❓ DYNAMIC HOST FAQ / COMMON QUESTIONS ACCORDION */}
-                {Array.isArray(room.custom_app_questions) && room.custom_app_questions.filter(q => q && (q.question || q.title)).length > 0 && (
+                {Array.isArray(room?.custom_app_questions) && room.custom_app_questions.filter(q => q && (q.question || q.title)).length > 0 && (
                   <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
                     <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
                       <HelpCircle size={16} className="text-[#00F0FF]" /> Frequently Asked Questions (FAQ)

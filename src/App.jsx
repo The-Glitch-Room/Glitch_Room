@@ -33,6 +33,7 @@ import HelpPage from "./components/HelpPage";
 import Settings from "./components/Settings";
 import FixBug from "./components/FixBug";
 import CreatorRooms from "./components/CreatorRooms/CreatorRooms";
+import ErrorBoundary from "./components/ErrorBoundary";
 import ProRooms from "./components/ProRooms/ProRooms";
 import CreateProRoomPage from "./components/ProRooms/CreateProRoomPage";
 import ProfessionalRoomDetail from "./components/ProRooms/ProfessionalRoomDetail";
@@ -169,7 +170,7 @@ const AnimatedRoutes = () => {
         <Route path="/community/:postId" element={<CommunityPost />} />
         <Route path="/creator-rooms" element={<CreatorRooms />} />
         <Route path="/creator-rooms/:id" element={<RoomDetail />} />
-        <Route path="/pro-rooms" element={<ProRooms />} />
+        <Route path="/pro-rooms" element={<ErrorBoundary><ProRooms /></ErrorBoundary>} />
         <Route
           path="/pro-rooms/create"
           element={
@@ -178,12 +179,12 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route path="/pro-rooms/:id" element={<ProfessionalRoomDetail />} />
+        <Route path="/pro-rooms/:id" element={<ErrorBoundary><ProfessionalRoomDetail /></ErrorBoundary>} />
         <Route
           path="/pro-rooms/:id/assessment"
           element={
             <ProtectedRoute>
-              <ProRoomAssessment />
+              <ErrorBoundary><ProRoomAssessment /></ErrorBoundary>
             </ProtectedRoute>
           }
         />
