@@ -61,10 +61,10 @@ const Navbar = () => {
           : "bg-transparent border-b border-white/5"
       }`}
     >
-      <nav className="max-w-7xl mx-auto px-6 md:px-10 h-20 flex justify-between items-center">
+      <nav className="max-w-7xl mx-auto px-2.5 sm:px-6 md:px-10 h-16 sm:h-20 flex justify-between items-center gap-1.5 sm:gap-4 overflow-hidden">
         {/* Logo */}
-        <NavLink to="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-1.5 transition-transform group-hover:scale-105 shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+        <NavLink to="/" className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 group">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg sm:rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-1 sm:p-1.5 transition-transform group-hover:scale-105 shadow-[0_0_12px_rgba(0,240,255,0.2)] shrink-0">
             <img
               src="/logo_GR.png"
               alt="Glitch Room"
@@ -72,7 +72,7 @@ const Navbar = () => {
             />
           </div>
           <span
-            className="text-xl md:text-2xl font-black text-white tracking-wider glitch-text group-hover:text-[#00F0FF] transition-colors"
+            className="text-xs sm:text-sm md:text-2xl font-black text-white tracking-wider glitch-text group-hover:text-[#00F0FF] transition-colors whitespace-nowrap shrink-0"
             data-text="GLITCH ROOM"
           >
             GLITCH ROOM
@@ -111,22 +111,22 @@ const Navbar = () => {
         </ul>
 
         {/* User profile / login button */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {user ? (
             <NavbarUserSection user={user} />
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={openAuth}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-white/10 border border-white/10 transition cursor-pointer"
+                className="px-2.5 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-extrabold text-gray-200 hover:text-white hover:bg-white/10 border border-white/20 transition cursor-pointer whitespace-nowrap"
               >
                 Log In
               </button>
               <button
                 type="button"
                 onClick={openAuth}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-[#FF00C8] hover:bg-[#d600a8] text-white transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer"
+                className="px-3 py-1.5 sm:px-4.5 sm:py-2 md:px-6 md:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-extrabold bg-[#FF00C8] hover:bg-[#d600a8] text-white transition shadow-lg shadow-[#FF00C8]/30 cursor-pointer whitespace-nowrap"
               >
                 Sign Up
               </button>
@@ -138,9 +138,9 @@ const Navbar = () => {
             type="button"
             onClick={() => setShowMenu((prev) => !prev)}
             aria-label="Toggle menu"
-            className="md:hidden text-gray-300 hover:text-white p-2 rounded-xl bg-white/5 border border-white/10 transition cursor-pointer"
+            className="md:hidden text-gray-300 hover:text-white p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-white/5 border border-white/10 transition cursor-pointer shrink-0"
           >
-            {showMenu ? <TbX size={22} /> : <TbMenu2 size={22} />}
+            {showMenu ? <TbX size={18} /> : <TbMenu2 size={18} />}
           </button>
         </div>
       </nav>
