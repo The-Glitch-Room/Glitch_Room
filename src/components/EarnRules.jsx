@@ -276,17 +276,20 @@ const EarnRules = () => {
                 Your Level increases automatically as you accumulate total gBits. XP thresholds scale progressively:
               </p>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                {LEVEL_THRESHOLDS.slice(0, 6).map((threshold, lvl) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+                {LEVEL_THRESHOLDS.slice(0, 6).map((item) => (
                   <div
-                    key={lvl}
-                    className="bg-[#070709] border border-white/5 rounded-xl p-3 text-center"
+                    key={item.level}
+                    className="bg-[#070709] border border-white/5 rounded-xl p-3 text-center flex flex-col justify-between"
                   >
                     <div className="text-[10px] font-mono text-[#00F0FF] font-bold uppercase mb-0.5">
-                      Level {lvl}
+                      Level {item.level}
                     </div>
-                    <div className="text-xs font-mono font-bold text-white">
-                      {threshold} gBits
+                    <div className="text-xs font-mono font-bold text-white mb-1">
+                      {item.minXP} gBits
+                    </div>
+                    <div className="text-[10px] text-gray-400 font-sans truncate">
+                      {item.title}
                     </div>
                   </div>
                 ))}
