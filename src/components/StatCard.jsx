@@ -1,5 +1,5 @@
-import React from "react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect, useRef } from "react";
+import { motion, useInView, animate } from "framer-motion";
 
 const ACCENTS = {
   cyan: "#00F0FF",
@@ -10,8 +10,45 @@ const ACCENTS = {
   green: "#22c55e",
 };
 
+// Helper component for animated number count-up
+const AnimatedValue = ({ value }) => {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, amount: 0.5 });
+  const [displayValue, setDisplayValue] = useState("0");
+
+  useEffect(() => {
+    if (!isInView) return;
+
+    const rawStr = String(value || "0");
+    const numericMatch = rawStr.match(/([0-9.]+)/);
+    
+    if (!numericMatch) {
+      setDisplayValue(rawStr);
+      return;
+    }
+
+    const targetNum = parseFloat(numericMatch[1]);
+    const prefix = rawStr.slice(0, numericMatch.index);
+    const suffix = rawStr.slice(numericMatch.index + numericMatch[0].length);
+    const isFloat = rawStr.includes(".");
+
+    const controls = animate(0, targetNum, {
+      duration: 1.2,
+      ease: "easeOut",
+      onUpdate(current) {
+        const formatted = isFloat ? current.toFixed(1) : Math.round(current).toLocaleString();
+        setDisplayValue(`${prefix}${formatted}${suffix}`);
+      },
+    });
+
+    return () => controls.stop();
+  }, [isInView, value]);
+
+  return <span ref={ref}>{displayValue}</span>;
+};
+
 /**
- * StatCard — compact, sleek stat display for mobile and desktop screens.
+ * StatCard — compact, sleek stat display with smooth animated count-up on scroll.
  */
 const StatCard = ({
   value,
@@ -44,10 +81,10 @@ const StatCard = ({
         }}
       >
         <p
-          className="text-lg sm:text-2xl font-black text-white leading-tight"
+          className="text-lg sm:text-2xl font-black text-white leading-tight font-mono"
           style={{ textShadow: "0 0 10px rgba(255,255,255,0.2)" }}
         >
-          {value}
+          <AnimatedValue value={value} />
         </p>
         <p className="text-[9px] sm:text-xs text-gray-400 uppercase tracking-wider font-bold mt-1 truncate">
           {label}
@@ -67,10 +104,10 @@ const StatCard = ({
       className="flex flex-col items-center gap-0.5 text-center px-2 py-1"
     >
       <span
-        className="text-base sm:text-xl font-black text-white"
+        className="text-base sm:text-xl font-black text-white font-mono"
         style={{ textShadow: "0 0 10px rgba(255,255,255,0.2)" }}
       >
-        {value}
+        <AnimatedValue value={value} />
       </span>
       <span className="text-[9px] sm:text-xs font-semibold text-gray-300 uppercase tracking-wider truncate">
         {label}

@@ -298,7 +298,7 @@ const LegendRow = ({ entry, rank, index, metric, metricLabel }) => {
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.04, duration: 0.35 }}
-      className="flex items-center gap-4 p-4 rounded-2xl transition-all group"
+      layout className="flex items-center gap-4 p-4 rounded-2xl transition-all group"
       style={{
         background: isTop3
           ? "rgba(255,255,255,0.04)"
@@ -372,6 +372,33 @@ const SkeletonRow = ({ i }) => (
     <div className="h-4 w-12 bg-white/5 rounded" />
   </div>
 );
+
+
+// Typewriter effect for terminal header prompt
+const TypewriterCommand = ({ text }) => {
+  const [displayedText, setDisplayedText] = useState("");
+
+  useEffect(() => {
+    setDisplayedText("");
+    let i = 0;
+    const timer = setInterval(() => {
+      if (i < text.length) {
+        setDisplayedText(text.slice(0, i + 1));
+        i++;
+      } else {
+        clearInterval(timer);
+      }
+    }, 28);
+    return () => clearInterval(timer);
+  }, [text]);
+
+  return (
+    <span className="font-mono text-xs text-[#00F0FF]">
+      {displayedText}
+      <span className="animate-pulse text-[#00F0FF]">_</span>
+    </span>
+  );
+};
 
 // ── Main Component ────────────────────────────────────────────────────────────
 const TerminalWall = () => {

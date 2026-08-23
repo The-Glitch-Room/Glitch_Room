@@ -1,3 +1,5 @@
+import LevelUpModal from "./LevelUpModal";
+import { getLevelTitle } from "../utils/pointsHelper";
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
@@ -15,6 +17,20 @@ const NAV_LINKS = [
 ];
 
 const Navbar = () => {
+  const [levelUpData, setLevelUpData] = useState(null);
+
+  useEffect(() => {
+    const handleLevelUp = (e) => {
+      const { level, xp } = e.detail || {};
+      setLevelUpData({
+        level: level || 1,
+        title: getLevelTitle(level || 1),
+        xp: xp || 250,
+      });
+    };
+    window.addEventListener("level_up", handleLevelUp);
+    return () => window.removeEventListener("level_up", handleLevelUp);
+  }, []);
   const { user, openAuth } = useAuth();
     const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
@@ -26,7 +42,8 @@ const Navbar = () => {
   }, []);
 
   return (
-    <header
+    <>
+      <header
       className={`fixed top-0 right-0 left-0 z-[60] transition-all duration-300 ${
         isScrolled
           ? "bg-[#070709]/90 backdrop-blur-xl border-b border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
@@ -108,6 +125,14 @@ const Navbar = () => {
         </div>
       </nav>
     </header>
+      <LevelUpModal
+        isOpen={!!levelUpData}
+        onClose={() => setLevelUpData(null)}
+        level={levelUpData?.level}
+        title={levelUpData?.title}
+        totalXp={levelUpData?.xp}
+      />
+    </>
   );
 };
 

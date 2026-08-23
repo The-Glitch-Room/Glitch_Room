@@ -408,7 +408,8 @@ const PostCard = ({ post, onLike, onClick, likedIds }) => {
       </div>
 
       <div className="flex items-center gap-4 text-xs font-medium text-gray-500 pt-3 border-t border-white/5 mt-4">
-        <button
+        <motion.button
+          whileTap={{ scale: 0.75 }}
           onClick={(e) => {
             e.stopPropagation();
             onLike(post);
@@ -417,9 +418,24 @@ const PostCard = ({ post, onLike, onClick, likedIds }) => {
             liked ? "text-[#FF00C8]" : "hover:text-white"
           }`}
         >
-          <Heart size={14} className={liked ? "fill-[#FF00C8]" : ""} />
-          <span>{post.likes || 0}</span>
-        </button>
+          <motion.div
+            animate={liked ? { scale: [1, 1.4, 1], rotate: [0, -12, 12, 0] } : {}}
+            transition={{ duration: 0.3 }}
+          >
+            <Heart size={14} className={liked ? "fill-[#FF00C8]" : ""} />
+          </motion.div>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={post.likes}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15 }}
+            >
+              {post.likes || 0}
+            </motion.span>
+          </AnimatePresence>
+        </motion.button>
 
         <div className="flex items-center gap-1.5 hover:text-white transition">
           <MessageSquare size={14} />
@@ -616,7 +632,12 @@ const Community = () => {
                   <span>Topics & Categories</span>
                 </h3>
 
-                <div className="flex lg:flex-col gap-2 lg:gap-0 overflow-x-auto no-scrollbar pb-1 lg:pb-0 lg:space-y-1.5">
+                <motion.div 
+                    drag="x"
+                    dragConstraints={{ left: -250, right: 0 }}
+                    dragElastic={0.1}
+                    className="flex lg:flex-col gap-2 lg:gap-0 overflow-x-auto no-scrollbar pb-1 lg:pb-0 lg:space-y-1.5 cursor-grab active:cursor-grabbing"
+                  >
                   {CATEGORIES.map((cat) => {
                     const active = category === cat.id;
                     return (
@@ -639,7 +660,7 @@ const Community = () => {
                       </button>
                     );
                   })}
-                </div>
+                </motion.div>
               </div>
 
               {/* Search Box */}

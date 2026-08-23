@@ -1,3 +1,4 @@
+import GlitchFixedModal from "./GlitchFixedModal";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import glitchesData from "../data/glitches.json";
@@ -143,6 +144,8 @@ const FixGlitch = () => {
   const [speedBonus, setSpeedBonus] = useState(false);
 
   const [evaluating, setEvaluating] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationPoints, setCelebrationPoints] = useState(40);
   const [evalError, setEvalError] = useState("");
   const [feedback, setFeedback] = useState(null);
   const [lastPassed, setLastPassed] = useState(false);
