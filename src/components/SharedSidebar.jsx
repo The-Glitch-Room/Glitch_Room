@@ -156,16 +156,11 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
   const avatarUrl = profileData.avatarUrl;
 
   const displayXp = currentXp;
-  const level = getLevelFromXP(displayXp);
-  const currentLevelXP = getCurrentLevelXP(level);
-  const nextLevelXP = getNextLevelXP(level);
-
-  const xpIntoLevel = Math.max(0, displayXp - currentLevelXP);
-  const xpSpanForLevel = Math.max(0, nextLevelXP - currentLevelXP);
-  const progressPercent =
-    xpSpanForLevel > 0
-      ? Math.min((xpIntoLevel / xpSpanForLevel) * 100, 100)
-      : 100;
+  const progressDetails = getLevelProgressDetails(displayXp);
+  const level = progressDetails.currentLevel;
+  const nextLevelXP = progressDetails.nextLevelXP;
+  const progressPercent = progressDetails.percentage;
+  const rawProgressText = progressDetails.rawProgressText;
 
   const toggleCollapse = () => {
     setIsCollapsed((prev) => {
@@ -371,7 +366,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
               />
             </div>
             <p className="text-xs font-mono text-gray-400 text-right font-medium">
-              {(displayXp || 0).toLocaleString()} / {(nextLevelXP || 100).toLocaleString()}
+              {(displayXp || 0).toLocaleString()} / {(nextLevelXP || 250).toLocaleString()}
             </p>
           </>
         ) : (

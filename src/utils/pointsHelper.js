@@ -4,49 +4,96 @@ import { checkAndAwardReferralBonus } from "./referralHelper";
 
 // ── Level Config & Constants ────────────────────────────────────────────────
 export const LEVEL_THRESHOLDS = [
-  { level: 0, title: "Newbie Glitcher", minXP: 0, maxXP: 249 },
-  { level: 1, title: "Bug Hunter", minXP: 250, maxXP: 499 },
-  { level: 2, title: "Code Breaker", minXP: 500, maxXP: 999 },
-  { level: 3, title: "Cyber Phantom", minXP: 1000, maxXP: 1999 },
-  { level: 4, title: "Glitch Architect", minXP: 2000, maxXP: 4999 },
+  { level: 0, title: "Newbie Glitcher", minXP: 0, maxXP: 250 },
+  { level: 1, title: "Bug Hunter", minXP: 250, maxXP: 500 },
+  { level: 2, title: "Code Breaker", minXP: 500, maxXP: 1000 },
+  { level: 3, title: "Cyber Phantom", minXP: 1000, maxXP: 2000 },
+  { level: 4, title: "Glitch Architect", minXP: 2000, maxXP: 5000 },
   { level: 5, title: "Master Anomaly", minXP: 5000, maxXP: Infinity },
 ];
 
 export const getLevelFromXP = (xp = 0) => {
-  const safeXP = Math.max(0, xp);
-  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (safeXP >= LEVEL_THRESHOLDS[i].minXP) {
-      return LEVEL_THRESHOLDS[i].level;
-    }
-  }
+  const safeXP = Math.max(0, Number(xp) || 0);
+  if (safeXP >= 5000) return 5;
+  if (safeXP >= 2000) return 4;
+  if (safeXP >= 1000) return 3;
+  if (safeXP >= 500) return 2;
+  if (safeXP >= 250) return 1;
   return 0;
 };
 
 export const getLevelTitle = (level = 0) => {
-  const found = LEVEL_THRESHOLDS.find((t) => t.level === level);
-  return found ? found.title : "Glitcher";
+  const lvl = Math.min(5, Math.max(0, Number(level) || 0));
+  const found = LEVEL_THRESHOLDS.find((t) => t.level === lvl);
+  return found ? found.title : "Newbie Glitcher";
 };
 
 export const getMinXPForLevel = (level = 0) => {
-  const found = LEVEL_THRESHOLDS.find((t) => t.level === level);
-  return found ? found.minXP : 0;
+  const lvl = Math.min(5, Math.max(0, Number(level) || 0));
+  return LEVEL_THRESHOLDS[lvl]?.minXP ?? 0;
 };
 
 export const getMaxXPForLevel = (level = 0) => {
-  const found = LEVEL_THRESHOLDS.find((t) => t.level === level);
-  return found ? found.maxXP : 249;
+  const lvl = Math.min(5, Math.max(0, Number(level) || 0));
+  const max = LEVEL_THRESHOLDS[lvl]?.maxXP;
+  return max === Infinity ? 5000 : (max ?? 250);
 };
 
-export const getCurrentLevelXP = (xp = 0) => {
-  const level = getLevelFromXP(xp);
-  const min = getMinXPForLevel(level);
-  return Math.max(0, xp - min);
+export const getLevelProgressDetails = (xp = 0) => {
+  const safeXP = Math.max(0, Number(xp) || 0);
+  const currentLevel = getLevelFromXP(safeXP);
+
+  if (currentLevel >= 5) {
+    return {
+      currentLevel: 5,
+      nextLevel: 5,
+      currentLevelMinXP: 5000,
+      nextLevelXP: 5000,
+      xpInCurrentLevel: safeXP - 5000,
+      xpNeededForNextLevel: 0,
+      percentage: 100,
+      displayText: `${safeXP} / 5000 gBits`,
+      rawProgressText: `${safeXP} / 5000`,
+      label: `Level 5 (MAX)`,
+      isMaxLevel: true,
+    };
+  }
+
+  const currentTier = LEVEL_THRESHOLDS[currentLevel];
+  const nextTier = LEVEL_THRESHOLDS[currentLevel + 1];
+
+  const currentLevelMinXP = currentTier.minXP;
+  const nextLevelXP = nextTier.minXP;
+
+  const levelRange = nextLevelXP - currentLevelMinXP;
+  const xpInLevel = Math.max(0, safeXP - currentLevelMinXP);
+
+  const percentage = Math.min(100, Math.max(0, (xpInLevel / levelRange) * 100));
+  const roundedPct = Math.round(percentage * 10) / 10;
+
+  return {
+    currentLevel,
+    nextLevel: currentLevel + 1,
+    currentLevelMinXP,
+    nextLevelXP,
+    xpInCurrentLevel: xpInLevel,
+    xpNeededForNextLevel: levelRange,
+    percentage: roundedPct,
+    displayText: `${safeXP} / ${nextLevelXP} gBits`,
+    rawProgressText: `${safeXP} / ${nextLevelXP}`,
+    label: `Level ${currentLevel} → Level ${currentLevel + 1} Progress`,
+    isMaxLevel: false,
+  };
 };
 
-export const getNextLevelXP = (level = 0) => {
-  const max = getMaxXPForLevel(level);
-  const min = getMinXPForLevel(level);
-  return max === Infinity ? 5000 : max - min + 1;
+export const getCurrentLevelXP = (xpOrLevel = 0) => {
+  let xp = typeof xpOrLevel === "number" && xpOrLevel <= 5 ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0 : xpOrLevel;
+  return getLevelProgressDetails(xp).currentLevelMinXP;
+};
+
+export const getNextLevelXP = (xpOrLevel = 0) => {
+  let xp = typeof xpOrLevel === "number" && xpOrLevel <= 5 ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0 : xpOrLevel;
+  return getLevelProgressDetails(xp).nextLevelXP;
 };
 
 

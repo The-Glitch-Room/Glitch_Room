@@ -32,7 +32,7 @@ import GlitchBackground from "./GlitchBackground";
 import Footer from "./Footer";
 import ActivityHeatmap from "./ActivityHeatmap";
 import BadgesSection from "./BadgesSection";
-import { getLevelFromXP, getNextLevelXP, getCurrentLevelXP } from "../utils/pointsHelper";
+import { getLevelFromXP, getLevelProgressDetails } from "../utils/pointsHelper";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -338,15 +338,11 @@ const Console = () => {
     "Creator";
 
   const xp = userData?.points || 0;
-  const level = getLevelFromXP(xp);
-  const currentLevelBase = getCurrentLevelXP(level);
-  const nextLevelTarget = getNextLevelXP(level);
-  const levelSpan = Math.max(1, nextLevelTarget - currentLevelBase);
-  const xpInCurrentLevel = Math.max(0, xp - currentLevelBase);
-  const progressPct = Math.min(
-    100,
-    Math.round((xpInCurrentLevel / levelSpan) * 100)
-  );
+  const progressDetails = getLevelProgressDetails(xp);
+  const level = progressDetails.currentLevel;
+  const nextLevelTarget = progressDetails.nextLevelXP;
+  const progressPct = progressDetails.percentage;
+  const progressLabel = progressDetails.label;
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -534,7 +530,7 @@ const Console = () => {
                     {/* Level XP Progress Bar Widget */}
                     <div className="mt-3 max-w-md">
                       <div className="flex items-center justify-between text-[10px] font-mono mb-1">
-                        <span className="text-[#00F0FF]">Level {level} → Level {level + 1} Progress</span>
+                        <span className="text-[#00F0FF]">{progressLabel}</span>
                         <span className="text-gray-400">{xp} / {nextLevelTarget} gBits ({progressPct}%)</span>
                       </div>
                       <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
