@@ -3,7 +3,6 @@
  * Protects forum posts and comments from profanity, offensive slurs, and abuse.
  */
 
-// Core profanity word list (base terms + common explicit slurs & abusive words)
 const PROFANITY_WORDS = [
   "fuck", "fucker", "fucking", "fuckin", "fucked", "fuckhead", "fuckoff", "fucks",
   "shit", "shitting", "shitted", "shithead", "shitty", "shits", "bullshit",
@@ -15,11 +14,17 @@ const PROFANITY_WORDS = [
   "motherfucker", "motherfucking", "jackass", "dipshit"
 ];
 
-// Leetspeak character mappings for normalization
+// Known false positives from substring/boundary edge cases — extend as you find more.
+const SAFE_EXCEPTIONS = [
+  "scunthorpe", "penistone", "cockburn", "dickinson", "dickens",
+  "despicable", "conspicuous", "conspicuously", "cockpit", "cocktail",
+  "cockatoo", "peacock", "shuttlecock", "candlestick",
+];
+
 const LEET_MAP = {
   '@': 'a', '4': 'a',
   '8': 'b',
-  'c': 'c', '(': 'c',
+  '(': 'c',
   '3': 'e',
   '1': 'i', '!': 'i', '|': 'i',
   '0': 'o',
@@ -28,20 +33,34 @@ const LEET_MAP = {
   'v': 'u',
 };
 
-/**
- * Normalizes input text by removing spaces/symbols and replacing leetspeak characters
- */
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Separator characters allowed between the letters of a single target word
+// (handles "f u c k", "f.u.c.k", "f_u_c_k", etc.) without destroying word
+// boundaries elsewhere in the message — unlike globally stripping all spaces.
+const SEP = "[\\s._\\-*]*";
+
+// Precompute everything once at module load — not on every call.
+const COMPILED_PATTERNS = PROFANITY_WORDS.map((word) => {
+  const spaced = word.split("").map(escapeRegex).join(SEP);
+  return { word, regex: new RegExp(`\\b${spaced}\\b`, "i") };
+});
+
+// Collapse ALL repeated identical characters to one, applied symmetrically
+// to both the input text and the dictionary words, so evasions like
+// "fuuuuuck" reduce to "fuck" while legitimately double-lettered words
+// (e.g. "asshole") still compare correctly against their own deduped form.
+const dedupe = (s) => s.replace(/(.)\1+/g, "$1");
+
+const DEDUPED_PATTERNS = PROFANITY_WORDS.map((word) => ({
+  word,
+  regex: new RegExp(`\\b${dedupe(word)}\\b`, "i"),
+}));
+
 function normalizeText(text) {
-  if (!text) return "";
-  let lower = text.toLowerCase();
-
-  // Replace leetspeak characters
-  let converted = lower.split("").map((ch) => LEET_MAP[ch] || ch).join("");
-
-  // Remove repeating characters (e.g. fuuuuck -> fuck)
-  let collapsed = converted.replace(/(.)\1{2,}/g, "$1$1");
-
-  return { rawLower: lower, converted, collapsed };
+  const lower = text.toLowerCase();
+  const converted = lower.split("").map((ch) => LEET_MAP[ch] || ch).join("");
+  return { lower, converted };
 }
 
 /**
@@ -52,22 +71,22 @@ function normalizeText(text) {
 export function containsProfanity(text) {
   if (!text || typeof text !== "string") return false;
 
-  const { rawLower, converted, collapsed } = normalizeText(text);
+  const { lower, converted } = normalizeText(text);
 
-  // Check each profanity word against raw, converted, and collapsed strings
-  for (const word of PROFANITY_WORDS) {
-    // Exact word boundary regex (e.g. \bfuck\b)
-    const pattern = new RegExp(`\\b${word}\\b`, "i");
+  // Skip entirely if the whole message is a known safe exception
+  const bareWord = converted.trim();
+  if (SAFE_EXCEPTIONS.includes(bareWord)) return false;
 
-    if (pattern.test(rawLower) || pattern.test(converted) || pattern.test(collapsed)) {
-      return true;
-    }
+  // 1. Spacing/leet evasion check — real \b boundaries preserved, so
+  // "despicable" can't match "spic" (no boundary before the 's').
+  for (const { regex } of COMPILED_PATTERNS) {
+    if (regex.test(converted) || regex.test(lower)) return true;
+  }
 
-    // Check stripped punctuation variations (e.g. f.u.c.k or f_u_c_k or f-u-c-k)
-    const stripped = rawLower.replace(/[\s._\-\*]+/g, "");
-    if (stripped.includes(word)) {
-      return true;
-    }
+  // 2. Elongation evasion check — "fuuuuuck" -> "fuck"
+  const deduped = dedupe(converted);
+  for (const { regex } of DEDUPED_PATTERNS) {
+    if (regex.test(deduped)) return true;
   }
 
   return false;
