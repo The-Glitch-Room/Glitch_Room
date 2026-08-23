@@ -49,87 +49,85 @@ const difficultyStyle = (difficulty) => {
   return { text: "text-red-400", bg: "bg-red-500/10", dot: "bg-red-400" };
 };
 
-const FeedbackBlock = ({ feedback, passed }) => (
-  <div className="space-y-3">
-    <div
-      className="flex items-center justify-between p-3 rounded-xl"
-      style={{
-        background: passed ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
-        border: `1px solid ${passed ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`,
-      }}
-    >
-      <div className="flex items-center gap-2">
-        {passed ? (
-          <CheckCircle2 size={15} className="text-green-400" />
-        ) : (
-          <AlertTriangle size={15} className="text-red-400" />
-        )}
-        <span
-          className={`text-sm font-bold ${passed ? "text-green-400" : "text-red-400"}`}
-        >
-          {passed ? "Correct enough — nice work" : "Not quite there yet"}
-        </span>
-      </div>
-      {typeof feedback.score === "number" && (
-        <span
-          className="text-sm font-black"
-          style={{ color: passed ? "#22c55e" : "#ef4444" }}
-        >
-          {feedback.score}/10
-        </span>
-      )}
-    </div>
+const FeedbackBlock = ({ feedback, passed }) => {
+  const strength = feedback?.strength || feedback?.what_you_got_right || feedback?.whatYouGotRight || feedback?.feedback || "Identified core submission requirements.";
+  const gap = feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "Consider checking boundary conditions or edge cases.";
+  const upgrade = feedback?.suggestion || feedback?.upgrade || feedback?.how_to_level_it_up || feedback?.howToLevelItUp || "Add validation checks & clean exception handling.";
 
-    {feedback.strength && (
-      <div className="rounded-xl p-3.5 bg-green-500/[0.05] border border-green-500/15">
-        <div className="flex items-center gap-1.5 mb-1">
-          <Zap size={11} className="text-green-400" />
-          <p className="text-[10px] font-bold text-green-400 uppercase tracking-wider">
-            What you got right
-          </p>
-        </div>
-        <p className="text-gray-300 text-xs leading-relaxed">
-          {feedback.strength}
-        </p>
-      </div>
-    )}
-
-    {feedback.gap && (
-      <div className="rounded-xl p-3.5 bg-yellow-500/[0.05] border border-yellow-500/15">
-        <div className="flex items-center gap-1.5 mb-1">
-          <AlertTriangle size={11} className="text-yellow-400" />
-          <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">
-            What was missed
-          </p>
-        </div>
-        <p className="text-gray-300 text-xs leading-relaxed">{feedback.gap}</p>
-      </div>
-    )}
-
-    {feedback.suggestion && (
+  return (
+    <div className="space-y-3">
+      {/* Verdict pill */}
       <div
-        className="rounded-xl p-3.5"
+        className="flex items-center justify-between p-3 rounded-xl"
         style={{
-          background: `${COLOR}0D`,
-          border: `1px solid ${COLOR}26`,
+          background: passed ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+          border: `1px solid ${passed ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`,
         }}
       >
-        <div className="flex items-center gap-1.5 mb-1">
-          <TrendingUp size={11} style={{ color: COLOR }} />
-          <p
-            className="text-[10px] font-bold uppercase tracking-wider"
-            style={{ color: COLOR }}
+        <div className="flex items-center gap-2">
+          {passed ? (
+            <CheckCircle2 size={15} className="text-green-400" />
+          ) : (
+            <AlertTriangle size={15} className="text-red-400" />
+          )}
+          <span
+            className={`text-sm font-bold ${passed ? "text-green-400" : "text-red-400"}`}
           >
-            How to level it up
+            {passed ? "Correct enough — nice work" : "Not quite there yet"}
+          </span>
+        </div>
+        {typeof feedback?.score === "number" && (
+          <span
+            className="text-sm font-black"
+            style={{ color: passed ? "#22c55e" : "#ef4444" }}
+          >
+            {feedback.score}/10
+          </span>
+        )}
+      </div>
+
+      {strength && (
+        <div className="rounded-xl p-3.5 bg-green-500/[0.05] border border-green-500/15">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Zap size={11} className="text-green-400" />
+            <p className="text-[10px] font-bold text-green-400 uppercase tracking-wider">
+              What you got right
+            </p>
+          </div>
+          <p className="text-gray-300 text-xs leading-relaxed">
+            {strength}
           </p>
         </div>
-        <p className="text-gray-300 text-xs leading-relaxed">
-          {feedback.suggestion}
-        </p>
-      </div>
-    )}
-  </div>
-);
+      )}
+
+      {gap && (
+        <div className="rounded-xl p-3.5 bg-yellow-500/[0.05] border border-yellow-500/15">
+          <div className="flex items-center gap-1.5 mb-1">
+            <AlertTriangle size={11} className="text-yellow-400" />
+            <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">
+              What was missed
+            </p>
+          </div>
+          <p className="text-gray-300 text-xs leading-relaxed">{gap}</p>
+        </div>
+      )}
+
+      {upgrade && (
+        <div className="rounded-xl p-3.5 bg-cyan-500/[0.05] border border-cyan-500/15">
+          <div className="flex items-center gap-1.5 mb-1">
+            <TrendingUp size={11} className="text-cyan-400" />
+            <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
+              How to level it up
+            </p>
+          </div>
+          <p className="text-gray-300 text-xs leading-relaxed">
+            {upgrade}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const FixAIChallenge = () => {
   const { id } = useParams();
