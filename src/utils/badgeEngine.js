@@ -24,39 +24,44 @@ const calcStreak = (activities) => {
   return streak;
 };
 
-// ── award a single badge (ignores duplicate via unique constraint) ─────────────
+// ── award a single badge (returns true ONLY if newly inserted) ─────────────
 const award = async (userId, badgeId) => {
   const { error } = await supabase.from("user_badges").insert({
     user_id: userId,
     badge_id: badgeId,
     earned_at: new Date().toISOString(),
   });
-  // ignore unique violation (code 23505) — means already awarded
-  if (error && error.code !== "23505")
-    console.error("badge award error:", error);
-  return !error;
+
+  if (error) {
+    // Code 23505 is unique violation — means user already earned this badge previously
+    if (error.code !== "23505") {
+      console.error("badge award error:", error);
+    }
+    return false;
+  }
+  return true; // Newly inserted right now!
 };
 
 // ── main function ─────────────────────────────────────────────────────────────
 export const checkAndAwardBadges = async (userId) => {
-  if (!userId) return;
+  if (!userId) return [];
 
-  // Fetch everything we need in parallel
+  // Fetch everything we need in parallel (including referralCount)
   const [
-    { data: activities },
-    { data: submissions },
+    { data: activities, error: actErr },
+    { data: submissions, error: subErr },
     { data: points },
     { data: profile },
     { data: posts },
     { data: comments },
     { data: rooms },
-    { data: hostedRooms },
     { data: arenaCompletions },
-    { data: earnedBadges },
+    { count: referralCount },
+    { data: earnedBadges, error: badgesErr },
   ] = await Promise.all([
     supabase
       .from("glitch_activity")
-      .select("created_at, type")
+      .select("created_at, type, title, points")
       .eq("user_id", userId),
     supabase
       .from("challenge_submissions")
@@ -83,15 +88,21 @@ export const checkAndAwardBadges = async (userId) => {
       .eq("user_id", userId)
       .limit(1),
     supabase.from("rooms").select("id").eq("created_by", userId).limit(1),
-    supabase
-      .from("rooms")
-      .select("id")
-      .eq("created_by", userId)
-      .eq("access", "public")
-      .limit(1),
     supabase.from("arena_completions").select("id").eq("user_id", userId),
+    supabase
+      .from("user_referrals")
+      .select("id", { count: "exact", head: true })
+      .eq("referrer_id", userId)
+      .eq("status", "completed"),
     supabase.from("user_badges").select("badge_id").eq("user_id", userId),
   ]);
+
+  if (actErr) console.error("badgeEngine: activities fetch failed:", actErr);
+  if (subErr) console.error("badgeEngine: submissions fetch failed:", subErr);
+  if (badgesErr) {
+    console.error("badgeEngine: earnedBadges fetch failed:", badgesErr);
+    return []; // Bail out early to prevent mass false "unearned" badge triggering!
+  }
 
   const earned = new Set((earnedBadges || []).map((b) => b.badge_id));
   const xp = Math.max(points?.points || 0, profile?.points || 0);
@@ -167,13 +178,6 @@ export const checkAndAwardBadges = async (userId) => {
   check("social_post", (posts || []).length > 0);
   check("social_comment", (comments || []).length > 0);
   check("social_room", (rooms || []).length > 0);
-
-  // Check referrals count
-  const { count: referralCount } = await supabase
-    .from("user_referrals")
-    .select("id", { count: "exact", head: true })
-    .eq("referrer_id", userId)
-    .eq("status", "completed");
   check("social_referral", (referralCount || 0) >= 1);
 
   // ── Special Achievements ──────────────────────────────────────────────────
@@ -198,11 +202,13 @@ export const checkAndAwardBadges = async (userId) => {
   });
   check(
     "special_speed",
-    Object.values(dayCounts).some((c) => c >= 3),
+    Object.values(dayCounts).some((c) => c >= 3)
   );
 
-  // ── Award all at once ─────────────────────────────────────────────────────
-  await Promise.all(toAward.map((id) => award(userId, id)));
+  // ── Award all at once & return ONLY newly inserted badge IDs ─────────────
+  const results = await Promise.all(
+    toAward.map(async (id) => ({ id, success: await award(userId, id) }))
+  );
 
-  return toAward; // returns newly awarded badge ids (useful for toast notifications)
+  return results.filter((r) => r.success).map((r) => r.id);
 };
