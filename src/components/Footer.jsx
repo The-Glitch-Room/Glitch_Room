@@ -143,7 +143,7 @@ const Footer = () => {
           </div>
 
           {/* Links Columns (7 cols) */}
-          <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-8">
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-8">
             {/* Column 1: EXPLORE */}
             <div>
               <h4 className="text-sm font-extrabold text-[#00F0FF] uppercase tracking-wider mb-4">
@@ -155,8 +155,6 @@ const Footer = () => {
                   { label: "Game Arena", path: "/game-arena" },
                   { label: "Creator Rooms", path: "/creator-rooms" },
                   { label: "Pro Rooms", path: "/pro-rooms" },
-                  { label: "Community", path: "/community" },
-                  { label: "Terminal Wall", path: "/terminal-wall" },
                 ].map((link, i) => (
                   <li key={i}>
                     <Link
@@ -170,13 +168,15 @@ const Footer = () => {
               </ul>
             </div>
 
-            {/* Column 2: REWARDS */}
+            {/* Column 2: COMMUNITY & PROGRESSION */}
             <div>
               <h4 className="text-sm font-extrabold text-[#FF00C8] uppercase tracking-wider mb-4">
-                REWARDS
+                COMMUNITY &amp; PROGRESSION
               </h4>
               <ul className="space-y-3 text-sm font-medium">
                 {[
+                  { label: "Community", path: "/community" },
+                  { label: "Terminal Wall", path: "/terminal-wall" },
                   { label: "Earn Rules Hub", path: "/earn-rules" },
                 ].map((link, i) => (
                   <li key={i}>
@@ -191,10 +191,10 @@ const Footer = () => {
               </ul>
             </div>
 
-            {/* Column 3: Platform & Support */}
+            {/* Column 3: SUPPORT & INFO */}
             <div>
               <h4 className="text-sm font-extrabold text-[#22c55e] uppercase tracking-wider mb-4">
-                Support & Info
+                SUPPORT &amp; INFO
               </h4>
               <ul className="space-y-3 text-sm font-medium">
                 {[
