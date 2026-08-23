@@ -177,17 +177,13 @@ const Footer = () => {
               <ul className="space-y-3 text-sm font-medium">
                 {[
                   { label: "Earn Rules Hub", path: "/earn-rules" },
-                  { label: "Speed Demon (+50)", path: "/earn-rules" },
-                  { label: "Referral Program (+100)", path: "/earn-rules" },
-                  { label: "7-Day Uptime Streak", path: "/earn-rules" },
-                  { label: "Daily Fact Reward", path: "/earn-rules" },
                 ].map((link, i) => (
                   <li key={i}>
                     <Link
                       to={link.path}
-                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-300"
+                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-300 font-semibold text-[#00F0FF]"
                     >
-                      {link.label}
+                      {link.label} →
                     </Link>
                   </li>
                 ))}

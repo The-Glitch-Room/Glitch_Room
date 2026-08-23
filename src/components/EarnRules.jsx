@@ -193,48 +193,88 @@ const EarnRules = () => {
             </div>
           </div>
 
-          {/* Section 1: Difficulty Payout Matrix */}
+          {/* Section 1: Core Challenge & Arena Payouts */}
           <section className="mb-10">
             <div className="flex items-center gap-2 mb-4">
               <Star size={16} className="text-[#FF00C8]" />
               <h2 className="text-base font-bold text-white uppercase tracking-wider font-sans">
-                1. Core Challenge Payouts
+                1. Core Challenge &amp; Arena Payouts
               </h2>
             </div>
             <p className="text-xs text-gray-400 mb-4 font-sans">
-              Applies across Glitches, Debug Mode, AI Challenges, and Creative Sparks. Earned automatically upon solving.
+              Applies across Glitches, Debug Mode, AI Challenges, Creative Sparks, and Game Arena events. Earned automatically upon solving.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              {DIFFICULTY_TIERS.map((tier) => (
-                <div
-                  key={tier.label}
-                  className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 relative overflow-hidden"
-                >
-                  <div
-                    className="h-1 w-full absolute top-0 left-0"
-                    style={{ background: tier.color }}
-                  />
-                  <div className="text-xs font-bold text-gray-400 uppercase tracking-wider font-mono mb-1">
-                    {tier.label} Difficulty
-                  </div>
-                  <div
-                    className="text-2xl font-black font-mono mb-2"
-                    style={{ color: tier.color }}
-                  >
-                    +{tier.reward} gBits
-                  </div>
-                  <div className="text-[11px] text-gray-500 leading-snug font-sans">
-                    Awarded for every verified solve on {tier.label.toLowerCase()}-level challenges.
-                  </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {/* Easy */}
+              <div className="bg-[#0f0f18] border border-white/10 hover:border-green-500/40 rounded-2xl p-5 relative overflow-hidden transition-all group shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-mono font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-0.5 rounded-md uppercase tracking-wider">
+                    Easy
+                  </span>
+                  <span className="text-xl font-black font-mono text-green-400">
+                    +10 <span className="text-xs font-normal text-gray-400">gBits</span>
+                  </span>
                 </div>
-              ))}
+                <h3 className="text-sm font-bold text-white mb-1">Easy Difficulty</h3>
+                <p className="text-xs text-gray-400 leading-relaxed font-sans">
+                  Awarded for every verified solve on easy-level challenges.
+                </p>
+              </div>
+
+              {/* Medium */}
+              <div className="bg-[#0f0f18] border border-white/10 hover:border-amber-500/40 rounded-2xl p-5 relative overflow-hidden transition-all group shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-md uppercase tracking-wider">
+                    Medium
+                  </span>
+                  <span className="text-xl font-black font-mono text-amber-400">
+                    +25 <span className="text-xs font-normal text-gray-400">gBits</span>
+                  </span>
+                </div>
+                <h3 className="text-sm font-bold text-white mb-1">Medium Difficulty</h3>
+                <p className="text-xs text-gray-400 leading-relaxed font-sans">
+                  Awarded for every verified solve on medium-level challenges.
+                </p>
+              </div>
+
+              {/* Hard */}
+              <div className="bg-[#0f0f18] border border-white/10 hover:border-red-500/40 rounded-2xl p-5 relative overflow-hidden transition-all group shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-mono font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md uppercase tracking-wider">
+                    Hard
+                  </span>
+                  <span className="text-xl font-black font-mono text-red-400">
+                    +50 <span className="text-xs font-normal text-gray-400">gBits</span>
+                  </span>
+                </div>
+                <h3 className="text-sm font-bold text-white mb-1">Hard Difficulty</h3>
+                <p className="text-xs text-gray-400 leading-relaxed font-sans">
+                  Awarded for every verified solve on hard-level challenges.
+                </p>
+              </div>
+
+              {/* Game Arena Events */}
+              <div className="bg-[#0f0f18] border border-white/10 hover:border-[#00F0FF]/40 rounded-2xl p-5 relative overflow-hidden transition-all group shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-mono font-bold text-[#00F0FF] bg-[#00F0FF]/10 border border-[#00F0FF]/20 px-2.5 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
+                    <Swords size={12} /> Arena
+                  </span>
+                  <span className="text-xl font-black font-mono text-[#00F0FF]">
+                    75–100 <span className="text-xs font-normal text-gray-400">gBits</span>
+                  </span>
+                </div>
+                <h3 className="text-sm font-bold text-white mb-1">Game Arena Events</h3>
+                <p className="text-xs text-gray-400 leading-relaxed font-sans">
+                  Conquer 3-stage live arena challenges hosted by the community.
+                </p>
+              </div>
             </div>
 
             <div className="bg-[#0b0b10] border border-white/5 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 font-sans">
-              <span className="font-semibold text-gray-300">Active Categories:</span>
+              <span className="font-semibold text-gray-300">Active Categories &amp; Arena:</span>
               <div className="flex flex-wrap items-center gap-2">
-                {CORE_CATEGORIES.map((cat) => (
+                {["Glitches", "Debug Mode", "AI Challenges", "Creative Sparks", "Game Arena Events"].map((cat) => (
                   <span
                     key={cat}
                     className="bg-white/5 border border-white/10 px-3 py-1 rounded-lg text-gray-300 font-medium"
