@@ -170,71 +170,56 @@ export const checkAndAwardStreakBonus = async (userId) => {
   return { awarded: true, milestone, points: next };
 };
 
+// Canonical local calendar date string (YYYY-MM-DD)
+const getLocalDateStr = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 // ── Daily Fact Bubble 1-per-day enforcement ───────────────────────────────
+// Read-only — safe to call on page load/refresh just to set button UI state
 export const hasEarnedDailyFactToday = async (userId) => {
   if (!userId) return false;
-
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayStr = todayStart.toISOString().split("T")[0];
-
-  // 1. Check daily_fact_claims table (PostgreSQL UNIQUE enforced)
+  const todayStr = getLocalDateStr();
   try {
-    const { data: claims } = await supabase
+    const { data } = await supabase
       .from("daily_fact_claims")
       .select("id")
       .eq("user_id", userId)
       .eq("claim_date", todayStr)
       .limit(1);
 
-    if (claims && claims.length > 0) return true;
+    return !!(data && data.length > 0);
   } catch (e) {
-    // Fail-safe if table doesn't exist yet
+    console.error("hasEarnedDailyFactToday error:", e);
+    return false;
   }
-
-  // 2. Check glitch_activity table for today's bonus entry using .limit(1)
-  const { data: activities } = await supabase
-    .from("glitch_activity")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("type", "bonus")
-    .ilike("title", "%Daily Fact Bubble%")
-    .gte("created_at", todayStart.toISOString())
-    .limit(1);
-
-  return !!(activities && activities.length > 0);
 };
 
+// The ONLY path that awards points. Call this on "like" click.
 export const awardDailyFactBonus = async (userId) => {
   if (!userId) return { awarded: false, reason: "no_user" };
+  const todayStr = getLocalDateStr();
 
-  // Layer 1: Strict JS check with .limit(1)
-  const alreadyEarned = await hasEarnedDailyFactToday(userId);
-  if (alreadyEarned) {
-    return { awarded: false, reason: "already_claimed_today" };
-  }
+  // Atomic, race-proof, refresh-proof claim insertion (PostgreSQL UNIQUE(user_id, claim_date))
+  const { error: claimErr } = await supabase
+    .from("daily_fact_claims")
+    .insert({ user_id: userId, claim_date: todayStr });
 
-  const todayStr = new Date().toISOString().split("T")[0];
-
-  // Layer 2: Insert into daily_fact_claims with PostgreSQL UNIQUE(user_id, claim_date) constraint
-  try {
-    const { error: claimErr } = await supabase.from("daily_fact_claims").insert({
-      user_id: userId,
-      claim_date: todayStr,
-    });
-
-    if (claimErr) {
-      if (claimErr.code === "23505" || claimErr.message?.includes("unique")) {
-        console.warn("Database blocked duplicate Daily Fact claim:", claimErr.message);
-        return { awarded: false, reason: "already_claimed_today" };
-      }
+  if (claimErr) {
+    if (claimErr.code === "23505" || claimErr.message?.includes("unique")) {
+      // duplicate — already claimed today, by this click or a concurrent one
+      return { awarded: false, reason: "already_claimed_today" };
     }
-  } catch (e) {
-    // Fail-safe fallback if table is not yet created in Supabase
+    // any other failure — don't award points, since we can no longer guarantee idempotency
+    console.error("daily fact claim insert failed:", claimErr);
+    return { awarded: false, reason: "claim_insert_failed" };
   }
 
-  // Layer 3: Atomic points update
-  const nextPoints = await updatePoints(10, "Daily Fact Bubble", "bonus");
+  // We're the confirmed first insert for today — safe to award 10 gBits
+  const nextPoints = await updatePoints(10, "⚡ Daily Fact Bubble", "bonus");
   return { awarded: true, points: nextPoints };
 };
 

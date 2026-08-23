@@ -170,11 +170,15 @@ const DailyFactBubble = () => {
             { onConflict: "fact_id,user_id" },
           );
 
-        // Attempt database-enforced 1-per-day Daily Fact bonus payout
-        const res = await awardDailyFactBonus(uid);
-        if (res.awarded) {
-          setBonusEarned(true);
-          setClaimedToday(true);
+        // If user is clicking "like", attempt atomic 1-per-day Daily Fact bonus payout
+        if (type === "like") {
+          const res = await awardDailyFactBonus(uid);
+          if (res.awarded) {
+            setBonusEarned(true);
+            setClaimedToday(true);
+          } else if (res.reason === "already_claimed_today") {
+            setClaimedToday(true);
+          }
         }
 
         // Adjust counts locally
