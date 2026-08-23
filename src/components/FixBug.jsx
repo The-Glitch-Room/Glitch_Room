@@ -50,9 +50,11 @@ const difficultyStyle = (difficulty) => {
 };
 
 const FeedbackBlock = ({ feedback, passed }) => {
-  const strength = feedback?.strength || feedback?.what_you_got_right || feedback?.whatYouGotRight || feedback?.feedback || "Identified core submission requirements.";
-  const gap = feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "Consider checking boundary conditions or edge cases.";
-  const upgrade = feedback?.suggestion || feedback?.upgrade || feedback?.how_to_level_it_up || feedback?.howToLevelItUp || "Add validation checks & clean exception handling.";
+  const strength = feedback?.strength || feedback?.what_you_got_right || feedback?.whatYouGotRight || feedback?.feedback || "";
+  const gap = feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "";
+  const upgrade = feedback?.suggestion || feedback?.upgrade || feedback?.how_to_level_it_up || feedback?.howToLevelItUp || "";
+
+  const hasAnyText = Boolean(strength || gap || upgrade);
 
   return (
     <div className="space-y-3">
@@ -85,6 +87,12 @@ const FeedbackBlock = ({ feedback, passed }) => {
           </span>
         )}
       </div>
+
+      {!hasAnyText && (
+        <div className="rounded-xl p-3.5 bg-amber-500/[0.08] border border-amber-500/20 text-amber-300 text-xs leading-relaxed">
+          ⚡ <strong>AI Evaluation Notice:</strong> The AI grader assigned a score of <strong>{feedback?.score || 0}/10</strong>. Make sure your Supabase Edge Function secret <code>GROQ_API_KEY</code> is set to get full text breakdowns.
+        </div>
+      )}
 
       {strength && (
         <div className="rounded-xl p-3.5 bg-green-500/[0.05] border border-green-500/15">

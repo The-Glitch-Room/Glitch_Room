@@ -51,11 +51,98 @@ const difficultyStyle = (difficulty) => {
   return { text: "text-red-400", bg: "bg-red-500/10", dot: "bg-red-400" };
 };
 
+
+/**
+ * Smart normalizer to extract AI feedback from ANY raw payload returned by Supabase Edge Function / Groq
+ */
+const normalizeAIFeedback = (rawInput) => {
+  if (!rawInput) return null;
+  let data = rawInput;
+
+  // If string, strip markdown backticks & parse JSON
+  if (typeof data === "string") {
+    try {
+      let clean = data.trim();
+      if (clean.startsWith("```")) {
+        clean = clean.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+      }
+      data = JSON.parse(clean);
+    } catch (e) {
+      data = { feedback: String(rawInput) };
+    }
+  }
+
+  // Handle nested choices from raw OpenAI/Groq response
+  if (data?.choices?.[0]?.message?.content) {
+    return normalizeAIFeedback(data.choices[0].message.content);
+  }
+
+  // Handle nested body / data / result properties
+  if (data?.body && typeof data.body === "object") data = data.body;
+  if (data?.result && typeof data.result === "object") data = data.result;
+  if (data?.data && typeof data.data === "object") data = data.data;
+
+  // Extract score
+  let score = 0;
+  if (typeof data?.score === "number") score = data.score;
+  else if (typeof data?.score === "string") score = parseInt(data.score, 10) || 0;
+  else if (typeof data?.rating === "number") score = data.rating;
+  else if (typeof data?.points === "number") score = data.points;
+
+  // Extract text fields across all potential property naming schemes
+  const strength =
+    data?.strength ||
+    data?.what_you_got_right ||
+    data?.whatYouGotRight ||
+    data?.positives ||
+    data?.positive ||
+    data?.good ||
+    data?.feedback ||
+    "";
+
+  const gap =
+    data?.gap ||
+    data?.what_was_missed ||
+    data?.whatWasMissed ||
+    data?.negatives ||
+    data?.negative ||
+    data?.weakness ||
+    data?.missed ||
+    "";
+
+  const upgrade =
+    data?.suggestion ||
+    data?.upgrade ||
+    data?.how_to_level_it_up ||
+    data?.howToLevelItUp ||
+    data?.improvements ||
+    data?.advice ||
+    "";
+
+  const isErrorMessage =
+    data?.error ||
+    data?.message?.includes?.("API") ||
+    data?.message?.includes?.("key") ||
+    data?.message?.includes?.("Error");
+
+  return {
+    score,
+    passed: score >= 6,
+    strength: isErrorMessage ? "Supabase Edge Function returned an error: " + (data.error || data.message) : strength,
+    gap,
+    upgrade,
+    rawError: isErrorMessage ? (data.error || data.message) : null,
+  };
+};
+
+
 // ─── AI Feedback block (reused shape from Arena) ──────────────────────────────
 const FeedbackBlock = ({ feedback, passed }) => {
-  const strength = feedback?.strength || feedback?.what_you_got_right || feedback?.whatYouGotRight || feedback?.feedback || "Identified core submission requirements.";
-  const gap = feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "Consider checking boundary conditions or edge cases.";
-  const upgrade = feedback?.suggestion || feedback?.upgrade || feedback?.how_to_level_it_up || feedback?.howToLevelItUp || "Add validation checks & clean exception handling.";
+  const strength = feedback?.strength || feedback?.what_you_got_right || feedback?.whatYouGotRight || feedback?.feedback || "";
+  const gap = feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "";
+  const upgrade = feedback?.suggestion || feedback?.upgrade || feedback?.how_to_level_it_up || feedback?.howToLevelItUp || "";
+
+  const hasAnyText = Boolean(strength || gap || upgrade);
 
   return (
     <div className="space-y-3">
@@ -88,6 +175,12 @@ const FeedbackBlock = ({ feedback, passed }) => {
           </span>
         )}
       </div>
+
+      {!hasAnyText && (
+        <div className="rounded-xl p-3.5 bg-amber-500/[0.08] border border-amber-500/20 text-amber-300 text-xs leading-relaxed">
+          ⚡ <strong>AI Evaluation Notice:</strong> The AI grader assigned a score of <strong>{feedback?.score || 0}/10</strong>. Make sure your Supabase Edge Function secret <code>GROQ_API_KEY</code> is set to get full text breakdowns.
+        </div>
+      )}
 
       {strength && (
         <div className="rounded-xl p-3.5 bg-green-500/[0.05] border border-green-500/15">
