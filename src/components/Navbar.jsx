@@ -35,8 +35,8 @@ const Navbar = () => {
     >
       <nav className="max-w-7xl mx-auto px-2.5 sm:px-6 md:px-10 h-16 sm:h-20 flex justify-between items-center gap-1.5 sm:gap-4">
         {/* Logo */}
-        <NavLink to="/" className="flex items-center gap-2 sm:gap-2.5 shrink-0 group">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-1.5 transition-transform group-hover:scale-105 shadow-[0_0_12px_rgba(0,240,255,0.2)] shrink-0">
+        <NavLink to="/" className="flex items-center gap-2.5 shrink-0 group">
+          <div className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-2 transition-transform group-hover:scale-105 shadow-[0_0_14px_rgba(0,240,255,0.25)] shrink-0">
             <img
               src="/logo_GR.png"
               alt="Glitch Room"
@@ -44,7 +44,7 @@ const Navbar = () => {
             />
           </div>
           <span
-            className="text-sm sm:text-lg md:text-2xl font-black text-white tracking-wider glitch-text group-hover:text-[#00F0FF] transition-colors whitespace-nowrap shrink-0"
+            className="text-lg sm:text-xl md:text-2xl font-black text-white tracking-wider glitch-text group-hover:text-[#00F0FF] transition-colors whitespace-nowrap shrink-0"
             data-text="GLITCH ROOM"
           >
             GLITCH ROOM
