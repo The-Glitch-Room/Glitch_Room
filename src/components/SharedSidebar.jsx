@@ -17,6 +17,7 @@ import {
 import { supabase } from "../supabaseClient";
 import {
   getLevelFromXP,
+  getLevelProgressDetails,
   getCurrentLevelXP,
   getNextLevelXP,
 } from "../utils/pointsHelper";
