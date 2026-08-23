@@ -258,17 +258,25 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-[#070709]" />
 
             {/* Hover Tooltip for User */}
-            {hoveredItem === "profile_user" && (
-              <div className="fixed left-[86px] top-[26vh] z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
-                <p className="font-bold text-white text-sm">{username}</p>
-                <p
-                  className="font-mono mt-0.5 text-xs font-semibold"
-                  style={{ color: accentColor }}
+            <AnimatePresence>
+              {hoveredItem === "profile_user" && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85, x: -10 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, x: -10 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-white/15 text-white shadow-2xl whitespace-nowrap"
                 >
-                  Level {level} · {displayXp} gBits
-                </p>
-              </div>
-            )}
+                  <p className="font-bold text-white text-sm">{username}</p>
+                  <p
+                    className="font-mono mt-0.5 text-xs font-semibold"
+                    style={{ color: accentColor }}
+                  >
+                    Level {level} · {displayXp} gBits
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
@@ -282,17 +290,32 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
           if (item.danger) {
             return (
               <div key="logout-wrapper" className="pt-3 border-t border-white/10">
-                <button
-                  onClick={handleLogout}
-                  onMouseEnter={() => setHoveredItem(item.name)}
-                  onMouseLeave={() => setHoveredItem(null)}
-                  className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-red-400 hover:text-red-300 hover:bg-red-500/10 ${
-                    isCollapsed ? "justify-center" : ""
-                  }`}
-                >
-                  <Icon size={18} className="shrink-0" />
-                  {!isCollapsed && <span>{item.name}</span>}
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={handleLogout}
+                    onMouseEnter={() => setHoveredItem(item.name)}
+                    onMouseLeave={() => setHoveredItem(null)}
+                    className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-red-400 hover:text-red-300 hover:bg-red-500/10 ${
+                      isCollapsed ? "justify-center" : ""
+                    }`}
+                  >
+                    <Icon size={18} className="shrink-0" />
+                    {!isCollapsed && <span>{item.name}</span>}
+                  </button>
+                  <AnimatePresence>
+                    {isCollapsed && hoveredItem === item.name && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.85, x: -10 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.85, x: -10 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-red-500/30 text-red-400 shadow-2xl whitespace-nowrap"
+                      >
+                        {item.name}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             );
           }
@@ -335,11 +358,19 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
               </Link>
 
               {/* Hover Tooltip when Collapsed */}
-              {isCollapsed && hoveredItem === item.name && (
-                <div className="fixed left-[86px] z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
-                  {item.name}
-                </div>
-              )}
+              <AnimatePresence>
+                {isCollapsed && hoveredItem === item.name && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.85, x: -10 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.85, x: -10 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                    className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-white/15 text-white shadow-2xl whitespace-nowrap"
+                  >
+                    {item.name}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           );
         })}
@@ -386,16 +417,24 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             >
               L{level}
             </div>
-            {hoveredItem === "progress" && (
-              <div className="fixed left-[86px] bottom-6 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14] border border-white/15 text-white shadow-2xl whitespace-nowrap">
-                <p className="font-mono" style={{ color: accentColor }}>
-                  Level {level} Progress: {Math.round(progressPercent)}%
-                </p>
-                <p className="text-[10px] text-gray-400 font-mono mt-0.5">
-                  {displayXp} / {nextLevelXP} gBits
-                </p>
-              </div>
-            )}
+            <AnimatePresence>
+              {hoveredItem === "progress" && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85, x: -10 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, x: -10 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-white/15 text-white shadow-2xl whitespace-nowrap"
+                >
+                  <p className="font-mono" style={{ color: accentColor }}>
+                    Level {level} Progress: {Math.round(progressPercent)}%
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                    {displayXp} / {nextLevelXP} gBits
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
