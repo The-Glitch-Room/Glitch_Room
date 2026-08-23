@@ -1,252 +1,143 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "../supabaseClient";
+import { getLevelProgressDetails } from "../utils/pointsHelper";
 import {
-  User,
   LayoutDashboard,
+  User,
+  BarChart3,
+  Gift,
   Settings,
   HelpCircle,
   LogOut,
   ChevronRight,
   ChevronLeft,
-  BarChart2,
-  Gift,
-  PanelLeftClose,
-  PanelLeftOpen,
+  Shield,
+  Layers,
 } from "lucide-react";
-import { supabase } from "../supabaseClient";
-import {
-  getLevelFromXP,
-  getLevelProgressDetails,
-  getCurrentLevelXP,
-  getNextLevelXP,
-} from "../utils/pointsHelper";
 
-const menuItems = [
-  { name: "Your Profile", path: "/profile", icon: User },
-  { name: "Console", path: "/console", icon: LayoutDashboard },
-  { name: "Terminal Wall", path: "/terminal-wall", icon: BarChart2 },
-  { name: "Earn Rules", path: "/earn-rules", icon: Gift },
-  { name: "Settings", path: "/settings", icon: Settings },
-  { name: "Help & Support", path: "/help", icon: HelpCircle },
-  { name: "Logout", path: null, icon: LogOut, danger: true },
-];
-
-/**
- * SharedSidebar — supports Collapsing mode!
- * When collapsed, sidebar width shrinks to icon-only mode with floating hover tooltips.
- * State persists across page navigations via localStorage ('gr_sidebar_collapsed').
- */
-const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
+const SharedSidebar = ({ isCollapsed, onToggleCollapse }) => {
   const location = useLocation();
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    return localStorage.getItem("gr_sidebar_collapsed") === "true";
-  });
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
+  const [points, setPoints] = useState(0);
   const [hoveredItem, setHoveredItem] = useState(null);
-  const [currentXp, setCurrentXp] = useState(xp);
-  const [profileData, setProfileData] = useState({
-    username: "",
-    avatarUrl: avatarPreview,
-  });
-
-  const [accentColor, setAccentColor] = useState(() => {
-    return (
-      getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() ||
-      "#FF00C8"
-    );
-  });
 
   useEffect(() => {
-    const updateAccent = () => {
-      const col =
-        getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() ||
-        "#FF00C8";
-      setAccentColor(col);
-    };
-
-    updateAccent();
-    window.addEventListener("accent_color_changed", updateAccent);
-    const observer = new MutationObserver(updateAccent);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
-
-    return () => {
-      window.removeEventListener("accent_color_changed", updateAccent);
-      observer.disconnect();
-    };
+    fetchUserData();
   }, []);
 
-  useEffect(() => {
-    setCurrentXp(xp);
-  }, [xp]);
+  const fetchUserData = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    let isMounted = true;
+    if (user) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
 
-    const fetchSidebarProfile = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const currentUser = authData?.user;
-      const userId = currentUser?.id;
-      const cachedAvatar = userId ? localStorage.getItem(`glitch_avatar_${userId}`) : null;
+      const { data: pts } = await supabase
+        .from("user_points")
+        .select("points")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-      let name =
-        user?.user_metadata?.full_name ||
-        user?.email?.split("@")[0] ||
-        currentUser?.user_metadata?.full_name ||
-        currentUser?.email?.split("@")[0];
-
-      let avatar =
-        avatarPreview ||
-        user?.user_metadata?.avatar_url ||
-        currentUser?.user_metadata?.avatar_url ||
-        cachedAvatar ||
-        null;
-
-      if (currentUser) {
-        const { data: dbProfile } = await supabase
-          .from("profiles")
-          .select("full_name, username, avatar_url")
-          .eq("id", currentUser.id)
-          .maybeSingle();
-
-        if (dbProfile) {
-          name = dbProfile.full_name || dbProfile.username || name;
-          avatar =
-            avatarPreview ||
-            dbProfile.avatar_url ||
-            currentUser?.user_metadata?.avatar_url ||
-            cachedAvatar ||
-            null;
-        }
-
-        const { data: pts } = await supabase
-          .from("user_points")
-          .select("points")
-          .eq("user_id", currentUser.id)
-          .maybeSingle();
-
-        if (pts && typeof pts.points === "number") {
-          setCurrentXp(pts.points);
-        }
-      }
-
-      if (isMounted) {
-        setProfileData({
-          username: name || "Builder",
-          avatarUrl: avatar,
-        });
-      }
-    };
-
-    fetchSidebarProfile();
-
-    const handleUpdate = () => fetchSidebarProfile();
-    window.addEventListener("profile_updated", handleUpdate);
-    window.addEventListener("gbits_updated", handleUpdate);
-    window.addEventListener("points_updated", handleUpdate);
-
-    return () => {
-      isMounted = false;
-      window.removeEventListener("profile_updated", handleUpdate);
-      window.removeEventListener("gbits_updated", handleUpdate);
-      window.removeEventListener("points_updated", handleUpdate);
-    };
-  }, [user, avatarPreview]);
-
-  const username = profileData.username || "User";
-  const initials = username.slice(0, 2).toUpperCase();
-  const avatarUrl = profileData.avatarUrl;
-
-  const displayXp = currentXp;
-  const progressDetails = getLevelProgressDetails(displayXp);
-  const level = progressDetails.currentLevel;
-  const nextLevelXP = progressDetails.nextLevelXP;
-  const progressPercent = progressDetails.percentage;
-  const rawProgressText = progressDetails.rawProgressText;
-
-  const toggleCollapse = () => {
-    setIsCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem("gr_sidebar_collapsed", String(next));
-      return next;
-    });
+      if (prof) setProfile(prof);
+      if (pts) setPoints(pts.points);
+    }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    window.location.href = "/";
+    navigate("/");
   };
+
+  const menuItems = [
+    { name: "User Console", icon: LayoutDashboard, path: "/console" },
+    { name: "Your Profile", icon: User, path: "/profile" },
+    { name: "Terminal Wall", icon: BarChart3, path: "/terminal-wall" },
+    { name: "Earn Rules Hub", icon: Gift, path: "/earn-rules" },
+    { name: "Settings", icon: Settings, path: "/settings" },
+    { name: "Help Center", icon: HelpCircle, path: "/help" },
+    { name: "Log Out", icon: LogOut, danger: true },
+  ];
+
+  const username = profile?.username || profile?.full_name || "Glitcher";
+  const avatarUrl = profile?.avatar_url;
+  const initials = username.slice(0, 2).toUpperCase();
+
+  // Unified Level Math via single source of truth helper
+  const levelDetails = getLevelProgressDetails(points || 0);
+  const level = levelDetails.level;
+  const displayXp = levelDetails.currentXP;
+  const nextLevelXP = levelDetails.nextLevelXP;
+  const progressPercent = levelDetails.progressPercent;
+  const accentColor = levelDetails.accentColor;
 
   return (
     <aside
-      className={`sticky top-[18vh] h-[calc(100vh-18vh)] overflow-y-auto no-scrollbar [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-r border-white/10 bg-[#070709] hidden md:flex flex-col shrink-0 transition-all duration-300 ${
-        isCollapsed ? "w-[76px]" : "w-[268px]"
+      className={`fixed top-20 bottom-0 left-0 z-40 bg-[#070709]/95 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between transition-all duration-300 selection:bg-[#00F0FF]/20 ${
+        isCollapsed ? "w-[72px]" : "w-64"
       }`}
     >
-      {/* ── Top Toggle Control Bar ── */}
-      <div className="p-3 border-b border-white/10 flex items-center justify-between">
+      {/* ── Header: Toggle Button & User Profile ── */}
+      <div className="p-3.5 border-b border-white/10 flex items-center justify-between">
         {!isCollapsed && (
-          <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-gray-400 pl-2">
-            Navigation
-          </span>
-        )}
-        <button
-          onClick={toggleCollapse}
-          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 transition-all duration-200"
-          style={{ color: accentColor }}
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {isCollapsed ? (
-            <PanelLeftOpen size={18} />
-          ) : (
-            <PanelLeftClose size={18} />
-          )}
-        </button>
-      </div>
-
-      {/* ── User Mini Card ── */}
-      <div className="p-4 border-b border-white/10">
-        {!isCollapsed ? (
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="relative shrink-0">
-              <div className="w-12 h-12 rounded-xl overflow-hidden ring-1 ring-white/15 shadow-md">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt="avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-[#1a1a1e] flex items-center justify-center text-sm font-black text-white">
-                    {initials}
-                  </div>
-                )}
-              </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-[#070709]" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="text-white font-bold text-sm sm:text-base truncate tracking-tight">
-                {username}
-              </p>
-              <p
-                className="text-xs font-mono mt-0.5 font-semibold"
-                style={{ color: accentColor }}
-              >
-                Level {level} · {displayXp} gBits
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div
-            className="relative mx-auto cursor-pointer flex justify-center"
-            onMouseEnter={() => setHoveredItem("profile_user")}
-            onMouseLeave={() => setHoveredItem(null)}
-          >
-            <div className="w-11 h-11 rounded-xl overflow-hidden ring-1 ring-white/15">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 ring-2 ring-[#00F0FF]/30 shadow-lg">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
-                  alt="avatar"
+                  alt={username}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-[#1a1a1e] flex items-center justify-center text-xs font-black text-white">
+                  {initials}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">{username}</p>
+              <p
+                className="text-xs font-mono font-semibold truncate"
+                style={{ color: accentColor }}
+              >
+                Lv {level} · {displayXp} gBits
+              </p>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={onToggleCollapse}
+          className={`p-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer ${
+            isCollapsed ? "mx-auto" : ""
+          }`}
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        >
+          {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </button>
+      </div>
+
+      {/* ── Collapsed User Profile Icon ── */}
+      {isCollapsed && (
+        <div className="px-3 pt-3">
+          <div
+            className="relative flex justify-center cursor-pointer"
+            onMouseEnter={() => setHoveredItem("profile_user")}
+            onMouseLeave={() => setHoveredItem(null)}
+            onClick={() => navigate("/profile")}
+          >
+            <div className="w-10 h-10 rounded-xl overflow-hidden ring-2 ring-[#00F0FF]/30 shadow-lg">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={username}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -257,64 +148,80 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             </div>
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-[#070709]" />
 
-            {/* Hover Tooltip for User */}
+            {/* Hover Pop-out for User Profile */}
             <AnimatePresence>
               {hoveredItem === "profile_user" && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.85, x: -10 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.85, x: -10 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-white/15 text-white shadow-2xl whitespace-nowrap"
+                  initial={{ opacity: 0, scale: 0.9, x: -10 }}
+                  animate={{ opacity: 1, scale: 1.02, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, x: -10 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                  className="absolute left-0 top-0 z-50 pointer-events-none px-4 py-2.5 rounded-2xl bg-[#0d0d16] border border-[#00F0FF]/50 text-white shadow-[0_0_25px_rgba(0,240,255,0.3)] whitespace-nowrap flex items-center gap-3"
                 >
-                  <p className="font-bold text-white text-sm">{username}</p>
-                  <p
-                    className="font-mono mt-0.5 text-xs font-semibold"
-                    style={{ color: accentColor }}
-                  >
-                    Level {level} · {displayXp} gBits
-                  </p>
+                  <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={username} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-[#1a1a1e] flex items-center justify-center text-[10px] font-black text-white">
+                        {initials}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold text-white text-xs leading-tight">{username}</p>
+                    <p className="font-mono text-[10px] font-semibold" style={{ color: accentColor }}>
+                      Level {level} · {displayXp} gBits
+                    </p>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Navigation Links ── */}
-      <nav className="p-3 space-y-1 flex-1">
+      <nav className="p-3 space-y-1.5 flex-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.path && location.pathname === item.path;
+          const isHovered = hoveredItem === item.name;
 
           if (item.danger) {
             return (
-              <div key="logout-wrapper" className="pt-3 border-t border-white/10">
-                <div className="relative">
-                  <button
+              <div key="logout-wrapper" className="pt-3 border-t border-white/10 relative">
+                <div
+                  className="relative flex items-center"
+                  onMouseEnter={() => setHoveredItem(item.name)}
+                  onMouseLeave={() => setHoveredItem(null)}
+                >
+                  <motion.button
                     onClick={handleLogout}
-                    onMouseEnter={() => setHoveredItem(item.name)}
-                    onMouseLeave={() => setHoveredItem(null)}
-                    className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-red-400 hover:text-red-300 hover:bg-red-500/10 ${
-                      isCollapsed ? "justify-center" : ""
+                    animate={
+                      isCollapsed && isHovered
+                        ? { scale: 1.05, x: 4 }
+                        : { scale: 1, x: 0 }
+                    }
+                    transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                      isCollapsed && isHovered
+                        ? "absolute left-0 z-50 bg-[#160a0d] border border-red-500/50 text-red-400 shadow-[0_0_25px_rgba(239,68,68,0.3)] whitespace-nowrap pr-4"
+                        : isCollapsed
+                        ? "w-full justify-center text-red-400 hover:bg-red-500/10"
+                        : "w-full justify-start text-red-400 hover:bg-red-500/10"
                     }`}
                   >
-                    <Icon size={18} className="shrink-0" />
-                    {!isCollapsed && <span>{item.name}</span>}
-                  </button>
-                  <AnimatePresence>
-                    {isCollapsed && hoveredItem === item.name && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.85, x: -10 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.85, x: -10 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                        className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-red-500/30 text-red-400 shadow-2xl whitespace-nowrap"
+                    <Icon size={18} className={`shrink-0 ${isHovered ? "scale-110" : ""}`} />
+                    {(!isCollapsed || (isCollapsed && isHovered)) && (
+                      <motion.span
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="truncate font-bold text-xs"
                       >
                         {item.name}
-                      </motion.div>
+                      </motion.span>
                     )}
-                  </AnimatePresence>
+                  </motion.button>
                 </div>
               </div>
             );
@@ -322,55 +229,69 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
           return (
             <div key={item.path} className="relative">
-              <Link
-                to={item.path}
+              <div
+                className="relative flex items-center"
                 onMouseEnter={() => setHoveredItem(item.name)}
                 onMouseLeave={() => setHoveredItem(null)}
-                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                  isCollapsed ? "justify-center" : ""
-                } ${
-                  isActive
-                    ? "text-white border shadow-lg"
-                    : "text-gray-300 hover:text-white hover:bg-white/5"
-                }`}
-                style={
-                  isActive
-                    ? {
-                        background: `${accentColor}18`,
-                        color: accentColor,
-                        borderColor: `${accentColor}40`,
-                        boxShadow: `0 0 16px ${accentColor}20`,
-                      }
-                    : {}
-                }
               >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <Icon
-                    size={18}
-                    className="shrink-0"
-                    style={{ color: isActive ? accentColor : "#9ca3af" }}
-                  />
-                  {!isCollapsed && <span className="truncate">{item.name}</span>}
-                </div>
-                {!isCollapsed && isActive && (
-                  <ChevronRight size={14} style={{ color: accentColor }} className="shrink-0" />
-                )}
-              </Link>
-
-              {/* Hover Tooltip when Collapsed */}
-              <AnimatePresence>
-                {isCollapsed && hoveredItem === item.name && (
+                <Link
+                  to={item.path}
+                  className="w-full"
+                >
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.85, x: -10 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.85, x: -10 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                    className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-white/15 text-white shadow-2xl whitespace-nowrap"
+                    animate={
+                      isCollapsed && isHovered
+                        ? { scale: 1.04, x: 4 }
+                        : { scale: 1, x: 0 }
+                    }
+                    transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                      isCollapsed && isHovered
+                        ? "absolute left-0 z-50 bg-[#0d0d16] border border-[#00F0FF]/50 text-white shadow-[0_0_25px_rgba(0,240,255,0.3)] whitespace-nowrap pr-4"
+                        : isCollapsed
+                        ? "w-full justify-center text-gray-300 hover:text-white hover:bg-white/5"
+                        : "w-full justify-between text-gray-300 hover:text-white hover:bg-white/5"
+                    } ${
+                      isActive
+                        ? "text-white border border-[#00F0FF]/40 bg-[#00F0FF]/15 shadow-lg"
+                        : ""
+                    }`}
+                    style={
+                      isActive && !isHovered
+                        ? {
+                            background: `${accentColor}18`,
+                            color: accentColor,
+                            borderColor: `${accentColor}40`,
+                            boxShadow: `0 0 16px ${accentColor}20`,
+                          }
+                        : {}
+                    }
                   >
-                    {item.name}
+                    <Icon
+                      size={18}
+                      className={`shrink-0 transition-transform ${
+                        isHovered ? "scale-110 text-[#00F0FF]" : ""
+                      }`}
+                      style={{ color: isActive ? accentColor : undefined }}
+                    />
+
+                    {/* Reveal Label Text when expanded OR when hovered in collapsed mode */}
+                    {(!isCollapsed || (isCollapsed && isHovered)) && (
+                      <motion.span
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="truncate font-bold text-xs"
+                      >
+                        {item.name}
+                      </motion.span>
+                    )}
+
+                    {!isCollapsed && isActive && (
+                      <ChevronRight size={14} style={{ color: accentColor }} className="shrink-0 ml-auto" />
+                    )}
                   </motion.div>
-                )}
-              </AnimatePresence>
+                </Link>
+              </div>
             </div>
           );
         })}
@@ -386,16 +307,23 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                 Lv {level}
               </span>
             </div>
-            <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-1.5">
+            <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-1.5 relative">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPercent}%` }}
                 transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
-                className="h-full rounded-full"
+                className="h-full rounded-full relative overflow-hidden"
                 style={{
                   background: `linear-gradient(90deg, ${accentColor}, #00F0FF)`,
                 }}
-              />
+              >
+                {/* Animated shimmer sweep overlay */}
+                <motion.div
+                  animate={{ x: ["-100%", "200%"] }}
+                  transition={{ repeat: Infinity, duration: 2.5, ease: "linear", delay: 1 }}
+                  className="absolute inset-0 w-1/2 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12"
+                />
+              </motion.div>
             </div>
             <p className="text-xs font-mono text-gray-400 text-right font-medium">
               {(displayXp || 0).toLocaleString()} / {(nextLevelXP || 250).toLocaleString()}
@@ -408,7 +336,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             onMouseLeave={() => setHoveredItem(null)}
           >
             <div
-              className="w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-mono font-bold"
+              className="w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-mono font-bold transition-transform group-hover:scale-105"
               style={{
                 background: `${accentColor}18`,
                 borderColor: `${accentColor}40`,
@@ -417,16 +345,18 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             >
               L{level}
             </div>
+
+            {/* Hover Pop-out for Progress Widget */}
             <AnimatePresence>
               {hoveredItem === "progress" && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.85, x: -10 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.85, x: -10 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-white/15 text-white shadow-2xl whitespace-nowrap"
+                  initial={{ opacity: 0, scale: 0.9, x: -10 }}
+                  animate={{ opacity: 1, scale: 1.02, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, x: -10 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                  className="absolute left-0 bottom-0 z-50 pointer-events-none px-4 py-2.5 rounded-2xl bg-[#0d0d16] border border-[#00F0FF]/50 text-white shadow-[0_0_25px_rgba(0,240,255,0.3)] whitespace-nowrap"
                 >
-                  <p className="font-mono" style={{ color: accentColor }}>
+                  <p className="font-mono font-bold text-xs" style={{ color: accentColor }}>
                     Level {level} Progress: {Math.round(progressPercent)}%
                   </p>
                   <p className="text-[10px] text-gray-400 font-mono mt-0.5">
