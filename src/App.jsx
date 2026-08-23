@@ -54,6 +54,7 @@ import ArenaVotingFeed from "./components/ArenaVotingFeed";
 import DailyFactBubble from "./components/DailyFactBubble";
 import AdminDashboard from "./components/AdminDashboard";
 import EarnRules from "./components/EarnRules";
+import CreateProfile from "./components/CreateProfile";
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 const ProtectedRoute = ({ children }) => {
@@ -217,6 +218,14 @@ const AnimatedRoutes = () => {
           element={
             <ProtectedRoute>
               <Console />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/create-profile"
+          element={
+            <ProtectedRoute>
+              <CreateProfile />
             </ProtectedRoute>
           }
         />

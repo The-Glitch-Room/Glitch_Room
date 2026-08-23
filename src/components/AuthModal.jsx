@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import {
   FiUser,
@@ -13,6 +14,7 @@ import {
 
 // view: "login" | "signup" | "forgot"
 const AuthModal = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const [view, setView] = useState("login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -99,6 +101,7 @@ const AuthModal = ({ isOpen, onClose }) => {
       window.dispatchEvent(new Event("points_updated"));
       resetState();
       onClose();
+      navigate("/create-profile");
     }
   };
 
