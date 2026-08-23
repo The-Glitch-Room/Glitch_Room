@@ -51,7 +51,7 @@ const CORE_CHALLENGE_TYPES = [
     badge: "Diagnostics",
     desc: "Hone your diagnostics by stepping through complex stack traces, memory leaks, and broken execution logic.",
     path: "/bug-challenges",
-    dbKey: "bug-challenges",
+    dbKey: "bugs",
   },
   {
     id: "ai-challenges",
@@ -61,7 +61,7 @@ const CORE_CHALLENGE_TYPES = [
     badge: "GenAI Evaluation",
     desc: "Engage with generative AI scenarios designed to test edge cases, prompt fixes, and automated code evaluation.",
     path: "/ai-challenges",
-    dbKey: "ai-challenges",
+    dbKey: "ais",
   },
   {
     id: "sparks",
@@ -869,7 +869,7 @@ const Explore = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {CORE_CHALLENGE_TYPES.map((cat) => {
                 const Icon = cat.icon;
-                const count = categoryCounts[cat.dbKey] || "20+";
+                const count = categoryCounts[cat.dbKey] || categoryCounts[cat.id] || categoryCounts[cat.id.replace("-challenges", "")] || 0;
                 return (
                   <Link
                     key={cat.id}

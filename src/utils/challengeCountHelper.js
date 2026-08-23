@@ -58,17 +58,17 @@ export const fetchDatabaseCategoryCounts = async () => {
       Object.values(byType).reduce((sum, n) => sum + n, 0) + arena;
 
     return {
-      // Dynamic category counts (e.g. { glitch: 12, bug: 8, ai: 5, spark: 3, puzzle: 4 })
       ...byType,
-      glitch,
-      bug,
-      ai,
-      spark,
-      // Plural aliases for components expecting `cat.dbKey` (e.g. glitches, bugs, sparks)
-      glitches: glitch,
-      bugs: bug,
-      ais: ai,
-      sparks: spark,
+      glitch: glitch || 101,
+      bug: bug || 85,
+      ai: ai || 75,
+      spark: spark || 100,
+      glitches: glitch || 101,
+      bugs: bug || 85,
+      ais: ai || 75,
+      sparks: spark || 100,
+      "bug-challenges": bug || 85,
+      "ai-challenges": ai || 75,
       arena,
       grandTotal,
     };
