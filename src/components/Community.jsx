@@ -609,32 +609,32 @@ const Community = () => {
           >
             {/* LEFT SIDEBAR: Topics & Search */}
             <div className="lg:col-span-1 space-y-6">
-              {/* Topics/Categories Box */}
-              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
-                <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-white/10">
+              {/* Topics/Categories Box (Horizontal slider on mobile, vertical sidebar on desktop) */}
+              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3 sm:space-y-4">
+                <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-2.5 sm:pb-3 border-b border-white/10">
                   <Tag size={14} className="text-[#FF00C8]" />
                   <span>Topics & Categories</span>
                 </h3>
 
-                <div className="space-y-1.5">
+                <div className="flex lg:flex-col gap-2 lg:gap-0 overflow-x-auto no-scrollbar pb-1 lg:pb-0 lg:space-y-1.5">
                   {CATEGORIES.map((cat) => {
                     const active = category === cat.id;
                     return (
                       <button
                         key={cat.id}
                         onClick={() => setCategory(cat.id)}
-                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                        className={`shrink-0 lg:w-full flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border whitespace-nowrap ${
                           active
                             ? "bg-white/10 text-white border-white/20 shadow-sm"
                             : "bg-transparent text-gray-400 border-transparent hover:bg-white/5 hover:text-white"
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2">
                           <span className="text-sm">{cat.emoji}</span>
                           <span>{cat.label}</span>
                         </div>
                         {active && (
-                          <span className="w-2 h-2 rounded-full bg-[#00F0FF]" />
+                          <span className="w-2 h-2 rounded-full bg-[#00F0FF] shrink-0" />
                         )}
                       </button>
                     );
