@@ -176,7 +176,7 @@ const AIFeedbackPanel = ({ feedback, onContinue, buttonLabel }) => (
           </p>
         </div>
         <p className="text-gray-300 text-sm leading-relaxed">
-          {feedback.strength}
+          {feedback.strength || feedback.what_you_got_right || feedback.whatYouGotRight || feedback.feedback || "Good effort on your submission."}
         </p>
       </motion.div>
 
@@ -196,7 +196,7 @@ const AIFeedbackPanel = ({ feedback, onContinue, buttonLabel }) => (
             What Was Missed
           </p>
         </div>
-        <p className="text-gray-300 text-sm leading-relaxed">{feedback.gap}</p>
+        <p className="text-gray-300 text-sm leading-relaxed">{feedback.gap || feedback.what_was_missed || feedback.whatWasMissed || "No critical gaps identified."}</p>
       </motion.div>
 
       <motion.div
@@ -216,7 +216,7 @@ const AIFeedbackPanel = ({ feedback, onContinue, buttonLabel }) => (
           </p>
         </div>
         <p className="text-gray-300 text-sm leading-relaxed">
-          {feedback.suggestion}
+          {feedback.suggestion || feedback.upgrade || feedback.how_to_level_it_up || feedback.howToLevelItUp || "Refine edge case validations."}
         </p>
       </motion.div>
     </div>
