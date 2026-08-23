@@ -324,11 +324,11 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
   const alreadySolved = !!previousSubmission;
 
   return (
-    <div className="h-screen w-screen bg-[#0B0C10] text-gray-100 flex flex-col overflow-hidden">
+    <div className="min-h-screen w-full bg-[#0B0C10] text-gray-100 flex flex-col lg:h-screen lg:w-screen lg:overflow-hidden overflow-y-auto pb-28 lg:pb-0">
       {showConfetti && <Confetti />}
 
       {/* ── Top bar ── */}
-      <div className="shrink-0 flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b border-white/6 bg-[#0d0d12]">
+      <div className="sticky top-0 z-40 flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-3 border-b border-white/10 bg-[#0d0d12]/95 backdrop-blur-md shrink-0 shadow-md">
         <div className="flex items-center gap-4 min-w-0">
           <Link
             to="/glitches"
@@ -338,7 +338,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
             <span className="hidden sm:inline">Back</span>
           </Link>
           <div className="h-5 w-px bg-white/10 hidden sm:block" />
-          <h1 className="text-sm sm:text-base font-bold text-white truncate">
+          <h1 className="text-xs sm:text-base font-bold text-white truncate max-w-[48vw] sm:max-w-none">
             {glitch.title}
           </h1>
         </div>
@@ -357,7 +357,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
           )}
           <div
             ref={profileIconRef}
-            className="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-3 py-1.5 rounded-full"
+            className="flex items-center gap-1 text-xs font-semibold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full shrink-0"
           >
             ⚡ {points} pts
           </div>
@@ -369,7 +369,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
         {/* ── LEFT PANEL ── */}
         <div className="bg-[#0B0C10] flex flex-col min-h-0">
           {/* Left tabs */}
-          <div className="shrink-0 flex items-center gap-1 px-3 pt-3 border-b border-white/6">
+          <div className="shrink-0 flex items-center gap-1 px-2.5 sm:px-3 pt-2.5 sm:pt-3 border-b border-white/6 overflow-x-auto no-scrollbar">
             {[
               { id: "description", label: "Problem", icon: FileText },
               {
@@ -401,7 +401,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
           </div>
 
           {/* Left content */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-5">
+          <div className="flex-1 min-h-0 lg:overflow-y-auto p-3.5 sm:p-5">
             <AnimatePresence mode="wait">
               {leftTab === "description" && (
                 <motion.div
@@ -553,10 +553,10 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
               value={userAnswer}
               onChange={(e) => setUserAnswer(e.target.value)}
               disabled={evaluating}
-              className="flex-1 w-full bg-[#080810] border border-white/8 rounded-xl p-4 text-gray-200 placeholder-gray-600 focus:ring-2 focus:ring-cyan-500/40 outline-none transition text-sm font-mono resize-none disabled:opacity-50"
+              className="min-h-[140px] lg:flex-1 w-full bg-[#080810] border border-white/8 rounded-xl p-3.5 text-gray-200 placeholder-gray-600 focus:ring-2 focus:ring-cyan-500/40 outline-none transition text-xs sm:text-sm font-mono resize-y lg:resize-none disabled:opacity-50"
               placeholder="Explain the glitch and your fix — you can include code inline. Be specific: a vague answer will score low."
             />
-            <div className="flex items-center justify-between mt-3">
+            <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 mt-3">
               <p className="text-[10px] text-gray-600">
                 {userAnswer.trim().length} characters
               </p>
@@ -569,7 +569,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
                 }
                 onClick={handleSubmit}
                 disabled={evaluating || !userAnswer.trim()}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   background: "linear-gradient(135deg, #00F0FF, #0080FF)",
                 }}
@@ -590,7 +590,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
           </div>
 
           {/* Bottom result panel */}
-          <div className="shrink-0 border-t border-white/6 max-h-[46%] flex flex-col min-h-[140px]">
+          <div className="shrink-0 border-t border-white/6 lg:max-h-[46%] flex flex-col min-h-[140px]">
             <div className="shrink-0 flex items-center gap-1 px-3 pt-2.5 border-b border-white/6">
               {[
                 { id: "answer", label: "Instructions" },

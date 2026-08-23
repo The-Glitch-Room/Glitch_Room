@@ -44,7 +44,7 @@ const CategoryDropdown = ({
   const accent10 = `${accentColor}1A`; // 10% opacity
 
   return (
-    <div ref={ref} className="relative" style={{ zIndex: 50 }}>
+    <div ref={ref} className="relative z-30">
       {/* Trigger button */}
       <button
         onClick={() => setOpen((v) => !v)}
