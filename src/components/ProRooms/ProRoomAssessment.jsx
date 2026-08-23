@@ -33,30 +33,196 @@ const ProRoomAssessment = () => {
   const [codeOutput, setCodeOutput] = useState("");
   const [runningCode, setRunningCode] = useState(false);
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(7200); // 2 hours default
-  const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionComplete, setSubmissionComplete] = useState(false);
+  const [timeExpired, setTimeExpired] = useState(false); // auto-submit triggered
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
 
-  // Anti-cheating tab blur detection
+  // Once time is up or the test is submitted, the whole test surface freezes —
+  // no more answer edits, no more navigating questions/sections.
+  const interactionLocked = timeExpired || submissionComplete;
+
+  // ── Anti-cheat: tab/window blur tracking ────────────────────────────────
+  // A brief blur (checking a notification, a quick alt-tab) shouldn't count
+  // as a real event — especially on mobile, where switching apps for a call
+  // or a notification pull-down is routine. Only blurs longer than the grace
+  // window get logged and surfaced as a warning.
+  const DESKTOP_BLUR_GRACE_MS = 3000;
+  const MOBILE_BLUR_GRACE_MS = 10000;
+  const isMobileDevice = () =>
+    typeof navigator !== "undefined" &&
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const [blurEvents, setBlurEvents] = useState([]); // [{ at: ISOString, durationMs }]
+  const [showBlurWarning, setShowBlurWarning] = useState(false);
+  const hiddenAtRef = useRef(null);
+  const blurWarningTimeoutRef = useRef(null);
+
   useEffect(() => {
+    const grace = isMobileDevice()
+      ? MOBILE_BLUR_GRACE_MS
+      : DESKTOP_BLUR_GRACE_MS;
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        setTabSwitchCount((prev) => prev + 1);
+        hiddenAtRef.current = Date.now();
+        return;
       }
+      if (hiddenAtRef.current == null) return;
+      const durationMs = Date.now() - hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      if (durationMs < grace) return; // brief blip — not logged, not warned
+
+      setBlurEvents((prev) => [
+        ...prev,
+        { at: new Date().toISOString(), durationMs },
+      ]);
+      setShowBlurWarning(true);
+      if (blurWarningTimeoutRef.current)
+        clearTimeout(blurWarningTimeoutRef.current);
+      blurWarningTimeoutRef.current = setTimeout(
+        () => setShowBlurWarning(false),
+        6000,
+      );
     };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (blurWarningTimeoutRef.current)
+        clearTimeout(blurWarningTimeoutRef.current);
+    };
   }, []);
 
-  // Timer Countdown
+  // ── Warn before closing tab / refreshing / navigating away in-browser ──
+  // Browsers ignore custom messages here and always show their own generic
+  // "leave site?" prompt — that's expected, we just need it to fire.
+  const submissionCompleteRef = useRef(false);
   useEffect(() => {
-    if (timeLeftSeconds <= 0) return;
+    submissionCompleteRef.current = submissionComplete;
+  }, [submissionComplete]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (submissionCompleteRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  // ── Prevent the same assessment being open in a second tab ─────────────
+  // Scoped to this browser only (a different browser or private window has
+  // separate storage and won't be caught) — but it reliably blocks the
+  // common case of someone opening the test twice in the same browser.
+  const TAB_LOCK_STALE_MS = 10000;
+  const TAB_LOCK_HEARTBEAT_MS = 4000;
+  const tabSessionIdRef = useRef(
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  const lockHeartbeatRef = useRef(null);
+  const [tabLocked, setTabLocked] = useState(null); // null = checking, true = blocked, false = active
+
+  useEffect(() => {
+    if (!id) return;
+    const lockKey = `gr_pro_room_lock_${id}`;
+
+    const readLock = () => {
+      try {
+        const raw = localStorage.getItem(lockKey);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    };
+    const writeLock = () => {
+      try {
+        localStorage.setItem(
+          lockKey,
+          JSON.stringify({
+            tabId: tabSessionIdRef.current,
+            updatedAt: Date.now(),
+          }),
+        );
+      } catch {}
+    };
+
+    const existing = readLock();
+    const isStale =
+      !existing || Date.now() - (existing.updatedAt || 0) > TAB_LOCK_STALE_MS;
+    const isOwnedByUs = existing?.tabId === tabSessionIdRef.current;
+
+    if (existing && !isStale && !isOwnedByUs) {
+      setTabLocked(true);
+    } else {
+      writeLock();
+      setTabLocked(false);
+      lockHeartbeatRef.current = setInterval(writeLock, TAB_LOCK_HEARTBEAT_MS);
+    }
+
+    // If another tab claims (or reclaims) the lock while we're active, catch
+    // it here so this tab also knows it's no longer the live session.
+    const handleStorage = (e) => {
+      if (e.key !== lockKey) return;
+      try {
+        const val = e.newValue ? JSON.parse(e.newValue) : null;
+        if (val && val.tabId !== tabSessionIdRef.current) {
+          setTabLocked(true);
+          if (lockHeartbeatRef.current) {
+            clearInterval(lockHeartbeatRef.current);
+            lockHeartbeatRef.current = null;
+          }
+        }
+      } catch {}
+    };
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      if (lockHeartbeatRef.current) clearInterval(lockHeartbeatRef.current);
+      // Only release the lock if we're still the recognized holder — avoids
+      // a stale/closing tab wiping out a lock a newer tab just claimed.
+      const current = readLock();
+      if (current?.tabId === tabSessionIdRef.current) {
+        try {
+          localStorage.removeItem(lockKey);
+        } catch {}
+      }
+    };
+  }, [id]);
+
+  // Timer Countdown — single interval for the whole session, not recreated
+  // every tick, so the transition to zero happens exactly once and reliably.
+  useEffect(() => {
     const interval = setInterval(() => {
-      setTimeLeftSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+      setTimeLeftSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(interval);
-  }, [timeLeftSeconds]);
+  }, []);
+
+  // Auto-submit the instant the timer hits zero.
+  const autoSubmitFiredRef = useRef(false);
+  useEffect(() => {
+    if (
+      timeLeftSeconds === 0 &&
+      !autoSubmitFiredRef.current &&
+      !submissionComplete
+    ) {
+      autoSubmitFiredRef.current = true;
+      setTimeExpired(true);
+      setShowSubmitModal(true);
+      handleSubmitAssessment();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeftSeconds, submissionComplete]);
 
   // Fetch Assessment Data
   const fetchAssessmentData = async () => {
@@ -90,7 +256,8 @@ const ProRoomAssessment = () => {
             pro_room_questions: [
               {
                 id: "qd-101",
-                question_text: "What is the time complexity of building a heap from an array of N elements?",
+                question_text:
+                  "What is the time complexity of building a heap from an array of N elements?",
                 question_type: "mcq",
                 difficulty: "Medium",
                 points: 10,
@@ -99,11 +266,17 @@ const ProRoomAssessment = () => {
               },
               {
                 id: "qd-102",
-                question_text: "Which data structure is primarily used for breadth-first traversal of a graph?",
+                question_text:
+                  "Which data structure is primarily used for breadth-first traversal of a graph?",
                 question_type: "mcq",
                 difficulty: "Easy",
                 points: 10,
-                options: ["Stack", "Queue", "Binary Search Tree", "Priority Queue"],
+                options: [
+                  "Stack",
+                  "Queue",
+                  "Binary Search Tree",
+                  "Priority Queue",
+                ],
                 correct_answer: "Queue",
               },
             ],
@@ -114,7 +287,8 @@ const ProRoomAssessment = () => {
             pro_room_questions: [
               {
                 id: "qd-201",
-                question_text: "Write a function to find the length of the longest substring without repeating characters.",
+                question_text:
+                  "Write a function to find the length of the longest substring without repeating characters.",
                 description: "Input string `s`. Return integer length.",
                 question_type: "coding",
                 difficulty: "Hard",
@@ -154,7 +328,11 @@ const ProRoomAssessment = () => {
   const handleAnswerSelect = (qId, option) => {
     setAnswers({
       ...answers,
-      [qId]: { ...answers[qId], selected_options: [option], answer_text: option },
+      [qId]: {
+        ...answers[qId],
+        selected_options: [option],
+        answer_text: option,
+      },
     });
   };
 
@@ -170,7 +348,9 @@ const ProRoomAssessment = () => {
     setCodeOutput("Executing code against sample test cases...");
     setTimeout(() => {
       setRunningCode(false);
-      setCodeOutput("✓ Test Case 1 Passed (Output: 3)\n✓ Test Case 2 Passed (Output: 1)\nExecution Time: 12ms | Memory: 14.2 MB");
+      setCodeOutput(
+        "✓ Test Case 1 Passed (Output: 3)\n✓ Test Case 2 Passed (Output: 1)\nExecution Time: 12ms | Memory: 14.2 MB",
+      );
     }, 1200);
   };
 
@@ -186,7 +366,7 @@ const ProRoomAssessment = () => {
           user_id: uid,
           submitted_at: new Date().toISOString(),
           status: "submitted",
-          anti_cheat_logs: [{ tab_switches: tabSwitchCount }],
+          anti_cheat_logs: blurEvents,
         });
       }
 
@@ -202,10 +382,39 @@ const ProRoomAssessment = () => {
     }
   };
 
-  if (loading) {
+  if (loading || tabLocked === null) {
     return (
       <div className="min-h-screen bg-[#080810] flex items-center justify-center">
         <div className="w-10 h-10 border-2 border-t-transparent border-[#00F0FF] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (tabLocked) {
+    return (
+      <div className="min-h-screen bg-[#080810] text-white flex flex-col items-center justify-center px-6 text-center font-sans">
+        <ShieldAlert size={40} className="text-amber-400 mb-4" />
+        <h1 className="text-xl font-black text-white mb-2">
+          Already Open In Another Tab
+        </h1>
+        <p className="text-gray-400 text-sm max-w-sm mb-6">
+          This assessment is currently active in another tab or window. Close it
+          there first, then try again here.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer"
+          >
+            Try Again
+          </button>
+          <button
+            onClick={() => navigate(`/pro-rooms/${id}`)}
+            className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 hover:text-white cursor-pointer"
+          >
+            Back to Room
+          </button>
+        </div>
       </div>
     );
   }
@@ -216,7 +425,13 @@ const ProRoomAssessment = () => {
       <header className="h-16 bg-[#0c0c16] border-b border-white/10 px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(`/pro-rooms/${id}`)}
+            onClick={() => {
+              if (submissionComplete) {
+                navigate(`/pro-rooms/${id}`);
+              } else {
+                setShowExitConfirmModal(true);
+              }
+            }}
             className="text-gray-400 hover:text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
           >
             <ChevronLeft size={16} /> Exit Arena
@@ -229,9 +444,9 @@ const ProRoomAssessment = () => {
 
         {/* Anti-cheat warning & Timer */}
         <div className="flex items-center gap-4">
-          {tabSwitchCount > 0 && (
+          {blurEvents.length > 0 && (
             <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full flex items-center gap-1.5">
-              <ShieldAlert size={13} /> Focus Blur Warnings: {tabSwitchCount}
+              <ShieldAlert size={13} /> Focus Blur Warnings: {blurEvents.length}
             </span>
           )}
 
@@ -241,12 +456,29 @@ const ProRoomAssessment = () => {
 
           <button
             onClick={() => setShowSubmitModal(true)}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 hover:from-[#00F0FF] hover:to-purple-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg"
+            disabled={interactionLocked}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 hover:from-[#00F0FF] hover:to-purple-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send size={13} /> Finish & Submit
           </button>
         </div>
       </header>
+
+      {/* Blur/tab-switch warning banner */}
+      <AnimatePresence>
+        {showBlurWarning && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mx-6 mt-4 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold flex items-center gap-2"
+          >
+            <ShieldAlert size={14} className="shrink-0" /> You left the
+            assessment tab. This has been noted — please stay on this page until
+            you submit.
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Assessment Body */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
@@ -258,10 +490,15 @@ const ProRoomAssessment = () => {
               <button
                 key={sec.id || idx}
                 onClick={() => {
+                  if (interactionLocked) return;
                   setActiveSecIdx(idx);
                   setActiveQIdx(0);
                 }}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  interactionLocked
+                    ? "opacity-40 cursor-not-allowed"
+                    : "cursor-pointer"
+                } ${
                   activeSecIdx === idx
                     ? "bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF]"
                     : "bg-white/5 border border-white/5 text-gray-400 hover:text-white"
@@ -277,10 +514,12 @@ const ProRoomAssessment = () => {
             <div className="space-y-6 flex-1 flex flex-col">
               <div className="flex items-center justify-between border-b border-white/5 pb-3">
                 <span className="text-xs font-mono font-bold text-[#00F0FF]">
-                  Question {activeQIdx + 1} of {currentQuestions.length} ({currentQuestion.points || 10} Points)
+                  Question {activeQIdx + 1} of {currentQuestions.length} (
+                  {currentQuestion.points || 10} Points)
                 </span>
                 <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30">
-                  {currentQuestion.question_type} • {currentQuestion.difficulty || "Medium"}
+                  {currentQuestion.question_type} •{" "}
+                  {currentQuestion.difficulty || "Medium"}
                 </span>
               </div>
 
@@ -298,19 +537,27 @@ const ProRoomAssessment = () => {
               {currentQuestion.question_type === "mcq" && (
                 <div className="space-y-3 pt-2">
                   {(currentQuestion.options || []).map((opt, optIdx) => {
-                    const isSelected = answers[currentQuestion.id]?.selected_options?.includes(opt);
+                    const isSelected =
+                      answers[currentQuestion.id]?.selected_options?.includes(
+                        opt,
+                      );
                     return (
                       <button
                         key={optIdx}
-                        onClick={() => handleAnswerSelect(currentQuestion.id, opt)}
-                        className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between ${
+                        onClick={() =>
+                          handleAnswerSelect(currentQuestion.id, opt)
+                        }
+                        disabled={interactionLocked}
+                        className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
                           isSelected
                             ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]"
                             : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5"
                         }`}
                       >
                         <span>{opt}</span>
-                        {isSelected && <Check size={14} className="text-[#00F0FF]" />}
+                        {isSelected && (
+                          <Check size={14} className="text-[#00F0FF]" />
+                        )}
                       </button>
                     );
                   })}
@@ -322,14 +569,16 @@ const ProRoomAssessment = () => {
                 <div className="space-y-4 flex-1 flex flex-col pt-2">
                   <div className="flex items-center justify-between text-xs font-mono text-gray-400 bg-[#0d0d16] px-4 py-2 rounded-t-xl border border-white/10">
                     <span className="flex items-center gap-1.5">
-                      <Code2 size={14} className="text-[#00F0FF]" /> Solution Editor (JavaScript / Python / C++)
+                      <Code2 size={14} className="text-[#00F0FF]" /> Solution
+                      Editor (JavaScript / Python / C++)
                     </span>
                     <button
                       onClick={handleRunCode}
-                      disabled={runningCode}
-                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                      disabled={runningCode || interactionLocked}
+                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Play size={12} /> {runningCode ? "Running..." : "Run Test Cases"}
+                      <Play size={12} />{" "}
+                      {runningCode ? "Running..." : "Run Test Cases"}
                     </button>
                   </div>
 
@@ -337,17 +586,23 @@ const ProRoomAssessment = () => {
                     rows={10}
                     placeholder="// Write your code solution here..."
                     value={answers[currentQuestion.id]?.code_submission || ""}
-                    onChange={(e) => handleCodeChange(currentQuestion.id, e.target.value)}
-                    className="w-full bg-[#07070e] font-mono text-xs text-green-400 p-4 rounded-b-xl border border-t-0 border-white/10 outline-none focus:border-[#00F0FF] flex-1"
+                    onChange={(e) =>
+                      handleCodeChange(currentQuestion.id, e.target.value)
+                    }
+                    disabled={interactionLocked}
+                    className="w-full bg-[#07070e] font-mono text-xs text-green-400 p-4 rounded-b-xl border border-t-0 border-white/10 outline-none focus:border-[#00F0FF] flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
 
                   {/* Test Execution Output Box */}
                   {codeOutput && (
                     <div className="bg-[#0c0c16] border border-white/10 rounded-xl p-4 font-mono text-xs text-gray-300">
                       <div className="flex items-center gap-1.5 text-gray-500 mb-2">
-                        <Terminal size={13} className="text-[#00F0FF]" /> Execution Log & Output:
+                        <Terminal size={13} className="text-[#00F0FF]" />{" "}
+                        Execution Log & Output:
                       </div>
-                      <pre className="text-xs whitespace-pre-wrap">{codeOutput}</pre>
+                      <pre className="text-xs whitespace-pre-wrap">
+                        {codeOutput}
+                      </pre>
                     </div>
                   )}
                 </div>
@@ -362,7 +617,7 @@ const ProRoomAssessment = () => {
           {/* Bottom Question Navigation Controls */}
           <div className="flex items-center justify-between pt-6 border-t border-white/10 mt-auto">
             <button
-              disabled={activeQIdx === 0}
+              disabled={activeQIdx === 0 || interactionLocked}
               onClick={() => setActiveQIdx(activeQIdx - 1)}
               className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-300 disabled:opacity-30 cursor-pointer flex items-center gap-1"
             >
@@ -370,9 +625,11 @@ const ProRoomAssessment = () => {
             </button>
 
             <button
-              disabled={activeQIdx >= currentQuestions.length - 1}
+              disabled={
+                activeQIdx >= currentQuestions.length - 1 || interactionLocked
+              }
               onClick={() => setActiveQIdx(activeQIdx + 1)}
-              className="px-4 py-2 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer flex items-center gap-1"
+              className="px-4 py-2 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer disabled:opacity-30 flex items-center gap-1"
             >
               Next Question <ChevronRight size={14} />
             </button>
@@ -387,18 +644,27 @@ const ProRoomAssessment = () => {
 
           <div className="grid grid-cols-5 gap-2 mb-6">
             {currentQuestions.map((q, idx) => {
-              const isAnswered = Boolean(answers[q.id]?.answer_text || answers[q.id]?.code_submission);
+              const isAnswered = Boolean(
+                answers[q.id]?.answer_text || answers[q.id]?.code_submission,
+              );
               const isCurrent = idx === activeQIdx;
               return (
                 <button
                   key={q.id || idx}
-                  onClick={() => setActiveQIdx(idx)}
-                  className={`w-10 h-10 rounded-xl text-xs font-mono font-bold flex items-center justify-center transition-all cursor-pointer ${
+                  onClick={() => {
+                    if (interactionLocked) return;
+                    setActiveQIdx(idx);
+                  }}
+                  className={`w-10 h-10 rounded-xl text-xs font-mono font-bold flex items-center justify-center transition-all ${
+                    interactionLocked
+                      ? "opacity-40 cursor-not-allowed"
+                      : "cursor-pointer"
+                  } ${
                     isCurrent
                       ? "ring-2 ring-[#00F0FF] bg-[#00F0FF]/20 text-white"
                       : isAnswered
-                      ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                      : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10"
+                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                        : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10"
                   }`}
                 >
                   {idx + 1}
@@ -409,13 +675,16 @@ const ProRoomAssessment = () => {
 
           <div className="space-y-2 text-[11px] font-mono text-gray-400 pt-4 border-t border-white/5">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-md bg-green-500/30 border border-green-500/50" /> Answered
+              <span className="w-3 h-3 rounded-md bg-green-500/30 border border-green-500/50" />{" "}
+              Answered
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-md bg-white/5 border border-white/10" /> Unanswered
+              <span className="w-3 h-3 rounded-md bg-white/5 border border-white/10" />{" "}
+              Unanswered
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-md bg-[#00F0FF]/20 ring-1 ring-[#00F0FF]" /> Current Selected
+              <span className="w-3 h-3 rounded-md bg-[#00F0FF]/20 ring-1 ring-[#00F0FF]" />{" "}
+              Current Selected
             </div>
           </div>
         </div>
@@ -433,18 +702,39 @@ const ProRoomAssessment = () => {
             >
               {submissionComplete ? (
                 <div className="py-6 space-y-3">
-                  <CheckCircle size={48} className="mx-auto text-green-400 animate-bounce" />
-                  <h3 className="text-xl font-bold text-white">Assessment Submitted!</h3>
+                  <CheckCircle
+                    size={48}
+                    className="mx-auto text-green-400 animate-bounce"
+                  />
+                  <h3 className="text-xl font-bold text-white">
+                    Assessment Submitted!
+                  </h3>
                   <p className="text-xs text-gray-400">
-                    Your answers have been recorded. Redirecting to assessment room...
+                    Your answers have been recorded. Redirecting to assessment
+                    room...
+                  </p>
+                </div>
+              ) : timeExpired ? (
+                <div className="py-6 space-y-3">
+                  <Clock
+                    size={44}
+                    className="mx-auto text-amber-400 animate-pulse"
+                  />
+                  <h3 className="text-xl font-bold text-white">Time's Up!</h3>
+                  <p className="text-xs text-gray-400">
+                    Your time has expired. Submitting your answers automatically
+                    — please wait...
                   </p>
                 </div>
               ) : (
                 <>
                   <Send size={40} className="mx-auto text-[#00F0FF] mb-3" />
-                  <h3 className="text-lg font-bold text-white mb-2">Submit Pro Assessment?</h3>
+                  <h3 className="text-lg font-bold text-white mb-2">
+                    Submit Pro Assessment?
+                  </h3>
                   <p className="text-xs text-gray-400 mb-6">
-                    Are you sure you want to finish and submit your answers? You cannot alter your submissions after confirming.
+                    Are you sure you want to finish and submit your answers? You
+                    cannot alter your submissions after confirming.
                   </p>
 
                   <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
@@ -464,6 +754,47 @@ const ProRoomAssessment = () => {
                   </div>
                 </>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Exit Confirmation Modal — Exit Arena no longer navigates away silently */}
+      <AnimatePresence>
+        {showExitConfirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md bg-[#0d0d16] border border-amber-500/30 rounded-3xl p-6 shadow-2xl text-center"
+            >
+              <AlertTriangle
+                size={40}
+                className="mx-auto text-amber-400 mb-3"
+              />
+              <h3 className="text-lg font-bold text-white mb-2">
+                Leave Without Submitting?
+              </h3>
+              <p className="text-xs text-gray-400 mb-6">
+                Your assessment has not been submitted yet. If you leave now,
+                your answers will not be saved.
+              </p>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  onClick={() => setShowExitConfirmModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 cursor-pointer"
+                >
+                  Stay & Continue
+                </button>
+                <button
+                  onClick={() => navigate(`/pro-rooms/${id}`)}
+                  className="px-6 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold hover:bg-red-500/30 cursor-pointer"
+                >
+                  Leave Anyway
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
