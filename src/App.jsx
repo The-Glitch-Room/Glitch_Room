@@ -291,8 +291,8 @@ const App = () => {
   }, []);
 
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <ScrollToHashElement />
         <DailyFactBubble />
         {showSplash ? (
@@ -303,8 +303,8 @@ const App = () => {
             <BottomNav />
           </div>
         )}
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 };
 

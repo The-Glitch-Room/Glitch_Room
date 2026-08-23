@@ -101,7 +101,11 @@ const AuthModal = ({ isOpen, onClose }) => {
       window.dispatchEvent(new Event("points_updated"));
       resetState();
       onClose();
-      navigate("/create-profile");
+      try {
+        navigate("/create-profile");
+      } catch (navErr) {
+        window.location.href = "/create-profile";
+      }
     }
   };
 
