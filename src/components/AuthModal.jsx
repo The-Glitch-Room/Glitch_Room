@@ -146,7 +146,7 @@ const AuthModal = ({ isOpen, onClose }) => {
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 30, opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
-            className="relative w-[90%] md:w-[420px] max-h-[85vh] max-h-[85dvh] overflow-y-auto bg-[#0a0a0c] border border-white/8 rounded-2xl shadow-2xl p-6 md:p-8"
+            className="relative w-[90%] md:w-[420px] max-h-[90vh] max-h-[90dvh] overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden bg-[#0a0a0c] border border-white/8 rounded-2xl shadow-2xl p-5 md:p-7"
           >
             {/* Top accent */}
             <div
@@ -188,7 +188,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                     <h2 className="text-2xl font-black text-white text-center mb-1">
                       Reset Password
                     </h2>
-                    <p className="text-gray-500 text-sm text-center mb-6">
+                    <p className="text-gray-500 text-sm text-center mb-4">
                       Enter your email and we'll send you a link to reset your
                       password.
                     </p>
@@ -293,7 +293,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                     </p>
 
                     {/* Tab switcher */}
-                    <div className="flex gap-1 p-1 bg-white/[0.04] border border-white/5 rounded-xl mb-6">
+                    <div className="flex gap-1 p-1 bg-white/[0.04] border border-white/5 rounded-xl mb-4">
                       {["login", "signup"].map((v) => (
                         <button
                           key={v}
