@@ -94,8 +94,8 @@ const Footer = () => {
 
               {/* Newsletter Subscriber Box */}
               <form onSubmit={handleSubscribe} className="mt-8 mb-8 max-w-md">
-                <p className="text-sm font-bold text-white mb-2.5 flex items-center gap-1.5">
-                  <Zap size={15} className="text-[#00F0FF]" /> Stay in the loop
+                <p className="text-sm font-bold text-white mb-2.5">
+                  Stay in the loop
                 </p>
                 <div className="flex items-center gap-2">
                   <input
@@ -110,9 +110,9 @@ const Footer = () => {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-[#00F0FF] text-black font-extrabold text-sm flex items-center gap-1.5 cursor-pointer hover:bg-[#38bdf8] transition-all shadow-[0_0_15px_rgba(0,240,255,0.3)] shrink-0"
+                    className="px-5 py-2.5 rounded-xl bg-[#00F0FF] text-black font-extrabold text-sm flex items-center justify-center cursor-pointer hover:bg-[#38bdf8] transition-all shadow-[0_0_15px_rgba(0,240,255,0.3)] shrink-0"
                   >
-                    Subscribe <Send size={13} />
+                    Subscribe
                   </motion.button>
                 </div>
                 {subscribed && (
@@ -144,17 +144,18 @@ const Footer = () => {
 
           {/* Links Columns (7 cols) */}
           <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-8">
-            {/* Column 1: Explore & Play */}
+            {/* Column 1: EXPLORE */}
             <div>
-              <h4 className="text-sm font-extrabold text-[#00F0FF] uppercase tracking-wider mb-4 flex items-center gap-1">
-                Explore & Play
+              <h4 className="text-sm font-extrabold text-[#00F0FF] uppercase tracking-wider mb-4">
+                EXPLORE
               </h4>
               <ul className="space-y-3 text-sm font-medium">
                 {[
-                  { label: "Explore Glitches", path: "/explore" },
+                  { label: "All Challenges", path: "/explore" },
                   { label: "Game Arena", path: "/game-arena" },
                   { label: "Creator Rooms", path: "/creator-rooms" },
-                  { label: "Community Feed", path: "/community" },
+                  { label: "Pro Rooms", path: "/pro-rooms" },
+                  { label: "Community", path: "/community" },
                   { label: "Terminal Wall", path: "/terminal-wall" },
                 ].map((link, i) => (
                   <li key={i}>
@@ -169,10 +170,10 @@ const Footer = () => {
               </ul>
             </div>
 
-            {/* Column 2: Rewards & Earn */}
+            {/* Column 2: REWARDS */}
             <div>
               <h4 className="text-sm font-extrabold text-[#FF00C8] uppercase tracking-wider mb-4">
-                Rewards & Earn
+                REWARDS
               </h4>
               <ul className="space-y-3 text-sm font-medium">
                 {[
@@ -181,9 +182,9 @@ const Footer = () => {
                   <li key={i}>
                     <Link
                       to={link.path}
-                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-300 font-semibold text-[#00F0FF]"
+                      className="hover:text-white hover:translate-x-1 transition-all inline-block text-gray-300"
                     >
-                      {link.label} →
+                      {link.label}
                     </Link>
                   </li>
                 ))}
