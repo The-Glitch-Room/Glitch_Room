@@ -12,7 +12,7 @@ import {
 } from "react-icons/fi";
 import { Zap } from "lucide-react";
 import { supabase } from "../supabaseClient";
-import { getLevelFromXP } from "../utils/pointsHelper";
+import { fetchPoints, getLevelFromXP } from "../utils/pointsHelper";
 
 const dropdownLinks = [
   { to: "/profile", icon: FiUser, label: "Your Profile" },

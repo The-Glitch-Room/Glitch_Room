@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { supabase } from "../supabaseClient";
 import Navbar from "./Navbar";
 import SharedSidebar from "./SharedSidebar";
-import { LEVEL_THRESHOLDS } from "../utils/pointsHelper";
+import { fetchPoints, LEVEL_THRESHOLDS } from "../utils/pointsHelper";
 import {
   Gift,
   Star,

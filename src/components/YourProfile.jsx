@@ -17,7 +17,7 @@ import Navbar from "./Navbar";
 import GlitchBackground from "./GlitchBackground";
 import SharedSidebar from "./SharedSidebar";
 import Footer from "./Footer";
-import { getLevelFromXP, getUserTotalPoints } from "../utils/pointsHelper";
+import { getLevelFromXP, fetchPoints } from "../utils/pointsHelper";
 
 // ── Preset Banners Config ───────────────────────────────────────────────────
 const PRESET_BANNERS = [
@@ -274,7 +274,7 @@ export default function YourProfile() {
       const [profileRes, totalPoints, postsRes, commentsRes, submissionsRes, activityRes] =
         await Promise.all([
           supabase.from("profiles").select("*").eq("id", userId).single(),
-          getUserTotalPoints(userId),
+          fetchPoints(userId),
           supabase
             .from("community_posts")
             .select("*")
