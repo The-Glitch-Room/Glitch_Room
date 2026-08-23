@@ -14,6 +14,7 @@ import {
 import { FaGithub, FaTwitter, FaDiscord, FaLinkedin } from "react-icons/fa";
 import { Zap, Trophy, Shield, Sparkles, ArrowRight } from "lucide-react";
 import Navbar from "./Navbar";
+import GlitchBackground from "./GlitchBackground";
 import SharedSidebar from "./SharedSidebar";
 import Footer from "./Footer";
 import { getLevelFromXP } from "../utils/pointsHelper";
@@ -277,7 +278,7 @@ export default function YourProfile() {
             .from("user_points")
             .select("points")
             .eq("user_id", userId)
-            .single(),
+            .maybeSingle(),
           supabase
             .from("community_posts")
             .select("*")
@@ -336,13 +337,25 @@ export default function YourProfile() {
         ? rawHobbies.split(",").map((s) => s.trim()).filter(Boolean)
         : [];
 
+      const submissions = submissionsRes.data || [];
+      const activityData = activityRes.data || [];
+      const solvedPointsSum = submissions.reduce((sum, s) => sum + (s.points_earned || 0), 0);
+      const bonusPointsSum = activityData.filter(a => a.type === "bonus" || a.type === "referral" || a.type === "checkin").reduce((sum, a) => sum + (a.points || 0), 0);
+      const calculatedTotal = solvedPointsSum + bonusPointsSum;
+
+      const totalPoints = Math.max(
+        pointsRes.data?.points || 0,
+        pd?.points || 0,
+        calculatedTotal
+      );
+
       setProfile({
         ...pd,
         tagline: pd?.tagline || pd?.headline || userMeta?.tagline || cachedTagline || "",
         bio: pd?.bio || userMeta?.bio || "",
         hobbies: parsedHobbies,
         banner_url: bannerUrl,
-        points: pointsRes.data?.points || 0,
+        points: totalPoints,
       });
 
       // Combine user's real posts and comments into userDiscussions list
@@ -375,7 +388,6 @@ export default function YourProfile() {
       setUserPosts(discussions);
 
       // Build real solved glitches directly from database records
-      const submissions = submissionsRes.data || [];
       const activities = (activityRes.data || []).filter(
         (a) =>
           a.type !== "bonus" &&
@@ -585,6 +597,15 @@ export default function YourProfile() {
 
   useEffect(() => {
     fetchProfile();
+    const handleSync = () => fetchProfile();
+    window.addEventListener("gbits_updated", handleSync);
+    window.addEventListener("points_updated", handleSync);
+    window.addEventListener("profile_updated", handleSync);
+    return () => {
+      window.removeEventListener("gbits_updated", handleSync);
+      window.removeEventListener("points_updated", handleSync);
+      window.removeEventListener("profile_updated", handleSync);
+    };
   }, []);
 
   useEffect(() => {
@@ -767,7 +788,8 @@ export default function YourProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between">
+    <div className="min-h-screen bg-[#070709] text-white relative flex flex-col justify-between overflow-hidden">
+      <GlitchBackground />
       <Navbar />
 
       {/* ── Edit Profile Modal (Horizontal 2-Column + Banner Customizer) ── */}
