@@ -32,6 +32,17 @@ const ProRoomDashboard = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // This page is a host-only control center. isHost gates the render below,
+  // but note: this ONLY stops the page from rendering — it is not a security
+  // boundary by itself. The real boundary has to be Supabase RLS policies on
+  // pro_rooms / pro_room_announcements (see the SQL provided alongside this
+  // fix), since anyone can call the same supabase client directly from
+  // devtools regardless of what this component renders.
+  const isHost = Boolean(
+    currentUserId && room && room.host_id === currentUserId,
+  );
 
   const [activeTab, setActiveTab] = useState("overview"); // 'overview', 'candidates', 'grading', 'leaderboard', 'announcements', 'results'
   const [annTitle, setAnnTitle] = useState("");
@@ -47,6 +58,10 @@ const ProRoomDashboard = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id || null;
+      setCurrentUserId(uid);
+
       // 1. Fetch Room Metadata
       const { data: roomData } = await supabase
         .from("pro_rooms")
@@ -55,6 +70,13 @@ const ProRoomDashboard = () => {
         .maybeSingle();
 
       if (roomData) setRoom(roomData);
+
+      // Not the host — stop here. Do not fetch registrations/submissions/
+      // leaderboard, so this data never even lands in memory for a non-host.
+      if (!roomData || !uid || roomData.host_id !== uid) {
+        setLoading(false);
+        return;
+      }
 
       // 2. Fetch Registrations
       const { data: regData } = await supabase
@@ -97,7 +119,7 @@ const ProRoomDashboard = () => {
   }, [id]);
 
   const handlePostAnnouncement = async () => {
-    if (!annTitle || !annContent) return;
+    if (!isHost || !annTitle || !annContent) return;
     try {
       const { data: authData } = await supabase.auth.getUser();
       await supabase.from("pro_room_announcements").insert({
@@ -117,6 +139,7 @@ const ProRoomDashboard = () => {
   };
 
   const handlePublishResults = async () => {
+    if (!isHost) return;
     setPublishing(true);
     try {
       await supabase
@@ -141,9 +164,39 @@ const ProRoomDashboard = () => {
     );
   }
 
+  if (!isHost) {
+    return (
+      <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+          <ShieldCheck size={40} className="text-red-400 mb-4" />
+          <h1 className="text-xl font-black text-white mb-2">
+            Host Access Only
+          </h1>
+          <p className="text-gray-400 text-sm max-w-sm mb-6">
+            This control center is only available to the organizer who created
+            this room.
+          </p>
+          <button
+            onClick={() => navigate(`/pro-rooms/${id}`)}
+            className="px-5 py-2.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer"
+          >
+            Back to Room
+          </button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   const totalRegs = registrations.length;
   const totalSubs = submissions.length;
-  const avgScore = totalSubs > 0 ? Math.round(submissions.reduce((s, b) => s + (b.total_score || 0), 0) / totalSubs) : 0;
+  const avgScore =
+    totalSubs > 0
+      ? Math.round(
+          submissions.reduce((s, b) => s + (b.total_score || 0), 0) / totalSubs,
+        )
+      : 0;
 
   return (
     <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20 relative overflow-hidden">
@@ -176,7 +229,10 @@ const ProRoomDashboard = () => {
               {room?.name || "Pro Room Dashboard"}
             </h1>
             <p className="text-xs text-gray-400 mt-1">
-              {room?.org_name} • Status: <span className="text-[#00F0FF] font-bold uppercase">{room?.status || "Live"}</span>
+              {room?.org_name} • Status:{" "}
+              <span className="text-[#00F0FF] font-bold uppercase">
+                {room?.status || "Live"}
+              </span>
             </p>
           </div>
 
@@ -192,7 +248,9 @@ const ProRoomDashboard = () => {
               disabled={publishing || room?.status === "results_published"}
               className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 text-white text-xs font-bold shadow-lg shadow-[#00F0FF]/20 disabled:opacity-50"
             >
-              {room?.status === "results_published" ? "✓ Results Published" : "Publish Results 🏆"}
+              {room?.status === "results_published"
+                ? "✓ Results Published"
+                : "Publish Results 🏆"}
             </button>
           </div>
         </div>
@@ -255,21 +313,40 @@ const ProRoomDashboard = () => {
         {/* Tab Content: Candidates */}
         {activeTab === "candidates" && (
           <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6">
-            <h3 className="text-base font-bold text-white mb-4">Registered Candidates</h3>
+            <h3 className="text-base font-bold text-white mb-4">
+              Registered Candidates
+            </h3>
             {registrations.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 text-xs">No candidate registrations recorded yet.</div>
+              <div className="text-center py-12 text-gray-500 text-xs">
+                No candidate registrations recorded yet.
+              </div>
             ) : (
               <div className="divide-y divide-white/5">
                 {registrations.map((r, idx) => (
-                  <div key={r.id || idx} className="py-3 flex items-center justify-between text-xs">
+                  <div
+                    key={r.id || idx}
+                    className="py-3 flex items-center justify-between text-xs"
+                  >
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-gray-500">#{idx + 1}</span>
+                      <span className="font-mono text-gray-500">
+                        #{idx + 1}
+                      </span>
                       <div>
-                        <span className="text-white font-bold block">{r.profiles?.full_name || r.profiles?.username || "Candidate"}</span>
-                        <span className="text-[10px] text-gray-500">{r.team_name ? `Team: ${r.team_name}` : "Individual Candidate"}</span>
+                        <span className="text-white font-bold block">
+                          {r.profiles?.full_name ||
+                            r.profiles?.username ||
+                            "Candidate"}
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          {r.team_name
+                            ? `Team: ${r.team_name}`
+                            : "Individual Candidate"}
+                        </span>
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-bold text-emerald-400 uppercase">{r.status || "Registered"}</span>
+                    <span className="text-xs font-mono font-bold text-emerald-400 uppercase">
+                      {r.status || "Registered"}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -282,7 +359,8 @@ const ProRoomDashboard = () => {
           <div className="space-y-6">
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 space-y-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Megaphone size={18} className="text-[#00F0FF]" /> Post Broadcast Announcement
+                <Megaphone size={18} className="text-[#00F0FF]" /> Post
+                Broadcast Announcement
               </h3>
               <input
                 type="text"

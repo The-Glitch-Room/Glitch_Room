@@ -95,6 +95,9 @@ const CreateProRoomPage = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [toastMsg, setToastMsg] = useState("");
+  // Only meaningful when editRoomId is present: null = not checked yet,
+  // true = confirmed the signed-in user owns this room, false = blocked.
+  const [editAccessAllowed, setEditAccessAllowed] = useState(null);
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -105,7 +108,8 @@ const CreateProRoomPage = () => {
   const [basicInfo, setBasicInfo] = useState({
     name: "AI Innovation Hackathon 2026",
     event_type: "Hackathon",
-    short_description: "Build innovative AI solutions for real-world industry problems.",
+    short_description:
+      "Build innovative AI solutions for real-world industry problems.",
     category: "AI / Machine Learning",
     detailed_description:
       "A 48-hour virtual hackathon where innovators, developers, and dreamers come together to build AI-powered solutions for industries such as healthcare, education, sustainability, and more.",
@@ -113,8 +117,10 @@ const CreateProRoomPage = () => {
     org_email: "ananya.sharma@technova.edu",
     organizer_name: "Dr. Ananya Sharma",
     website: "https://technova.edu",
-    org_logo: "https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=120",
-    cover_image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
+    org_logo:
+      "https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=120",
+    cover_image:
+      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
   });
 
   // STEP 2: Schedule State
@@ -144,8 +150,18 @@ const CreateProRoomPage = () => {
     exp_level: "All Levels",
     require_application: true,
     custom_app_questions: [
-      { id: "q1", question: "Do I get a participation certificate?", answer: "Yes, all eligible candidates who complete the assessment will receive a verified certificate." },
-      { id: "q2", question: "Where do I submit my code?", answer: "Submit your solution directly inside the timed assessment section environment." },
+      {
+        id: "q1",
+        question: "Do I get a participation certificate?",
+        answer:
+          "Yes, all eligible candidates who complete the assessment will receive a verified certificate.",
+      },
+      {
+        id: "q2",
+        question: "Where do I submit my code?",
+        answer:
+          "Submit your solution directly inside the timed assessment section environment.",
+      },
     ],
   });
 
@@ -161,11 +177,22 @@ const CreateProRoomPage = () => {
     if (editRoomId) {
       const fetchExistingRoom = async () => {
         try {
+          const { data: authData } = await supabase.auth.getUser();
+          const uid = authData?.user?.id || null;
+
           const { data: rData } = await supabase
             .from("pro_rooms")
             .select("*")
             .eq("id", editRoomId)
             .maybeSingle();
+
+          // Only the room's host may load it into the edit form. Bail out
+          // before populating any state with another organizer's data.
+          if (!rData || !uid || rData.host_id !== uid) {
+            setEditAccessAllowed(false);
+            return;
+          }
+          setEditAccessAllowed(true);
 
           if (rData) {
             setBasicInfo({
@@ -184,14 +211,24 @@ const CreateProRoomPage = () => {
 
             if (rData.reg_start_at && rData.event_end_at) {
               setSchedule({
-                reg_start_at: rData.reg_start_at ? rData.reg_start_at.slice(0, 16) : "",
-                reg_end_at: rData.reg_end_at ? rData.reg_end_at.slice(0, 16) : "",
-                event_start_at: rData.event_start_at ? rData.event_start_at.slice(0, 16) : "",
-                event_end_at: rData.event_end_at ? rData.event_end_at.slice(0, 16) : "",
+                reg_start_at: rData.reg_start_at
+                  ? rData.reg_start_at.slice(0, 16)
+                  : "",
+                reg_end_at: rData.reg_end_at
+                  ? rData.reg_end_at.slice(0, 16)
+                  : "",
+                event_start_at: rData.event_start_at
+                  ? rData.event_start_at.slice(0, 16)
+                  : "",
+                event_end_at: rData.event_end_at
+                  ? rData.event_end_at.slice(0, 16)
+                  : "",
                 timezone: rData.timezone || "IST (UTC+5:30)",
                 allow_late_entry: rData.allow_late_entry ?? true,
                 mode: rData.mode || "Online",
-                submission_deadline: rData.event_end_at ? rData.event_end_at.slice(0, 16) : "",
+                submission_deadline: rData.event_end_at
+                  ? rData.event_end_at.slice(0, 16)
+                  : "",
               });
             }
 
@@ -220,7 +257,8 @@ const CreateProRoomPage = () => {
               partial_scoring: rData.partial_scoring ?? true,
               tie_breaker_rule: rData.tie_breaker_rule || "score_speed",
               gbits_prize_pool: rData.gbits_prize_pool || 2500,
-              has_participation_certificate: rData.has_participation_certificate ?? true,
+              has_participation_certificate:
+                rData.has_participation_certificate ?? true,
               has_winner_certificate: rData.has_winner_certificate ?? true,
               has_achievement_badge: rData.has_achievement_badge ?? true,
               prize_details: rData.prize_details || "",
@@ -253,7 +291,7 @@ const CreateProRoomPage = () => {
                   correct_answer: q.correct_answer || "",
                   test_cases: q.test_cases || [],
                 })),
-              }))
+              })),
             );
           }
         } catch (err) {
@@ -277,7 +315,8 @@ const CreateProRoomPage = () => {
       questions: [
         {
           id: "q-1",
-          question_text: "What is the primary function of self-attention mechanisms in Transformer architectures?",
+          question_text:
+            "What is the primary function of self-attention mechanisms in Transformer architectures?",
           question_type: "mcq",
           difficulty: "Medium",
           points: 50,
@@ -287,7 +326,8 @@ const CreateProRoomPage = () => {
             "Compress embeddings into binary trees",
             "Calculate learning rate decay",
           ],
-          correct_answer: "Compute weights dynamically between sequence tokens regardless of distance",
+          correct_answer:
+            "Compute weights dynamically between sequence tokens regardless of distance",
         },
       ],
     },
@@ -301,12 +341,16 @@ const CreateProRoomPage = () => {
       questions: [
         {
           id: "q-2",
-          question_text: "Implement an optimal real-time token bucket rate limiter for API requests.",
+          question_text:
+            "Implement an optimal real-time token bucket rate limiter for API requests.",
           question_type: "coding",
           difficulty: "Hard",
           points: 100,
           test_cases: [
-            { input: '{"capacity": 10, "refill_rate": 2}', expected_output: "true" },
+            {
+              input: '{"capacity": 10, "refill_rate": 2}',
+              expected_output: "true",
+            },
           ],
         },
       ],
@@ -324,7 +368,8 @@ const CreateProRoomPage = () => {
     has_participation_certificate: true,
     has_winner_certificate: true,
     has_achievement_badge: true,
-    prize_details: "Winner: Certificate + Winner Badge + 1,500 gBits | Runner-Up: 1,000 gBits | All: Participation Certificate",
+    prize_details:
+      "Winner: Certificate + Winner Badge + 1,500 gBits | Runner-Up: 1,000 gBits | All: Participation Certificate",
   });
 
   // Calculate duration in hours
@@ -350,11 +395,26 @@ const CreateProRoomPage = () => {
       const regStart = new Date(schedule.reg_start_at);
       const regEnd = new Date(schedule.reg_end_at);
 
-      if (now >= start && now <= end) return { label: "🔴 LIVE ASSESSMENT", bg: "bg-red-500/10 text-red-400 border-red-500/30" };
-      if (now >= regStart && now <= regEnd) return { label: "Registration Open", bg: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" };
-      if (now < start) return { label: "Upcoming", bg: "bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/30" };
+      if (now >= start && now <= end)
+        return {
+          label: "🔴 LIVE ASSESSMENT",
+          bg: "bg-red-500/10 text-red-400 border-red-500/30",
+        };
+      if (now >= regStart && now <= regEnd)
+        return {
+          label: "Registration Open",
+          bg: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+        };
+      if (now < start)
+        return {
+          label: "Upcoming",
+          bg: "bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/30",
+        };
     } catch (e) {}
-    return { label: "Upcoming", bg: "bg-purple-500/10 text-purple-300 border-purple-500/30" };
+    return {
+      label: "Upcoming",
+      bg: "bg-purple-500/10 text-purple-300 border-purple-500/30",
+    };
   };
 
   // Handlers for dynamic Host FAQ / Common Questions
@@ -371,7 +431,9 @@ const CreateProRoomPage = () => {
   const removeAppQuestion = (qId) => {
     setEligibility({
       ...eligibility,
-      custom_app_questions: eligibility.custom_app_questions.filter((q) => q.id !== qId),
+      custom_app_questions: eligibility.custom_app_questions.filter(
+        (q) => q.id !== qId,
+      ),
     });
   };
 
@@ -417,7 +479,7 @@ const CreateProRoomPage = () => {
           };
         }
         return s;
-      })
+      }),
     );
   };
 
@@ -431,7 +493,7 @@ const CreateProRoomPage = () => {
           };
         }
         return s;
-      })
+      }),
     );
   };
 
@@ -454,10 +516,16 @@ const CreateProRoomPage = () => {
         throw new Error("You must be signed in to publish a Pro Room.");
       }
 
+      if (editRoomId && !editAccessAllowed) {
+        throw new Error("You do not have permission to edit this room.");
+      }
+
       // Calculate total points
       const totalPoints = sections.reduce(
-        (sum, sec) => sum + sec.questions.reduce((qSum, q) => qSum + Number(q.points || 0), 0),
-        0
+        (sum, sec) =>
+          sum +
+          sec.questions.reduce((qSum, q) => qSum + Number(q.points || 0), 0),
+        0,
       );
 
       const roomPayload = {
@@ -513,8 +581,14 @@ const CreateProRoomPage = () => {
         if (roomErr) throw roomErr;
 
         // Clean up old sections and questions for this room
-        await supabase.from("pro_room_questions").delete().eq("room_id", editRoomId);
-        await supabase.from("pro_room_sections").delete().eq("room_id", editRoomId);
+        await supabase
+          .from("pro_room_questions")
+          .delete()
+          .eq("room_id", editRoomId);
+        await supabase
+          .from("pro_room_sections")
+          .delete()
+          .eq("room_id", editRoomId);
       } else {
         const { data: createdRoom, error: roomErr } = await supabase
           .from("pro_rooms")
@@ -560,7 +634,11 @@ const CreateProRoomPage = () => {
         }
       }
 
-      showToast(editRoomId ? "🚀 Pro Room updated successfully!" : "🚀 Pro Room published successfully!");
+      showToast(
+        editRoomId
+          ? "🚀 Pro Room updated successfully!"
+          : "🚀 Pro Room published successfully!",
+      );
       setTimeout(() => {
         navigate(`/pro-rooms/${roomId}`);
       }, 1200);
@@ -583,6 +661,27 @@ const CreateProRoomPage = () => {
 
   const statusBadge = getComputedStatusBadge();
   const durationText = calculateDurationHours();
+
+  if (editRoomId && editAccessAllowed === false) {
+    return (
+      <div className="min-h-screen bg-[#080810] text-white flex flex-col items-center justify-center px-6 text-center font-sans">
+        <ShieldCheck size={40} className="text-red-400 mb-4" />
+        <h1 className="text-xl font-black text-white mb-2">
+          You can't edit this room
+        </h1>
+        <p className="text-gray-400 text-sm max-w-sm mb-6">
+          Only the organizer who created this Pro Room can open it in the
+          editor.
+        </p>
+        <button
+          onClick={() => navigate("/pro-rooms")}
+          className="px-5 py-2.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer"
+        >
+          Back to Pro Rooms
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20 relative overflow-hidden">
@@ -639,8 +738,8 @@ const CreateProRoomPage = () => {
                         isActive
                           ? "bg-[#FF00C8] text-white ring-4 ring-[#FF00C8]/20 shadow-lg shadow-[#FF00C8]/30"
                           : isDone
-                          ? "bg-green-500/20 text-green-400 border border-green-500/40"
-                          : "bg-white/5 text-gray-500 border border-white/10 group-hover:text-gray-300"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/40"
+                            : "bg-white/5 text-gray-500 border border-white/10 group-hover:text-gray-300"
                       }`}
                     >
                       {isDone ? "✓" : s.num}
@@ -650,13 +749,15 @@ const CreateProRoomPage = () => {
                         isActive
                           ? "text-white font-extrabold"
                           : isDone
-                          ? "text-gray-300"
-                          : "text-gray-500 group-hover:text-gray-400"
+                            ? "text-gray-300"
+                            : "text-gray-500 group-hover:text-gray-400"
                       }`}
                     >
                       {s.label}
                     </span>
-                    {s.num < 6 && <span className="text-gray-700 text-xs mx-1">—</span>}
+                    {s.num < 6 && (
+                      <span className="text-gray-700 text-xs mx-1">—</span>
+                    )}
                   </button>
                 );
               })}
@@ -666,7 +767,9 @@ const CreateProRoomPage = () => {
             <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
               <button
                 type="button"
-                onClick={() => showToast("💾 Pro Room configuration saved as draft!")}
+                onClick={() =>
+                  showToast("💾 Pro Room configuration saved as draft!")
+                }
                 className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
                 <FiSave size={13} /> Save as Draft
@@ -697,7 +800,9 @@ const CreateProRoomPage = () => {
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-black text-white">Basic Information</h2>
+                  <h2 className="text-xl font-black text-white">
+                    Basic Information
+                  </h2>
                   <p className="text-xs text-gray-400 mt-1">
                     Provide the essential details about your professional event.
                   </p>
@@ -723,7 +828,9 @@ const CreateProRoomPage = () => {
                         placeholder="e.g. AI Innovation Hackathon 2026"
                         maxLength={100}
                         value={basicInfo.name}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, name: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({ ...basicInfo, name: e.target.value })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -734,7 +841,12 @@ const CreateProRoomPage = () => {
                       </label>
                       <select
                         value={basicInfo.event_type}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, event_type: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            event_type: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       >
                         {EVENT_TYPES.map((t) => (
@@ -761,7 +873,12 @@ const CreateProRoomPage = () => {
                         placeholder="Build innovative AI solutions for real-world problems."
                         maxLength={150}
                         value={basicInfo.short_description}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, short_description: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            short_description: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -772,7 +889,12 @@ const CreateProRoomPage = () => {
                       </label>
                       <select
                         value={basicInfo.category}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, category: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            category: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       >
                         {CATEGORIES.map((c) => (
@@ -798,7 +920,12 @@ const CreateProRoomPage = () => {
                       placeholder="Comprehensive details, guidelines, rules, prerequisites..."
                       maxLength={1000}
                       value={basicInfo.detailed_description}
-                      onChange={(e) => setBasicInfo({ ...basicInfo, detailed_description: e.target.value })}
+                      onChange={(e) =>
+                        setBasicInfo({
+                          ...basicInfo,
+                          detailed_description: e.target.value,
+                        })
+                      }
                       className="w-full bg-[#06060c] border border-white/10 rounded-xl p-4 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                     />
                   </div>
@@ -817,7 +944,12 @@ const CreateProRoomPage = () => {
                         type="text"
                         placeholder="TechNova University"
                         value={basicInfo.org_name}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, org_name: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            org_name: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -830,7 +962,12 @@ const CreateProRoomPage = () => {
                         type="text"
                         placeholder="Dr. Ananya Sharma"
                         value={basicInfo.organizer_name}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, organizer_name: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            organizer_name: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -843,7 +980,12 @@ const CreateProRoomPage = () => {
                         type="email"
                         placeholder="ananya.sharma@technova.edu"
                         value={basicInfo.org_email}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, org_email: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            org_email: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -856,7 +998,12 @@ const CreateProRoomPage = () => {
                         type="text"
                         placeholder="https://technova.edu"
                         value={basicInfo.website}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, website: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            website: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -885,7 +1032,12 @@ const CreateProRoomPage = () => {
                           type="text"
                           placeholder="Paste Logo Image URL..."
                           value={basicInfo.org_logo}
-                          onChange={(e) => setBasicInfo({ ...basicInfo, org_logo: e.target.value })}
+                          onChange={(e) =>
+                            setBasicInfo({
+                              ...basicInfo,
+                              org_logo: e.target.value,
+                            })
+                          }
                           className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                         />
                       </div>
@@ -900,7 +1052,12 @@ const CreateProRoomPage = () => {
                         type="text"
                         placeholder="Paste Cover Banner URL..."
                         value={basicInfo.cover_image}
-                        onChange={(e) => setBasicInfo({ ...basicInfo, cover_image: e.target.value })}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            cover_image: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -913,7 +1070,9 @@ const CreateProRoomPage = () => {
             {currentStep === 2 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-black text-white">Event Schedule</h2>
+                  <h2 className="text-xl font-black text-white">
+                    Event Schedule
+                  </h2>
                   <p className="text-xs text-gray-400 mt-1">
                     Configure event timelines, timezone, and duration.
                   </p>
@@ -928,7 +1087,12 @@ const CreateProRoomPage = () => {
                       <input
                         type="datetime-local"
                         value={schedule.reg_start_at}
-                        onChange={(e) => setSchedule({ ...schedule, reg_start_at: e.target.value })}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            reg_start_at: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -940,7 +1104,12 @@ const CreateProRoomPage = () => {
                       <input
                         type="datetime-local"
                         value={schedule.reg_end_at}
-                        onChange={(e) => setSchedule({ ...schedule, reg_end_at: e.target.value })}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            reg_end_at: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -952,7 +1121,12 @@ const CreateProRoomPage = () => {
                       <input
                         type="datetime-local"
                         value={schedule.event_start_at}
-                        onChange={(e) => setSchedule({ ...schedule, event_start_at: e.target.value })}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            event_start_at: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -964,7 +1138,12 @@ const CreateProRoomPage = () => {
                       <input
                         type="datetime-local"
                         value={schedule.event_end_at}
-                        onChange={(e) => setSchedule({ ...schedule, event_end_at: e.target.value })}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            event_end_at: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -978,7 +1157,9 @@ const CreateProRoomPage = () => {
                       <input
                         type="text"
                         value={schedule.timezone}
-                        onChange={(e) => setSchedule({ ...schedule, timezone: e.target.value })}
+                        onChange={(e) =>
+                          setSchedule({ ...schedule, timezone: e.target.value })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -989,7 +1170,9 @@ const CreateProRoomPage = () => {
                       </label>
                       <select
                         value={schedule.mode}
-                        onChange={(e) => setSchedule({ ...schedule, mode: e.target.value })}
+                        onChange={(e) =>
+                          setSchedule({ ...schedule, mode: e.target.value })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       >
                         <option value="Online">Online / Virtual</option>
@@ -1018,9 +1201,12 @@ const CreateProRoomPage = () => {
             {currentStep === 3 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-black text-white">Eligibility & Participation</h2>
+                  <h2 className="text-xl font-black text-white">
+                    Eligibility & Participation
+                  </h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Define participation rules, team limits, and custom registration questions.
+                    Define participation rules, team limits, and custom
+                    registration questions.
                   </p>
                 </div>
 
@@ -1032,7 +1218,12 @@ const CreateProRoomPage = () => {
                       </label>
                       <select
                         value={eligibility.access_type}
-                        onChange={(e) => setEligibility({ ...eligibility, access_type: e.target.value })}
+                        onChange={(e) =>
+                          setEligibility({
+                            ...eligibility,
+                            access_type: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       >
                         <option value="public">Public (Open to All)</option>
@@ -1047,7 +1238,12 @@ const CreateProRoomPage = () => {
                       <input
                         type="number"
                         value={eligibility.max_participants}
-                        onChange={(e) => setEligibility({ ...eligibility, max_participants: e.target.value })}
+                        onChange={(e) =>
+                          setEligibility({
+                            ...eligibility,
+                            max_participants: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -1058,7 +1254,12 @@ const CreateProRoomPage = () => {
                       </label>
                       <select
                         value={eligibility.participation_type}
-                        onChange={(e) => setEligibility({ ...eligibility, participation_type: e.target.value })}
+                        onChange={(e) =>
+                          setEligibility({
+                            ...eligibility,
+                            participation_type: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       >
                         <option value="individual">Individual Only</option>
@@ -1074,7 +1275,12 @@ const CreateProRoomPage = () => {
                       <input
                         type="number"
                         value={eligibility.max_team_size}
-                        onChange={(e) => setEligibility({ ...eligibility, max_team_size: e.target.value })}
+                        onChange={(e) =>
+                          setEligibility({
+                            ...eligibility,
+                            max_team_size: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -1088,7 +1294,12 @@ const CreateProRoomPage = () => {
                       type="text"
                       placeholder="e.g. Python, PyTorch, Data Structures, System Design"
                       value={eligibility.required_skills}
-                      onChange={(e) => setEligibility({ ...eligibility, required_skills: e.target.value })}
+                      onChange={(e) =>
+                        setEligibility({
+                          ...eligibility,
+                          required_skills: e.target.value,
+                        })
+                      }
                       className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                     />
                   </div>
@@ -1097,8 +1308,13 @@ const CreateProRoomPage = () => {
                   <div className="pt-4 border-t border-white/5 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <h4 className="text-xs font-bold text-gray-300">Host FAQ / Common Questions</h4>
-                        <p className="text-[11px] text-gray-500">Create common Q&As for candidates to view on the Room Overview page.</p>
+                        <h4 className="text-xs font-bold text-gray-300">
+                          Host FAQ / Common Questions
+                        </h4>
+                        <p className="text-[11px] text-gray-500">
+                          Create common Q&As for candidates to view on the Room
+                          Overview page.
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -1111,13 +1327,19 @@ const CreateProRoomPage = () => {
 
                     {eligibility.custom_app_questions.length === 0 ? (
                       <p className="text-xs text-gray-500 text-center py-4 bg-[#06060c] border border-white/5 rounded-xl">
-                        No FAQ questions created yet. Click "+ Add FAQ Question" to add common Q&As.
+                        No FAQ questions created yet. Click "+ Add FAQ Question"
+                        to add common Q&As.
                       </p>
                     ) : (
                       eligibility.custom_app_questions.map((aq, qIdx) => (
-                        <div key={aq.id || qIdx} className="p-3.5 rounded-xl bg-[#06060c] border border-white/10 space-y-2.5 relative">
+                        <div
+                          key={aq.id || qIdx}
+                          className="p-3.5 rounded-xl bg-[#06060c] border border-white/10 space-y-2.5 relative"
+                        >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-mono text-purple-400 font-bold uppercase">Question #{qIdx + 1}</span>
+                            <span className="text-[10px] font-mono text-purple-400 font-bold uppercase">
+                              Question #{qIdx + 1}
+                            </span>
                             <button
                               type="button"
                               onClick={() => removeAppQuestion(aq.id)}
@@ -1128,7 +1350,9 @@ const CreateProRoomPage = () => {
                           </div>
 
                           <div>
-                            <label className="text-[10px] font-bold text-gray-400 block mb-1">Question Title</label>
+                            <label className="text-[10px] font-bold text-gray-400 block mb-1">
+                              Question Title
+                            </label>
                             <input
                               type="text"
                               placeholder="e.g. Do I get a participation certificate?"
@@ -1136,9 +1360,12 @@ const CreateProRoomPage = () => {
                               onChange={(e) =>
                                 setEligibility({
                                   ...eligibility,
-                                  custom_app_questions: eligibility.custom_app_questions.map((q) =>
-                                    q.id === aq.id ? { ...q, question: e.target.value } : q
-                                  ),
+                                  custom_app_questions:
+                                    eligibility.custom_app_questions.map((q) =>
+                                      q.id === aq.id
+                                        ? { ...q, question: e.target.value }
+                                        : q,
+                                    ),
                                 })
                               }
                               className="w-full bg-[#030308] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#00F0FF]"
@@ -1146,7 +1373,9 @@ const CreateProRoomPage = () => {
                           </div>
 
                           <div>
-                            <label className="text-[10px] font-bold text-gray-400 block mb-1">Answer / Explanation</label>
+                            <label className="text-[10px] font-bold text-gray-400 block mb-1">
+                              Answer / Explanation
+                            </label>
                             <textarea
                               rows={2}
                               placeholder="e.g. Yes, all eligible candidates who complete the assessment will receive a verified certificate."
@@ -1154,9 +1383,12 @@ const CreateProRoomPage = () => {
                               onChange={(e) =>
                                 setEligibility({
                                   ...eligibility,
-                                  custom_app_questions: eligibility.custom_app_questions.map((q) =>
-                                    q.id === aq.id ? { ...q, answer: e.target.value } : q
-                                  ),
+                                  custom_app_questions:
+                                    eligibility.custom_app_questions.map((q) =>
+                                      q.id === aq.id
+                                        ? { ...q, answer: e.target.value }
+                                        : q,
+                                    ),
                                 })
                               }
                               className="w-full bg-[#030308] border border-white/10 rounded-lg p-3 text-xs text-white outline-none focus:border-[#00F0FF]"
@@ -1175,9 +1407,12 @@ const CreateProRoomPage = () => {
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-black text-white">Assessment Builder</h2>
+                    <h2 className="text-xl font-black text-white">
+                      Assessment Builder
+                    </h2>
                     <p className="text-xs text-gray-400 mt-1">
-                      Create test sections, add questions, code problems, and test cases.
+                      Create test sections, add questions, code problems, and
+                      test cases.
                     </p>
                   </div>
                   <button
@@ -1191,14 +1426,21 @@ const CreateProRoomPage = () => {
 
                 <div className="space-y-6">
                   {sections.map((sec, secIdx) => (
-                    <div key={sec.id} className="bg-[#06060c] border border-white/10 rounded-2xl p-5 space-y-4">
+                    <div
+                      key={sec.id}
+                      className="bg-[#06060c] border border-white/10 rounded-2xl p-5 space-y-4"
+                    >
                       <div className="flex items-center justify-between border-b border-white/5 pb-3">
                         <input
                           type="text"
                           value={sec.section_name}
                           onChange={(e) =>
                             setSections(
-                              sections.map((s) => (s.id === sec.id ? { ...s, section_name: e.target.value } : s))
+                              sections.map((s) =>
+                                s.id === sec.id
+                                  ? { ...s, section_name: e.target.value }
+                                  : s,
+                              ),
                             )
                           }
                           className="bg-transparent font-bold text-sm text-white border-b border-cyan-500/30 focus:border-[#00F0FF] outline-none px-1"
@@ -1223,9 +1465,14 @@ const CreateProRoomPage = () => {
 
                       <div className="space-y-4 pl-2 border-l-2 border-cyan-500/20">
                         {sec.questions.map((q, qIdx) => (
-                          <div key={q.id} className="bg-[#0b0b14] border border-white/5 rounded-xl p-4 space-y-3">
+                          <div
+                            key={q.id}
+                            className="bg-[#0b0b14] border border-white/5 rounded-xl p-4 space-y-3"
+                          >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-mono font-bold text-[#00F0FF]">Q{qIdx + 1}.</span>
+                              <span className="text-xs font-mono font-bold text-[#00F0FF]">
+                                Q{qIdx + 1}.
+                              </span>
                               <select
                                 value={q.question_type}
                                 onChange={(e) =>
@@ -1235,11 +1482,17 @@ const CreateProRoomPage = () => {
                                         ? {
                                             ...s,
                                             questions: s.questions.map((qu) =>
-                                              qu.id === q.id ? { ...qu, question_type: e.target.value } : qu
+                                              qu.id === q.id
+                                                ? {
+                                                    ...qu,
+                                                    question_type:
+                                                      e.target.value,
+                                                  }
+                                                : qu,
                                             ),
                                           }
-                                        : s
-                                    )
+                                        : s,
+                                    ),
                                   )
                                 }
                                 className="bg-[#12121e] border border-white/10 text-xs text-gray-300 rounded-lg px-2.5 py-1 outline-none"
@@ -1261,11 +1514,16 @@ const CreateProRoomPage = () => {
                                         ? {
                                             ...s,
                                             questions: s.questions.map((qu) =>
-                                              qu.id === q.id ? { ...qu, points: e.target.value } : qu
+                                              qu.id === q.id
+                                                ? {
+                                                    ...qu,
+                                                    points: e.target.value,
+                                                  }
+                                                : qu,
                                             ),
                                           }
-                                        : s
-                                    )
+                                        : s,
+                                    ),
                                   )
                                 }
                                 className="w-20 bg-[#12121e] border border-white/10 text-xs text-white rounded-lg px-2 py-1 outline-none text-center"
@@ -1290,11 +1548,16 @@ const CreateProRoomPage = () => {
                                       ? {
                                           ...s,
                                           questions: s.questions.map((qu) =>
-                                            qu.id === q.id ? { ...qu, question_text: e.target.value } : qu
+                                            qu.id === q.id
+                                              ? {
+                                                  ...qu,
+                                                  question_text: e.target.value,
+                                                }
+                                              : qu,
                                           ),
                                         }
-                                      : s
-                                  )
+                                      : s,
+                                  ),
                                 )
                               }
                               className="w-full bg-[#12121e] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#00F0FF]"
@@ -1312,9 +1575,12 @@ const CreateProRoomPage = () => {
             {currentStep === 5 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-black text-white">Evaluation Rules & Rewards</h2>
+                  <h2 className="text-xl font-black text-white">
+                    Evaluation Rules & Rewards
+                  </h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Configure scoring logic, tie-breaker rules, and certificate rewards.
+                    Configure scoring logic, tie-breaker rules, and certificate
+                    rewards.
                   </p>
                 </div>
 
@@ -1326,12 +1592,23 @@ const CreateProRoomPage = () => {
                       </label>
                       <select
                         value={evaluation.eval_method}
-                        onChange={(e) => setEvaluation({ ...evaluation, eval_method: e.target.value })}
+                        onChange={(e) =>
+                          setEvaluation({
+                            ...evaluation,
+                            eval_method: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       >
-                        <option value="Automatic">Automatic Evaluation (Code & MCQ)</option>
-                        <option value="Automatic + Manual">Automatic + Manual Evaluation</option>
-                        <option value="AI-Assisted">AI-Assisted Rubric Evaluation</option>
+                        <option value="Automatic">
+                          Automatic Evaluation (Code & MCQ)
+                        </option>
+                        <option value="Automatic + Manual">
+                          Automatic + Manual Evaluation
+                        </option>
+                        <option value="AI-Assisted">
+                          AI-Assisted Rubric Evaluation
+                        </option>
                       </select>
                     </div>
 
@@ -1342,7 +1619,12 @@ const CreateProRoomPage = () => {
                       <input
                         type="number"
                         value={evaluation.gbits_prize_pool}
-                        onChange={(e) => setEvaluation({ ...evaluation, gbits_prize_pool: e.target.value })}
+                        onChange={(e) =>
+                          setEvaluation({
+                            ...evaluation,
+                            gbits_prize_pool: e.target.value,
+                          })
+                        }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
                     </div>
@@ -1355,7 +1637,12 @@ const CreateProRoomPage = () => {
                     <textarea
                       rows={3}
                       value={evaluation.prize_details}
-                      onChange={(e) => setEvaluation({ ...evaluation, prize_details: e.target.value })}
+                      onChange={(e) =>
+                        setEvaluation({
+                          ...evaluation,
+                          prize_details: e.target.value,
+                        })
+                      }
                       className="w-full bg-[#06060c] border border-white/10 rounded-xl p-3.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                     />
                   </div>
@@ -1367,7 +1654,9 @@ const CreateProRoomPage = () => {
             {currentStep === 6 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-black text-white">Review & Publish Event</h2>
+                  <h2 className="text-xl font-black text-white">
+                    Review & Publish Event
+                  </h2>
                   <p className="text-xs text-gray-400 mt-1">
                     Review your complete event configuration before going live.
                   </p>
@@ -1376,23 +1665,33 @@ const CreateProRoomPage = () => {
                 <div className="p-5 rounded-2xl bg-[#06060c] border border-cyan-500/30 space-y-3 text-xs">
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-gray-400">Event Name:</span>
-                    <span className="text-white font-bold">{basicInfo.name}</span>
+                    <span className="text-white font-bold">
+                      {basicInfo.name}
+                    </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-gray-400">Organization:</span>
-                    <span className="text-[#00F0FF] font-bold">{basicInfo.org_name}</span>
+                    <span className="text-[#00F0FF] font-bold">
+                      {basicInfo.org_name}
+                    </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-gray-400">Event Type:</span>
-                    <span className="text-purple-300 font-bold">{basicInfo.event_type}</span>
+                    <span className="text-purple-300 font-bold">
+                      {basicInfo.event_type}
+                    </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-gray-400">Assessment Sections:</span>
-                    <span className="text-white font-bold">{sections.length} Sections</span>
+                    <span className="text-white font-bold">
+                      {sections.length} Sections
+                    </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-gray-400">Prize Pool:</span>
-                    <span className="text-amber-400 font-bold">{evaluation.gbits_prize_pool} gBits</span>
+                    <span className="text-amber-400 font-bold">
+                      {evaluation.gbits_prize_pool} gBits
+                    </span>
                   </div>
                 </div>
 
@@ -1402,7 +1701,9 @@ const CreateProRoomPage = () => {
                   disabled={publishing}
                   className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#00F0FF] via-purple-600 to-[#FF00C8] hover:from-[#00F0FF] hover:to-purple-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-xl shadow-[#00F0FF]/20 transition cursor-pointer disabled:opacity-50"
                 >
-                  {publishing ? "Publishing Pro Room..." : "Publish Pro Room Arena 🚀"}
+                  {publishing
+                    ? "Publishing Pro Room..."
+                    : "Publish Pro Room Arena 🚀"}
                 </button>
               </div>
             )}
@@ -1437,7 +1738,9 @@ const CreateProRoomPage = () => {
                 <h3 className="text-xs font-mono font-bold text-white uppercase tracking-widest flex items-center gap-2">
                   <FiEye className="text-[#00F0FF]" /> Pro Room Preview
                 </h3>
-                <span className="text-[10px] font-mono text-cyan-400">Live Syncing</span>
+                <span className="text-[10px] font-mono text-cyan-400">
+                  Live Syncing
+                </span>
               </div>
 
               {/* Preview Card Component */}
@@ -1454,7 +1757,9 @@ const CreateProRoomPage = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-[#07070e] via-transparent to-black/40" />
 
                   {/* Status Badge */}
-                  <span className={`absolute top-3 left-3 text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${statusBadge.bg}`}>
+                  <span
+                    className={`absolute top-3 left-3 text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${statusBadge.bg}`}
+                  >
                     {statusBadge.label}
                   </span>
 
@@ -1487,16 +1792,19 @@ const CreateProRoomPage = () => {
                   {/* Date & Meta Pill Row */}
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                     <div className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-300 flex items-center gap-1.5">
-                      <Calendar size={12} className="text-[#00F0FF]" /> May 18 - May 20, 2026
+                      <Calendar size={12} className="text-[#00F0FF]" /> May 18 -
+                      May 20, 2026
                     </div>
                     <div className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-300 flex items-center gap-1.5">
-                      <Clock size={12} className="text-purple-400" /> {durationText}
+                      <Clock size={12} className="text-purple-400" />{" "}
+                      {durationText}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 text-[11px] font-mono">
                     <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-gray-400 flex items-center gap-1">
-                      <Users size={12} className="text-[#00F0FF]" /> Max Participants: {eligibility.max_participants}
+                      <Users size={12} className="text-[#00F0FF]" /> Max
+                      Participants: {eligibility.max_participants}
                     </span>
                     <span className="px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 font-bold">
                       {basicInfo.event_type}
@@ -1504,7 +1812,8 @@ const CreateProRoomPage = () => {
                   </div>
 
                   <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">
-                    {basicInfo.short_description || "A virtual hackathon where innovators come together to build AI-powered solutions."}
+                    {basicInfo.short_description ||
+                      "A virtual hackathon where innovators come together to build AI-powered solutions."}
                   </p>
                 </div>
               </div>
@@ -1513,7 +1822,10 @@ const CreateProRoomPage = () => {
               <div className="space-y-2 pt-2 border-t border-white/10">
                 <div className="flex items-center justify-between text-xs font-mono font-bold text-gray-400 mb-2">
                   <span>Configuration Summary</span>
-                  <button onClick={() => setCurrentStep(1)} className="text-[#00F0FF] hover:underline cursor-pointer">
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="text-[#00F0FF] hover:underline cursor-pointer"
+                  >
                     Edit
                   </button>
                 </div>
@@ -1521,39 +1833,57 @@ const CreateProRoomPage = () => {
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between text-gray-400">
                     <span>Event Type</span>
-                    <span className="text-white font-semibold">{basicInfo.event_type}</span>
+                    <span className="text-white font-semibold">
+                      {basicInfo.event_type}
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Category</span>
-                    <span className="text-white font-semibold">{basicInfo.category}</span>
+                    <span className="text-white font-semibold">
+                      {basicInfo.category}
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Start Date</span>
-                    <span className="text-white font-semibold">May 18, 2026 10:00 AM</span>
+                    <span className="text-white font-semibold">
+                      May 18, 2026 10:00 AM
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>End Date</span>
-                    <span className="text-white font-semibold">May 20, 2026 10:00 AM</span>
+                    <span className="text-white font-semibold">
+                      May 20, 2026 10:00 AM
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Registration</span>
-                    <span className="text-white font-semibold">Apr 28 – May 15, 2026</span>
+                    <span className="text-white font-semibold">
+                      Apr 28 – May 15, 2026
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Team Participation</span>
-                    <span className="text-white font-semibold">Yes (2 - 4 Members)</span>
+                    <span className="text-white font-semibold">
+                      Yes (2 - 4 Members)
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Max Participants</span>
-                    <span className="text-white font-semibold">{eligibility.max_participants}</span>
+                    <span className="text-white font-semibold">
+                      {eligibility.max_participants}
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Evaluation Method</span>
-                    <span className="text-white font-semibold">{evaluation.eval_method}</span>
+                    <span className="text-white font-semibold">
+                      {evaluation.eval_method}
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Rewards</span>
-                    <span className="text-[#00F0FF] font-semibold">Certificates, Prizes, gBits</span>
+                    <span className="text-[#00F0FF] font-semibold">
+                      Certificates, Prizes, gBits
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1561,7 +1891,10 @@ const CreateProRoomPage = () => {
               {/* Helper Footer Card */}
               <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs flex items-center gap-2.5">
                 <Sparkles size={16} className="text-amber-400 shrink-0" />
-                <span>You can always edit these details later before publishing the event.</span>
+                <span>
+                  You can always edit these details later before publishing the
+                  event.
+                </span>
               </div>
             </div>
           </div>

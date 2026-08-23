@@ -71,8 +71,14 @@ const ProfessionalRoomDetail = () => {
   const [isFollowingOrg, setIsFollowingOrg] = useState(false);
 
   // Dynamic Database Host & Registration Verification
-  const isHost = Boolean(currentUserId && room && (room.host_id === currentUserId || room.created_by === currentUserId));
-  const isRegistered = isHost || Boolean(userRegistration && userRegistration.status === "approved");
+  const isHost = Boolean(
+    currentUserId &&
+    room &&
+    (room.host_id === currentUserId || room.created_by === currentUserId),
+  );
+  const isRegistered =
+    isHost ||
+    Boolean(userRegistration && userRegistration.status === "approved");
 
   // Dropdowns & Modal States
   const [showNotifications, setShowNotifications] = useState(false);
@@ -102,7 +108,11 @@ const ProfessionalRoomDetail = () => {
   };
 
   // Live Countdown State
-  const [timeLeft, setTimeLeft] = useState({ hours: "00", mins: "00", secs: "00" });
+  const [timeLeft, setTimeLeft] = useState({
+    hours: "00",
+    mins: "00",
+    secs: "00",
+  });
 
   const fetchRoomData = async () => {
     setLoading(true);
@@ -132,8 +142,10 @@ const ProfessionalRoomDetail = () => {
         id,
         name: "Pro Assessment Arena",
         title: "Pro Assessment Arena",
-        short_description: "Time-bound professional evaluation arena for candidates.",
-        detailed_description: "Comprehensive evaluation arena featuring timed sections, automated code execution, and leaderboards.",
+        short_description:
+          "Time-bound professional evaluation arena for candidates.",
+        detailed_description:
+          "Comprehensive evaluation arena featuring timed sections, automated code execution, and leaderboards.",
         category: "Software Engineering",
         event_type: "Technical Assessment",
         org_name: "Verified Organization",
@@ -235,7 +247,8 @@ const ProfessionalRoomDetail = () => {
         const repliesByDiscId = {};
         if (replyData) {
           replyData.forEach((r) => {
-            if (!repliesByDiscId[r.discussion_id]) repliesByDiscId[r.discussion_id] = [];
+            if (!repliesByDiscId[r.discussion_id])
+              repliesByDiscId[r.discussion_id] = [];
             repliesByDiscId[r.discussion_id].push(r);
           });
         }
@@ -263,7 +276,10 @@ const ProfessionalRoomDetail = () => {
             id: n.id,
             title: n.title,
             subtitle: n.message || n.subtitle || "Room Update",
-            time: new Date(n.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            time: new Date(n.created_at || Date.now()).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
             read: n.read || false,
           }));
         }
@@ -279,7 +295,10 @@ const ProfessionalRoomDetail = () => {
               id: `ann-${a.id || idx}`,
               title: `Announcement: ${a.title}`,
               subtitle: a.content,
-              time: new Date(a.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              time: new Date(a.created_at || Date.now()).toLocaleTimeString(
+                [],
+                { hour: "2-digit", minute: "2-digit" },
+              ),
               read: false,
             });
           });
@@ -287,7 +306,7 @@ const ProfessionalRoomDetail = () => {
 
         if (userRegistration) {
           dynamicNotifs.push({
-            id: `reg-${userRegistration.id || 'ok'}`,
+            id: `reg-${userRegistration.id || "ok"}`,
             title: "Registration Approved",
             subtitle: `You are registered for ${currentRoom.name || currentRoom.title}`,
             time: "Active",
@@ -297,7 +316,7 @@ const ProfessionalRoomDetail = () => {
 
         if (userSubmission) {
           dynamicNotifs.push({
-            id: `sub-${userSubmission.id || 'ok'}`,
+            id: `sub-${userSubmission.id || "ok"}`,
             title: "Assessment Submission Recorded",
             subtitle: `Total Score: ${userSubmission.total_score || 0} pts`,
             time: "Recorded",
@@ -323,11 +342,19 @@ const ProfessionalRoomDetail = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
-      const end = room?.event_end_at ? new Date(room.event_end_at) : new Date(Date.now() + 172800000);
+      const end = room?.event_end_at
+        ? new Date(room.event_end_at)
+        : new Date(Date.now() + 172800000);
       const diff = end - now;
       if (diff > 0) {
-        const hrs = String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, "0");
-        const mins = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, "0");
+        const hrs = String(Math.floor(diff / (1000 * 60 * 60))).padStart(
+          2,
+          "0",
+        );
+        const mins = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(
+          2,
+          "0",
+        );
         const secs = String(Math.floor((diff / 1000) % 60)).padStart(2, "0");
         setTimeLeft({ hours: hrs, mins, secs });
       }
@@ -344,7 +371,7 @@ const ProfessionalRoomDetail = () => {
 
   const markNotificationRead = (notifId) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === notifId ? { ...n, read: true } : n))
+      prev.map((n) => (n.id === notifId ? { ...n, read: true } : n)),
     );
   };
 
@@ -382,7 +409,10 @@ const ProfessionalRoomDetail = () => {
         .single();
 
       if (insertErr) {
-        console.warn("Supabase insert error, fallback state update:", insertErr);
+        console.warn(
+          "Supabase insert error, fallback state update:",
+          insertErr,
+        );
         const fallbackDisc = {
           id: `disc-${Date.now()}`,
           room_id: id,
@@ -446,7 +476,7 @@ const ProfessionalRoomDetail = () => {
               return { ...d, replies: [...(d.replies || []), newRep] };
             }
             return d;
-          })
+          }),
         );
       } else {
         fetchRoomData();
@@ -461,6 +491,8 @@ const ProfessionalRoomDetail = () => {
   };
 
   const handleDeleteDiscussion = async (discId) => {
+    const disc = discussions.find((d) => d.id === discId);
+    if (!disc || !(disc.user_id === currentUserId || isHost)) return;
     try {
       await supabase.from("pro_room_discussions").delete().eq("id", discId);
       setDiscussions((prev) => prev.filter((d) => d.id !== discId));
@@ -473,15 +505,24 @@ const ProfessionalRoomDetail = () => {
   };
 
   const handleDeleteReply = async (discId, replyId) => {
+    const disc = discussions.find((d) => d.id === discId);
+    const reply = disc?.replies?.find((r) => r.id === replyId);
+    if (!reply || !(reply.user_id === currentUserId || isHost)) return;
     try {
-      await supabase.from("pro_room_discussion_replies").delete().eq("id", replyId);
+      await supabase
+        .from("pro_room_discussion_replies")
+        .delete()
+        .eq("id", replyId);
       setDiscussions((prev) =>
         prev.map((d) => {
           if (d.id === discId) {
-            return { ...d, replies: (d.replies || []).filter((r) => r.id !== replyId) };
+            return {
+              ...d,
+              replies: (d.replies || []).filter((r) => r.id !== replyId),
+            };
           }
           return d;
-        })
+        }),
       );
       showToast("🗑️ Reply deleted.");
     } catch (err) {
@@ -489,16 +530,20 @@ const ProfessionalRoomDetail = () => {
       setDiscussions((prev) =>
         prev.map((d) => {
           if (d.id === discId) {
-            return { ...d, replies: (d.replies || []).filter((r) => r.id !== replyId) };
+            return {
+              ...d,
+              replies: (d.replies || []).filter((r) => r.id !== replyId),
+            };
           }
           return d;
-        })
+        }),
       );
       showToast("🗑️ Reply removed.");
     }
   };
 
   const handleDeleteRoom = async () => {
+    if (!isHost) return;
     try {
       await supabase.from("pro_rooms").delete().eq("id", id);
       showToast("🗑️ Room archived/deleted.");
@@ -510,7 +555,7 @@ const ProfessionalRoomDetail = () => {
   };
 
   const handlePostAnnouncement = async () => {
-    if (!annTitle || !annContent) return;
+    if (!isHost || !annTitle || !annContent) return;
     setPostingAnn(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -533,6 +578,7 @@ const ProfessionalRoomDetail = () => {
   };
 
   const handleDeleteAnnouncement = async (annId) => {
+    if (!isHost) return;
     try {
       await supabase.from("pro_room_announcements").delete().eq("id", annId);
       showToast("🗑️ Announcement deleted.");
@@ -551,13 +597,17 @@ const ProfessionalRoomDetail = () => {
   }
 
   const lifecycle = getProRoomLifecycleState(room);
-  const isTeamEvent = room?.participation_type === "team" || room?.participation_type === "both";
+  const isTeamEvent =
+    room?.participation_type === "team" || room?.participation_type === "both";
   const unreadCount = (notifications || []).filter((n) => n && !n.read).length;
 
   // Compute User Specific Rank & Score
-  const myRankItem = (leaderboard || []).find((l) => l.user_id === currentUserId);
+  const myRankItem = (leaderboard || []).find(
+    (l) => l.user_id === currentUserId,
+  );
   const userRankDisplay = myRankItem ? `#${myRankItem.rank}` : "—";
-  const userScoreDisplay = userSubmission?.total_score || myRankItem?.total_score || 0;
+  const userScoreDisplay =
+    userSubmission?.total_score || myRankItem?.total_score || 0;
   const totalPossible = room?.total_possible_score || 300;
 
   // Format Event End Time
@@ -637,14 +687,19 @@ const ProfessionalRoomDetail = () => {
                 >
                   <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
                     <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                      <Bell size={14} className="text-[#FF00C8]" /> Room Notifications
+                      <Bell size={14} className="text-[#FF00C8]" /> Room
+                      Notifications
                     </h4>
-                    <span className="text-[10px] font-mono text-gray-400">{unreadCount} Unread</span>
+                    <span className="text-[10px] font-mono text-gray-400">
+                      {unreadCount} Unread
+                    </span>
                   </div>
 
                   <div className="space-y-2.5 max-h-80 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <p className="text-xs text-gray-500 text-center py-6">No notifications yet.</p>
+                      <p className="text-xs text-gray-500 text-center py-6">
+                        No notifications yet.
+                      </p>
                     ) : (
                       notifications.map((n) => (
                         <div
@@ -657,10 +712,16 @@ const ProfessionalRoomDetail = () => {
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <span className="text-xs font-bold block">{n.title}</span>
-                            <span className="text-[9px] font-mono text-gray-500 shrink-0">{n.time}</span>
+                            <span className="text-xs font-bold block">
+                              {n.title}
+                            </span>
+                            <span className="text-[9px] font-mono text-gray-500 shrink-0">
+                              {n.time}
+                            </span>
                           </div>
-                          <p className="text-[11px] text-gray-400 mt-1 line-clamp-1">{n.subtitle}</p>
+                          <p className="text-[11px] text-gray-400 mt-1 line-clamp-1">
+                            {n.subtitle}
+                          </p>
                         </div>
                       ))
                     )}
@@ -706,7 +767,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <BarChart2 size={14} className="text-[#00F0FF]" /> Host Dashboard
+                        <BarChart2 size={14} className="text-[#00F0FF]" /> Host
+                        Dashboard
                       </button>
                       <button
                         onClick={() => {
@@ -715,7 +777,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <Edit3 size={14} className="text-purple-400" /> Edit Room Configuration
+                        <Edit3 size={14} className="text-purple-400" /> Edit
+                        Room Configuration
                       </button>
                       <button
                         onClick={() => {
@@ -724,7 +787,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <Users size={14} className="text-gray-300" /> Manage Participants
+                        <Users size={14} className="text-gray-300" /> Manage
+                        Participants
                       </button>
                       <button
                         onClick={() => {
@@ -733,7 +797,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <Layers size={14} className="text-cyan-400" /> Manage Assessment
+                        <Layers size={14} className="text-cyan-400" /> Manage
+                        Assessment
                       </button>
                       <button
                         onClick={() => {
@@ -742,7 +807,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <CheckCircle size={14} className="text-emerald-400" /> Manage Submissions & Evaluation
+                        <CheckCircle size={14} className="text-emerald-400" />{" "}
+                        Manage Submissions & Evaluation
                       </button>
                       <button
                         onClick={() => {
@@ -751,7 +817,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <Megaphone size={14} className="text-amber-400" /> Post Announcement
+                        <Megaphone size={14} className="text-amber-400" /> Post
+                        Announcement
                       </button>
                       <button
                         onClick={() => {
@@ -760,7 +827,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <Share2 size={14} className="text-gray-400" /> Share Room Link
+                        <Share2 size={14} className="text-gray-400" /> Share
+                        Room Link
                       </button>
                       <div className="my-1 border-t border-white/10" />
                       <button
@@ -786,7 +854,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <Info size={14} className="text-gray-400" /> Event Overview
+                        <Info size={14} className="text-gray-400" /> Event
+                        Overview
                       </button>
                       <button
                         onClick={() => {
@@ -795,7 +864,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <FileText size={14} className="text-gray-400" /> View Guidelines
+                        <FileText size={14} className="text-gray-400" /> View
+                        Guidelines
                       </button>
                       <button
                         onClick={() => {
@@ -804,7 +874,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <Share2 size={14} className="text-gray-400" /> Share Room Link
+                        <Share2 size={14} className="text-gray-400" /> Share
+                        Room Link
                       </button>
                       <button
                         onClick={() => {
@@ -813,7 +884,8 @@ const ProfessionalRoomDetail = () => {
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center gap-2 cursor-pointer transition"
                       >
-                        <AlertTriangle size={14} className="text-amber-400" /> Report an Issue
+                        <AlertTriangle size={14} className="text-amber-400" />{" "}
+                        Report an Issue
                       </button>
                     </>
                   )}
@@ -832,7 +904,11 @@ const ProfessionalRoomDetail = () => {
             <div className="flex items-start gap-4">
               <div className="w-28 sm:w-36 h-28 sm:h-32 rounded-2xl overflow-hidden border border-white/10 shrink-0 bg-[#12121e]">
                 {room.cover_image ? (
-                  <img src={room.cover_image} alt={room.name} className="w-full h-full object-cover" />
+                  <img
+                    src={room.cover_image}
+                    alt={room.name}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-purple-900/30">
                     <Building2 size={24} className="text-[#00F0FF]" />
@@ -888,10 +964,18 @@ const ProfessionalRoomDetail = () => {
             </div>
 
             <div className="flex items-center gap-4 pt-3 border-t border-white/5 text-xs font-mono">
-              <a href={room.website || "#"} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-[#00F0FF] flex items-center gap-1.5">
+              <a
+                href={room.website || "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="text-gray-400 hover:text-[#00F0FF] flex items-center gap-1.5"
+              >
                 <Globe size={13} /> Website
               </a>
-              <a href="#" className="text-gray-400 hover:text-purple-300 flex items-center gap-1.5">
+              <a
+                href="#"
+                className="text-gray-400 hover:text-purple-300 flex items-center gap-1.5"
+              >
                 <MessageCircle size={13} /> Discord
               </a>
             </div>
@@ -902,35 +986,53 @@ const ProfessionalRoomDetail = () => {
             {/* Card 1: Time Remaining */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span className="flex items-center gap-1"><Clock size={13} className="text-purple-400" /> Time Remaining</span>
+                <span className="flex items-center gap-1">
+                  <Clock size={13} className="text-purple-400" /> Time Remaining
+                </span>
               </div>
               <div className="my-2">
                 <div className="text-xl font-black font-mono text-white flex items-center gap-1">
-                  <span>{timeLeft.hours}</span>:<span className="text-[#00F0FF]">{timeLeft.mins}</span>:<span className="text-[#FF00C8]">{timeLeft.secs}</span>
+                  <span>{timeLeft.hours}</span>:
+                  <span className="text-[#00F0FF]">{timeLeft.mins}</span>:
+                  <span className="text-[#FF00C8]">{timeLeft.secs}</span>
                 </div>
                 <div className="text-[9px] font-mono text-gray-500 flex gap-3 mt-0.5">
-                  <span>HRS</span><span>MINS</span><span>SECS</span>
+                  <span>HRS</span>
+                  <span>MINS</span>
+                  <span>SECS</span>
                 </div>
               </div>
-              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Active Timeline</span>
+              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">
+                Active Timeline
+              </span>
             </div>
 
             {/* Card 2: Roster Progress / Your Progress */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span className="flex items-center gap-1"><Zap size={13} className="text-[#00F0FF]" /> {isHost ? "Roster Progress" : "Your Progress"}</span>
+                <span className="flex items-center gap-1">
+                  <Zap size={13} className="text-[#00F0FF]" />{" "}
+                  {isHost ? "Roster Progress" : "Your Progress"}
+                </span>
               </div>
               <div className="my-2 flex items-center gap-3">
                 {isHost ? (
                   registrations.length === 0 ? (
                     <div>
-                      <span className="text-xs font-bold text-gray-400 block">No participants yet</span>
-                      <span className="text-[10px] text-gray-500 font-mono">Waiting for registrations</span>
+                      <span className="text-xs font-bold text-gray-400 block">
+                        No participants yet
+                      </span>
+                      <span className="text-[10px] text-gray-500 font-mono">
+                        Waiting for registrations
+                      </span>
                     </div>
                   ) : (
                     <>
                       <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
-                        {Math.round((submissions.length / registrations.length) * 100)}%
+                        {Math.round(
+                          (submissions.length / registrations.length) * 100,
+                        )}
+                        %
                       </div>
                       <span className="text-[11px] text-gray-300 font-bold">
                         {submissions.length} / {registrations.length} Submitted
@@ -940,7 +1042,9 @@ const ProfessionalRoomDetail = () => {
                 ) : (
                   <>
                     <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
-                      {userSubmission ? `${userSubmission.percentage || 100}%` : "0%"}
+                      {userSubmission
+                        ? `${userSubmission.percentage || 100}%`
+                        : "0%"}
                     </div>
                     <span className="text-[11px] text-gray-300 font-bold">
                       {userSubmission ? "Completed" : "Not Started"}
@@ -956,24 +1060,42 @@ const ProfessionalRoomDetail = () => {
             {/* Card 3: Your Rank */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span className="flex items-center gap-1"><Trophy size={13} className="text-amber-400" /> {isHost ? "Top Candidate Score" : "Your Rank"}</span>
+                <span className="flex items-center gap-1">
+                  <Trophy size={13} className="text-amber-400" />{" "}
+                  {isHost ? "Top Candidate Score" : "Your Rank"}
+                </span>
               </div>
               <div className="my-2">
                 <div className="text-xl font-black text-white font-mono">
-                  {isHost ? (leaderboard[0] ? `${leaderboard[0].total_score} pts` : "—") : userRankDisplay}
-                  {!isHost && <span className="text-xs text-gray-500 font-normal"> / {registrations.length || 1}</span>}
+                  {isHost
+                    ? leaderboard[0]
+                      ? `${leaderboard[0].total_score} pts`
+                      : "—"
+                    : userRankDisplay}
+                  {!isHost && (
+                    <span className="text-xs text-gray-500 font-normal">
+                      {" "}
+                      / {registrations.length || 1}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[11px] text-emerald-400 font-mono font-bold">
-                  {isHost ? `Total Candidates: ${registrations.length}` : `Score: ${userScoreDisplay} / ${totalPossible}`}
+                  {isHost
+                    ? `Total Candidates: ${registrations.length}`
+                    : `Score: ${userScoreDisplay} / ${totalPossible}`}
                 </span>
               </div>
-              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Official Standings</span>
+              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">
+                Official Standings
+              </span>
             </div>
 
             {/* Card 4: Participants */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span className="flex items-center gap-1"><Users size={13} className="text-[#00F0FF]" /> Participants</span>
+                <span className="flex items-center gap-1">
+                  <Users size={13} className="text-[#00F0FF]" /> Participants
+                </span>
               </div>
               <div className="my-2">
                 <div className="text-2xl font-black text-white font-mono">
@@ -983,7 +1105,9 @@ const ProfessionalRoomDetail = () => {
                   Capacity: {room?.max_participants || 500}
                 </span>
               </div>
-              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">Registered Roster</span>
+              <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">
+                Registered Roster
+              </span>
             </div>
           </div>
         </div>
@@ -992,12 +1116,32 @@ const ProfessionalRoomDetail = () => {
         <div className="lg:hidden sticky top-0 z-20 bg-[#070709]/95 backdrop-blur-md border-b border-white/10 py-2.5 -mx-4 px-4 overflow-x-auto no-scrollbar [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex items-center gap-2 shadow-2xl max-w-full">
           {[
             { id: "overview", label: "Overview", icon: Eye },
-            { id: "announcements", label: "Announcements", icon: Megaphone, count: announcements.length },
+            {
+              id: "announcements",
+              label: "Announcements",
+              icon: Megaphone,
+              count: announcements.length,
+            },
             { id: "instructions", label: "Instructions", icon: FileText },
-            { id: "sections", label: "Sections", icon: Layers, count: sections.length },
+            {
+              id: "sections",
+              label: "Sections",
+              icon: Layers,
+              count: sections.length,
+            },
             { id: "submissions", label: "Submissions", icon: CheckCircle },
-            { id: "leaderboard", label: "Leaderboard", icon: Trophy, count: leaderboard.length },
-            { id: "discussion", label: "Discussion", icon: MessageSquare, count: discussions.length },
+            {
+              id: "leaderboard",
+              label: "Leaderboard",
+              icon: Trophy,
+              count: leaderboard.length,
+            },
+            {
+              id: "discussion",
+              label: "Discussion",
+              icon: MessageSquare,
+              count: discussions.length,
+            },
             { id: "ask_doubt", label: "Ask a Doubt", icon: HelpCircle },
             { id: "organizers", label: "Organizers", icon: Building2 },
             { id: "resources", label: "Resources", icon: Folder },
@@ -1010,7 +1154,11 @@ const ProfessionalRoomDetail = () => {
                 key={item.id}
                 onClick={(e) => {
                   setActiveSidebarTab(item.id);
-                  e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                  e.currentTarget.scrollIntoView({
+                    behavior: "smooth",
+                    block: "nearest",
+                    inline: "center",
+                  });
                 }}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   isActive
@@ -1021,7 +1169,9 @@ const ProfessionalRoomDetail = () => {
                 <Icon size={13} />
                 <span>{item.label}</span>
                 {item.count !== undefined && item.count > 0 && (
-                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-white/10 text-gray-400"}`}>
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-white/10 text-gray-400"}`}
+                  >
                     {item.count}
                   </span>
                 )}
@@ -1042,11 +1192,35 @@ const ProfessionalRoomDetail = () => {
                     Host Management
                   </div>
                   {[
-                    { id: "host_dashboard", label: "Dashboard", icon: BarChart2 },
-                    { id: "host_participants", label: "Participants", icon: Users, count: registrations.length },
-                    { id: "host_assessment", label: "Manage Assessment", icon: Layers, count: sections.length },
-                    { id: "host_submissions", label: "Submissions & Grading", icon: CheckCircle, count: submissions.length },
-                    { id: "host_announcements", label: "Broadcast Announcement", icon: Megaphone, count: announcements.length },
+                    {
+                      id: "host_dashboard",
+                      label: "Dashboard",
+                      icon: BarChart2,
+                    },
+                    {
+                      id: "host_participants",
+                      label: "Participants",
+                      icon: Users,
+                      count: registrations.length,
+                    },
+                    {
+                      id: "host_assessment",
+                      label: "Manage Assessment",
+                      icon: Layers,
+                      count: sections.length,
+                    },
+                    {
+                      id: "host_submissions",
+                      label: "Submissions & Grading",
+                      icon: CheckCircle,
+                      count: submissions.length,
+                    },
+                    {
+                      id: "host_announcements",
+                      label: "Broadcast Announcement",
+                      icon: Megaphone,
+                      count: announcements.length,
+                    },
                   ].map((item) => {
                     const Icon = item.icon;
                     const isActive = activeSidebarTab === item.id;
@@ -1064,7 +1238,9 @@ const ProfessionalRoomDetail = () => {
                           <Icon size={14} /> {item.label}
                         </span>
                         {item.count !== undefined && (
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${isActive ? "bg-[#FF00C8] text-white" : "bg-white/10 text-gray-400"}`}>
+                          <span
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${isActive ? "bg-[#FF00C8] text-white" : "bg-white/10 text-gray-400"}`}
+                          >
                             {item.count}
                           </span>
                         )}
@@ -1081,7 +1257,12 @@ const ProfessionalRoomDetail = () => {
               {[
                 { id: "overview", label: "Overview", icon: Eye },
                 { id: "instructions", label: "Instructions", icon: FileText },
-                { id: "sections", label: "Sections", icon: Layers, count: sections.length },
+                {
+                  id: "sections",
+                  label: "Sections",
+                  icon: Layers,
+                  count: sections.length,
+                },
                 { id: "submissions", label: "Submissions", icon: CheckCircle },
                 { id: "ask_doubt", label: "Ask a Doubt", icon: HelpCircle },
                 { id: "organizers", label: "Organizers", icon: Building2 },
@@ -1104,7 +1285,9 @@ const ProfessionalRoomDetail = () => {
                       <Icon size={14} /> {item.label}
                     </span>
                     {item.count !== undefined && (
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${isActive ? "bg-[#FF00C8] text-white" : "bg-white/10 text-gray-400"}`}>
+                      <span
+                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${isActive ? "bg-[#FF00C8] text-white" : "bg-white/10 text-gray-400"}`}
+                      >
                         {item.count}
                       </span>
                     )}
@@ -1115,14 +1298,21 @@ const ProfessionalRoomDetail = () => {
 
             {/* Organizer Card in Left Sidebar */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 text-center space-y-3 shadow-xl">
-              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest block">Event by</span>
+              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest block">
+                Event by
+              </span>
               {room.org_logo ? (
-                <img src={room.org_logo} alt="Org Logo" className="w-12 h-12 rounded-2xl mx-auto object-cover border border-white/10" />
+                <img
+                  src={room.org_logo}
+                  alt="Org Logo"
+                  className="w-12 h-12 rounded-2xl mx-auto object-cover border border-white/10"
+                />
               ) : (
                 <Building2 size={28} className="text-[#00F0FF] mx-auto" />
               )}
               <h5 className="text-xs font-bold text-white flex items-center justify-center gap-1">
-                {room.org_name || "Verified Organization"} <ShieldCheck size={12} className="text-[#00F0FF]" />
+                {room.org_name || "Verified Organization"}{" "}
+                <ShieldCheck size={12} className="text-[#00F0FF]" />
               </h5>
               <button
                 onClick={() => setActiveSidebarTab("organizers")}
@@ -1139,27 +1329,44 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "host_dashboard" && isHost && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <BarChart2 size={16} className="text-[#00F0FF]" /> Room Analytics & Host Command Center
+                  <BarChart2 size={16} className="text-[#00F0FF]" /> Room
+                  Analytics & Host Command Center
                 </h3>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
-                    <span className="text-gray-400 block text-[10px] font-mono">Registrations</span>
-                    <span className="text-xl font-black text-white font-mono">{registrations.length}</span>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
-                    <span className="text-gray-400 block text-[10px] font-mono">Submissions</span>
-                    <span className="text-xl font-black text-[#00F0FF] font-mono">{submissions.length}</span>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
-                    <span className="text-gray-400 block text-[10px] font-mono">Completion Rate</span>
-                    <span className="text-xl font-black text-emerald-400 font-mono">
-                      {registrations.length > 0 ? `${Math.round((submissions.length / registrations.length) * 100)}%` : "0%"}
+                    <span className="text-gray-400 block text-[10px] font-mono">
+                      Registrations
+                    </span>
+                    <span className="text-xl font-black text-white font-mono">
+                      {registrations.length}
                     </span>
                   </div>
                   <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
-                    <span className="text-gray-400 block text-[10px] font-mono">Prize Pool</span>
-                    <span className="text-xl font-black text-amber-400 font-mono">{room?.gbits_prize_pool || 1000} gBits</span>
+                    <span className="text-gray-400 block text-[10px] font-mono">
+                      Submissions
+                    </span>
+                    <span className="text-xl font-black text-[#00F0FF] font-mono">
+                      {submissions.length}
+                    </span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
+                    <span className="text-gray-400 block text-[10px] font-mono">
+                      Completion Rate
+                    </span>
+                    <span className="text-xl font-black text-emerald-400 font-mono">
+                      {registrations.length > 0
+                        ? `${Math.round((submissions.length / registrations.length) * 100)}%`
+                        : "0%"}
+                    </span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#06060c] border border-white/10 text-center">
+                    <span className="text-gray-400 block text-[10px] font-mono">
+                      Prize Pool
+                    </span>
+                    <span className="text-xl font-black text-amber-400 font-mono">
+                      {room?.gbits_prize_pool || 1000} gBits
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1168,17 +1375,29 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "host_participants" && isHost && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <Users size={16} className="text-purple-400" /> Registered Candidate Roster ({registrations.length})
+                  <Users size={16} className="text-purple-400" /> Registered
+                  Candidate Roster ({registrations.length})
                 </h3>
 
                 {registrations.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-8">No candidates registered yet.</p>
+                  <p className="text-xs text-gray-500 text-center py-8">
+                    No candidates registered yet.
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {registrations.map((r, idx) => (
-                      <div key={r.id || idx} className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                        <span className="text-white font-bold">{r.profiles?.full_name || r.profiles?.username || "Candidate"}</span>
-                        <span className="text-[10px] font-mono text-emerald-400">Registered</span>
+                      <div
+                        key={r.id || idx}
+                        className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between"
+                      >
+                        <span className="text-white font-bold">
+                          {r.profiles?.full_name ||
+                            r.profiles?.username ||
+                            "Candidate"}
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-400">
+                          Registered
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -1189,10 +1408,18 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "host_assessment" && isHost && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <Layers size={16} className="text-[#00F0FF]" /> Assessment Configuration
+                  <Layers size={16} className="text-[#00F0FF]" /> Assessment
+                  Configuration
                 </h3>
-                <p className="text-gray-400">Manage your timed sections and question bank.</p>
-                <button onClick={() => navigate(`/pro-rooms/create?edit=${id}&step=4`)} className="px-4 py-2 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer">
+                <p className="text-gray-400">
+                  Manage your timed sections and question bank.
+                </p>
+                <button
+                  onClick={() =>
+                    navigate(`/pro-rooms/create?edit=${id}&step=4`)
+                  }
+                  className="px-4 py-2 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer"
+                >
                   Open Creation Studio Editor →
                 </button>
               </div>
@@ -1201,17 +1428,29 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "host_submissions" && isHost && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <CheckCircle size={16} className="text-emerald-400" /> Candidate Submissions & Evaluation
+                  <CheckCircle size={16} className="text-emerald-400" />{" "}
+                  Candidate Submissions & Evaluation
                 </h3>
                 <div className="space-y-3">
                   {submissions.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-8">No candidate submissions yet.</p>
+                    <p className="text-xs text-gray-500 text-center py-8">
+                      No candidate submissions yet.
+                    </p>
                   ) : (
                     submissions.map((sub, sIdx) => (
-                      <div key={sub.id || sIdx} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs">
+                      <div
+                        key={sub.id || sIdx}
+                        className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs"
+                      >
                         <div>
-                          <span className="text-white font-bold block">{sub.profiles?.full_name || sub.profiles?.username || "Candidate"}</span>
-                          <span className="text-[10px] text-gray-500 font-mono">Score: {sub.total_score} pts • {sub.percentage}%</span>
+                          <span className="text-white font-bold block">
+                            {sub.profiles?.full_name ||
+                              sub.profiles?.username ||
+                              "Candidate"}
+                          </span>
+                          <span className="text-[10px] text-gray-500 font-mono">
+                            Score: {sub.total_score} pts • {sub.percentage}%
+                          </span>
                         </div>
                         <button
                           onClick={() => navigate(`/pro-rooms/${id}/dashboard`)}
@@ -1236,8 +1475,13 @@ const ProfessionalRoomDetail = () => {
                         <Sparkles size={20} className="text-[#00F0FF]" />
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-white">Registration Open for this Pro Room</h4>
-                        <p className="text-xs text-gray-400">Register now for automatic approval and instant access to assessment sections.</p>
+                        <h4 className="text-sm font-bold text-white">
+                          Registration Open for this Pro Room
+                        </h4>
+                        <p className="text-xs text-gray-400">
+                          Register now for automatic approval and instant access
+                          to assessment sections.
+                        </p>
                       </div>
                     </div>
                     <button
@@ -1252,7 +1496,8 @@ const ProfessionalRoomDetail = () => {
                 <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                   <div className="space-y-3">
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <Info size={16} className="text-purple-400" /> About This Event
+                      <Info size={16} className="text-purple-400" /> About This
+                      Event
                     </h3>
                     <p className="text-xs text-gray-300 leading-relaxed">
                       {room.detailed_description || room.short_description}
@@ -1261,37 +1506,65 @@ const ProfessionalRoomDetail = () => {
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10 text-xs">
                     <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">Team Event</span>
-                      <span className="text-white font-bold">{isTeamEvent ? `2 - ${room.max_team_size || 4} Members` : "Individual"}</span>
+                      <span className="text-gray-500 block text-[10px] font-mono">
+                        Team Event
+                      </span>
+                      <span className="text-white font-bold">
+                        {isTeamEvent
+                          ? `2 - ${room.max_team_size || 4} Members`
+                          : "Individual"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">End Date</span>
-                      <span className="text-white font-bold">{eventEndFormatted}</span>
+                      <span className="text-gray-500 block text-[10px] font-mono">
+                        End Date
+                      </span>
+                      <span className="text-white font-bold">
+                        {eventEndFormatted}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">Registration</span>
+                      <span className="text-gray-500 block text-[10px] font-mono">
+                        Registration
+                      </span>
                       <span className="text-white font-bold">Open</span>
                     </div>
                     <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">Eligibility</span>
-                      <span className="text-white font-bold">{room.target_college || "Open for all students"}</span>
+                      <span className="text-gray-500 block text-[10px] font-mono">
+                        Eligibility
+                      </span>
+                      <span className="text-white font-bold">
+                        {room.target_college || "Open for all students"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">Start Date</span>
+                      <span className="text-gray-500 block text-[10px] font-mono">
+                        Start Date
+                      </span>
                       <span className="text-white font-bold">Active</span>
                     </div>
                     <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">Timezone</span>
-                      <span className="text-white font-bold">{room.timezone || "IST (UTC +05:30)"}</span>
+                      <span className="text-gray-500 block text-[10px] font-mono">
+                        Timezone
+                      </span>
+                      <span className="text-white font-bold">
+                        {room.timezone || "IST (UTC +05:30)"}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* MOBILE ORGANIZER & QUICK ACTIONS CARD (lg:hidden) */}
                 <div className="lg:hidden bg-[#0c0c16] border border-white/10 rounded-3xl p-5 text-center space-y-3 shadow-xl">
-                  <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest block">Event by</span>
+                  <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest block">
+                    Event by
+                  </span>
                   {room.org_logo ? (
-                    <img src={room.org_logo} alt="Org Logo" className="w-12 h-12 rounded-2xl mx-auto object-cover border border-white/10" />
+                    <img
+                      src={room.org_logo}
+                      alt="Org Logo"
+                      className="w-12 h-12 rounded-2xl mx-auto object-cover border border-white/10"
+                    />
                   ) : (
                     <div className="w-12 h-12 rounded-2xl bg-purple-900/40 border border-purple-500/30 mx-auto flex items-center justify-center">
                       <Building2 size={24} className="text-[#00F0FF]" />
@@ -1306,8 +1579,13 @@ const ProfessionalRoomDetail = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (room.org_website) window.open(room.org_website, "_blank");
-                      else showToast("Org Profile: " + (room.org_name || "Verified Organization"));
+                      if (room.org_website)
+                        window.open(room.org_website, "_blank");
+                      else
+                        showToast(
+                          "Org Profile: " +
+                            (room.org_name || "Verified Organization"),
+                        );
                     }}
                     className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-gray-200 transition cursor-pointer"
                   >
@@ -1317,7 +1595,9 @@ const ProfessionalRoomDetail = () => {
 
                 {/* MOBILE QUICK ACTIONS (lg:hidden) */}
                 <div className="lg:hidden bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-3">
-                  <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest mb-2">Quick Actions</h4>
+                  <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest mb-2">
+                    Quick Actions
+                  </h4>
                   <button
                     type="button"
                     onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
@@ -1345,61 +1625,101 @@ const ProfessionalRoomDetail = () => {
                 </div>
 
                 {/* ❓ DYNAMIC HOST FAQ / COMMON QUESTIONS ACCORDION */}
-                {Array.isArray(room?.custom_app_questions) && room.custom_app_questions.filter(q => q && (q.question || q.title)).length > 0 && (
-                  <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-                    <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                      <HelpCircle size={16} className="text-[#00F0FF]" /> Frequently Asked Questions (FAQ)
-                    </h3>
+                {Array.isArray(room?.custom_app_questions) &&
+                  room.custom_app_questions.filter(
+                    (q) => q && (q.question || q.title),
+                  ).length > 0 && (
+                    <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+                      <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+                        <HelpCircle size={16} className="text-[#00F0FF]" />{" "}
+                        Frequently Asked Questions (FAQ)
+                      </h3>
 
-                    <div className="space-y-3">
-                      {room.custom_app_questions
-                        .filter(q => q && (q.question || q.title))
-                        .map((faq, idx) => (
-                          <details
-                            key={faq.id || idx}
-                            className="group p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-purple-500/30 transition text-xs cursor-pointer"
-                          >
-                            <summary className="font-bold text-white flex items-center justify-between gap-3 list-none">
-                              <span className="flex items-center gap-2">
-                                <span className="text-purple-400 font-mono font-bold">Q:</span> {faq.question || faq.title}
-                              </span>
-                              <ChevronRight size={14} className="text-gray-500 group-open:rotate-90 transition-transform" />
-                            </summary>
-                            <div className="mt-3 pt-3 border-t border-white/5 text-gray-300 leading-relaxed pl-6">
-                              <span className="text-emerald-400 font-mono font-bold">A:</span> {faq.answer || "Answer will be updated by the host."}
-                            </div>
-                          </details>
-                      ))}
+                      <div className="space-y-3">
+                        {room.custom_app_questions
+                          .filter((q) => q && (q.question || q.title))
+                          .map((faq, idx) => (
+                            <details
+                              key={faq.id || idx}
+                              className="group p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-purple-500/30 transition text-xs cursor-pointer"
+                            >
+                              <summary className="font-bold text-white flex items-center justify-between gap-3 list-none">
+                                <span className="flex items-center gap-2">
+                                  <span className="text-purple-400 font-mono font-bold">
+                                    Q:
+                                  </span>{" "}
+                                  {faq.question || faq.title}
+                                </span>
+                                <ChevronRight
+                                  size={14}
+                                  className="text-gray-500 group-open:rotate-90 transition-transform"
+                                />
+                              </summary>
+                              <div className="mt-3 pt-3 border-t border-white/5 text-gray-300 leading-relaxed pl-6">
+                                <span className="text-emerald-400 font-mono font-bold">
+                                  A:
+                                </span>{" "}
+                                {faq.answer ||
+                                  "Answer will be updated by the host."}
+                              </div>
+                            </details>
+                          ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             )}
 
             {activeSidebarTab === "instructions" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <FileText size={16} className="text-[#00F0FF]" /> Official Guidelines & Rules
+                  <FileText size={16} className="text-[#00F0FF]" /> Official
+                  Guidelines & Rules
                 </h3>
 
                 <div className="space-y-4 text-gray-300 leading-relaxed">
                   <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20">
-                    <h4 className="font-bold text-purple-300 mb-1">1. Assessment Environment & Integrity</h4>
-                    <p className="text-gray-400">All submissions are monitored by automated focus tracking. Switching tabs or windows during coding tasks will log warning events to your submission report.</p>
+                    <h4 className="font-bold text-purple-300 mb-1">
+                      1. Assessment Environment & Integrity
+                    </h4>
+                    <p className="text-gray-400">
+                      All submissions are monitored by automated focus tracking.
+                      Switching tabs or windows during coding tasks will log
+                      warning events to your submission report.
+                    </p>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
-                    <h4 className="font-bold text-white">2. Evaluation & Negative Marking</h4>
+                    <h4 className="font-bold text-white">
+                      2. Evaluation & Negative Marking
+                    </h4>
                     <ul className="list-disc pl-4 space-y-1 text-gray-400">
-                      <li>Coding problems are evaluated against hidden unit test cases.</li>
-                      <li>Passing score threshold for qualification is {room?.passing_score || 50} points.</li>
-                      <li>Negative marking policy: {room?.negative_marking ? "Enabled (-5 pts on wrong MCQ)" : "Disabled"}.</li>
+                      <li>
+                        Coding problems are evaluated against hidden unit test
+                        cases.
+                      </li>
+                      <li>
+                        Passing score threshold for qualification is{" "}
+                        {room?.passing_score || 50} points.
+                      </li>
+                      <li>
+                        Negative marking policy:{" "}
+                        {room?.negative_marking
+                          ? "Enabled (-5 pts on wrong MCQ)"
+                          : "Disabled"}
+                        .
+                      </li>
                     </ul>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
-                    <h4 className="font-bold text-white">3. Tie-Breaker Rules</h4>
-                    <p className="text-gray-400">In case of equal total scores, rank is determined by shortest completion time and submission speed.</p>
+                    <h4 className="font-bold text-white">
+                      3. Tie-Breaker Rules
+                    </h4>
+                    <p className="text-gray-400">
+                      In case of equal total scores, rank is determined by
+                      shortest completion time and submission speed.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1411,21 +1731,35 @@ const ProfessionalRoomDetail = () => {
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Megaphone size={16} className="text-[#00F0FF]" /> Announcements ({announcements.length})
+                    <Megaphone size={16} className="text-[#00F0FF]" />{" "}
+                    Announcements ({announcements.length})
                   </h3>
                 </div>
 
                 <div className="space-y-4">
                   {announcements.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-8">No announcements posted yet.</p>
+                    <p className="text-xs text-gray-500 text-center py-8">
+                      No announcements posted yet.
+                    </p>
                   ) : (
                     announcements.map((a) => (
-                      <div key={a.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2 relative">
+                      <div
+                        key={a.id}
+                        className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2 relative"
+                      >
                         <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold text-white">{a.title}</h4>
-                          <span className="text-[10px] font-mono text-gray-500">{new Date(a.created_at || Date.now()).toLocaleDateString()}</span>
+                          <h4 className="text-xs font-bold text-white">
+                            {a.title}
+                          </h4>
+                          <span className="text-[10px] font-mono text-gray-500">
+                            {new Date(
+                              a.created_at || Date.now(),
+                            ).toLocaleDateString()}
+                          </span>
                         </div>
-                        <p className="text-xs text-gray-300 leading-relaxed">{a.content}</p>
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                          {a.content}
+                        </p>
                       </div>
                     ))
                   )}
@@ -1438,13 +1772,16 @@ const ProfessionalRoomDetail = () => {
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Megaphone size={16} className="text-amber-400" /> Broadcast Announcements ({announcements.length})
+                    <Megaphone size={16} className="text-amber-400" /> Broadcast
+                    Announcements ({announcements.length})
                   </h3>
                 </div>
 
                 {/* POST ANNOUNCEMENT FORM */}
                 <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-4 space-y-3 shadow-xl">
-                  <h4 className="text-xs font-bold text-purple-300">Post Broadcast Announcement</h4>
+                  <h4 className="text-xs font-bold text-purple-300">
+                    Post Broadcast Announcement
+                  </h4>
                   <input
                     type="text"
                     placeholder="Title..."
@@ -1472,20 +1809,37 @@ const ProfessionalRoomDetail = () => {
                 {/* ANNOUNCEMENTS LIST WITH DELETE */}
                 <div className="space-y-4">
                   {announcements.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-8">No announcements broadcasted yet.</p>
+                    <p className="text-xs text-gray-500 text-center py-8">
+                      No announcements broadcasted yet.
+                    </p>
                   ) : (
                     announcements.map((a) => (
-                      <div key={a.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2 relative">
+                      <div
+                        key={a.id}
+                        className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2 relative"
+                      >
                         <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold text-white">{a.title}</h4>
+                          <h4 className="text-xs font-bold text-white">
+                            {a.title}
+                          </h4>
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-mono text-gray-500">{new Date(a.created_at || Date.now()).toLocaleDateString()}</span>
-                            <button onClick={() => handleDeleteAnnouncement(a.id)} className="text-red-400 hover:text-red-300 p-1 cursor-pointer" title="Delete Announcement">
+                            <span className="text-[10px] font-mono text-gray-500">
+                              {new Date(
+                                a.created_at || Date.now(),
+                              ).toLocaleDateString()}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteAnnouncement(a.id)}
+                              className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
+                              title="Delete Announcement"
+                            >
                               <Trash2 size={13} />
                             </button>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-300 leading-relaxed">{a.content}</p>
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                          {a.content}
+                        </p>
                       </div>
                     ))
                   )}
@@ -1497,7 +1851,8 @@ const ProfessionalRoomDetail = () => {
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Layers size={16} className="text-[#00F0FF]" /> Assessment Sections ({sections.length})
+                    <Layers size={16} className="text-[#00F0FF]" /> Assessment
+                    Sections ({sections.length})
                   </h3>
                   {isRegistered && (
                     <button
@@ -1514,9 +1869,13 @@ const ProfessionalRoomDetail = () => {
                     <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mx-auto text-[#00F0FF]">
                       <Lock size={28} />
                     </div>
-                    <h3 className="text-base font-bold text-white">Registration Required</h3>
+                    <h3 className="text-base font-bold text-white">
+                      Registration Required
+                    </h3>
                     <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
-                      You must register for this Pro Room before you can view assessment questions, launch timed sections, or submit solutions.
+                      You must register for this Pro Room before you can view
+                      assessment questions, launch timed sections, or submit
+                      solutions.
                     </p>
                     <button
                       onClick={() => setShowRegModal(true)}
@@ -1526,19 +1885,29 @@ const ProfessionalRoomDetail = () => {
                     </button>
                   </div>
                 ) : sections.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-10">No sections configured for this assessment.</p>
+                  <p className="text-xs text-gray-500 text-center py-10">
+                    No sections configured for this assessment.
+                  </p>
                 ) : (
                   <div className="space-y-4">
                     {sections.map((sec, idx) => (
-                      <div key={sec.id || idx} className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3">
+                      <div
+                        key={sec.id || idx}
+                        className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3"
+                      >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <span className="w-8 h-8 rounded-xl bg-purple-600 text-white font-mono text-xs font-bold flex items-center justify-center">
                               {idx + 1}
                             </span>
                             <div>
-                              <h4 className="text-xs font-bold text-white">{sec.section_name}</h4>
-                              <p className="text-[11px] text-gray-400">{sec.description || `${sec.time_limit_minutes || 30} Mins • ${sec.total_points || 50} Points`}</p>
+                              <h4 className="text-xs font-bold text-white">
+                                {sec.section_name}
+                              </h4>
+                              <p className="text-[11px] text-gray-400">
+                                {sec.description ||
+                                  `${sec.time_limit_minutes || 30} Mins • ${sec.total_points || 50} Points`}
+                              </p>
                             </div>
                           </div>
                           <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[#00F0FF] font-bold">
@@ -1548,10 +1917,13 @@ const ProfessionalRoomDetail = () => {
 
                         <div className="pt-2 flex items-center justify-between text-xs border-t border-white/5">
                           <span className="text-gray-400 font-mono text-[11px]">
-                            {sec.pro_room_questions?.length || 5} Questions • {sec.total_points || 50} Points
+                            {sec.pro_room_questions?.length || 5} Questions •{" "}
+                            {sec.total_points || 50} Points
                           </span>
                           <button
-                            onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
+                            onClick={() =>
+                              navigate(`/pro-rooms/${id}/assessment`)
+                            }
                             className="px-4 py-1.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer flex items-center gap-1"
                           >
                             Launch Section <ArrowRight size={13} />
@@ -1569,7 +1941,9 @@ const ProfessionalRoomDetail = () => {
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <CheckCircle size={16} className="text-emerald-400" />
-                    {isHost ? "Candidate Submissions & Grading Roster" : "Your Performance & Submission Result"}
+                    {isHost
+                      ? "Candidate Submissions & Grading Roster"
+                      : "Your Performance & Submission Result"}
                   </h3>
                 </div>
 
@@ -1578,32 +1952,52 @@ const ProfessionalRoomDetail = () => {
                     <div className="p-6 rounded-2xl bg-[#06060c] border border-emerald-500/30 space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-xs text-gray-400 block font-mono">Submission Status</span>
-                          <span className="text-sm font-bold text-emerald-400 uppercase">{userSubmission.status || "Completed"}</span>
+                          <span className="text-xs text-gray-400 block font-mono">
+                            Submission Status
+                          </span>
+                          <span className="text-sm font-bold text-emerald-400 uppercase">
+                            {userSubmission.status || "Completed"}
+                          </span>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs text-gray-400 block font-mono">Your Score</span>
-                          <span className="text-xl font-black text-white font-mono">{userSubmission.total_score || 0} / {totalPossible}</span>
+                          <span className="text-xs text-gray-400 block font-mono">
+                            Your Score
+                          </span>
+                          <span className="text-xl font-black text-white font-mono">
+                            {userSubmission.total_score || 0} / {totalPossible}
+                          </span>
                         </div>
                       </div>
 
                       <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2 text-xs">
                         <div className="flex justify-between text-gray-400">
                           <span>Percentage:</span>
-                          <span className="text-white font-bold">{userSubmission.percentage || 100}%</span>
+                          <span className="text-white font-bold">
+                            {userSubmission.percentage || 100}%
+                          </span>
                         </div>
                         <div className="flex justify-between text-gray-400">
                           <span>Submitted At:</span>
-                          <span className="text-white font-mono">{new Date(userSubmission?.submitted_at || Date.now()).toLocaleString()}</span>
+                          <span className="text-white font-mono">
+                            {new Date(
+                              userSubmission?.submitted_at || Date.now(),
+                            ).toLocaleString()}
+                          </span>
                         </div>
                       </div>
                     </div>
                   ) : (
                     <div className="text-center py-12 space-y-3">
-                      <CheckCircle size={32} className="text-gray-600 mx-auto" />
-                      <h4 className="text-sm font-bold text-white">No Submission Recorded Yet</h4>
+                      <CheckCircle
+                        size={32}
+                        className="text-gray-600 mx-auto"
+                      />
+                      <h4 className="text-sm font-bold text-white">
+                        No Submission Recorded Yet
+                      </h4>
                       <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                        Complete your assessment tasks in the sections environment to view your test score.
+                        Complete your assessment tasks in the sections
+                        environment to view your test score.
                       </p>
                       <button
                         onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
@@ -1616,9 +2010,12 @@ const ProfessionalRoomDetail = () => {
                 ) : (
                   <div className="text-center py-10 space-y-3 bg-[#06060c] border border-white/10 rounded-2xl p-6">
                     <CheckCircle size={28} className="text-[#00F0FF] mx-auto" />
-                    <h4 className="text-sm font-bold text-white">Host View — All Candidate Submissions</h4>
+                    <h4 className="text-sm font-bold text-white">
+                      Host View — All Candidate Submissions
+                    </h4>
                     <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                      As the room host, evaluate, grade, and review all candidate submissions under Host Management.
+                      As the room host, evaluate, grade, and review all
+                      candidate submissions under Host Management.
                     </p>
                     <button
                       onClick={() => setActiveSidebarTab("host_submissions")}
@@ -1635,12 +2032,16 @@ const ProfessionalRoomDetail = () => {
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Trophy size={16} className="text-amber-400" /> Official Standings & Leaderboard ({leaderboard.length})
+                    <Trophy size={16} className="text-amber-400" /> Official
+                    Standings & Leaderboard ({leaderboard.length})
                   </h3>
                 </div>
 
                 {leaderboard.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-10">Leaderboard standings will update after submissions are evaluated.</p>
+                  <p className="text-xs text-gray-500 text-center py-10">
+                    Leaderboard standings will update after submissions are
+                    evaluated.
+                  </p>
                 ) : (
                   <div className="divide-y divide-white/5">
                     {leaderboard.map((lb, idx) => {
@@ -1649,15 +2050,29 @@ const ProfessionalRoomDetail = () => {
                         <div
                           key={lb.id || idx}
                           className={`py-3 px-4 rounded-xl flex items-center justify-between text-xs transition ${
-                            isMe ? "bg-[#FF00C8]/15 border border-[#FF00C8]/30 font-bold" : "hover:bg-white/[0.02]"
+                            isMe
+                              ? "bg-[#FF00C8]/15 border border-[#FF00C8]/30 font-bold"
+                              : "hover:bg-white/[0.02]"
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <span className="font-mono text-gray-400 w-6">#{idx + 1}</span>
-                            <span className="text-white font-bold">{lb.profiles?.full_name || lb.profiles?.username || "Candidate"}</span>
-                            {isMe && <span className="text-[10px] text-[#FF00C8] font-mono">(You)</span>}
+                            <span className="font-mono text-gray-400 w-6">
+                              #{idx + 1}
+                            </span>
+                            <span className="text-white font-bold">
+                              {lb.profiles?.full_name ||
+                                lb.profiles?.username ||
+                                "Candidate"}
+                            </span>
+                            {isMe && (
+                              <span className="text-[10px] text-[#FF00C8] font-mono">
+                                (You)
+                              </span>
+                            )}
                           </div>
-                          <span className="font-mono font-bold text-amber-400">{lb.total_score} Pts</span>
+                          <span className="font-mono font-bold text-amber-400">
+                            {lb.total_score} Pts
+                          </span>
                         </div>
                       );
                     })}
@@ -1671,9 +2086,12 @@ const ProfessionalRoomDetail = () => {
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <div>
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <HelpCircle size={16} className="text-[#00F0FF]" /> Ask a Question / Post Doubt
+                      <HelpCircle size={16} className="text-[#00F0FF]" /> Ask a
+                      Question / Post Doubt
                     </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Submit your query or doubt to the room discussion feed.</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Submit your query or doubt to the room discussion feed.
+                    </p>
                   </div>
                 </div>
 
@@ -1682,7 +2100,9 @@ const ProfessionalRoomDetail = () => {
                     <Plus size={14} /> New Question Details
                   </h4>
                   <div>
-                    <label className="text-xs font-bold text-gray-300 block mb-1.5">Question Title *</label>
+                    <label className="text-xs font-bold text-gray-300 block mb-1.5">
+                      Question Title *
+                    </label>
                     <input
                       type="text"
                       placeholder="Question Title (e.g., How to handle API rate limiting in Section 2?)..."
@@ -1692,7 +2112,9 @@ const ProfessionalRoomDetail = () => {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-300 block mb-1.5">Detailed Description / Context *</label>
+                    <label className="text-xs font-bold text-gray-300 block mb-1.5">
+                      Detailed Description / Context *
+                    </label>
                     <textarea
                       rows={5}
                       placeholder="Provide detailed information, code snippets, or error tracebacks..."
@@ -1702,10 +2124,14 @@ const ProfessionalRoomDetail = () => {
                     />
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                    <span className="text-[11px] text-gray-500 font-mono">Visible to all room candidates & hosts</span>
+                    <span className="text-[11px] text-gray-500 font-mono">
+                      Visible to all room candidates & hosts
+                    </span>
                     <button
                       onClick={handlePostDiscussion}
-                      disabled={postingDisc || !discTitle.trim() || !discContent.trim()}
+                      disabled={
+                        postingDisc || !discTitle.trim() || !discContent.trim()
+                      }
                       className="px-6 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black text-xs font-bold cursor-pointer disabled:opacity-50 transition shadow-lg shadow-[#00F0FF]/20 flex items-center gap-2"
                     >
                       <Send size={14} /> Post Question
@@ -1718,16 +2144,20 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "discussion" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-8 shadow-2xl text-center space-y-4">
                 <MessageSquare size={40} className="text-[#00F0FF] mx-auto" />
-                <h3 className="text-base font-bold text-white">Q&A Discussion Feed</h3>
+                <h3 className="text-base font-bold text-white">
+                  Q&A Discussion Feed
+                </h3>
                 <p className="text-xs text-gray-400 max-w-md mx-auto">
-                  View all room questions, solutions, and community discussions in the dedicated Discussion Modal.
+                  View all room questions, solutions, and community discussions
+                  in the dedicated Discussion Modal.
                 </p>
                 <div className="flex items-center justify-center gap-3 pt-2">
                   <button
                     onClick={() => setShowDiscussionModal(true)}
                     className="px-6 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black text-xs font-bold cursor-pointer transition shadow-lg shadow-[#00F0FF]/20 flex items-center gap-2"
                   >
-                    <MessageSquare size={15} /> Open Discussion Feed ({discussions.length})
+                    <MessageSquare size={15} /> Open Discussion Feed (
+                    {discussions.length})
                   </button>
                   <button
                     onClick={() => setActiveSidebarTab("ask_doubt")}
@@ -1742,26 +2172,35 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "organizers" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <Building2 size={16} className="text-purple-400" /> Host & Organizer Information
+                  <Building2 size={16} className="text-purple-400" /> Host &
+                  Organizer Information
                 </h3>
 
                 <div className="p-6 rounded-2xl bg-[#06060c] border border-white/10 space-y-4 text-xs">
                   <div className="flex items-center gap-4">
                     {room.org_logo ? (
-                      <img src={room.org_logo} alt="Logo" className="w-14 h-14 rounded-2xl object-cover border border-white/10" />
+                      <img
+                        src={room.org_logo}
+                        alt="Logo"
+                        className="w-14 h-14 rounded-2xl object-cover border border-white/10"
+                      />
                     ) : (
                       <Building2 size={32} className="text-[#00F0FF]" />
                     )}
                     <div>
                       <h4 className="text-sm font-bold text-white flex items-center gap-1">
-                        {room.org_name || "Verified Organization"} <ShieldCheck size={14} className="text-[#00F0FF]" />
+                        {room.org_name || "Verified Organization"}{" "}
+                        <ShieldCheck size={14} className="text-[#00F0FF]" />
                       </h4>
-                      <p className="text-gray-400 text-[11px]">{room.org_email || "contact@organizer.edu"}</p>
+                      <p className="text-gray-400 text-[11px]">
+                        {room.org_email || "contact@organizer.edu"}
+                      </p>
                     </div>
                   </div>
 
                   <p className="text-gray-300 leading-relaxed">
-                    Verified organization hosting high-stakes technical assessments and competitions on Glitch Room.
+                    Verified organization hosting high-stakes technical
+                    assessments and competitions on Glitch Room.
                   </p>
 
                   <a
@@ -1779,15 +2218,23 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "resources" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <Folder size={16} className="text-[#00F0FF]" /> Event Resources & Materials
+                  <Folder size={16} className="text-[#00F0FF]" /> Event
+                  Resources & Materials
                 </h3>
                 <div className="space-y-3 text-xs">
                   <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
                     <div>
-                      <span className="text-white font-bold block">Problem Dataset & API Specifications</span>
-                      <span className="text-[10px] text-gray-500 font-mono">ZIP Archive • 12 MB</span>
+                      <span className="text-white font-bold block">
+                        Problem Dataset & API Specifications
+                      </span>
+                      <span className="text-[10px] text-gray-500 font-mono">
+                        ZIP Archive • 12 MB
+                      </span>
                     </div>
-                    <button onClick={() => showToast("📥 Download started.")} className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-300 cursor-pointer">
+                    <button
+                      onClick={() => showToast("📥 Download started.")}
+                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-300 cursor-pointer"
+                    >
                       Download
                     </button>
                   </div>
@@ -1798,12 +2245,18 @@ const ProfessionalRoomDetail = () => {
             {activeSidebarTab === "help" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
                 <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <HelpCircle size={16} className="text-amber-400" /> Candidate Help & Support
+                  <HelpCircle size={16} className="text-amber-400" /> Candidate
+                  Help & Support
                 </h3>
                 <p className="text-gray-300 leading-relaxed">
-                  If you encounter technical issues during code execution or assessment tasks, reach out to event mentors or submit a direct query.
+                  If you encounter technical issues during code execution or
+                  assessment tasks, reach out to event mentors or submit a
+                  direct query.
                 </p>
-                <button onClick={() => showToast("🎧 Support assistant notified.")} className="px-5 py-2.5 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer">
+                <button
+                  onClick={() => showToast("🎧 Support assistant notified.")}
+                  className="px-5 py-2.5 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer"
+                >
                   Request Support Assistant
                 </button>
               </div>
@@ -1816,19 +2269,34 @@ const ProfessionalRoomDetail = () => {
             <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
                 <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest flex items-center gap-1.5">
-                  <Megaphone size={14} className="text-purple-400" /> Announcements
+                  <Megaphone size={14} className="text-purple-400" />{" "}
+                  Announcements
                 </h4>
-                <span onClick={() => setActiveSidebarTab("announcements")} className="text-[10px] font-mono text-purple-400 cursor-pointer">View All</span>
+                <span
+                  onClick={() => setActiveSidebarTab("announcements")}
+                  className="text-[10px] font-mono text-purple-400 cursor-pointer"
+                >
+                  View All
+                </span>
               </div>
 
               <div className="space-y-3">
                 {announcements.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-4">No announcements yet.</p>
+                  <p className="text-xs text-gray-500 text-center py-4">
+                    No announcements yet.
+                  </p>
                 ) : (
                   announcements.slice(0, 3).map((a) => (
-                    <div key={a.id} className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
-                      <span className="text-xs font-bold text-white block truncate">{a.title}</span>
-                      <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">{a.content}</p>
+                    <div
+                      key={a.id}
+                      className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1"
+                    >
+                      <span className="text-xs font-bold text-white block truncate">
+                        {a.title}
+                      </span>
+                      <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">
+                        {a.content}
+                      </p>
                     </div>
                   ))
                 )}
@@ -1837,7 +2305,9 @@ const ProfessionalRoomDetail = () => {
 
             {/* Quick Actions Box */}
             <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-5 shadow-2xl space-y-3">
-              <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest mb-2">Quick Actions</h4>
+              <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest mb-2">
+                Quick Actions
+              </h4>
 
               <button
                 type="button"
@@ -1887,8 +2357,12 @@ const ProfessionalRoomDetail = () => {
                 <Zap size={16} className="text-purple-400" />
               </div>
               <div>
-                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">{userGbits} gBits</span>
-                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">Your Balance</span>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">
+                  {userGbits} gBits
+                </span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
+                  Your Balance
+                </span>
               </div>
             </div>
 
@@ -1898,8 +2372,12 @@ const ProfessionalRoomDetail = () => {
                 <Trophy size={16} className="text-amber-400" />
               </div>
               <div>
-                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">{userRankDisplay}</span>
-                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">Target Rank</span>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">
+                  {userRankDisplay}
+                </span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
+                  Target Rank
+                </span>
               </div>
             </div>
 
@@ -1909,8 +2387,12 @@ const ProfessionalRoomDetail = () => {
                 <Award size={16} className="text-[#00F0FF]" />
               </div>
               <div>
-                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">{totalPossible}</span>
-                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">Total Points</span>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">
+                  {totalPossible}
+                </span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
+                  Total Points
+                </span>
               </div>
             </div>
 
@@ -1920,8 +2402,12 @@ const ProfessionalRoomDetail = () => {
                 <Calendar size={16} className="text-purple-400" />
               </div>
               <div>
-                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">{eventEndFormatted}</span>
-                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">Event Ends</span>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">
+                  {eventEndFormatted}
+                </span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
+                  Event Ends
+                </span>
               </div>
             </div>
           </div>
@@ -1942,10 +2428,17 @@ const ProfessionalRoomDetail = () => {
           <div className="bg-[#0c0c16] border border-red-500/40 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
             <div className="flex items-center gap-3 text-red-400">
               <AlertTriangle size={24} />
-              <h3 className="text-base font-bold text-white">Archive / Delete Pro Room</h3>
+              <h3 className="text-base font-bold text-white">
+                Archive / Delete Pro Room
+              </h3>
             </div>
             <p className="text-xs text-gray-300 leading-relaxed">
-              Are you sure you want to delete <strong className="text-white">"{room?.name || room?.title}"</strong>? This action cannot be undone. All sections, questions, and candidate submissions will be permanently removed.
+              Are you sure you want to delete{" "}
+              <strong className="text-white">
+                "{room?.name || room?.title}"
+              </strong>
+              ? This action cannot be undone. All sections, questions, and
+              candidate submissions will be permanently removed.
             </p>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -1973,9 +2466,12 @@ const ProfessionalRoomDetail = () => {
             <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#07070e]">
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <MessageSquare size={18} className="text-[#00F0FF]" /> Q&A Discussion Feed ({discussions.length})
+                  <MessageSquare size={18} className="text-[#00F0FF]" /> Q&A
+                  Discussion Feed ({discussions.length})
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">View questions, solutions, and community discussions.</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  View questions, solutions, and community discussions.
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -2001,7 +2497,9 @@ const ProfessionalRoomDetail = () => {
               {discussions.length === 0 ? (
                 <div className="text-center py-16 space-y-3 bg-[#06060c] border border-white/5 rounded-2xl p-6">
                   <MessageSquare size={36} className="text-gray-600 mx-auto" />
-                  <h4 className="text-sm font-bold text-white">No Discussions Posted Yet</h4>
+                  <h4 className="text-sm font-bold text-white">
+                    No Discussions Posted Yet
+                  </h4>
                   <p className="text-xs text-gray-400 max-w-sm mx-auto">
                     Be the first to post a question or doubt in this room!
                   </p>
@@ -2023,12 +2521,17 @@ const ProfessionalRoomDetail = () => {
                   const isExpanded = expandedDiscIds[d.id] ?? true;
 
                   return (
-                    <div key={d.id} className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3 shadow-lg hover:border-white/20 transition">
+                    <div
+                      key={d.id}
+                      className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3 shadow-lg hover:border-white/20 transition"
+                    >
                       {/* Question Header */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3 min-w-0 flex-1">
                           <div className="w-8 h-8 rounded-full bg-purple-900/50 border border-purple-500/30 flex items-center justify-center text-xs font-bold text-purple-300 shrink-0 uppercase">
-                            {d.profiles?.full_name?.charAt(0) || d.profiles?.username?.charAt(0) || "U"}
+                            {d.profiles?.full_name?.charAt(0) ||
+                              d.profiles?.username?.charAt(0) ||
+                              "U"}
                           </div>
                           <div className="min-w-0 flex-1">
                             <h4 className="text-sm font-bold text-white leading-tight flex items-center gap-2 flex-wrap">
@@ -2045,9 +2548,24 @@ const ProfessionalRoomDetail = () => {
                               )}
                             </h4>
                             <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-1">
-                              <span>{d.profiles?.full_name || d.profiles?.username || "Candidate"}</span>
+                              <span>
+                                {d.profiles?.full_name ||
+                                  d.profiles?.username ||
+                                  "Candidate"}
+                              </span>
                               <span>•</span>
-                              <span>{new Date(d.created_at || Date.now()).toLocaleDateString()} at {new Date(d.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span>
+                                {new Date(
+                                  d.created_at || Date.now(),
+                                ).toLocaleDateString()}{" "}
+                                at{" "}
+                                {new Date(
+                                  d.created_at || Date.now(),
+                                ).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -2056,7 +2574,11 @@ const ProfessionalRoomDetail = () => {
                         {canDeleteDisc && (
                           <button
                             onClick={() => handleDeleteDiscussion(d.id)}
-                            title={isHost && !isMyDisc ? "Host Moderate / Delete" : "Delete your post"}
+                            title={
+                              isHost && !isMyDisc
+                                ? "Host Moderate / Delete"
+                                : "Delete your post"
+                            }
                             className="text-gray-500 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10 transition cursor-pointer shrink-0"
                           >
                             <Trash2 size={14} />
@@ -2076,7 +2598,10 @@ const ProfessionalRoomDetail = () => {
                           className="text-gray-400 hover:text-[#00F0FF] text-[11px] font-mono font-bold flex items-center gap-1.5 cursor-pointer"
                         >
                           <MessageCircle size={13} className="text-[#00F0FF]" />
-                          <span>{repliesList.length} {repliesList.length === 1 ? "Reply" : "Replies"}</span>
+                          <span>
+                            {repliesList.length}{" "}
+                            {repliesList.length === 1 ? "Reply" : "Replies"}
+                          </span>
                         </button>
                       </div>
 
@@ -2087,32 +2612,50 @@ const ProfessionalRoomDetail = () => {
                             const isMyReply = r.user_id === currentUserId;
                             const canDeleteReply = isMyReply || isHost;
                             return (
-                              <div key={r.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5 relative">
+                              <div
+                                key={r.id}
+                                className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5 relative"
+                              >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs font-bold text-purple-300">
-                                      {r.profiles?.full_name || r.profiles?.username || "Participant"}
+                                      {r.profiles?.full_name ||
+                                        r.profiles?.username ||
+                                        "Participant"}
                                     </span>
                                     {r.user_id === room?.host_id && (
-                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">HOST</span>
+                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">
+                                        HOST
+                                      </span>
                                     )}
                                     {isMyReply && (
-                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-[#00F0FF]">YOU</span>
+                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-[#00F0FF]">
+                                        YOU
+                                      </span>
                                     )}
                                     <span className="text-[10px] text-gray-500 font-mono">
-                                      {new Date(r.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      {new Date(
+                                        r.created_at || Date.now(),
+                                      ).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
                                     </span>
                                   </div>
                                   {canDeleteReply && (
                                     <button
-                                      onClick={() => handleDeleteReply(d.id, r.id)}
+                                      onClick={() =>
+                                        handleDeleteReply(d.id, r.id)
+                                      }
                                       className="text-gray-500 hover:text-red-400 p-0.5 cursor-pointer"
                                     >
                                       <Trash2 size={12} />
                                     </button>
                                   )}
                                 </div>
-                                <p className="text-xs text-gray-300 leading-relaxed">{r.content}</p>
+                                <p className="text-xs text-gray-300 leading-relaxed">
+                                  {r.content}
+                                </p>
                               </div>
                             );
                           })}
@@ -2123,7 +2666,12 @@ const ProfessionalRoomDetail = () => {
                               type="text"
                               placeholder="Write a reply..."
                               value={replyTextMap[d.id] || ""}
-                              onChange={(e) => setReplyTextMap({ ...replyTextMap, [d.id]: e.target.value })}
+                              onChange={(e) =>
+                                setReplyTextMap({
+                                  ...replyTextMap,
+                                  [d.id]: e.target.value,
+                                })
+                              }
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) {
                                   e.preventDefault();
