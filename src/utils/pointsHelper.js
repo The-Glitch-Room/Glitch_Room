@@ -1,3 +1,4 @@
+import { getLocalDateStr } from "./dateUtils";
 // src/utils/pointsHelper.js
 import { supabase } from "../supabaseClient";
 import { checkAndAwardReferralBonus } from "./referralHelper";
@@ -170,13 +171,6 @@ export const checkAndAwardStreakBonus = async (userId) => {
   return { awarded: true, milestone, points: next };
 };
 
-// Canonical local calendar date string (YYYY-MM-DD)
-const getLocalDateStr = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
 
 // ── Daily Fact Bubble 1-per-day enforcement ───────────────────────────────
 // Read-only — safe to call on page load/refresh just to set button UI state

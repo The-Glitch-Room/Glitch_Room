@@ -7,6 +7,7 @@ import {
   awardDailyFactBonus,
   hasEarnedDailyFactToday,
 } from "../utils/pointsHelper";
+import { getLocalDateStr } from "../utils/dateUtils";
 
 // ── Category styling (used inside the popup, not the button itself) ─────────
 const CATEGORY_STYLE = {
@@ -22,6 +23,7 @@ const CATEGORY_STYLE = {
 
 const LAST_SEEN_KEY = "gr_last_seen_fact_date";
 const TOOLTIP_SHOWN_KEY = "gr_fact_tooltip_shown_session";
+const FETCHED_DATE_KEY = "gr_fact_fetched_date";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const getDayOfYear = (date) => {
@@ -29,8 +31,6 @@ const getDayOfYear = (date) => {
   const diff = date - start;
   return Math.floor(diff / 86400000);
 };
-
-const getTodayStr = () => new Date().toISOString().split("T")[0];
 
 // ── Main Component ────────────────────────────────────────────────────────────
 const DailyFactBubble = () => {
@@ -70,7 +70,7 @@ const DailyFactBubble = () => {
 
     // Check if user has already seen today's fact
     const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
-    setHasNew(lastSeen !== getTodayStr());
+    setHasNew(lastSeen !== getLocalDateStr());
 
     setLoading(false);
   };
@@ -112,7 +112,22 @@ const DailyFactBubble = () => {
   };
 
   useEffect(() => {
+    localStorage.setItem(FETCHED_DATE_KEY, getLocalDateStr());
     fetchTodayFact();
+  }, []);
+
+  // ── Date rollover listener when tab becomes visible after midnight ──
+  useEffect(() => {
+    const checkDateRollover = () => {
+      const lastFetchedDate = localStorage.getItem(FETCHED_DATE_KEY);
+      if (lastFetchedDate !== getLocalDateStr()) {
+        localStorage.setItem(FETCHED_DATE_KEY, getLocalDateStr());
+        fetchTodayFact();
+      }
+    };
+    document.addEventListener("visibilitychange", checkDateRollover);
+    return () =>
+      document.removeEventListener("visibilitychange", checkDateRollover);
   }, []);
 
   // ── First-visit tooltip (once per browser session) ──
@@ -136,8 +151,13 @@ const DailyFactBubble = () => {
   const handleOpen = () => {
     setOpen(true);
     setShowTooltip(false);
-    localStorage.setItem(LAST_SEEN_KEY, getTodayStr());
+    localStorage.setItem(LAST_SEEN_KEY, getLocalDateStr());
     setHasNew(false);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setBonusEarned(false);
   };
 
   const handleReact = async (type) => {
@@ -154,21 +174,26 @@ const DailyFactBubble = () => {
     try {
       if (alreadyThisReaction) {
         // Toggle off — remove reaction
-        await supabase
+        const { error: delErr } = await supabase
           .from("daily_fact_reactions")
           .delete()
           .eq("fact_id", fact.id)
           .eq("user_id", uid);
+
+        if (delErr) throw delErr;
+
         setUserReaction(null);
         if (type === "like") setLikeCount((c) => Math.max(0, c - 1));
         else setDislikeCount((c) => Math.max(0, c - 1));
       } else {
-        await supabase
+        const { error: upsertErr } = await supabase
           .from("daily_fact_reactions")
           .upsert(
             { fact_id: fact.id, user_id: uid, reaction: type },
-            { onConflict: "fact_id,user_id" },
+            { onConflict: "fact_id,user_id" }
           );
+
+        if (upsertErr) throw upsertErr;
 
         // If user is clicking "like", attempt atomic 1-per-day Daily Fact bonus payout
         if (type === "like") {
@@ -196,7 +221,7 @@ const DailyFactBubble = () => {
         setUserReaction(type);
       }
     } catch (err) {
-      console.error("Reaction error:", err);
+      console.error("Reaction database error:", err);
     } finally {
       setReacting(false);
     }
@@ -204,55 +229,43 @@ const DailyFactBubble = () => {
 
   if (loading || !fact) return null;
 
-  const cat = CATEGORY_STYLE[fact.category] || CATEGORY_STYLE.tech;
+  const cat =
+    CATEGORY_STYLE[fact.category?.toLowerCase()] || CATEGORY_STYLE.tech;
   const totalVotes = likeCount + dislikeCount;
   const likePct =
     totalVotes > 0 ? Math.round((likeCount / totalVotes) * 100) : 0;
 
   return (
     <>
-      {/* Floating button + tooltip cluster */}
-      <div className="fixed z-40 bottom-24 md:bottom-6 right-5 md:right-6 flex items-center gap-3">
-        {/* First-visit tooltip */}
+      {/* Floating Trigger Button */}
+      <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2">
+        {/* Tooltip */}
         <AnimatePresence>
           {showTooltip && !open && (
             <motion.div
               initial={{ opacity: 0, x: 10, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 10, scale: 0.9 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              onClick={handleOpen}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-white whitespace-nowrap cursor-pointer"
+              transition={{ duration: 0.2 }}
+              className="hidden md:flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-xl border cursor-pointer"
               style={{
-                background: "#0d0d14",
-                border: "1px solid rgba(255,255,255,0.1)",
-                boxShadow: "0 8px 30px rgba(0,0,0,0.5)",
+                background: "#0e0e16",
+                borderColor: `${cat.color}40`,
+                color: "#e2e8f0",
               }}
+              onClick={handleOpen}
             >
-              ✨ New: Daily Fact — tap to see today's!
+              <span>{cat.emoji} Daily Fact available</span>
+              <span style={{ color: cat.color }}>• View</span>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Button */}
+        {/* Floating Lightbulb Button */}
         <motion.button
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{
-            opacity: 1,
-            scale: 1,
-            boxShadow: [
-              "0 0 12px rgba(255,255,255,0.4), 0 4px 15px rgba(0,0,0,0.5)",
-              "0 0 22px rgba(0,240,255,0.6), 0 4px 15px rgba(0,0,0,0.5)",
-              "0 0 12px rgba(255,255,255,0.4), 0 4px 15px rgba(0,0,0,0.5)",
-            ],
-          }}
-          transition={{
-            boxShadow: { duration: 2.6, repeat: Infinity, ease: "easeInOut" },
-            scale: { duration: 0.3 },
-          }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.94 }}
-          onClick={handleOpen}
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
+          onClick={open ? handleClose : handleOpen}
           className="relative w-11 h-11 rounded-full flex items-center justify-center cursor-pointer bg-white shadow-lg"
           aria-label="Daily fact"
         >
@@ -284,7 +297,7 @@ const DailyFactBubble = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-40 bg-black/30 md:bg-transparent"
-              onClick={() => setOpen(false)}
+              onClick={handleClose}
             />
 
             <motion.div
@@ -321,7 +334,7 @@ const DailyFactBubble = () => {
                     {cat.emoji} {cat.label}
                   </span>
                   <button
-                    onClick={() => setOpen(false)}
+                    onClick={handleClose}
                     className="text-gray-500 hover:text-white transition cursor-pointer"
                   >
                     <X size={16} />
