@@ -8,40 +8,59 @@ import { supabase } from "../supabaseClient";
  */
 export const fetchActiveRoomsStats = async () => {
   try {
-    // 1. Query Creator Rooms (public.rooms)
-    const { data: creatorRooms, count: cCount, error: cErr } = await supabase
+    // 1. Query Creator Rooms (public.rooms) with expanded range
+    const { data: creatorRooms, error: cErr } = await supabase
       .from("rooms")
-      .select("id, name, title, created_at", { count: "exact" });
+      .select("id, name, title, created_at")
+      .range(0, 4999);
 
-    // 2. Query Pro Rooms (public.pro_rooms)
-    const { data: proRooms, count: pCount, error: pErr } = await supabase
+    if (cErr) {
+      console.error("fetchActiveRoomsStats: rooms query failed:", cErr);
+    }
+
+    // 2. Query Pro Rooms (public.pro_rooms) with expanded range
+    const { data: proRooms, error: pErr } = await supabase
       .from("pro_rooms")
-      .select("id, name, title, status, created_at", { count: "exact" });
+      .select("id, name, title, status, created_at")
+      .range(0, 4999);
+
+    if (pErr) {
+      console.error("fetchActiveRoomsStats: pro_rooms query failed:", pErr);
+    }
 
     const validCreatorList = creatorRooms || [];
-    const validProList = proRooms || [];
+
+    // Filter out cancelled, draft, or archived pro rooms
+    const validProList = (proRooms || []).filter(
+      (r) =>
+        !r.status ||
+        (r.status !== "cancelled" &&
+          r.status !== "draft" &&
+          r.status !== "archived")
+    );
 
     // Filter out old deleted test titles if sitting in database without deletion permissions
+    const TEST_NAMES = new Set(["ai hackathons", "mit arena battle"]);
     const filterOutTestNames = (list) =>
       list.filter((r) => {
         const name = (r.name || r.title || "").toLowerCase();
-        return name !== "ai hackathons" && name !== "mit arena battle";
+        return !TEST_NAMES.has(name);
       });
 
     const cleanCreatorRooms = filterOutTestNames(validCreatorList);
     const cleanProRooms = filterOutTestNames(validProList);
 
-    // Collect unique IDs to avoid double counting any room
-    const creatorIds = new Set(cleanCreatorRooms.map((r) => r.id));
-    const proIds = new Set(cleanProRooms.map((r) => r.id));
-
-    // Deduplicate IDs that exist in both tables
-    const uniqueCombinedIds = new Set([...creatorIds, ...proIds]);
+    // Dedupe by table-prefixed key (creator:id vs pro:id) to ensure raw integer ID collisions
+    // across different tables never wrongly collapse unrelated rooms.
+    const combinedIds = new Set([
+      ...cleanCreatorRooms.map((r) => `creator:${r.id}`),
+      ...cleanProRooms.map((r) => `pro:${r.id}`),
+    ]);
 
     return {
       creatorCount: cleanCreatorRooms.length,
       proCount: cleanProRooms.length,
-      totalActiveRooms: uniqueCombinedIds.size,
+      totalActiveRooms: combinedIds.size,
       creatorRoomsList: cleanCreatorRooms,
       proRoomsList: cleanProRooms,
     };
