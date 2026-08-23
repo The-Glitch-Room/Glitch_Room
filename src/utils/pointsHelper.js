@@ -217,6 +217,40 @@ export const awardDailyFactBonus = async (userId) => {
   return { awarded: true, points: nextPoints };
 };
 
+
+// ── Single Source of Truth Points Calculator with Automatic DB Self-Healing ──
+export const getUserTotalPoints = async (userId) => {
+  if (!userId) return 0;
+  try {
+    const [pointsRes, profileRes, submissionsRes, activityRes] = await Promise.all([
+      supabase.from("user_points").select("points").eq("user_id", userId).maybeSingle(),
+      supabase.from("profiles").select("points").eq("id", userId).maybeSingle(),
+      supabase.from("challenge_submissions").select("points_earned").eq("user_id", userId),
+      supabase.from("glitch_activity").select("points").eq("user_id", userId),
+    ]);
+
+    const dbPoints = pointsRes.data?.points || 0;
+    const profilePoints = profileRes.data?.points || 0;
+    const solvedPoints = (submissionsRes.data || []).reduce((sum, s) => sum + (s.points_earned || 0), 0);
+    const bonusPoints = (activityRes.data || []).reduce((sum, a) => sum + (a.points || 0), 0);
+
+    const maxPoints = Math.max(dbPoints, profilePoints, solvedPoints + bonusPoints);
+
+    // Self-heal DB: If user_points or profiles is out of sync, update both in DB!
+    if (dbPoints !== maxPoints || profilePoints !== maxPoints) {
+      await Promise.all([
+        supabase.from("user_points").upsert({ user_id: userId, points: maxPoints }, { onConflict: "user_id" }),
+        supabase.from("profiles").update({ points: maxPoints }).eq("id", userId),
+      ]);
+    }
+
+    return maxPoints;
+  } catch (e) {
+    console.error("getUserTotalPoints error:", e);
+    return 0;
+  }
+};
+
 // ── Unified Atomic Points Updater ─────────────────────────────────────────────
 export const updatePoints = async (
   delta,
@@ -232,32 +266,16 @@ export const updatePoints = async (
   }
   if (!userId) return 0;
 
-  const { data: existing } = await supabase
+  const currentTotal = await getUserTotalPoints(userId);
+  const nextDB = Math.max(0, currentTotal + delta);
+
+  const { error: upsertErr } = await supabase
     .from("user_points")
-    .select("points")
-    .eq("user_id", userId)
-    .single();
+    .upsert({ user_id: userId, points: nextDB }, { onConflict: "user_id" });
 
-  const currentDB = existing?.points ?? 0;
-  const nextDB = Math.max(0, currentDB + delta);
-
-  if (existing) {
-    const { error } = await supabase
-      .from("user_points")
-      .update({ points: nextDB })
-      .eq("user_id", userId);
-    if (error) {
-      console.error("updatePoints user_points error:", error);
-      return currentDB;
-    }
-  } else {
-    const { error } = await supabase
-      .from("user_points")
-      .insert({ user_id: userId, points: nextDB });
-    if (error) {
-      console.error("updatePoints insert error:", error);
-      return 0;
-    }
+  if (upsertErr) {
+    console.error("updatePoints user_points error:", upsertErr);
+    return currentTotal;
   }
 
   // Keep profiles.points 100% in sync
@@ -296,6 +314,9 @@ export const updatePoints = async (
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent("gbits_updated", { detail: { points: nextDB } })
+    );
+    window.dispatchEvent(
+      new CustomEvent("points_updated", { detail: { points: nextDB } })
     );
   }
 

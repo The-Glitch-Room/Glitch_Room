@@ -17,7 +17,7 @@ import Navbar from "./Navbar";
 import GlitchBackground from "./GlitchBackground";
 import SharedSidebar from "./SharedSidebar";
 import Footer from "./Footer";
-import { getLevelFromXP } from "../utils/pointsHelper";
+import { getLevelFromXP, getUserTotalPoints } from "../utils/pointsHelper";
 
 // ── Preset Banners Config ───────────────────────────────────────────────────
 const PRESET_BANNERS = [
@@ -271,14 +271,10 @@ export default function YourProfile() {
       setAuthUser(userData?.user);
       if (!userId) return;
 
-      const [profileRes, pointsRes, postsRes, commentsRes, submissionsRes, activityRes] =
+      const [profileRes, totalPoints, postsRes, commentsRes, submissionsRes, activityRes] =
         await Promise.all([
           supabase.from("profiles").select("*").eq("id", userId).single(),
-          supabase
-            .from("user_points")
-            .select("points")
-            .eq("user_id", userId)
-            .maybeSingle(),
+          getUserTotalPoints(userId),
           supabase
             .from("community_posts")
             .select("*")
@@ -338,17 +334,6 @@ export default function YourProfile() {
         : [];
 
       const submissions = submissionsRes.data || [];
-      const activityData = activityRes.data || [];
-      const solvedPointsSum = submissions.reduce((sum, s) => sum + (s.points_earned || 0), 0);
-      const bonusPointsSum = activityData.filter(a => a.type === "bonus" || a.type === "referral" || a.type === "checkin").reduce((sum, a) => sum + (a.points || 0), 0);
-      const calculatedTotal = solvedPointsSum + bonusPointsSum;
-
-      const totalPoints = Math.max(
-        pointsRes.data?.points || 0,
-        pd?.points || 0,
-        calculatedTotal
-      );
-
       setProfile({
         ...pd,
         tagline: pd?.tagline || pd?.headline || userMeta?.tagline || cachedTagline || "",

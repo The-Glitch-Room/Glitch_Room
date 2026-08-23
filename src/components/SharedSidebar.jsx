@@ -141,11 +141,13 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
     const handleUpdate = () => fetchSidebarProfile();
     window.addEventListener("profile_updated", handleUpdate);
     window.addEventListener("gbits_updated", handleUpdate);
+    window.addEventListener("points_updated", handleUpdate);
 
     return () => {
       isMounted = false;
       window.removeEventListener("profile_updated", handleUpdate);
       window.removeEventListener("gbits_updated", handleUpdate);
+      window.removeEventListener("points_updated", handleUpdate);
     };
   }, [user, avatarPreview]);
 
