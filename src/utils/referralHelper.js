@@ -3,18 +3,22 @@ import { supabase } from "../supabaseClient";
 import { updatePoints } from "./pointsHelper";
 
 /**
- * Generates a clean 6-character uppercase referral code.
+ * Generates a clean, high-entropy 8-character uppercase referral code.
  */
 export const generateReferralCode = (userId) => {
-  const hash = (userId || Math.random().toString(36))
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .toUpperCase();
-  const suffix = hash.slice(-4) || "7777";
-  return `GLITCH-${suffix}`;
+  if (userId && typeof userId === "string") {
+    const clean = userId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    if (clean.length >= 8) {
+      return `GLITCH-${clean.slice(-8)}`;
+    }
+  }
+  const rand = Math.random().toString(36).substring(2, 10).toUpperCase();
+  return `GLITCH-${rand}`;
 };
 
 /**
  * Gets or creates the current user's referral code in Supabase profiles.
+ * Includes collision retry logic if candidate code already exists in DB.
  */
 export const getUserReferralCode = async (userId) => {
   if (!userId) return null;
@@ -24,20 +28,32 @@ export const getUserReferralCode = async (userId) => {
       .from("profiles")
       .select("referral_code")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
     if (profile?.referral_code) {
       return profile.referral_code;
     }
 
-    // Generate new code if missing
-    const newCode = generateReferralCode(userId);
-    await supabase
-      .from("profiles")
-      .update({ referral_code: newCode })
-      .eq("id", userId);
+    // Try generating candidate code with collision retry loop
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate =
+        attempt === 0
+          ? generateReferralCode(userId)
+          : `GLITCH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    return newCode;
+      const { error } = await supabase
+        .from("profiles")
+        .update({ referral_code: candidate })
+        .eq("id", userId);
+
+      if (!error) return candidate;
+      if (error.code !== "23505") {
+        console.error("getUserReferralCode update error:", error);
+        return candidate;
+      }
+      // Code 23505 collision: loop and try a fresh candidate
+    }
+    return null;
   } catch (err) {
     console.error("getUserReferralCode error:", err);
     return generateReferralCode(userId);
@@ -47,23 +63,36 @@ export const getUserReferralCode = async (userId) => {
 /**
  * Called when a new user signs up with a referral code (stored in localStorage or URL).
  * Links the invitee to the referrer in `user_referrals`.
+ * Prevents double-referring via pre-check and PostgreSQL UNIQUE(invitee_id) handling.
  */
 export const linkReferralSignup = async (inviteeId, code) => {
   if (!inviteeId || !code) return false;
 
   try {
-    // Find referrer by code
+    // 1. Check if invitee already has a referral record
+    const { data: existingRef } = await supabase
+      .from("user_referrals")
+      .select("id")
+      .eq("invitee_id", inviteeId)
+      .limit(1);
+
+    if (existingRef && existingRef.length > 0) {
+      console.warn("User already has a referral record, skipping.");
+      return false;
+    }
+
+    // 2. Find referrer profile by code
     const { data: referrerProfile } = await supabase
       .from("profiles")
       .select("id")
       .eq("referral_code", code.trim().toUpperCase())
-      .single();
+      .maybeSingle();
 
     if (!referrerProfile || referrerProfile.id === inviteeId) {
       return false; // Invalid code or self-referral
     }
 
-    // Insert pending referral row
+    // 3. Insert pending referral row
     const { error } = await supabase.from("user_referrals").insert({
       referrer_id: referrerProfile.id,
       invitee_id: inviteeId,
@@ -72,7 +101,11 @@ export const linkReferralSignup = async (inviteeId, code) => {
     });
 
     if (error) {
-      console.warn("linkReferralSignup warning:", error.message);
+      if (error.code === "23505") {
+        console.warn("User already has a referral record, skipping.");
+      } else {
+        console.warn("linkReferralSignup warning:", error.message);
+      }
       return false;
     }
 
@@ -86,46 +119,46 @@ export const linkReferralSignup = async (inviteeId, code) => {
 /**
  * Checks if the invitee has any pending referral to complete.
  * Called upon solving any challenge.
- * If pending referral exists:
- *   - Updates status to 'completed'
- *   - Awards referrer +100 gBits
- *   - Awards invitee +25 Welcome Bonus gBits
+ * ATOMIC & RACE-PROOF:
+ *   Performs an atomic UPDATE on status = 'pending'.
+ *   Only awards points if the UPDATE actually matches & modifies the pending row.
  */
 export const checkAndAwardReferralBonus = async (inviteeId) => {
   if (!inviteeId) return null;
 
   try {
-    const { data: pending } = await supabase
-      .from("user_referrals")
-      .select("id, referrer_id")
-      .eq("invitee_id", inviteeId)
-      .eq("status", "pending")
-      .single();
-
-    if (!pending) return null;
-
-    // Mark referral as completed
-    const { error: updateErr } = await supabase
+    // Atomic UPDATE gate: only succeeds for whichever caller wins the race.
+    // WHERE status = 'pending' means a second concurrent caller gets 0 rows back.
+    const { data: updated, error: updateErr } = await supabase
       .from("user_referrals")
       .update({
         status: "completed",
         completed_at: new Date().toISOString(),
       })
-      .eq("id", pending.id);
+      .eq("invitee_id", inviteeId)
+      .eq("status", "pending")
+      .select("id, referrer_id");
 
     if (updateErr) {
       console.error("Referral completion update error:", updateErr);
       return null;
     }
 
+    if (!updated || updated.length === 0) {
+      // No pending referral, or another concurrent call already claimed it
+      return null;
+    }
+
+    const referral = updated[0];
+
     // Award +100 gBits to referrer
-    if (pending.referrer_id) {
+    if (referral.referrer_id) {
       await updatePoints(
         100,
         "Invite a Glitcher Referral Bonus (+100)",
         "bonus",
         null,
-        pending.referrer_id
+        referral.referrer_id
       );
     }
 
@@ -140,7 +173,7 @@ export const checkAndAwardReferralBonus = async (inviteeId) => {
 
     return {
       awarded: true,
-      referrerId: pending.referrer_id,
+      referrerId: referral.referrer_id,
       bonus: 100,
     };
   } catch (err) {
