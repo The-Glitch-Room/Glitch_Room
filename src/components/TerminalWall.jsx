@@ -11,18 +11,7 @@ import { FiClock, FiZap, FiAward, FiUsers } from "react-icons/fi";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-const getRangeFilter = (filter) => {
-  const now = new Date();
-  if (filter === "daily") {
-    return now.toISOString().split("T")[0];
-  }
-  if (filter === "weekly") {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split("T")[0];
-  }
-  return null;
-};
+
 
 const rankColor = (rank) => {
   if (rank === 1) return "text-yellow-400";
@@ -425,16 +414,24 @@ const TerminalWall = () => {
       const map = {};
 
       if (!isoStart) {
-        // "All Time": Use user_points directly as single source of truth for total gBits
+        // "All Time": user_points cache is authoritative and fast
         const { data: userPts } = await supabase
           .from("user_points")
           .select("user_id, points")
           .order("points", { ascending: false })
           .limit(50);
 
-        const userIds = (userPts || []).map((r) => r.user_id).filter(Boolean);
+        (userPts || []).forEach((row) => {
+          if (!row.user_id || (row.points || 0) <= 0) return;
+          map[row.user_id] = {
+            user_id: row.user_id,
+            total_score: row.points || 0,
+            events_completed: 0,
+          };
+        });
 
-        let eventCountMap = {};
+        // Count total events from single ledger (glitch_activity)
+        const userIds = Object.keys(map);
         if (userIds.length > 0) {
           const { data: acts } = await supabase
             .from("glitch_activity")
@@ -442,36 +439,17 @@ const TerminalWall = () => {
             .in("user_id", userIds);
 
           (acts || []).forEach((a) => {
-            eventCountMap[a.user_id] = (eventCountMap[a.user_id] || 0) + 1;
+            if (map[a.user_id]) map[a.user_id].events_completed += 1;
           });
         }
-
-        (userPts || []).forEach((row) => {
-          const uid = row.user_id;
-          if (!uid || (row.points || 0) <= 0) return;
-          map[uid] = {
-            user_id: uid,
-            total_score: row.points || 0,
-            events_completed: eventCountMap[uid] || 1,
-          };
-        });
       } else {
-        // "Today" or "This Week": aggregate glitch_activity + arena_completions within timeframe
-        const [actRes, arenaRes] = await Promise.all([
-          supabase
-            .from("glitch_activity")
-            .select("user_id, points, created_at")
-            .gte("created_at", isoStart),
-          supabase
-            .from("arena_completions")
-            .select("user_id, score, completed_at")
-            .gte("completed_at", isoStart),
-        ]);
+        // "Today" / "This Week": aggregate from the single ledger (glitch_activity)
+        const { data: acts } = await supabase
+          .from("glitch_activity")
+          .select("user_id, points, created_at")
+          .gte("created_at", isoStart);
 
-        const rawActs = actRes.data || [];
-        const rawArena = arenaRes.data || [];
-
-        rawActs.forEach((row) => {
+        (acts || []).forEach((row) => {
           const uid = row.user_id;
           if (!uid) return;
           if (!map[uid]) {
@@ -480,19 +458,9 @@ const TerminalWall = () => {
           map[uid].total_score += row.points || 0;
           map[uid].events_completed += 1;
         });
-
-        rawArena.forEach((row) => {
-          const uid = row.user_id;
-          if (!uid) return;
-          if (!map[uid]) {
-            map[uid] = { user_id: uid, total_score: 0, events_completed: 0 };
-          }
-          map[uid].total_score += row.score || 0;
-          map[uid].events_completed += 1;
-        });
       }
 
-      // Batch fetch profiles for all user IDs in map (username, full_name, avatar_url)
+      // Batch fetch profiles
       const userIds = Object.keys(map);
       if (userIds.length > 0) {
         const { data: profs } = await supabase
