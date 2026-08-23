@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { TbMenu2, TbX } from "react-icons/tb";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import NavbarUserSection from "./NavbarUserSection";
@@ -17,35 +16,8 @@ const NAV_LINKS = [
 
 const Navbar = () => {
   const { user, openAuth } = useAuth();
-  const [showMenu, setShowMenu] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
+    const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
-  const menuRef = useRef(null);
-
-  // Close mobile menu on route change
-  useEffect(() => {
-    setShowMenu(false);
-  }, [location.pathname]);
-
-  // Close on outside click
-  useEffect(() => {
-    const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setShowMenu(false);
-      }
-    };
-    if (showMenu) document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showMenu]);
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.key === "Escape") setShowMenu(false);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 10);
@@ -63,8 +35,8 @@ const Navbar = () => {
     >
       <nav className="max-w-7xl mx-auto px-2.5 sm:px-6 md:px-10 h-16 sm:h-20 flex justify-between items-center gap-1.5 sm:gap-4">
         {/* Logo */}
-        <NavLink to="/" className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 group">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg sm:rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-1 sm:p-1.5 transition-transform group-hover:scale-105 shadow-[0_0_12px_rgba(0,240,255,0.2)] shrink-0">
+        <NavLink to="/" className="flex items-center gap-2 sm:gap-2.5 shrink-0 group">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center p-1.5 transition-transform group-hover:scale-105 shadow-[0_0_12px_rgba(0,240,255,0.2)] shrink-0">
             <img
               src="/logo_GR.png"
               alt="Glitch Room"
@@ -72,7 +44,7 @@ const Navbar = () => {
             />
           </div>
           <span
-            className="text-xs sm:text-sm md:text-2xl font-black text-white tracking-wider glitch-text group-hover:text-[#00F0FF] transition-colors whitespace-nowrap shrink-0"
+            className="text-sm sm:text-lg md:text-2xl font-black text-white tracking-wider glitch-text group-hover:text-[#00F0FF] transition-colors whitespace-nowrap shrink-0"
             data-text="GLITCH ROOM"
           >
             GLITCH ROOM
@@ -133,61 +105,8 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* Mobile hamburger menu toggle */}
-          <button
-            type="button"
-            onClick={() => setShowMenu((prev) => !prev)}
-            aria-label="Toggle menu"
-            className="md:hidden text-gray-300 hover:text-white p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-white/5 border border-white/10 transition cursor-pointer shrink-0"
-          >
-            {showMenu ? <TbX size={18} /> : <TbMenu2 size={18} />}
-          </button>
         </div>
       </nav>
-
-      {/* Mobile navigation drawer */}
-      <AnimatePresence>
-        {showMenu && (
-          <motion.div
-            ref={menuRef}
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="md:hidden bg-[#070709]/95 backdrop-blur-2xl border-b border-white/10 px-6 py-6 shadow-2xl space-y-3"
-          >
-            {NAV_LINKS.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                onClick={() => setShowMenu(false)}
-                className={({ isActive }) =>
-                  `block px-4 py-3 rounded-xl text-base font-bold transition ${
-                    isActive
-                      ? "bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30"
-                      : "text-gray-300 hover:text-white hover:bg-white/5"
-                  }`
-                }
-              >
-                {link.label}
-              </NavLink>
-            ))}
-            {!user && (
-              <div className="pt-3 border-t border-white/10 flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMenu(false);
-                    openAuth();
-                  }}
-                  className="w-full py-3 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-sm font-bold transition text-center shadow-lg cursor-pointer"
-                >
-                  Log In / Sign Up Free
-                </button>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </header>
   );
 };
