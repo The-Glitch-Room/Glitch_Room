@@ -1,4 +1,3 @@
-import { GBitIcon } from "./GBitIcon";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import creativeChallenges from "../data/creative_sparks_challenges.json";
@@ -24,6 +23,7 @@ import {
   updatePoints,
   getPointsByDifficulty,
   checkIfSolved,
+  hasPassedChallenge,
   saveSubmission,
   hasPriorSubmissions,
 } from "../utils/pointsHelper";
@@ -273,7 +273,10 @@ ${
       setFeedback(parsed);
       setLastPassed(passed);
 
-      const alreadyPassedBefore = !!previousSubmission;
+      const alreadyPassedBefore = await hasPassedChallenge(
+        challenge.id,
+        "spark",
+      );
       const isFirstPass = passed && !alreadyPassedBefore;
       const awardedPoints = pointsForScore(score, earnablePoints);
 
@@ -368,7 +371,7 @@ ${
               border: `1px solid ${COLOR}30`,
             }}
           >
-            <GBitIcon className="w-3.5 h-3.5 mr-1" /> {points} gBits
+            ⚡ {points} pts
           </div>
         </div>
       </div>
@@ -568,7 +571,7 @@ ${
                   border: `1px solid ${COLOR}30`,
                 }}
               >
-                up to +{earnablePoints} gBits on pass
+                up to +{earnablePoints} pts on pass
               </span>
             </div>
             <textarea
@@ -728,7 +731,7 @@ ${
                 Your creative submission has been graded and recorded.
               </p>
               <p className="font-bold" style={{ color: COLOR }}>
-                +{lastAwardedPoints} gBits <GBitIcon className="w-5 h-5 ml-1.5" />
+                +{lastAwardedPoints} Points 💎
               </p>
               {firstTryBonus && (
                 <p className="text-xs text-yellow-400 font-semibold mt-1">

@@ -350,6 +350,28 @@ export const checkIfSolved = async (challengeId, challengeType) => {
   return data || null;
 };
 
+// The authoritative "has this user ever PASSED this challenge" check —
+// backed by challenge_completions, which only ever gets a row written
+// when pointsEarned > 0 in saveSubmission(). Unlike checkIfSolved (which
+// returns the latest attempt regardless of pass/fail), this can't be
+// tripped up by a prior failed attempt.
+export const hasPassedChallenge = async (challengeId, challengeType) => {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+  if (!userId) return false;
+
+  const { data } = await supabase
+    .from("challenge_completions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("challenge_id", String(challengeId))
+    .eq("challenge_type", challengeType)
+    .limit(1)
+    .maybeSingle();
+
+  return !!data;
+};
+
 export const getPointsByDifficulty = (difficulty) => {
   const d = (difficulty || "").toLowerCase();
   if (d.includes("easy") || d.includes("beginner")) return 10;
