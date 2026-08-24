@@ -417,10 +417,20 @@ const TerminalWall = () => {
   const [usersData, setUsersData] = useState([]);
   const [loadingLegends, setLoadingLegends] = useState(true);
 
-  // ── Fetch Live Rankings (Fail-Safe 2-Step Query Pattern) ──
+  // ── Fetch Live Rankings (Fail-Safe Dual-Table Query Pattern) ──
   useEffect(() => {
     if (view !== "live") return;
     fetchLiveRankings();
+
+    const handleSync = () => fetchLiveRankings();
+    window.addEventListener("points_updated", handleSync);
+    window.addEventListener("gbits_updated", handleSync);
+    window.addEventListener("profile_updated", handleSync);
+    return () => {
+      window.removeEventListener("points_updated", handleSync);
+      window.removeEventListener("gbits_updated", handleSync);
+      window.removeEventListener("profile_updated", handleSync);
+    };
   }, [filter, view]);
 
   const fetchLiveRankings = async () => {
@@ -429,24 +439,25 @@ const TerminalWall = () => {
     try {
       let isoStart = null;
       if (filter === "daily") {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        isoStart = today.toISOString();
+        const startToday = new Date();
+        startToday.setHours(0, 0, 0, 0);
+        isoStart = startToday.toISOString();
       } else if (filter === "weekly") {
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        isoStart = weekAgo.toISOString();
+        const startWeek = new Date();
+        startWeek.setDate(startWeek.getDate() - 6);
+        startWeek.setHours(0, 0, 0, 0);
+        isoStart = startWeek.toISOString();
       }
 
       const map = {};
 
       if (!isoStart) {
-        // "All Time": user_points cache is authoritative and fast
+        // "All Time": user_points table is master source for total gBits
         const { data: userPts } = await supabase
           .from("user_points")
           .select("user_id, points")
           .order("points", { ascending: false })
-          .limit(50);
+          .limit(100);
 
         (userPts || []).forEach((row) => {
           if (!row.user_id || (row.points || 0) <= 0) return;
@@ -457,37 +468,90 @@ const TerminalWall = () => {
           };
         });
 
-        // Count total events from single ledger (glitch_activity)
         const userIds = Object.keys(map);
         if (userIds.length > 0) {
-          const { data: acts } = await supabase
-            .from("glitch_activity")
-            .select("user_id")
-            .in("user_id", userIds);
+          const [actsRes, subsRes] = await Promise.all([
+            supabase
+              .from("glitch_activity")
+              .select("user_id, created_at, title")
+              .in("user_id", userIds)
+              .limit(5000),
+            supabase
+              .from("challenge_submissions")
+              .select("user_id, created_at, points_earned")
+              .in("user_id", userIds)
+              .gt("points_earned", 0)
+              .limit(5000),
+          ]);
 
-          (acts || []).forEach((a) => {
-            if (map[a.user_id]) map[a.user_id].events_completed += 1;
+          userIds.forEach((uid) => {
+            const userActs = (actsRes.data || []).filter((a) => a.user_id === uid);
+            const userSubs = (subsRes.data || []).filter((s) => s.user_id === uid);
+
+            const eventKeys = new Set();
+            userActs.forEach((a) => {
+              const key = `${a.title || 'act'}_${a.created_at?.slice(0, 16)}`;
+              eventKeys.add(key);
+            });
+            userSubs.forEach((s) => {
+              const key = `sub_${s.created_at?.slice(0, 16)}`;
+              if (!eventKeys.has(key)) eventKeys.add(key);
+            });
+
+            if (map[uid]) {
+              map[uid].events_completed = Math.max(eventKeys.size, userActs.length, userSubs.length);
+            }
           });
         }
       } else {
-        // "Today" / "This Week": aggregate from the single ledger (glitch_activity)
-        const { data: acts } = await supabase
-          .from("glitch_activity")
-          .select("user_id, points, created_at")
-          .gte("created_at", isoStart);
+        // "Today" / "This Week": aggregate from glitch_activity + challenge_submissions
+        const [actsRes, subsRes] = await Promise.all([
+          supabase
+            .from("glitch_activity")
+            .select("user_id, points, created_at, title")
+            .gte("created_at", isoStart)
+            .limit(5000),
+          supabase
+            .from("challenge_submissions")
+            .select("user_id, points_earned, created_at")
+            .gte("created_at", isoStart)
+            .gt("points_earned", 0)
+            .limit(5000),
+        ]);
 
-        (acts || []).forEach((row) => {
+        const acts = actsRes.data || [];
+        const subs = subsRes.data || [];
+
+        acts.forEach((row) => {
           const uid = row.user_id;
           if (!uid) return;
           if (!map[uid]) {
-            map[uid] = { user_id: uid, total_score: 0, events_completed: 0 };
+            map[uid] = { user_id: uid, total_score: 0, events_completed: 0, _events: new Set() };
           }
-          map[uid].total_score += row.points || 0;
-          map[uid].events_completed += 1;
+          const key = `${row.title || 'act'}_${row.created_at?.slice(0, 16)}`;
+          if (!map[uid]._events.has(key)) {
+            map[uid]._events.add(key);
+            map[uid].total_score += row.points || 0;
+            map[uid].events_completed += 1;
+          }
+        });
+
+        subs.forEach((row) => {
+          const uid = row.user_id;
+          if (!uid) return;
+          if (!map[uid]) {
+            map[uid] = { user_id: uid, total_score: 0, events_completed: 0, _events: new Set() };
+          }
+          const key = `sub_${row.created_at?.slice(0, 16)}`;
+          if (!map[uid]._events.has(key)) {
+            map[uid]._events.add(key);
+            map[uid].total_score += row.points_earned || 0;
+            map[uid].events_completed += 1;
+          }
         });
       }
 
-      // Batch fetch profiles
+      // Hydrate Profiles
       const userIds = Object.keys(map);
       if (userIds.length > 0) {
         const { data: profs } = await supabase
@@ -506,7 +570,7 @@ const TerminalWall = () => {
       }
 
       const sorted = Object.values(map)
-        .sort((a, b) => b.total_score - a.total_score)
+        .sort((a, b) => b.total_score - a.total_score || b.events_completed - a.events_completed)
         .slice(0, 50);
 
       setEntries(sorted);
