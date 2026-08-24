@@ -213,12 +213,14 @@ const Avatar = ({ url, name, size = 10 }) => {
   );
 };
 
-const LegendsPodium = ({ entries }) => {
+const LegendsPodium = ({ entries, metricLabel = "gBits" }) => {
   if (!entries || entries.length < 1) return null;
   const [first, second, third] = entries;
 
   const PodiumCard = ({ entry, rank, height, delay }) => {
     if (!entry) return <div className="flex-1" />;
+    const scoreVal = entry.total_score ?? entry.points ?? entry.completions ?? 0;
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 30 }}
@@ -272,10 +274,10 @@ const LegendsPodium = ({ entries }) => {
               WebkitTextFillColor: "transparent",
             }}
           >
-            {entry.total_score ?? entry.points ?? entry.completions ?? 0}
+            {scoreVal}
           </span>
-          <span className="text-[10px] text-gray-600 uppercase tracking-wider font-mono">
-            gBits
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider font-mono font-bold mt-0.5">
+            {metricLabel}
           </span>
         </div>
       </motion.div>
@@ -748,7 +750,7 @@ const TerminalWall = () => {
   const activeLegendsData = legendsTab === "arena" ? arenaData : usersData;
   const legendsMetric = legendsTab === "arena" ? "total_score" : "points";
   const legendsMetricLabel =
-    legendsTab === "arena" ? "Arena gBits" : "Total gBits";
+    legendsTab === "arena" ? "Arena gBits" : "gBits";
 
   return (
     <div className="min-h-screen bg-[#06060c] text-white flex flex-col font-sans relative overflow-hidden">
@@ -970,7 +972,7 @@ const TerminalWall = () => {
                   <EmptyState message="No legends recorded for this filter yet." />
                 ) : (
                   <>
-                    <LegendsPodium entries={activeLegendsData.slice(0, 3)} />
+                    <LegendsPodium entries={activeLegendsData.slice(0, 3)} metricLabel={legendsMetricLabel} />
 
                     <div className="space-y-3">
                       {activeLegendsData.map((entry, index) => (
