@@ -125,13 +125,22 @@ const DebugModeChallenges = () => {
 
       {/* ── FILTER BAR ── */}
       <div className="flex items-center justify-between gap-4 px-6 md:px-16 mb-10 flex-wrap">
-        <CategoryDropdown
-          categories={categories}
-          selected={selectedCategory}
-          onChange={setSelectedCategory}
-          accentColor={COLOR}
-          label="Category"
-        />
+        <div className="flex items-center gap-4 flex-wrap">
+          <CategoryDropdown
+            categories={categories}
+            selected={selectedCategory}
+            onChange={setSelectedCategory}
+            accentColor={COLOR}
+            label="Category"
+          />
+          <CategoryDropdown
+            categories={["All", "Beginner", "Intermediate", "Advanced"]}
+            selected={selectedDifficulty}
+            onChange={setSelectedDifficulty}
+            accentColor={COLOR}
+            label="Difficulty"
+          />
+        </div>
         <p className="text-xs text-gray-500">
           Showing{" "}
           <span className="font-semibold" style={{ color: COLOR }}>
@@ -240,7 +249,7 @@ const DebugModeChallenges = () => {
             style={{ color: COLOR }}
           >
             {visibleCount < filteredChallenges.length
-              ? `See More (${Math.min(12, filteredChallenges.length - visibleCount)} remaining)`
+              ? "See More"
               : "See Less"}
           </button>
         </div>
