@@ -30,11 +30,7 @@ const GlitchSandboxTeaser = () => {
 
   return (
     <section className="relative py-20 px-6 bg-transparent border-t border-white/5 overflow-hidden">
-      {/* Background Ambient Glow */}
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#00F0FF" }}
-      />
+      
 
       <div className="relative z-10 max-w-5xl mx-auto text-center">
         {/* Unified Page Heading */}

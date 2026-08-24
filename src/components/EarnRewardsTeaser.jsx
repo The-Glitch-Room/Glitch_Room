@@ -49,10 +49,7 @@ const EarnRewardsTeaser = () => {
           backgroundSize: "60px 60px",
         }}
       />
-      <div
-        className="absolute bottom-0 right-10 w-96 h-96 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#FF00C8" }}
-      />
+      
 
       <div className="relative z-10 max-w-6xl mx-auto">
         {/* Unified Page Heading */}

@@ -95,33 +95,9 @@ const Hero = () => {
         }}
       />
 
-      {/* Radial glow center */}
-      <div
-        className="absolute inset-0 z-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(214,0,255,0.12) 0%, transparent 70%)",
-        }}
-      />
+      
 
-      {/* Floating orbs */}
-      <motion.div
-        animate={{ y: [0, -20, 0], opacity: [0.4, 0.7, 0.4] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute top-24 left-16 w-40 h-40 rounded-full blur-3xl z-0"
-        style={{ background: "rgba(0,240,255,0.15)" }}
-      />
-      <motion.div
-        animate={{ y: [0, 20, 0], opacity: [0.3, 0.6, 0.3] }}
-        transition={{
-          duration: 8,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 2,
-        }}
-        className="absolute bottom-32 right-20 w-56 h-56 rounded-full blur-3xl z-0"
-        style={{ background: "rgba(255,0,200,0.12)" }}
-      />
+      
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-5xl mx-auto flex flex-col items-center pt-6">
