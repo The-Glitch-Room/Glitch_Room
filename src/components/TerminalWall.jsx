@@ -272,7 +272,7 @@ const LegendsPodium = ({ entries }) => {
               WebkitTextFillColor: "transparent",
             }}
           >
-            {entry.total_score || entry.completions || 0}
+            {entry.total_score ?? entry.points ?? entry.completions ?? 0}
           </span>
           <span className="text-[10px] text-gray-600 uppercase tracking-wider font-mono">
             gBits
@@ -330,7 +330,7 @@ const LegendRow = ({ entry, rank, index, metric, metricLabel }) => {
             WebkitTextFillColor: "transparent",
           }}
         >
-          {entry[metric] || 0}
+          {entry.total_score ?? entry.points ?? entry[metric] ?? 0}
         </p>
         <p className="text-gray-600 text-[10px] uppercase tracking-wider font-mono">
           {metricLabel}
@@ -591,68 +591,158 @@ const TerminalWall = () => {
   const fetchLegends = async () => {
     setLoadingLegends(true);
 
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoISO = weekAgo.toISOString();
+    try {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      weekAgo.setHours(0, 0, 0, 0);
+      const weekAgoISO = weekAgo.toISOString();
 
-    let arenaQuery = supabase.from("arena_completions").select("*");
-    if (timeFilter === "weekly") {
-      arenaQuery = arenaQuery.gte("completed_at", weekAgoISO);
-    }
-
-    const { data: arenaRaw } = await arenaQuery;
-    const userIds = Array.from(
-      new Set((arenaRaw || []).map((r) => r.user_id))
-    ).filter(Boolean);
-
-    let profilesMap = {};
-    if (userIds.length > 0) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, user_id, username, full_name, avatar_url")
-        .in("id", userIds);
-
-      (profs || []).forEach((p) => {
-        const uId = p.id || p.user_id;
-        if (uId) profilesMap[uId] = p;
-      });
-    }
-
-    const arenaMap = {};
-    (arenaRaw || []).forEach((row) => {
-      const uid = row.user_id;
-      const prof = profilesMap[uid];
-      if (!arenaMap[uid]) {
-        arenaMap[uid] = {
-          user_id: uid,
-          full_name: prof?.full_name,
-          username: prof?.username,
-          avatar_url: prof?.avatar_url,
-          total_score: 0,
-          completions: 0,
-        };
+      // ── 1. Arena Champions ──
+      let arenaQuery = supabase.from("arena_completions").select("*");
+      if (timeFilter === "weekly") {
+        arenaQuery = arenaQuery.gte("completed_at", weekAgoISO);
       }
-      arenaMap[uid].total_score += row.score || 0;
-      arenaMap[uid].completions += 1;
-    });
 
-    const arenaList = Object.values(arenaMap)
-      .sort(
-        (a, b) =>
-          b.total_score - a.total_score || b.completions - a.completions
-      )
-      .slice(0, 20);
+      const { data: arenaRaw } = await arenaQuery;
+      const arenaUserIds = Array.from(
+        new Set((arenaRaw || []).map((r) => r.user_id))
+      ).filter(Boolean);
 
-    setArenaData(arenaList);
+      let arenaProfilesMap = {};
+      if (arenaUserIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, user_id, username, full_name, avatar_url")
+          .in("id", arenaUserIds);
 
-    const { data: usersRaw } = await supabase
-      .from("profiles")
-      .select("full_name, username, avatar_url")
-      .order("points", { ascending: false })
-      .limit(20);
+        (profs || []).forEach((p) => {
+          const uId = p.id || p.user_id;
+          if (uId) arenaProfilesMap[uId] = p;
+        });
+      }
 
-    setUsersData(usersRaw || []);
-    setLoadingLegends(false);
+      const arenaMap = {};
+      (arenaRaw || []).forEach((row) => {
+        const uid = row.user_id;
+        const prof = arenaProfilesMap[uid];
+        if (!arenaMap[uid]) {
+          arenaMap[uid] = {
+            user_id: uid,
+            full_name: prof?.full_name,
+            username: prof?.username,
+            avatar_url: prof?.avatar_url,
+            total_score: 0,
+            completions: 0,
+          };
+        }
+        arenaMap[uid].total_score += row.score || 0;
+        arenaMap[uid].completions += 1;
+      });
+
+      const arenaList = Object.values(arenaMap)
+        .sort((a, b) => b.total_score - a.total_score || b.completions - a.completions)
+        .slice(0, 20);
+
+      setArenaData(arenaList);
+
+      // ── 2. Top Contributors ──
+      let topUsers = [];
+      if (timeFilter === "alltime") {
+        const { data: ptsData } = await supabase
+          .from("user_points")
+          .select("user_id, points")
+          .order("points", { ascending: false })
+          .limit(20);
+
+        const uIds = (ptsData || []).map((p) => p.user_id).filter(Boolean);
+        let profMap = {};
+        if (uIds.length > 0) {
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("id, user_id, username, full_name, avatar_url")
+            .in("id", uIds);
+
+          (profs || []).forEach((p) => {
+            const uId = p.id || p.user_id;
+            if (uId) profMap[uId] = p;
+          });
+        }
+
+        topUsers = (ptsData || []).map((row) => {
+          const prof = profMap[row.user_id];
+          return {
+            user_id: row.user_id,
+            full_name: prof?.full_name,
+            username: prof?.username || "Glitcher",
+            avatar_url: prof?.avatar_url,
+            points: row.points || 0,
+            total_score: row.points || 0,
+          };
+        });
+      } else {
+        // Weekly Top Contributors
+        const [actsRes, subsRes] = await Promise.all([
+          supabase
+            .from("glitch_activity")
+            .select("user_id, points, created_at")
+            .gte("created_at", weekAgoISO)
+            .limit(5000),
+          supabase
+            .from("challenge_submissions")
+            .select("user_id, points_earned, created_at")
+            .gte("created_at", weekAgoISO)
+            .gt("points_earned", 0)
+            .limit(5000),
+        ]);
+
+        const weeklyMap = {};
+        (actsRes.data || []).forEach((r) => {
+          if (!r.user_id) return;
+          if (!weeklyMap[r.user_id]) weeklyMap[r.user_id] = 0;
+          weeklyMap[r.user_id] += r.points || 0;
+        });
+        (subsRes.data || []).forEach((r) => {
+          if (!r.user_id) return;
+          if (!weeklyMap[r.user_id]) weeklyMap[r.user_id] = 0;
+          weeklyMap[r.user_id] += r.points_earned || 0;
+        });
+
+        const wUids = Object.keys(weeklyMap);
+        let profMap = {};
+        if (wUids.length > 0) {
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("id, user_id, username, full_name, avatar_url")
+            .in("id", wUids);
+
+          (profs || []).forEach((p) => {
+            const uId = p.id || p.user_id;
+            if (uId) profMap[uId] = p;
+          });
+        }
+
+        topUsers = Object.entries(weeklyMap)
+          .map(([uid, score]) => {
+            const prof = profMap[uid];
+            return {
+              user_id: uid,
+              full_name: prof?.full_name,
+              username: prof?.username || "Glitcher",
+              avatar_url: prof?.avatar_url,
+              points: score,
+              total_score: score,
+            };
+          })
+          .sort((a, b) => b.total_score - a.total_score)
+          .slice(0, 20);
+      }
+
+      setUsersData(topUsers);
+    } catch (err) {
+      console.error("fetchLegends error:", err);
+    } finally {
+      setLoadingLegends(false);
+    }
   };
 
   const activeLegendsData = legendsTab === "arena" ? arenaData : usersData;
