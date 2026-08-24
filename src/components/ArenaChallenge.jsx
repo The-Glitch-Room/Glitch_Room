@@ -1224,22 +1224,38 @@ const ArenaChallenge = () => {
     if (userId) {
       const totalScore = stage1Score + score;
 
-      if (isUUID(eventId)) {
-        try {
-          await supabase.from("arena_completions").upsert(
-            {
-              user_id: userId,
-              event_id: eventId,
-              completed_at: new Date().toISOString(),
-              completed_date: new Date().toISOString().split("T")[0],
-              score: totalScore,
-              pitch_text: pitchText.trim() || null,
-            },
-            { onConflict: "user_id,event_id" },
-          );
-        } catch (e) {
-          console.warn("DB completion save warning:", e);
-        }
+      const cleanPitch = pitchText.trim() || null;
+      const validEventId = isUUID(eventId) ? eventId : null;
+
+      // 1. Upsert into arena_completions
+      try {
+        await supabase.from("arena_completions").upsert(
+          {
+            user_id: userId,
+            event_id: validEventId,
+            completed_at: new Date().toISOString(),
+            completed_date: new Date().toISOString().split("T")[0],
+            score: totalScore,
+            pitch_text: cleanPitch,
+          },
+          { onConflict: "user_id,event_id" },
+        );
+      } catch (e) {
+        console.warn("DB arena_completions save warning:", e);
+      }
+
+      // 2. Insert into arena_submissions so community pitch voting & public feeds display the submission
+      try {
+        await supabase.from("arena_submissions").insert({
+          user_id: userId,
+          event_id: validEventId,
+          stage1_answer: stage1Answer || "Stage 1 solution submitted",
+          stage3_pitch: cleanPitch || "Stage 3 pitch submitted",
+          total_score: totalScore,
+          created_at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn("DB arena_submissions insert warning:", e);
       }
 
       const stage1XP = pointsForScore(stage1Score, STAGE_MAX_XP);
