@@ -127,41 +127,13 @@ const Hero = () => {
       <div className="relative z-10 w-full max-w-5xl mx-auto flex flex-col items-center pt-6">
         {/* Heading */}
         <motion.h1
-          className="glitchh-text text-4xl md:text-6xl text-center flex flex-wrap justify-center gap-x-3 gap-y-1"
+          className="glitchh-text text-4xl md:text-6xl text-center max-w-4xl leading-tight"
           data-text="WHERE CHAOS SPARKS CREATIVITY"
-          initial="hidden"
-          animate="visible"
-          variants={{
-            hidden: { opacity: 0 },
-            visible: {
-              opacity: 1,
-              transition: {
-                staggerChildren: 0.18,
-                delayChildren: 0.2,
-              },
-            },
-          }}
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
         >
-          {["WHERE", "CHAOS", "SPARKS", "CREATIVITY"].map((word, i) => (
-            <motion.span
-              key={i}
-              className="inline-block"
-              variants={{
-                hidden: { opacity: 0, y: 25, filter: "blur(4px)" },
-                visible: {
-                  opacity: [0, 1, 0.5, 1],
-                  y: 0,
-                  filter: "blur(0px)",
-                  transition: {
-                    duration: 0.5,
-                    ease: "easeOut",
-                  },
-                },
-              }}
-            >
-              {word}
-            </motion.span>
-          ))}
+          WHERE CHAOS SPARKS CREATIVITY
         </motion.h1>
 
         {/* Subtitle */}
