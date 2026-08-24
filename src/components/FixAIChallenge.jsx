@@ -28,9 +28,13 @@ import {
 } from "../utils/pointsHelper";
 import { checkAndAwardBadges } from "../utils/badgeEngine";
 import { supabase } from "../supabaseClient";
+import {
+  getVerdict,
+  pointsForScore,
+  PASS_THRESHOLD,
+} from "../utils/feedbackVerdict";
 
 const COLOR = "#FF00C8";
-const PASS_THRESHOLD = 6;
 
 const difficultyStyle = (difficulty) => {
   const d = (difficulty || "").toLowerCase();
@@ -50,9 +54,20 @@ const difficultyStyle = (difficulty) => {
 };
 
 const FeedbackBlock = ({ feedback, passed }) => {
-  const strength = feedback?.strength || feedback?.what_you_got_right || feedback?.whatYouGotRight || feedback?.feedback || "";
-  const gap = feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "";
-  const upgrade = feedback?.suggestion || feedback?.upgrade || feedback?.how_to_level_it_up || feedback?.howToLevelItUp || "";
+  const strength =
+    feedback?.strength ||
+    feedback?.what_you_got_right ||
+    feedback?.whatYouGotRight ||
+    feedback?.feedback ||
+    "";
+  const gap =
+    feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "";
+  const upgrade =
+    feedback?.suggestion ||
+    feedback?.upgrade ||
+    feedback?.how_to_level_it_up ||
+    feedback?.howToLevelItUp ||
+    "";
 
   const hasAnyText = Boolean(strength || gap || upgrade);
 
@@ -75,7 +90,7 @@ const FeedbackBlock = ({ feedback, passed }) => {
           <span
             className={`text-sm font-bold ${passed ? "text-green-400" : "text-red-400"}`}
           >
-            {passed ? "Correct enough — nice work" : "Not quite there yet"}
+            {getVerdict(feedback?.score).label}
           </span>
         </div>
         {typeof feedback?.score === "number" && (
@@ -90,7 +105,10 @@ const FeedbackBlock = ({ feedback, passed }) => {
 
       {!hasAnyText && (
         <div className="rounded-xl p-3.5 bg-amber-500/[0.08] border border-amber-500/20 text-amber-300 text-xs leading-relaxed">
-          ⚡ <strong>AI Evaluation Notice:</strong> The AI grader assigned a score of <strong>{feedback?.score || 0}/10</strong>. Make sure your Supabase Edge Function secret <code>GROQ_API_KEY</code> is set to get full text breakdowns.
+          ⚡ <strong>AI Evaluation Notice:</strong> The AI grader assigned a
+          score of <strong>{feedback?.score || 0}/10</strong>. Make sure your
+          Supabase Edge Function secret <code>GROQ_API_KEY</code> is set to get
+          full text breakdowns.
         </div>
       )}
 
@@ -102,9 +120,7 @@ const FeedbackBlock = ({ feedback, passed }) => {
               What you got right
             </p>
           </div>
-          <p className="text-gray-300 text-xs leading-relaxed">
-            {strength}
-          </p>
+          <p className="text-gray-300 text-xs leading-relaxed">{strength}</p>
         </div>
       )}
 
@@ -128,9 +144,7 @@ const FeedbackBlock = ({ feedback, passed }) => {
               How to level it up
             </p>
           </div>
-          <p className="text-gray-300 text-xs leading-relaxed">
-            {upgrade}
-          </p>
+          <p className="text-gray-300 text-xs leading-relaxed">{upgrade}</p>
         </div>
       )}
     </div>
@@ -157,6 +171,7 @@ const FixAIChallenge = () => {
   const [evalError, setEvalError] = useState("");
   const [feedback, setFeedback] = useState(null);
   const [lastPassed, setLastPassed] = useState(false);
+  const [lastAwardedPoints, setLastAwardedPoints] = useState(0);
 
   const [previousSubmission, setPreviousSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -252,10 +267,11 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
 
       const alreadyPassedBefore = !!previousSubmission;
       const isFirstPass = passed && !alreadyPassedBefore;
+      const awardedPoints = pointsForScore(score, earnablePoints);
 
       if (isFirstPass) {
         let next = await updatePoints(
-          earnablePoints,
+          awardedPoints,
           `Solved AI: ${challenge.title}`,
           "ai",
         );
@@ -271,12 +287,13 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
         }
 
         setFirstTryBonus(earnedBonus);
+        setLastAwardedPoints(awardedPoints);
         setPoints(next);
         await checkAndAwardBadges(userId);
-        await saveSubmission(challenge.id, "ai", userAnswer, earnablePoints);
+        await saveSubmission(challenge.id, "ai", userAnswer, awardedPoints);
         setPreviousSubmission({
           answer: userAnswer,
-          points_earned: earnablePoints,
+          points_earned: awardedPoints,
         });
         setShowCongrats(true);
         setShowConfetti(true);
@@ -532,7 +549,7 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
                   border: `1px solid ${COLOR}30`,
                 }}
               >
-                +{earnablePoints} pts on pass
+                up to +{earnablePoints} pts on pass
               </span>
             </div>
             <textarea
@@ -692,7 +709,7 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
                 The AI grader confirmed your approach checks out.
               </p>
               <p className="font-bold" style={{ color: COLOR }}>
-                +{earnablePoints} Points 💎
+                +{lastAwardedPoints} Points 💎
               </p>
               {firstTryBonus && (
                 <p className="text-xs text-yellow-400 font-semibold mt-1">

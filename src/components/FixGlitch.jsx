@@ -30,9 +30,13 @@ import {
 } from "../utils/pointsHelper";
 import { checkAndAwardBadges } from "../utils/badgeEngine";
 import { supabase } from "../supabaseClient";
+import {
+  getVerdict,
+  pointsForScore,
+  PASS_THRESHOLD,
+} from "../utils/feedbackVerdict";
 
 const COLOR = "#00F0FF";
-const PASS_THRESHOLD = 6; // out of 10 — minimum AI score to count as "correct"
 
 const difficultyStyle = (difficulty) => {
   const d = (difficulty || "").toLowerCase();
@@ -51,7 +55,6 @@ const difficultyStyle = (difficulty) => {
   return { text: "text-red-400", bg: "bg-red-500/10", dot: "bg-red-400" };
 };
 
-
 /**
  * Smart normalizer to extract AI feedback from ANY raw payload returned by Supabase Edge Function / Groq
  */
@@ -64,7 +67,10 @@ const normalizeAIFeedback = (rawInput) => {
     try {
       let clean = data.trim();
       if (clean.startsWith("```")) {
-        clean = clean.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+        clean = clean
+          .replace(/^```(json)?/i, "")
+          .replace(/```$/, "")
+          .trim();
       }
       data = JSON.parse(clean);
     } catch (e) {
@@ -85,7 +91,8 @@ const normalizeAIFeedback = (rawInput) => {
   // Extract score
   let score = 0;
   if (typeof data?.score === "number") score = data.score;
-  else if (typeof data?.score === "string") score = parseInt(data.score, 10) || 0;
+  else if (typeof data?.score === "string")
+    score = parseInt(data.score, 10) || 0;
   else if (typeof data?.rating === "number") score = data.rating;
   else if (typeof data?.points === "number") score = data.points;
 
@@ -128,19 +135,32 @@ const normalizeAIFeedback = (rawInput) => {
   return {
     score,
     passed: score >= 6,
-    strength: isErrorMessage ? "Supabase Edge Function returned an error: " + (data.error || data.message) : strength,
+    strength: isErrorMessage
+      ? "Supabase Edge Function returned an error: " +
+        (data.error || data.message)
+      : strength,
     gap,
     upgrade,
-    rawError: isErrorMessage ? (data.error || data.message) : null,
+    rawError: isErrorMessage ? data.error || data.message : null,
   };
 };
 
-
 // ─── AI Feedback block (reused shape from Arena) ──────────────────────────────
 const FeedbackBlock = ({ feedback, passed }) => {
-  const strength = feedback?.strength || feedback?.what_you_got_right || feedback?.whatYouGotRight || feedback?.feedback || "";
-  const gap = feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "";
-  const upgrade = feedback?.suggestion || feedback?.upgrade || feedback?.how_to_level_it_up || feedback?.howToLevelItUp || "";
+  const strength =
+    feedback?.strength ||
+    feedback?.what_you_got_right ||
+    feedback?.whatYouGotRight ||
+    feedback?.feedback ||
+    "";
+  const gap =
+    feedback?.gap || feedback?.what_was_missed || feedback?.whatWasMissed || "";
+  const upgrade =
+    feedback?.suggestion ||
+    feedback?.upgrade ||
+    feedback?.how_to_level_it_up ||
+    feedback?.howToLevelItUp ||
+    "";
 
   const hasAnyText = Boolean(strength || gap || upgrade);
 
@@ -163,7 +183,7 @@ const FeedbackBlock = ({ feedback, passed }) => {
           <span
             className={`text-sm font-bold ${passed ? "text-green-400" : "text-red-400"}`}
           >
-            {passed ? "Correct enough — nice work" : "Not quite there yet"}
+            {getVerdict(feedback?.score).label}
           </span>
         </div>
         {typeof feedback?.score === "number" && (
@@ -178,7 +198,10 @@ const FeedbackBlock = ({ feedback, passed }) => {
 
       {!hasAnyText && (
         <div className="rounded-xl p-3.5 bg-amber-500/[0.08] border border-amber-500/20 text-amber-300 text-xs leading-relaxed">
-          ⚡ <strong>AI Evaluation Notice:</strong> The AI grader assigned a score of <strong>{feedback?.score || 0}/10</strong>. Make sure your Supabase Edge Function secret <code>GROQ_API_KEY</code> is set to get full text breakdowns.
+          ⚡ <strong>AI Evaluation Notice:</strong> The AI grader assigned a
+          score of <strong>{feedback?.score || 0}/10</strong>. Make sure your
+          Supabase Edge Function secret <code>GROQ_API_KEY</code> is set to get
+          full text breakdowns.
         </div>
       )}
 
@@ -190,9 +213,7 @@ const FeedbackBlock = ({ feedback, passed }) => {
               What you got right
             </p>
           </div>
-          <p className="text-gray-300 text-xs leading-relaxed">
-            {strength}
-          </p>
+          <p className="text-gray-300 text-xs leading-relaxed">{strength}</p>
         </div>
       )}
 
@@ -216,9 +237,7 @@ const FeedbackBlock = ({ feedback, passed }) => {
               How to level it up
             </p>
           </div>
-          <p className="text-gray-300 text-xs leading-relaxed">
-            {upgrade}
-          </p>
+          <p className="text-gray-300 text-xs leading-relaxed">{upgrade}</p>
         </div>
       )}
     </div>
@@ -248,6 +267,7 @@ const FixGlitch = () => {
   const [evalError, setEvalError] = useState("");
   const [feedback, setFeedback] = useState(null);
   const [lastPassed, setLastPassed] = useState(false);
+  const [lastAwardedPoints, setLastAwardedPoints] = useState(0);
 
   const [previousSubmission, setPreviousSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -364,10 +384,11 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
 
       const alreadyPassedBefore = !!previousSubmission;
       const isFirstPass = passed && !alreadyPassedBefore;
+      const awardedPoints = pointsForScore(score, earnablePoints);
 
       if (isFirstPass) {
         let next = await updatePoints(
-          earnablePoints,
+          awardedPoints,
           `Fixed: ${glitch.title}`,
           "glitch",
         );
@@ -383,23 +404,26 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
         }
 
         setFirstTryBonus(earnedBonus);
+        setLastAwardedPoints(awardedPoints);
         setPoints(next);
         await checkAndAwardBadges(userId);
-        const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        const elapsedSeconds = Math.floor(
+          (Date.now() - startTimeRef.current) / 1000,
+        );
         const subRes = await saveSubmission(
           glitch.id,
           "glitch",
           userAnswer,
-          earnablePoints,
+          awardedPoints,
           elapsedSeconds,
-          difficulty
+          difficulty,
         );
         if (subRes?.speedBonusAwarded) {
           setSpeedBonus(true);
         }
         setPreviousSubmission({
           answer: userAnswer,
-          points_earned: earnablePoints,
+          points_earned: awardedPoints,
         });
         setShowCongrats(true);
         setShowConfetti(true);
@@ -648,7 +672,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
                   border: `1px solid ${COLOR}30`,
                 }}
               >
-                +{earnablePoints} pts on pass
+                up to +{earnablePoints} pts on pass
               </span>
             </div>
             <textarea
@@ -795,7 +819,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
                 The AI grader confirmed your fix. Keep going to level up.
               </p>
               <p className="font-bold text-cyan-400">
-                +{earnablePoints} Points 💎
+                +{lastAwardedPoints} Points 💎
               </p>
               {firstTryBonus && (
                 <p className="text-xs text-yellow-400 font-semibold mt-1">

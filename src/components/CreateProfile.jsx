@@ -43,20 +43,22 @@ const Chip = ({ label, onRemove, color = "cyan" }) => {
 };
 
 /* ── Tag input ── */
-const TagInput = ({ value, onChange, onAdd, placeholder, color }) => (
+const TagInput = ({ value, onChange, onAdd, placeholder, color, disabled }) => (
   <div className="flex gap-2">
     <input
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onAdd())}
-      placeholder={placeholder}
-      className="flex-1 bg-[#08080f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#00F0FF]/50 transition"
+      placeholder={disabled ? "Limit reached (10)" : placeholder}
+      disabled={disabled}
+      className="flex-1 bg-[#08080f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#00F0FF]/50 transition disabled:opacity-40 disabled:cursor-not-allowed"
     />
     <button
       type="button"
       onClick={onAdd}
-      className={`w-9 h-9 rounded-lg flex items-center justify-center transition cursor-pointer ${
+      disabled={disabled}
+      className={`w-9 h-9 rounded-lg flex items-center justify-center transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
         color === "pink"
           ? "bg-[#FF00C8]/10 border border-[#FF00C8]/30 text-[#FF00C8] hover:bg-[#FF00C8]/20"
           : "bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20"
@@ -168,7 +170,37 @@ const CreateProfile = () => {
   const [hobbyInput, setHobbyInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
+  // Only accept genuine http(s) URLs. Rejects javascript:/data:/other schemes
+  // so a malicious link pasted here can never be saved and later rendered as
+  // a live href/src on this or any other user's screen (stored XSS via a
+  // profile link is a real risk otherwise — the browser executes
+  // javascript: URIs on click just like a normal link).
+  const sanitizeUrl = (url) => {
+    const trimmed = (url || "").trim();
+    if (!trimmed) return "";
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+        return "";
+      return trimmed;
+    } catch {
+      return "";
+    }
+  };
+
+  // Guarantees a non-empty username even if someone reaches Finish/Skip
+  // before ever typing one (e.g. profile row genuinely doesn't exist yet).
+  // Mirrors the fallback pattern already used at signup in AuthModal.jsx.
+  const generateFallbackUsername = (userId) =>
+    `glitcher_${(userId || "").replace(/-/g, "").slice(0, 8)}`;
+
+  // Load whatever profile data already exists BEFORE rendering the form.
+  // Without this, every field starts blank regardless of what's already
+  // saved — so hitting Skip (or even Finish, without retyping every field)
+  // would overwrite good existing data with empty strings.
   useEffect(() => {
     (async () => {
       const {
@@ -178,23 +210,62 @@ const CreateProfile = () => {
         navigate("/");
         return;
       }
-      const name = user.user_metadata?.full_name || "";
-      setProfile((p) => ({ ...p, full_name: name }));
+
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select(
+          "full_name, username, bio, interests, hobbies, avatar_url, github_url, linkedin_url, twitter_url, discord_url",
+        )
+        .eq("id", user.id)
+        .maybeSingle();
+
+      setProfile((p) => ({
+        ...p,
+        full_name: existing?.full_name || user.user_metadata?.full_name || "",
+        username: existing?.username || "",
+        bio: existing?.bio || "",
+        interests: existing?.interests || [],
+        hobbies: existing?.hobbies || [],
+        avatar_url: existing?.avatar_url || "",
+        github_url: existing?.github_url || "",
+        linkedin_url: existing?.linkedin_url || "",
+        twitter_url: existing?.twitter_url || "",
+        discord_url: existing?.discord_url || "",
+      }));
+      setLoadingProfile(false);
     })();
   }, [navigate]);
 
+  const MAX_TAGS = 10;
+
   const addInterest = () => {
-    if (!interestInput.trim()) return;
+    const val = interestInput.trim();
+    if (!val || profile.interests.length >= MAX_TAGS) {
+      setInterestInput("");
+      return;
+    }
+    if (profile.interests.some((i) => i.toLowerCase() === val.toLowerCase())) {
+      setInterestInput("");
+      return;
+    }
     setProfile((p) => ({
       ...p,
-      interests: [...p.interests, interestInput.trim()],
+      interests: [...p.interests, val],
     }));
     setInterestInput("");
   };
 
   const addHobby = () => {
-    if (!hobbyInput.trim()) return;
-    setProfile((p) => ({ ...p, hobbies: [...p.hobbies, hobbyInput.trim()] }));
+    const val = hobbyInput.trim();
+    if (!val || profile.hobbies.length >= MAX_TAGS) {
+      setHobbyInput("");
+      return;
+    }
+    if (profile.hobbies.some((h) => h.toLowerCase() === val.toLowerCase())) {
+      setHobbyInput("");
+      return;
+    }
+    setProfile((p) => ({ ...p, hobbies: [...p.hobbies, val] }));
     setHobbyInput("");
   };
 
@@ -209,42 +280,75 @@ const CreateProfile = () => {
       hobbies: p.hobbies.filter((_, idx) => idx !== i),
     }));
 
-  const saveProfile = async () => {
+  // Shared save path — used by "Finish Profile" AND every "Skip" button, so
+  // skipping can never mean "don't save what was already filled in."
+  const persistProfile = async () => {
     setSaving(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    setSaveError("");
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
+      if (!user) {
+        navigate("/");
+        return false;
+      }
+
+      const cleanUsername = profile.username.trim();
+
+      const { error } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          full_name: profile.full_name.trim() || "Glitcher",
+          username: cleanUsername || generateFallbackUsername(user.id),
+          bio: profile.bio.trim().slice(0, 500),
+          interests: profile.interests.slice(0, MAX_TAGS),
+          hobbies: profile.hobbies.slice(0, MAX_TAGS),
+          avatar_url: sanitizeUrl(profile.avatar_url) || null,
+          github_url: sanitizeUrl(profile.github_url) || null,
+          linkedin_url: sanitizeUrl(profile.linkedin_url) || null,
+          twitter_url: sanitizeUrl(profile.twitter_url) || null,
+          discord_url: sanitizeUrl(profile.discord_url) || null,
+        },
+        { onConflict: "id" },
+      );
+
+      if (error) {
+        console.error("Profile save error:", error);
+        setSaveError(
+          error.code === "23505"
+            ? "That username is already taken — please choose another."
+            : "Something went wrong saving your profile. Please try again.",
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("Profile save error:", err);
+      setSaveError(
+        "Something went wrong saving your profile. Please try again.",
+      );
+      return false;
+    } finally {
       setSaving(false);
-      navigate("/");
-      return;
     }
+  };
 
-    const { error } = await supabase.from("profiles").upsert(
-      {
-        id: user.id,
-        full_name: profile.full_name,
-        username: profile.username,
-        bio: profile.bio,
-        interests: profile.interests,
-        hobbies: profile.hobbies,
-        avatar_url: profile.avatar_url || null,
-        github_url: profile.github_url || null,
-        linkedin_url: profile.linkedin_url || null,
-        twitter_url: profile.twitter_url || null,
-        discord_url: profile.discord_url || null,
-      },
-      { onConflict: "id" },
-    );
-
-    setSaving(false);
-    if (error) {
-      alert(error.message);
-    } else {
+  const saveProfile = async () => {
+    const ok = await persistProfile();
+    if (ok) {
       setSaved(true);
       setTimeout(() => navigate("/profile"), 1800);
     }
+  };
+
+  // Skip buttons now save whatever's been filled in so far before leaving —
+  // previously they navigated away with zero save call, silently discarding
+  // anything the user had already entered.
+  const handleSkip = async () => {
+    const ok = await persistProfile();
+    if (ok) navigate("/profile");
   };
 
   const canNext = () => {
@@ -303,6 +407,14 @@ const CreateProfile = () => {
   ];
 
   const meta = stepMeta[step];
+
+  if (loadingProfile) {
+    return (
+      <div className="min-h-screen bg-[#08080f] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-t-transparent border-[#00F0FF] rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#08080f] text-white">
@@ -609,6 +721,7 @@ const CreateProfile = () => {
                                 setProfile({ ...profile, bio: e.target.value })
                               }
                               rows={9}
+                              maxLength={500}
                               className="w-full bg-[#08080f] border border-white/10 rounded-lg pl-9 pr-3 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#FF00C8]/50 transition resize-none"
                             />
                           </div>
@@ -636,6 +749,7 @@ const CreateProfile = () => {
                             onAdd={addInterest}
                             placeholder="e.g. Machine Learning, Web3…"
                             color="cyan"
+                            disabled={profile.interests.length >= MAX_TAGS}
                           />
                           {profile.interests.length > 0 && (
                             <div className="flex flex-wrap gap-2 pt-1">
@@ -665,6 +779,7 @@ const CreateProfile = () => {
                             onAdd={addHobby}
                             placeholder="e.g. Gaming, Photography…"
                             color="pink"
+                            disabled={profile.hobbies.length >= MAX_TAGS}
                           />
                           {profile.hobbies.length > 0 && (
                             <div className="flex flex-wrap gap-2 pt-1">
@@ -808,6 +923,13 @@ const CreateProfile = () => {
                   </motion.div>
                 </AnimatePresence>
 
+                {/* ── Save error banner ── */}
+                {saveError && (
+                  <div className="mt-5 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                    {saveError}
+                  </div>
+                )}
+
                 {/* ── Nav buttons ── */}
                 <div className="flex items-center justify-between mt-8 pt-5 border-t border-white/5">
                   <button
@@ -821,10 +943,11 @@ const CreateProfile = () => {
                   <div className="flex items-center gap-3">
                     {step === STEPS.length - 1 && (
                       <button
-                        onClick={() => navigate("/profile")}
-                        className="text-xs text-white/25 hover:text-white/50 transition cursor-pointer"
+                        onClick={handleSkip}
+                        disabled={saving}
+                        className="text-xs text-white/25 hover:text-white/50 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        Skip links
+                        {saving ? "Saving…" : "Skip links"}
                       </button>
                     )}
 
@@ -889,10 +1012,11 @@ const CreateProfile = () => {
 
         {/* Skip all */}
         <button
-          onClick={() => navigate("/profile")}
-          className="mt-5 text-xs text-white/20 hover:text-white/40 transition cursor-pointer"
+          onClick={handleSkip}
+          disabled={saving}
+          className="mt-5 text-xs text-white/20 hover:text-white/40 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Skip for now
+          {saving ? "Saving…" : "Skip for now"}
         </button>
       </section>
 

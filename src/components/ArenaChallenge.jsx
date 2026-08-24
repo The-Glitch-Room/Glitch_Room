@@ -11,6 +11,16 @@ import { updatePoints } from "../utils/pointsHelper";
 import TwistCardTimer from "./TwistCardTimer";
 import { getFeaturedArenaEvent } from "../data/arenaEventsData";
 import GlitchBackground from "./GlitchBackground";
+import {
+  getVerdict,
+  pointsForScore,
+  PASS_THRESHOLD,
+} from "../utils/feedbackVerdict";
+
+// Max XP each of Arena's two graded stages (Stage 1 + Stage 3) can
+// contribute. A stage below PASS_THRESHOLD contributes 0 — there's no
+// flat "you finished" base, so both stages failing means 0 total XP.
+const STAGE_MAX_XP = 50;
 
 // ─── Twist Cards ──────────────────────────────────────────────────────────────
 const TWIST_CARDS = [
@@ -158,6 +168,47 @@ const AIFeedbackPanel = ({ feedback, onContinue, buttonLabel }) => (
       </div>
     </div>
 
+    <div
+      className="flex items-center justify-between p-3 rounded-xl mb-4"
+      style={{
+        background: getVerdict(feedback?.score).passed
+          ? "rgba(34,197,94,0.08)"
+          : "rgba(239,68,68,0.08)",
+        border: `1px solid ${
+          getVerdict(feedback?.score).passed
+            ? "rgba(34,197,94,0.25)"
+            : "rgba(239,68,68,0.25)"
+        }`,
+      }}
+    >
+      <div className="flex items-center gap-2">
+        {getVerdict(feedback?.score).passed ? (
+          <FaCheckCircle className="text-green-400" size={14} />
+        ) : (
+          <FiAlertTriangle className="text-red-400" size={14} />
+        )}
+        <span
+          className={`text-sm font-bold ${
+            getVerdict(feedback?.score).passed
+              ? "text-green-400"
+              : "text-red-400"
+          }`}
+        >
+          {getVerdict(feedback?.score).label}
+        </span>
+      </div>
+      {typeof feedback?.score === "number" && (
+        <span
+          className="text-sm font-black"
+          style={{
+            color: getVerdict(feedback?.score).passed ? "#22c55e" : "#ef4444",
+          }}
+        >
+          {feedback.score}/10
+        </span>
+      )}
+    </div>
+
     <div className="space-y-3 mb-5">
       <motion.div
         initial={{ opacity: 0, x: -10 }}
@@ -176,7 +227,11 @@ const AIFeedbackPanel = ({ feedback, onContinue, buttonLabel }) => (
           </p>
         </div>
         <p className="text-gray-300 text-sm leading-relaxed">
-          {feedback.strength || feedback.what_you_got_right || feedback.whatYouGotRight || feedback.feedback || "Good effort on your submission."}
+          {feedback.strength ||
+            feedback.what_you_got_right ||
+            feedback.whatYouGotRight ||
+            feedback.feedback ||
+            "Good effort on your submission."}
         </p>
       </motion.div>
 
@@ -196,7 +251,12 @@ const AIFeedbackPanel = ({ feedback, onContinue, buttonLabel }) => (
             What Was Missed
           </p>
         </div>
-        <p className="text-gray-300 text-sm leading-relaxed">{feedback.gap || feedback.what_was_missed || feedback.whatWasMissed || "No critical gaps identified."}</p>
+        <p className="text-gray-300 text-sm leading-relaxed">
+          {feedback.gap ||
+            feedback.what_was_missed ||
+            feedback.whatWasMissed ||
+            "No critical gaps identified."}
+        </p>
       </motion.div>
 
       <motion.div
@@ -216,7 +276,11 @@ const AIFeedbackPanel = ({ feedback, onContinue, buttonLabel }) => (
           </p>
         </div>
         <p className="text-gray-300 text-sm leading-relaxed">
-          {feedback.suggestion || feedback.upgrade || feedback.how_to_level_it_up || feedback.howToLevelItUp || "Refine edge case validations."}
+          {feedback.suggestion ||
+            feedback.upgrade ||
+            feedback.how_to_level_it_up ||
+            feedback.howToLevelItUp ||
+            "Refine edge case validations."}
         </p>
       </motion.div>
     </div>
@@ -331,14 +395,24 @@ const Stage1 = ({ event, onComplete }) => {
               const lang = part.slice(3, firstLineEnd).trim();
               const code = part.slice(firstLineEnd + 1, -3);
               return (
-                <div key={i} className="my-4 bg-[#070709] border border-white/10 rounded-xl p-4 font-mono text-xs text-[#00F0FF] overflow-x-auto shadow-inner">
-                  {lang && <div className="text-[10px] uppercase font-bold text-gray-500 mb-2 border-b border-white/5 pb-1">{lang} snippet</div>}
+                <div
+                  key={i}
+                  className="my-4 bg-[#070709] border border-white/10 rounded-xl p-4 font-mono text-xs text-[#00F0FF] overflow-x-auto shadow-inner"
+                >
+                  {lang && (
+                    <div className="text-[10px] uppercase font-bold text-gray-500 mb-2 border-b border-white/5 pb-1">
+                      {lang} snippet
+                    </div>
+                  )}
                   <pre className="whitespace-pre-wrap">{code}</pre>
                 </div>
               );
             }
             return (
-              <p key={i} className="text-gray-300 text-sm leading-relaxed whitespace-pre-line mb-2">
+              <p
+                key={i}
+                className="text-gray-300 text-sm leading-relaxed whitespace-pre-line mb-2"
+              >
                 {part}
               </p>
             );
@@ -663,6 +737,49 @@ const Stage3 = ({ twist, onComplete }) => {
               >
                 Powered by Claude
               </div>
+            </div>
+
+            <div
+              className="flex items-center justify-between p-3 rounded-xl mb-4"
+              style={{
+                background: getVerdict(feedback?.score).passed
+                  ? "rgba(34,197,94,0.08)"
+                  : "rgba(239,68,68,0.08)",
+                border: `1px solid ${
+                  getVerdict(feedback?.score).passed
+                    ? "rgba(34,197,94,0.25)"
+                    : "rgba(239,68,68,0.25)"
+                }`,
+              }}
+            >
+              <div className="flex items-center gap-2">
+                {getVerdict(feedback?.score).passed ? (
+                  <FaCheckCircle className="text-green-400" size={14} />
+                ) : (
+                  <FiAlertTriangle className="text-red-400" size={14} />
+                )}
+                <span
+                  className={`text-sm font-bold ${
+                    getVerdict(feedback?.score).passed
+                      ? "text-green-400"
+                      : "text-red-400"
+                  }`}
+                >
+                  {getVerdict(feedback?.score).label}
+                </span>
+              </div>
+              {typeof feedback?.score === "number" && (
+                <span
+                  className="text-sm font-black"
+                  style={{
+                    color: getVerdict(feedback?.score).passed
+                      ? "#22c55e"
+                      : "#ef4444",
+                  }}
+                >
+                  {feedback.score}/10
+                </span>
+              )}
             </div>
 
             <div className="space-y-3 mb-5">
@@ -1125,14 +1242,17 @@ const ArenaChallenge = () => {
         }
       }
 
-      const qualityBonus = Math.round((totalScore / 20) * 25);
-      const arenaXP = 75 + qualityBonus;
+      const stage1XP = pointsForScore(stage1Score, STAGE_MAX_XP);
+      const stage3XP = pointsForScore(score, STAGE_MAX_XP);
+      const arenaXP = stage1XP + stage3XP;
       setEarnedArenaXP(arenaXP);
-      await updatePoints(
-        arenaXP,
-        `Arena: ${event?.title || "Challenge"}`,
-        "arena",
-      );
+      if (arenaXP > 0) {
+        await updatePoints(
+          arenaXP,
+          `Arena: ${event?.title || "Challenge"}`,
+          "arena",
+        );
+      }
     }
   };
 
@@ -1159,59 +1279,61 @@ const ArenaChallenge = () => {
       <div className="relative z-10 flex flex-col flex-1">
         <Navbar />
 
-      <section className="max-w-3xl mx-auto w-full px-6 py-24 mt-10 flex-1">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-10"
-        >
-          <span className="text-xs text-gray-500 uppercase tracking-widest">
-            Arena Challenge
-          </span>
-          <h1 className="text-3xl font-black text-white mt-1">{event.title}</h1>
-        </motion.div>
+        <section className="max-w-3xl mx-auto w-full px-6 py-24 mt-10 flex-1">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-10"
+          >
+            <span className="text-xs text-gray-500 uppercase tracking-widest">
+              Arena Challenge
+            </span>
+            <h1 className="text-3xl font-black text-white mt-1">
+              {event.title}
+            </h1>
+          </motion.div>
 
-        {!completed && !previouslyCompleted && (
-          <StageProgress currentStage={currentStage} />
-        )}
+          {!completed && !previouslyCompleted && (
+            <StageProgress currentStage={currentStage} />
+          )}
 
-        <div className="bg-[#0f0f1a] border border-white/5 rounded-3xl p-8 shadow-xl">
-          <AnimatePresence mode="wait">
-            {previouslyCompleted && !retrying ? (
-              <PreviouslyCompletedScreen
-                key="prev"
-                event={event}
-                completedAt={completedAt}
-                onRetry={() => setRetrying(true)}
-                navigate={navigate}
-              />
-            ) : completed ? (
-              <CompletedScreen
-                key="done"
-                navigate={navigate}
-                totalScore={stage1Score + stage3Score}
-                arenaXP={earnedArenaXP}
-              />
-            ) : currentStage === 1 ? (
-              <Stage1
-                key="s1"
-                event={event}
-                onComplete={handleStage1Complete}
-              />
-            ) : currentStage === 2 ? (
-              <Stage2 key="s2" onComplete={handleStage2Complete} />
-            ) : (
-              <Stage3
-                key="s3"
-                twist={twist}
-                onComplete={handleStage3Complete}
-              />
-            )}
-          </AnimatePresence>
-        </div>
-      </section>
+          <div className="bg-[#0f0f1a] border border-white/5 rounded-3xl p-8 shadow-xl">
+            <AnimatePresence mode="wait">
+              {previouslyCompleted && !retrying ? (
+                <PreviouslyCompletedScreen
+                  key="prev"
+                  event={event}
+                  completedAt={completedAt}
+                  onRetry={() => setRetrying(true)}
+                  navigate={navigate}
+                />
+              ) : completed ? (
+                <CompletedScreen
+                  key="done"
+                  navigate={navigate}
+                  totalScore={stage1Score + stage3Score}
+                  arenaXP={earnedArenaXP}
+                />
+              ) : currentStage === 1 ? (
+                <Stage1
+                  key="s1"
+                  event={event}
+                  onComplete={handleStage1Complete}
+                />
+              ) : currentStage === 2 ? (
+                <Stage2 key="s2" onComplete={handleStage2Complete} />
+              ) : (
+                <Stage3
+                  key="s3"
+                  twist={twist}
+                  onComplete={handleStage3Complete}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+        </section>
 
-      <Footer />
+        <Footer />
       </div>
     </div>
   );
