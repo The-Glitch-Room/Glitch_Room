@@ -485,16 +485,24 @@ export default function YourProfile() {
         .from("avatars")
         .upload(fileName, file, { upsert: true });
       if (error) throw error;
-      const publicUrl = supabase.storage.from("avatars").getPublicUrl(fileName);
+      const newAvatarUrl = supabase.storage.from("avatars").getPublicUrl(fileName).data.publicUrl;
+
       await supabase
         .from("profiles")
-        .update({ avatar_url: publicUrl.data.publicUrl })
+        .update({ avatar_url: newAvatarUrl })
         .eq("id", userId);
-      setAvatarPreview(publicUrl.data.publicUrl);
+
+      await supabase.auth.updateUser({ data: { avatar_url: newAvatarUrl } });
+      localStorage.setItem(`glitch_avatar_${userId}`, newAvatarUrl);
+
+      setAvatarPreview(newAvatarUrl);
       setEditForm((prev) => ({
         ...prev,
-        avatar_url: publicUrl.data.publicUrl,
+        avatar_url: newAvatarUrl,
       }));
+
+      window.dispatchEvent(new CustomEvent("profile_updated", { detail: { avatar_url: newAvatarUrl } }));
+      window.dispatchEvent(new CustomEvent("avatar_updated", { detail: { avatar_url: newAvatarUrl } }));
     } catch (err) {
       console.error(err);
     }
@@ -810,8 +818,8 @@ export default function YourProfile() {
                 </button>
               </div>
 
-              {/* Single Scrollable Form Content */}
-              <div className="overflow-y-auto p-5 sm:p-7 space-y-6 flex-1 custom-scrollbar">
+              {/* Single Scrollable Form Content - Hidden Scrollbar Track */}
+              <div className="overflow-y-auto p-5 sm:p-7 space-y-6 flex-1 no-scrollbar">
                 {/* Horizontal 2-column Grid for Avatar & Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Left Column: Avatar & Full Name */}
@@ -820,7 +828,7 @@ export default function YourProfile() {
                       <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-2">
                         Profile Avatar
                       </label>
-                      <div className="flex items-center gap-4 mb-3">
+                      <div className="flex items-center gap-4">
                         <div className="w-16 h-16 rounded-2xl border border-white/10 overflow-hidden bg-[#181824] shrink-0 flex items-center justify-center">
                           {editForm.avatar_url && !avatarLoadError ? (
                             <img
@@ -848,13 +856,6 @@ export default function YourProfile() {
                           />
                         </label>
                       </div>
-                      <input
-                        type="text"
-                        placeholder="…or paste avatar URL"
-                        value={editForm.avatar_url}
-                        onChange={(e) => setEditForm({ ...editForm, avatar_url: e.target.value })}
-                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#FF00C8]/40 transition"
-                      />
                     </div>
 
                     <div>
@@ -909,7 +910,7 @@ export default function YourProfile() {
                         value={editForm.bio}
                         onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                         maxLength={400}
-                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition resize-none leading-relaxed"
+                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition resize-none no-scrollbar leading-relaxed"
                       />
                     </div>
                   </div>
@@ -1017,14 +1018,6 @@ export default function YourProfile() {
                         }
                       />
                     </label>
-
-                    <input
-                      type="text"
-                      placeholder="…or paste banner image URL"
-                      value={editForm.banner_url}
-                      onChange={(e) => setEditForm({ ...editForm, banner_url: e.target.value })}
-                      className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#FF00C8]/40 transition"
-                    />
                   </div>
 
                   {/* Preset Banner Selector */}

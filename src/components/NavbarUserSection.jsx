@@ -78,8 +78,8 @@ const NavbarUserSection = ({ user: propUser }) => {
 
     // ALWAYS PRIORITIZE LATEST UPLOADED AVATAR (cachedAvatar / dbProfile.avatar_url)!
     const avatarUrl =
-      cachedAvatar ||
       dbProfile?.avatar_url ||
+      cachedAvatar ||
       userMeta?.avatar_url ||
       userMeta?.picture ||
       null;
@@ -100,11 +100,13 @@ const NavbarUserSection = ({ user: propUser }) => {
     // Listen for profile updates & points changes anywhere on the site
     const handleProfileUpdate = () => fetchFullUserProfile();
     window.addEventListener("profile_updated", handleProfileUpdate);
+    window.addEventListener("avatar_updated", handleProfileUpdate);
     window.addEventListener("points_updated", handleProfileUpdate);
     window.addEventListener("gbits_updated", handleProfileUpdate);
 
     return () => {
       window.removeEventListener("profile_updated", handleProfileUpdate);
+    window.removeEventListener("avatar_updated", handleProfileUpdate);
       window.removeEventListener("points_updated", handleProfileUpdate);
       window.removeEventListener("gbits_updated", handleProfileUpdate);
     };
