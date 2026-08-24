@@ -386,6 +386,23 @@ export const saveSubmission = async (
   });
   if (error) console.error("saveSubmission error:", error);
 
+  // If passing score / points earned, record completion state in challenge_completions
+  if (pointsEarned > 0) {
+    try {
+      await supabase.from("challenge_completions").upsert(
+        {
+          user_id: userId,
+          challenge_id: String(challengeId),
+          challenge_type: challengeType,
+          completed_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,challenge_id,challenge_type" }
+      );
+    } catch (e) {
+      console.warn("challenge_completions upsert warning:", e);
+    }
+  }
+
   let speedBonusAwarded = false;
   if (pointsEarned > 0 && checkSpeedDemonBonus(timeTakenSeconds, difficulty)) {
     try {
