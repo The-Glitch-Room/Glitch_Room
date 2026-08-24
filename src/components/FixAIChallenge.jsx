@@ -1,3 +1,4 @@
+import { GBitIcon } from "./GBitIcon";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import aiChallenges from "../data/ai_challenges.json";
@@ -360,7 +361,7 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
               border: `1px solid ${COLOR}30`,
             }}
           >
-            ⚡ {points} pts
+            <GBitIcon className="w-3.5 h-3.5 mr-1" /> {points} gBits
           </div>
         </div>
       </div>
@@ -549,7 +550,7 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
                   border: `1px solid ${COLOR}30`,
                 }}
               >
-                up to +{earnablePoints} pts on pass
+                up to +{earnablePoints} gBits on pass
               </span>
             </div>
             <textarea
@@ -709,7 +710,7 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
                 The AI grader confirmed your approach checks out.
               </p>
               <p className="font-bold" style={{ color: COLOR }}>
-                +{lastAwardedPoints} Points 💎
+                +{lastAwardedPoints} gBits <GBitIcon className="w-5 h-5 ml-1.5" />
               </p>
               {firstTryBonus && (
                 <p className="text-xs text-yellow-400 font-semibold mt-1">

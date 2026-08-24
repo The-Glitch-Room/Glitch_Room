@@ -1,3 +1,4 @@
+import { GBitIcon } from "./GBitIcon";
 // src/components/Explore.jsx
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -163,7 +164,7 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
               Challenge Completed!
             </p>
             <p className="text-gray-400 text-xs font-mono">
-              +{Math.min(challenge.points || 40, 100)} gBits added to your balance & Uptime Streak updated!
+              <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(challenge.points || 40, 100)} gBits added to your balance & Uptime Streak updated!
             </p>
           </div>
         ) : (
@@ -200,7 +201,7 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-1.5 text-xs text-amber-400 font-mono">
                 <Award size={13} />
-                <span>Reward: +{Math.min(challenge.points || 40, 100)} gBits</span>
+                <span>Reward: <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(challenge.points || 40, 100)} gBits</span>
               </div>
 
               <div className="flex gap-2">
@@ -563,7 +564,7 @@ const Explore = () => {
                           </span>
                           <div className="flex items-center gap-1.5 text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
                             <Award size={13} />
-                            <span>+{Math.min(item.points, 100)} gBits</span>
+                            <span><GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(item.points, 100)} gBits</span>
                           </div>
                         </div>
 
@@ -665,7 +666,7 @@ const Explore = () => {
                                 LIVE NOW
                               </span>
                               <span className="text-xs font-mono text-amber-400 font-semibold">
-                                +{Math.min(ch.points, 100)} gBits
+                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(ch.points, 100)} gBits
                               </span>
                             </div>
                             <h4 className="text-base font-bold text-white truncate mb-1">
@@ -729,7 +730,7 @@ const Explore = () => {
                                 UPCOMING
                               </span>
                               <span className="text-xs font-mono text-amber-400 font-semibold">
-                                +{Math.min(ch.points, 100)} gBits
+                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(ch.points, 100)} gBits
                               </span>
                             </div>
                             <h4 className="text-base font-bold text-white truncate mb-1">
@@ -811,7 +812,7 @@ const Explore = () => {
                           {item.badge}
                         </span>
                         <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                          +{Math.min(item.points, 100)} gBits
+                          <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(item.points, 100)} gBits
                         </span>
                       </div>
 
@@ -955,7 +956,7 @@ const Explore = () => {
                           {item.date}
                         </span>
                         <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                          +{Math.min(item.rewardClaimed || item.points || 50, 100)} gBits
+                          <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(item.rewardClaimed || item.points || 50, 100)} gBits
                         </span>
                       </div>
                       <h4 className="font-bold text-white text-base mb-2">

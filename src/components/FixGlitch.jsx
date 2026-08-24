@@ -1,3 +1,4 @@
+import { GBitIcon } from "./GBitIcon";
 import GlitchFixedModal from "./GlitchFixedModal";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
@@ -485,7 +486,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
             ref={profileIconRef}
             className="flex items-center gap-1 text-xs font-semibold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full shrink-0"
           >
-            ⚡ {points} pts
+            <GBitIcon className="w-3.5 h-3.5 mr-1" /> {points} gBits
           </div>
         </div>
       </div>
@@ -672,7 +673,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
                   border: `1px solid ${COLOR}30`,
                 }}
               >
-                up to +{earnablePoints} pts on pass
+                up to +{earnablePoints} gBits on pass
               </span>
             </div>
             <textarea
@@ -819,7 +820,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
                 The AI grader confirmed your fix. Keep going to level up.
               </p>
               <p className="font-bold text-cyan-400">
-                +{lastAwardedPoints} Points 💎
+                +{lastAwardedPoints} gBits <GBitIcon className="w-5 h-5 ml-1.5" />
               </p>
               {firstTryBonus && (
                 <p className="text-xs text-yellow-400 font-semibold mt-1">

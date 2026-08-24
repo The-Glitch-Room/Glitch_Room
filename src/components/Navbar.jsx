@@ -1,3 +1,4 @@
+import { GBitIcon } from "./GBitIcon";
 import LevelUpModal from "./LevelUpModal";
 import { getLevelTitle } from "../utils/pointsHelper";
 import React, { useState, useEffect, useRef } from "react";

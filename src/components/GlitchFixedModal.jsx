@@ -1,3 +1,4 @@
+import { GBitIcon } from "./GBitIcon";
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Confetti from "react-confetti";
@@ -76,7 +77,7 @@ const GlitchFixedModal = ({
             className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-[#00F0FF]/20 to-purple-500/20 border border-[#00F0FF]/40 text-emerald-400 font-mono font-black text-lg mb-8 shadow-inner"
           >
             <Zap size={22} className="fill-amber-400 text-amber-400 animate-pulse" />
-            <span>+{pointsEarned} gBits Added!</span>
+            <span>+{pointsEarned} gBits <GBitIcon className="w-5 h-5 ml-1.5" /> Added!</span>
           </motion.div>
 
           {/* Action Buttons */}
