@@ -1028,7 +1028,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <StandupTickerWrapper activeTab={activeTab} itemCount={displayStandups.length}>
                 {displayStandups.map((standup) => {
                   const isHostAuthor = standup.user_id === room?.created_by || standup.username === room?.host;
                   const isBuddyAuthor = buddyMember && (standup.user_id === buddyMember.user_id || standup.username === buddyMember.username);
@@ -1174,7 +1174,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     </motion.div>
                   );
                 })}
-              </div>
+              </StandupTickerWrapper>
             )}
           </div>
 
