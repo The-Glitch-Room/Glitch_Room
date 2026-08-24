@@ -12,7 +12,7 @@ import {
   FiImage,
 } from "react-icons/fi";
 import { FaGithub, FaTwitter, FaDiscord, FaLinkedin } from "react-icons/fa";
-import { Zap, Trophy, Shield, Sparkles, ArrowRight } from "lucide-react";
+import { Zap, Trophy, Shield, Sparkles, ArrowRight, ChevronDown } from "lucide-react";
 import Navbar from "./Navbar";
 import GlitchBackground from "./GlitchBackground";
 import SharedSidebar from "./SharedSidebar";
@@ -222,6 +222,8 @@ export default function YourProfile() {
   const [solvedGlitches, setSolvedGlitches] = useState([]);
   const [inspectModalItem, setInspectModalItem] = useState(null);
 
+  const [solvedLimit, setSolvedLimit] = useState(4);
+  const [discussionsLimit, setDiscussionsLimit] = useState(4);
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [editForm, setEditForm] = useState({
     full_name: "",
@@ -1077,7 +1079,7 @@ export default function YourProfile() {
       <div className="flex pt-24 min-h-[calc(100vh-80px)]">
         <SharedSidebar user={authUser} xp={xp} avatarPreview={avatarPreview} />
 
-        <main className="flex-1 min-w-0 p-4 sm:p-6 max-w-4xl mx-auto pb-20 mb-12">
+        <main className="flex-1 min-w-0 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto pb-20 mb-12 transition-all duration-300">
           {/* ── COMPACT REFERENCE PROFILE CARD ── */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -1299,60 +1301,73 @@ export default function YourProfile() {
                   </a>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {solvedGlitches.map((item) => (
-                    <motion.div
-                      key={item.id}
-                      whileHover={{ y: -3 }}
-                      className="bg-[#0d0d14] border border-white/10 rounded-xl p-4 flex flex-col justify-between group transition-all"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span
-                            className="text-[9px] font-bold px-2 py-0.5 rounded border"
-                            style={{
-                              color: item.accent,
-                              background: `${item.accent}15`,
-                              borderColor: `${item.accent}30`,
-                            }}
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
+                    {solvedGlitches.slice(0, solvedLimit).map((item) => (
+                      <motion.div
+                        key={item.id}
+                        whileHover={{ y: -2 }}
+                        className="bg-[#0d0d14] border border-white/10 rounded-xl p-3.5 flex flex-col justify-between group transition-all"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span
+                              className="text-[9px] font-bold px-2 py-0.5 rounded border"
+                              style={{
+                                color: item.accent,
+                                background: `${item.accent}15`,
+                                borderColor: `${item.accent}30`,
+                              }}
+                            >
+                              {item.category}
+                            </span>
+                            <span className="text-[10px] font-mono text-gray-400">
+                              {formatSolvedTime(item.time)}
+                            </span>
+                          </div>
+
+                          <h3 className="text-xs sm:text-sm font-bold text-white mb-1.5 group-hover:text-[#00F0FF] transition-colors truncate">
+                            {item.title}
+                          </h3>
+
+                          <div className="bg-[#07070d] border border-white/5 rounded-lg p-2 mb-2.5 font-mono text-[11px] text-green-400 truncate">
+                            <code className="truncate block">{item.codeSnippet}</code>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                          <span className="text-[11px] font-bold text-[#22c55e]">
+                            {item.status} (+{item.points} gBits)
+                          </span>
+                          <button
+                            onClick={() => setInspectModalItem(item)}
+                            className="text-xs font-bold text-[#FF00C8] hover:underline flex items-center gap-1 cursor-pointer"
                           >
-                            {item.category}
-                          </span>
-                          <span className="text-[10px] font-mono text-gray-400">
-                            {formatSolvedTime(item.time)}
-                          </span>
+                            Inspect Solution <ArrowRight size={11} />
+                          </button>
                         </div>
+                      </motion.div>
+                    ))}
+                  </div>
 
-                        <h3 className="text-sm font-bold text-white mb-2 group-hover:text-[#00F0FF] transition-colors">
-                          {item.title}
-                        </h3>
-
-                        <div className="bg-[#07070d] border border-white/5 rounded-lg p-2.5 mb-3 font-mono text-xs text-green-400 truncate">
-                          <code>{item.codeSnippet}</code>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                        <span className="text-xs font-bold text-[#22c55e]">
-                          {item.status} (+{item.points} gBits)
-                        </span>
-                        <button
-                          onClick={() => setInspectModalItem(item)}
-                          className="text-xs font-bold text-[#FF00C8] hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          Inspect Solution <ArrowRight size={11} />
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
+                  {solvedGlitches.length > solvedLimit && (
+                    <div className="text-center mt-6">
+                      <button
+                        onClick={() => setSolvedLimit((prev) => prev + 4)}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:border-[#FF00C8]/40 hover:bg-[#FF00C8]/10 transition cursor-pointer shadow-sm"
+                      >
+                        <ChevronDown size={14} className="text-[#FF00C8]" /> View More Showcase Items ({solvedGlitches.length - solvedLimit} remaining)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
 
           {/* Tab 2: Forum Activity */}
           {activeTab === "community" && (
-            <div className="space-y-3">
+            <div>
               {userPosts.length === 0 ? (
                 <div className="p-8 text-center bg-[#0d0d14] border border-white/10 rounded-2xl">
                   <FiMessageSquare className="mx-auto text-gray-500 mb-3" size={28} />
@@ -1370,35 +1385,50 @@ export default function YourProfile() {
                   </a>
                 </div>
               ) : (
-                userPosts.map((post) => (
-                  <motion.div
-                    key={post.id}
-                    whileHover={{ y: -2 }}
-                    className="p-4 bg-[#0d0d14] border border-white/10 rounded-xl flex flex-col gap-2 transition-all"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded border border-[#FF00C8]/30 bg-[#FF00C8]/10 text-[#FF00C8] shrink-0 font-mono">
-                          {post.category}
-                        </span>
-                        <a
-                          href={`/community`}
-                          className="text-xs sm:text-sm font-bold text-white hover:text-[#00F0FF] transition truncate"
-                        >
-                          {post.title}
-                        </a>
-                      </div>
-                      <span className="text-[10px] font-mono text-gray-400 shrink-0">
-                        {formatSolvedTime(post.created_at)}
-                      </span>
+                <>
+                  <div className="space-y-3">
+                    {userPosts.slice(0, discussionsLimit).map((post) => (
+                      <motion.div
+                        key={post.id}
+                        whileHover={{ y: -2 }}
+                        className="p-3.5 bg-[#0d0d14] border border-white/10 rounded-xl flex flex-col gap-2 transition-all"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded border border-[#FF00C8]/30 bg-[#FF00C8]/10 text-[#FF00C8] shrink-0 font-mono">
+                              {post.category}
+                            </span>
+                            <a
+                              href={`/community`}
+                              className="text-xs sm:text-sm font-bold text-white hover:text-[#00F0FF] transition truncate"
+                            >
+                              {post.title}
+                            </a>
+                          </div>
+                          <span className="text-[10px] font-mono text-gray-400 shrink-0">
+                            {formatSolvedTime(post.created_at)}
+                          </span>
+                        </div>
+                        {post.content && (
+                          <p className="text-xs text-gray-300 font-sans line-clamp-2 leading-relaxed bg-[#070709] p-2.5 rounded-lg border border-white/5">
+                            {post.content}
+                          </p>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {userPosts.length > discussionsLimit && (
+                    <div className="text-center mt-6">
+                      <button
+                        onClick={() => setDiscussionsLimit((prev) => prev + 4)}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:border-[#00F0FF]/40 hover:bg-[#00F0FF]/10 transition cursor-pointer shadow-sm"
+                      >
+                        <ChevronDown size={14} className="text-[#00F0FF]" /> View More Discussions ({userPosts.length - discussionsLimit} remaining)
+                      </button>
                     </div>
-                    {post.content && (
-                      <p className="text-xs text-gray-300 font-sans line-clamp-2 leading-relaxed bg-[#070709] p-2.5 rounded-lg border border-white/5">
-                        {post.content}
-                      </p>
-                    )}
-                  </motion.div>
-                ))
+                  )}
+                </>
               )}
             </div>
           )}
