@@ -13,6 +13,8 @@ const COLOR = "#FF6B00";
 
 const DebugModeChallenges = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedDifficulty, setSelectedDifficulty] = useState("All");
+  const [visibleCount, setVisibleCount] = useState(12);
   const [debugChallenges, setDebugChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -31,14 +33,32 @@ const DebugModeChallenges = () => {
     fetchChallenges();
   }, []);
 
+  
+  const matchesDifficulty = (itemDifficulty, filter) => {
+    if (filter === "All") return true;
+    const d = (itemDifficulty || "").toLowerCase();
+    const f = filter.toLowerCase();
+    if (f === "beginner") return d.includes("begin") || d.includes("easy");
+    if (f === "intermediate") return d.includes("inter") || d.includes("medium");
+    if (f === "advanced") return d.includes("advan") || d.includes("hard") || d.includes("expert");
+    return true;
+  };
+
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [selectedCategory, selectedDifficulty]);
+
   const categories = [
     "All",
     ...new Set(debugChallenges.map((c) => c.category)),
   ];
-  const filteredChallenges =
-    selectedCategory === "All"
-      ? debugChallenges
-      : debugChallenges.filter((c) => c.category === selectedCategory);
+  const filteredChallenges = debugChallenges.filter((c) => {
+    const matchCategory = selectedCategory === "All" || c.category === selectedCategory;
+    const matchDifficulty = matchesDifficulty(c.difficulty, selectedDifficulty);
+    return matchCategory && matchDifficulty;
+  });
+
+  const displayedChallenges = filteredChallenges.slice(0, visibleCount);
 
   const levelColor = (level) => {
     const l = (level || "").toLowerCase();
@@ -140,7 +160,7 @@ const DebugModeChallenges = () => {
           layout
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 px-6 md:px-16 pb-20"
         >
-          {filteredChallenges.map((challenge, index) => {
+          {displayedChallenges.map((challenge, index) => {
             const lvl = levelColor(challenge.difficulty);
             return (
               <motion.div
@@ -201,6 +221,29 @@ const DebugModeChallenges = () => {
             );
           })}
         </motion.div>
+      )}
+
+      
+      {/* ── SEE MORE / SEE LESS BUTTON ── */}
+      {filteredChallenges.length > 12 && (
+        <div className="flex justify-center pb-16">
+          <button
+            onClick={() => {
+              if (visibleCount < filteredChallenges.length) {
+                setVisibleCount((prev) => prev + 12);
+              } else {
+                setVisibleCount(12);
+                window.scrollTo({ top: 300, behavior: "smooth" });
+              }
+            }}
+            className="px-6 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 border border-white/10 hover:border-white/20 bg-[#0f0f14] hover:bg-[#14141d]"
+            style={{ color: COLOR }}
+          >
+            {visibleCount < filteredChallenges.length
+              ? `See More (${Math.min(12, filteredChallenges.length - visibleCount)} remaining)`
+              : "See Less"}
+          </button>
+        </div>
       )}
 
       <Footer />
