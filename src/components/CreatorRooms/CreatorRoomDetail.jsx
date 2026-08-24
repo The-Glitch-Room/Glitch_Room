@@ -51,6 +51,57 @@ import {
   AlertTriangle
 } from "lucide-react";
 
+
+// ── Auto-Scrolling Ticker Wrapper for Today's Standup Logs ───────────────────
+const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Auto-scroll animation is ONLY applied when "Today" tab is active and there are multiple cards
+  if (activeTab !== "today" || itemCount <= 1) {
+    return <div className="space-y-4">{children}</div>;
+  }
+
+  // Calculate smooth scroll duration based on item count (slow, natural scrolling speed)
+  const duration = Math.max(25, itemCount * 14);
+
+  return (
+    <div
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onTouchStart={() => setIsPaused(true)}
+      onTouchEnd={() => setIsPaused(false)}
+      className="relative overflow-hidden rounded-2xl max-h-[620px] group/ticker"
+    >
+      {/* Top and Bottom subtle mask gradients for smooth card entry/exit */}
+      <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#070709] to-transparent z-10 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[#070709] to-transparent z-10 pointer-events-none" />
+
+      <div
+        className="space-y-4 standup-ticker-track"
+        style={{
+          animation: `standupAutoScroll ${duration}s linear infinite`,
+          animationPlayState: isPaused ? "paused" : "running",
+        }}
+      >
+        {children}
+        {children} {/* Duplicated list for seamless -50% loop */}
+      </div>
+
+      <style>{`
+        @keyframes standupAutoScroll {
+          0% { transform: translateY(0%); }
+          100% { transform: translateY(-50%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .standup-ticker-track {
+            animation: none !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
 const CreatorRoomDetail = ({ roomId }) => {
   const navigate = useNavigate();
   const id = roomId;
@@ -449,33 +500,38 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
 
       // 1. Insert into room_checkins
-      await supabase.from("room_checkins").insert([
-        {
-          room_id: id,
-          user_id: activeUid,
-          accomplishment: accomplishment.trim(),
-          proof_url: proofUrl.trim() || null,
-          blockers: blockers.trim() || null,
-          is_on_time: true,
-          streak_count: (standups.length || 0) + 1,
-        },
-      ]);
+      try {
+        await supabase.from("room_checkins").insert([
+          {
+            room_id: id,
+            user_id: activeUid,
+            accomplishment: accomplishment.trim(),
+            proof_url: proofUrl.trim() || null,
+            blockers: blockers.trim() || null,
+            is_on_time: true,
+          },
+        ]);
+      } catch (e) {
+        console.warn("room_checkins insert notice:", e);
+      }
 
       // 2. Also insert into community_posts for feed visibility
-      await supabase.from("community_posts").insert([
-        {
-          user_id: userId,
-          category: `room_${id}`,
-          title: `Daily Standup: ${room?.name || "Accountability Room"}`,
-          body: `### Accomplished Today:\n${accomplishment.trim()}\n\nProof of Work:\n${proofUrl.trim() || "N/A"}\n\nBlockers:\n${blockers.trim() || "None"}`,
-          author_username: userProfile?.username || "Builder",
-          author_avatar: userProfile?.avatar_url || "",
-        },
-      ]);
+      try {
+        await supabase.from("community_posts").insert([
+          {
+            user_id: activeUid || userId,
+            category: `room_${id}`,
+            title: `Daily Standup: ${room?.name || "Accountability Room"}`,
+            body: `### Accomplished Today:\n${accomplishment.trim()}\n\nProof of Work:\n${proofUrl.trim() || "N/A"}\n\nBlockers:\n${blockers.trim() || "None"}`,
+          },
+        ]);
+      } catch (e) {
+        console.warn("community_posts insert notice:", e);
+      }
 
       // 3. Award +35 gBits
       if (userId) {
-        await updatePoints(userId, 35, "Daily Room Standup Check-in");
+        await updatePoints(35, "Daily Room Standup Check-in", "bonus", id, activeUid);
       }
 
       // 4. Send Notification

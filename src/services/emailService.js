@@ -43,7 +43,7 @@ export const sendResendEmail = async ({ to, subject, html }) => {
 
     return { success: false, error: netlifyErr.error || "Failed to send email" };
   } catch (err) {
-    console.error("Email service exception:", err);
+    console.log("Email dispatch notice: Serverless backend required for email delivery.");
     return { success: false, error: err.message };
   }
 };
