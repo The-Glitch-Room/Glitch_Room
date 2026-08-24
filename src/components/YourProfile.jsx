@@ -1079,7 +1079,7 @@ export default function YourProfile() {
       <div className="flex pt-24 min-h-[calc(100vh-80px)]">
         <SharedSidebar user={authUser} xp={xp} avatarPreview={avatarPreview} />
 
-        <main className="flex-1 min-w-0 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto pb-20 mb-12 transition-all duration-300">
+        <main className="flex-1 min-w-0 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto pb-20 mb-12 transition-all duration-300">
           {/* ── COMPACT REFERENCE PROFILE CARD ── */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -1207,7 +1207,7 @@ export default function YourProfile() {
                     <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                       ✨ About Me
                     </h4>
-                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-3xl font-normal bg-[#07070c] p-4 rounded-xl border border-white/5">
+                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed w-full font-normal bg-[#07070c] p-4 rounded-xl border border-white/5">
                       {profile.bio}
                     </p>
                   </div>
