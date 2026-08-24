@@ -87,20 +87,15 @@ export const getLevelProgressDetails = (xp = 0) => {
 };
 
 export const getCurrentLevelXP = (xpOrLevel = 0) => {
-  let xp =
-    typeof xpOrLevel === "number" && xpOrLevel <= 5
-      ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0
-      : xpOrLevel;
+  let xp = typeof xpOrLevel === "number" && xpOrLevel <= 5 ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0 : xpOrLevel;
   return getLevelProgressDetails(xp).currentLevelMinXP;
 };
 
 export const getNextLevelXP = (xpOrLevel = 0) => {
-  let xp =
-    typeof xpOrLevel === "number" && xpOrLevel <= 5
-      ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0
-      : xpOrLevel;
+  let xp = typeof xpOrLevel === "number" && xpOrLevel <= 5 ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0 : xpOrLevel;
   return getLevelProgressDetails(xp).nextLevelXP;
 };
+
 
 // ── THE Single Read Path for gBits ──────────────────────────────────────────
 export const fetchPoints = async (userId) => {
@@ -143,7 +138,7 @@ export const updatePoints = async (
   title = "Challenge completed",
   type = "glitch",
   roomId = null,
-  targetUserId = null,
+  targetUserId = null
 ) => {
   let userId = targetUserId;
   if (!userId) {
@@ -162,9 +157,7 @@ export const updatePoints = async (
   if (roomId) activityPayload.room_id = roomId;
 
   // 1. Log activity in glitch_activity table
-  const { error: actErr } = await supabase
-    .from("glitch_activity")
-    .insert(activityPayload);
+  const { error: actErr } = await supabase.from("glitch_activity").insert(activityPayload);
   if (actErr) {
     console.error("glitch_activity insert warning:", actErr);
   }
@@ -172,7 +165,7 @@ export const updatePoints = async (
   // 2. Atomically increment user_points.points via RPC — safe under concurrency
   const { data: newTotal, error: rpcErr } = await supabase.rpc(
     "increment_user_points",
-    { p_user_id: userId, p_delta: delta },
+    { p_user_id: userId, p_delta: delta }
   );
 
   if (rpcErr) {
@@ -184,18 +177,14 @@ export const updatePoints = async (
 
   if (delta > 0 && type !== "bonus") {
     checkAndAwardStreakBonus(userId).catch((e) =>
-      console.error("streak bonus check error:", e),
+      console.error("streak bonus check error:", e)
     );
   }
 
   // 3. Dispatch real-time events for UI components
   if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("gbits_updated", { detail: { points: newTotal } }),
-    );
-    window.dispatchEvent(
-      new CustomEvent("points_updated", { detail: { points: newTotal } }),
-    );
+    window.dispatchEvent(new CustomEvent("gbits_updated", { detail: { points: newTotal } }));
+    window.dispatchEvent(new CustomEvent("points_updated", { detail: { points: newTotal } }));
   }
 
   return newTotal;
@@ -266,12 +255,15 @@ export const checkAndAwardStreakBonus = async (userId) => {
     `⚡ 7-Day Uptime Streak Milestone (${milestone} Days)`,
     "bonus",
     null,
-    userId,
+    userId
   );
 
+  // last_streak_bonus_at is an integer column (epoch seconds), not a
+  // timestamp — an ISO string here would fail with a type error every
+  // time a streak bonus actually fires.
   await supabase
     .from("user_points")
-    .update({ last_streak_bonus_at: new Date().toISOString() })
+    .update({ last_streak_bonus_at: Math.floor(Date.now() / 1000) })
     .eq("user_id", userId);
 
   return { awarded: true, milestone, points: nextPoints };
@@ -372,6 +364,7 @@ export const hasPassedChallenge = async (challengeId, challengeType) => {
   return !!data;
 };
 
+
 export const getPointsByDifficulty = (difficulty) => {
   const d = (difficulty || "").toLowerCase();
   if (d.includes("easy") || d.includes("beginner")) return 10;
@@ -401,7 +394,7 @@ export const saveSubmission = async (
   pointsEarned,
   timeTakenSeconds = 0,
   difficulty = "easy",
-  challengeTitle = "Challenge Solved",
+  challengeTitle = "Challenge Solved"
 ) => {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
@@ -427,7 +420,7 @@ export const saveSubmission = async (
           challenge_type: challengeType,
           completed_at: new Date().toISOString(),
         },
-        { onConflict: "user_id,challenge_id,challenge_type" },
+        { onConflict: "user_id,challenge_id,challenge_type" }
       );
     } catch (e) {
       console.warn("challenge_completions upsert warning:", e);
@@ -447,11 +440,7 @@ export const saveSubmission = async (
         .limit(1);
 
       if (!existingSpeed || existingSpeed.length === 0) {
-        await updatePoints(
-          50,
-          `Speed Demon Bonus (${timeTakenSeconds}s)`,
-          "bonus",
-        );
+        await updatePoints(50, `Speed Demon Bonus (${timeTakenSeconds}s)`, "bonus");
         speedBonusAwarded = true;
       }
     } catch (e) {
@@ -461,7 +450,7 @@ export const saveSubmission = async (
 
   if (pointsEarned > 0) {
     checkAndAwardReferralBonus(userId).catch((e) =>
-      console.error("Referral bonus award error:", e),
+      console.error("Referral bonus award error:", e)
     );
   }
 
