@@ -78,7 +78,7 @@ const CreativeSparkChallenges = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0C10] text-white">
+    <div className="min-h-screen bg-[#0B0C10] text-white flex flex-col justify-between">
       <Navbar />
 
       {/* ── HERO ── */}

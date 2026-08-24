@@ -11,7 +11,7 @@ import GlitchBackground from "./GlitchBackground";
 
 const Home = () => {
   return (
-    <div className="relative min-h-screen bg-[#070709] text-white overflow-hidden">
+    <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between overflow-hidden">
       {/* ── Continuous Glitch Background across the ENTIRE Home page ── */}
       <GlitchBackground />
 

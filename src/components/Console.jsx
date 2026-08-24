@@ -422,7 +422,7 @@ const Console = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#070709] text-white overflow-hidden">
+    <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between overflow-hidden">
       <GlitchBackground />
       <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar />

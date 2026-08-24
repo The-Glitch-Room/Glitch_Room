@@ -36,7 +36,7 @@ const Footer = () => {
   ];
 
   return (
-    <footer className="relative bg-transparent text-gray-300 border-t border-white/10 overflow-hidden font-sans">
+    <footer className="relative z-10 mt-auto w-full bg-[#070709] text-gray-300 border-t border-white/10 overflow-hidden font-sans">
       {/* Background Cyber Grid */}
       <div
         className="absolute inset-0 z-0 opacity-5 pointer-events-none"
