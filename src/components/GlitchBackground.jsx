@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 
-const GlitchBackground = () => {
+const GlitchBackground = ({ isAbsolute = false }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -212,7 +212,7 @@ const GlitchBackground = () => {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 w-full h-full pointer-events-none z-0 opacity-60"
+      className={`${isAbsolute ? "absolute" : "fixed"} inset-0 w-full h-full pointer-events-none z-0 opacity-60`}
     />
   );
 };

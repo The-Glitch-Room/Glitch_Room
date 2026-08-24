@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import GlitchBackground from "./GlitchBackground";
 import { FaDiscord, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -37,6 +38,7 @@ const Footer = () => {
 
   return (
     <footer className="relative z-0 mt-auto w-full bg-[#070709] text-gray-300 border-t border-white/10 overflow-hidden font-sans">
+      <GlitchBackground isAbsolute={true} />
       {/* Background Cyber Grid */}
       <div
         className="absolute inset-0 z-0 opacity-5 pointer-events-none"
@@ -47,15 +49,7 @@ const Footer = () => {
         }}
       />
 
-      {/* Glow Orbs */}
-      <div
-        className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#FF00C8" }}
-      />
-      <div
-        className="absolute top-0 right-1/4 w-80 h-80 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#00F0FF" }}
-      />
+      
 
       {/* Top Glowing Gradient Line */}
       <div
