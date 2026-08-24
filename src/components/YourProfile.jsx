@@ -784,7 +784,7 @@ export default function YourProfile() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 pt-20 pb-8 bg-black/80 backdrop-blur-md"
             onClick={(e) => e.target === e.currentTarget && setShowEditPanel(false)}
           >
             <motion.div
@@ -792,11 +792,12 @@ export default function YourProfile() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 15 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-3xl rounded-3xl p-6 sm:p-7 bg-[#0d0d14] border border-white/10 shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col"
+              className="relative w-full max-w-3xl rounded-3xl bg-[#0d0d14] border border-white/10 shadow-2xl overflow-hidden max-h-[85vh] sm:max-h-[88vh] flex flex-col my-auto"
             >
-              <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-[#00F0FF] to-purple-500 absolute top-0 left-0" />
+              <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-[#00F0FF] to-purple-500 absolute top-0 left-0 z-10" />
 
-              <div className="flex items-center justify-between mb-5 border-b border-white/5 pb-4 shrink-0">
+              {/* Pinned Header */}
+              <div className="flex items-center justify-between p-5 sm:px-7 sm:pt-6 sm:pb-4 border-b border-white/5 shrink-0">
                 <div>
                   <h2 className="text-xl font-black text-white">Edit Profile</h2>
                   <p className="text-xs text-gray-500">Customize your profile avatar, banner, and identity details</p>
@@ -809,7 +810,8 @@ export default function YourProfile() {
                 </button>
               </div>
 
-              <div className="overflow-y-auto pr-1 space-y-6 flex-1">
+              {/* Single Scrollable Form Content */}
+              <div className="overflow-y-auto p-5 sm:p-7 space-y-6 flex-1 custom-scrollbar">
                 {/* Horizontal 2-column Grid for Avatar & Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Left Column: Avatar & Full Name */}
@@ -902,12 +904,12 @@ export default function YourProfile() {
                         About / Short Bio
                       </label>
                       <textarea
-                        rows={3.5}
+                        rows={3}
                         placeholder="Write a short summary about yourself, your skills, and what you build…"
                         value={editForm.bio}
                         onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                         maxLength={400}
-                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition resize-none"
+                        className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition resize-none leading-relaxed"
                       />
                     </div>
                   </div>
@@ -1052,11 +1054,12 @@ export default function YourProfile() {
                     })}
                   </div>
                 </div>
+
+                {editError && <p className="text-red-400 text-xs mt-1">{editError}</p>}
               </div>
 
-              {editError && <p className="text-red-400 text-xs mt-3">{editError}</p>}
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/5 shrink-0 mt-4">
+              {/* Pinned Footer */}
+              <div className="flex justify-end gap-3 p-4 sm:px-7 sm:py-4 border-t border-white/5 shrink-0 bg-[#0d0d14]">
                 <button
                   onClick={() => setShowEditPanel(false)}
                   className="px-5 py-2.5 rounded-xl bg-white/5 text-gray-400 text-xs font-semibold hover:bg-white/10 transition cursor-pointer"
