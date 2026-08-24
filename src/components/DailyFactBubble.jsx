@@ -148,11 +148,23 @@ const DailyFactBubble = () => {
     };
   }, [loading, fact]);
 
-  const handleOpen = () => {
+  const handleOpen = async () => {
     setOpen(true);
     setShowTooltip(false);
     localStorage.setItem(LAST_SEEN_KEY, getLocalDateStr());
     setHasNew(false);
+
+    if (user?.id && !claimedToday) {
+      try {
+        const res = await awardDailyFactBonus(user.id);
+        if (res?.awarded) {
+          setBonusEarned(true);
+          setClaimedToday(true);
+        }
+      } catch (e) {
+        console.error("Daily fact bonus claim error:", e);
+      }
+    }
   };
 
   const handleClose = () => {

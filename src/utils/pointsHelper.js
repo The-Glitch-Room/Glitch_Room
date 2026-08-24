@@ -145,13 +145,35 @@ export const updatePoints = async (
   };
   if (roomId) activityPayload.room_id = roomId;
 
+  // 1. Log activity in glitch_activity table
   const { error: actErr } = await supabase.from("glitch_activity").insert(activityPayload);
   if (actErr) {
-    console.error("updatePoints ledger insert error:", actErr);
-    return await fetchPoints(userId);
+    console.error("glitch_activity insert warning:", actErr);
   }
 
-  const nextDB = await fetchPoints(userId);
+  // 2. Fetch current points from user_points table
+  const { data: currentRecord } = await supabase
+    .from("user_points")
+    .select("points")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const currentPoints = currentRecord?.points || 0;
+  const newTotal = Math.max(0, currentPoints + delta);
+
+  // 3. Upsert user_points table directly to guarantee database balance updates
+  const { error: upsertErr } = await supabase.from("user_points").upsert(
+    {
+      user_id: userId,
+      points: newTotal,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" }
+  );
+
+  if (upsertErr) {
+    console.error("user_points upsert error:", upsertErr);
+  }
 
   if (delta > 0 && type !== "bonus") {
     checkAndAwardStreakBonus(userId).catch((e) =>
@@ -159,12 +181,13 @@ export const updatePoints = async (
     );
   }
 
+  // 4. Dispatch real-time events for UI components
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("gbits_updated", { detail: { points: nextDB } }));
-    window.dispatchEvent(new CustomEvent("points_updated", { detail: { points: nextDB } }));
+    window.dispatchEvent(new CustomEvent("gbits_updated", { detail: { points: newTotal } }));
+    window.dispatchEvent(new CustomEvent("points_updated", { detail: { points: newTotal } }));
   }
 
-  return nextDB;
+  return newTotal;
 };
 
 // ── Streak Bonus Helper ─────────────────────────────────────────────────────

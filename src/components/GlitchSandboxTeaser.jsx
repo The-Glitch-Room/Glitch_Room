@@ -1,7 +1,14 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Zap, ArrowRight, RefreshCw, Terminal, Code2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Zap,
+  ArrowRight,
+  RefreshCw,
+  Terminal,
+  Code2,
+} from "lucide-react";
 import PageHeading from "./PageHeading";
 
 const GlitchSandboxTeaser = () => {
@@ -33,7 +40,7 @@ const GlitchSandboxTeaser = () => {
         {/* Unified Page Heading */}
         <PageHeading
           eyebrow="Interactive Live Demo"
-          title="Test Your Glitch Hunting Skills ⚡"
+          title="Test Your Glitch Hunting Skills"
           subtitle="Can you spot the asynchronous state bug below? Click Fix Glitch to test the interactive debugger in action!"
           accent="cyan"
           size="lg"
@@ -75,19 +82,24 @@ const GlitchSandboxTeaser = () => {
           <div className="font-mono text-xs sm:text-sm leading-relaxed mb-6 bg-[#070709] p-4 sm:p-5 rounded-2xl border border-white/5 relative">
             {!fixed ? (
               <div className="space-y-1 text-gray-300">
-                <p className="text-gray-500">// ❌ Bug: Missing await cause state race condition</p>
+                <p className="text-gray-500">
+                  // Bug: Missing await cause state race condition
+                </p>
                 <p>
-                  <span className="text-[#FF00C8]">const</span> [user, setUser] = <span className="text-[#00F0FF]">useState</span>(null);
+                  <span className="text-[#FF00C8]">const</span> [user, setUser]
+                  = <span className="text-[#00F0FF]">useState</span>(null);
                 </p>
                 <p>
                   <span className="text-[#FF00C8]">useEffect</span>(() =&#123;
                 </p>
                 <p className="pl-4 bg-red-500/10 border-l-2 border-red-500 py-0.5 text-red-300">
-                  <span className="text-gray-400">const</span> data = fetchUserData(); <span className="text-red-400 font-bold">// ⚠️ Promise not awaited!</span>
+                  <span className="text-gray-400">const</span> data =
+                  fetchUserData();{" "}
+                  <span className="text-red-400 font-bold">
+                    // ⚠️ Promise not awaited!
+                  </span>
                 </p>
-                <p className="pl-4">
-                  setUser(data);
-                </p>
+                <p className="pl-4">setUser(data);</p>
                 <p>&#125;, []);</p>
               </div>
             ) : (
@@ -96,19 +108,24 @@ const GlitchSandboxTeaser = () => {
                 animate={{ opacity: 1 }}
                 className="space-y-1 text-gray-300"
               >
-                <p className="text-[#22c55e]">// ✓ Fixed: Properly awaited async response</p>
+                <p className="text-[#22c55e]">
+                  // ✓ Fixed: Properly awaited async response
+                </p>
                 <p>
-                  <span className="text-[#FF00C8]">const</span> [user, setUser] = <span className="text-[#00F0FF]">useState</span>(null);
+                  <span className="text-[#FF00C8]">const</span> [user, setUser]
+                  = <span className="text-[#00F0FF]">useState</span>(null);
                 </p>
                 <p>
                   <span className="text-[#FF00C8]">useEffect</span>(() =&#123;
                 </p>
                 <p className="pl-4 bg-green-500/10 border-l-2 border-green-500 py-0.5 text-green-300 font-bold">
-                  <span className="text-gray-400">const</span> data = <span className="text-[#00F0FF]">await</span> fetchUserData(); <span className="text-green-400">// ✓ Clean async resolution</span>
+                  <span className="text-gray-400">const</span> data ={" "}
+                  <span className="text-[#00F0FF]">await</span> fetchUserData();{" "}
+                  <span className="text-green-400">
+                    // ✓ Clean async resolution
+                  </span>
                 </p>
-                <p className="pl-4">
-                  setUser(data);
-                </p>
+                <p className="pl-4">setUser(data);</p>
                 <p>&#125;, []);</p>
               </motion.div>
             )}
