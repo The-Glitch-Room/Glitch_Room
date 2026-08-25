@@ -808,7 +808,7 @@ const TerminalWall = () => {
       <Navbar />
 
       <div className="relative z-10 flex-1 flex flex-col">
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-28 pb-16 flex-1 w-full">
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-36 sm:pt-40 pb-16 flex-1 w-full">
           {/* Header */}
           <div className="mb-10 text-center">
             <PageHeading
