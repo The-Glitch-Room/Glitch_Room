@@ -87,15 +87,20 @@ export const getLevelProgressDetails = (xp = 0) => {
 };
 
 export const getCurrentLevelXP = (xpOrLevel = 0) => {
-  let xp = typeof xpOrLevel === "number" && xpOrLevel <= 5 ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0 : xpOrLevel;
+  let xp =
+    typeof xpOrLevel === "number" && xpOrLevel <= 5
+      ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0
+      : xpOrLevel;
   return getLevelProgressDetails(xp).currentLevelMinXP;
 };
 
 export const getNextLevelXP = (xpOrLevel = 0) => {
-  let xp = typeof xpOrLevel === "number" && xpOrLevel <= 5 ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0 : xpOrLevel;
+  let xp =
+    typeof xpOrLevel === "number" && xpOrLevel <= 5
+      ? LEVEL_THRESHOLDS[xpOrLevel]?.minXP || 0
+      : xpOrLevel;
   return getLevelProgressDetails(xp).nextLevelXP;
 };
-
 
 // ── THE Single Read Path for gBits ──────────────────────────────────────────
 export const fetchPoints = async (userId) => {
@@ -123,22 +128,25 @@ export const getUserTotalPoints = fetchPoints;
 
 // ── THE Single Write Path for gBits (Appends to glitch_activity Ledger) ─────
 //
-// IMPORTANT: the actual points total is incremented via the
-// `increment_user_points` Postgres function (see atomic_points_migration.sql),
-// NOT via a JS-side read-then-write. This matters because many different
-// bonuses (main award, first-try bonus, speed-demon bonus, streak bonus,
-// referral bonus) can all fire in quick succession — sometimes concurrently,
-// since a couple of them are intentionally fire-and-forget for responsiveness.
-// A JS read-then-write here would let concurrent calls silently clobber each
-// other (both read the same stale total, one write wins, the other is lost).
-// The atomic DB-side increment makes concurrent calls safe regardless of
-// ordering.
+// IMPORTANT: points are incremented by a DATABASE TRIGGER
+// (trg_sync_points_after_activity_insert / fn_sync_points_from_ledger —
+// see fix_sync_points_trigger.sql), which fires automatically whenever a
+// row is inserted into glitch_activity, atomically incrementing
+// user_points.points (and syncing profiles.points) within the SAME
+// transaction as the insert.
+//
+// We deliberately do NOT also call an RPC to increment points here. This
+// codebase used to have two competing point-increment mechanisms — this
+// trigger, and a separately-called `increment_user_points` RPC — which
+// silently double-counted every single award once a user's row existed.
+// The trigger is now the single source of truth; we just insert the
+// ledger row and re-read the resulting total.
 export const updatePoints = async (
   delta,
   title = "Challenge completed",
   type = "glitch",
   roomId = null,
-  targetUserId = null
+  targetUserId = null,
 ) => {
   let userId = targetUserId;
   if (!userId) {
@@ -156,35 +164,36 @@ export const updatePoints = async (
   };
   if (roomId) activityPayload.room_id = roomId;
 
-  // 1. Log activity in glitch_activity table
-  const { error: actErr } = await supabase.from("glitch_activity").insert(activityPayload);
+  // Insert into glitch_activity. By the time this resolves successfully,
+  // the trigger has already run (same transaction) and user_points is
+  // already updated — so a fresh fetchPoints() right after is accurate,
+  // not a race.
+  const { error: actErr } = await supabase
+    .from("glitch_activity")
+    .insert(activityPayload);
   if (actErr) {
     console.error("glitch_activity insert warning:", actErr);
-  }
-
-  // 2. Atomically increment user_points.points via RPC — safe under concurrency
-  const { data: newTotal, error: rpcErr } = await supabase.rpc(
-    "increment_user_points",
-    { p_user_id: userId, p_delta: delta }
-  );
-
-  if (rpcErr) {
-    console.error("increment_user_points RPC error:", rpcErr);
-    // Fall back to a fresh read so the caller at least gets a real number,
-    // rather than silently returning a wrong total.
+    // The insert (and therefore the trigger's increment) never happened —
+    // return the real, unchanged total instead of pretending it worked.
     return await fetchPoints(userId);
   }
 
+  const newTotal = await fetchPoints(userId);
+
   if (delta > 0 && type !== "bonus") {
     checkAndAwardStreakBonus(userId).catch((e) =>
-      console.error("streak bonus check error:", e)
+      console.error("streak bonus check error:", e),
     );
   }
 
-  // 3. Dispatch real-time events for UI components
+  // Dispatch real-time events for UI components
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("gbits_updated", { detail: { points: newTotal } }));
-    window.dispatchEvent(new CustomEvent("points_updated", { detail: { points: newTotal } }));
+    window.dispatchEvent(
+      new CustomEvent("gbits_updated", { detail: { points: newTotal } }),
+    );
+    window.dispatchEvent(
+      new CustomEvent("points_updated", { detail: { points: newTotal } }),
+    );
   }
 
   return newTotal;
@@ -255,7 +264,7 @@ export const checkAndAwardStreakBonus = async (userId) => {
     `⚡ 7-Day Uptime Streak Milestone (${milestone} Days)`,
     "bonus",
     null,
-    userId
+    userId,
   );
 
   // last_streak_bonus_at is an integer column (epoch seconds), not a
@@ -364,7 +373,6 @@ export const hasPassedChallenge = async (challengeId, challengeType) => {
   return !!data;
 };
 
-
 export const getPointsByDifficulty = (difficulty) => {
   const d = (difficulty || "").toLowerCase();
   if (d.includes("easy") || d.includes("beginner")) return 10;
@@ -392,9 +400,10 @@ export const saveSubmission = async (
   challengeType,
   answer,
   pointsEarned,
+  score = null,
   timeTakenSeconds = 0,
   difficulty = "easy",
-  challengeTitle = "Challenge Solved"
+  isFirstTryClearance = false,
 ) => {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
@@ -406,11 +415,17 @@ export const saveSubmission = async (
     challenge_type: challengeType,
     answer,
     points_earned: pointsEarned,
+    score,
     time_taken_seconds: timeTakenSeconds,
   });
   if (error) console.error("saveSubmission error:", error);
 
-  // If passing score / points earned, record completion state in challenge_completions
+  // If passing, record/refresh completion state — including the actual
+  // score and points earned. Previously this upsert only wrote
+  // user_id/challenge_id/challenge_type/completed_at, silently leaving
+  // score and points_earned at their column defaults (0/null) forever,
+  // even though the real values were sitting right there in
+  // challenge_submissions the whole time.
   if (pointsEarned > 0) {
     try {
       await supabase.from("challenge_completions").upsert(
@@ -418,12 +433,35 @@ export const saveSubmission = async (
           user_id: userId,
           challenge_id: String(challengeId),
           challenge_type: challengeType,
+          score,
+          points_earned: pointsEarned,
           completed_at: new Date().toISOString(),
         },
-        { onConflict: "user_id,challenge_id,challenge_type" }
+        { onConflict: "user_id,challenge_id,challenge_type" },
       );
     } catch (e) {
       console.warn("challenge_completions upsert warning:", e);
+    }
+
+    // Record the first-try clearance, if this genuinely was one.
+    // challenge_first_tries previously existed as a table but nothing
+    // ever wrote to it — first-try bonuses were being awarded (via
+    // hasPriorSubmissions()) without ever leaving a record of it here.
+    if (isFirstTryClearance) {
+      try {
+        const { error: ftErr } = await supabase
+          .from("challenge_first_tries")
+          .insert({
+            user_id: userId,
+            challenge_id: String(challengeId),
+            challenge_type: challengeType,
+          });
+        if (ftErr && ftErr.code !== "23505") {
+          console.warn("challenge_first_tries insert warning:", ftErr);
+        }
+      } catch (e) {
+        console.warn("challenge_first_tries insert warning:", e);
+      }
     }
   }
 
@@ -440,7 +478,11 @@ export const saveSubmission = async (
         .limit(1);
 
       if (!existingSpeed || existingSpeed.length === 0) {
-        await updatePoints(50, `Speed Demon Bonus (${timeTakenSeconds}s)`, "bonus");
+        await updatePoints(
+          50,
+          `Speed Demon Bonus (${timeTakenSeconds}s)`,
+          "bonus",
+        );
         speedBonusAwarded = true;
       }
     } catch (e) {
@@ -450,7 +492,7 @@ export const saveSubmission = async (
 
   if (pointsEarned > 0) {
     checkAndAwardReferralBonus(userId).catch((e) =>
-      console.error("Referral bonus award error:", e)
+      console.error("Referral bonus award error:", e),
     );
   }
 

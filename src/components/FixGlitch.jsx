@@ -416,8 +416,10 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
           "glitch",
           userAnswer,
           awardedPoints,
+          score,
           elapsedSeconds,
           difficulty,
+          earnedBonus,
         );
         if (subRes?.speedBonusAwarded) {
           setSpeedBonus(true);
@@ -433,7 +435,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
       } else {
         // Either failed, or already passed before (re-attempt earns no extra points)
         setFirstTryBonus(false);
-        await saveSubmission(glitch.id, "glitch", userAnswer, 0);
+        await saveSubmission(glitch.id, "glitch", userAnswer, 0, score);
         if (passed && alreadyPassedBefore) {
           setPreviousSubmission({ answer: userAnswer, points_earned: 0 });
         }

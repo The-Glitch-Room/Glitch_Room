@@ -291,7 +291,16 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
         setLastAwardedPoints(awardedPoints);
         setPoints(next);
         await checkAndAwardBadges(userId);
-        await saveSubmission(challenge.id, "ai", userAnswer, awardedPoints);
+        await saveSubmission(
+          challenge.id,
+          "ai",
+          userAnswer,
+          awardedPoints,
+          score,
+          0,
+          difficulty,
+          earnedBonus,
+        );
         setPreviousSubmission({
           answer: userAnswer,
           points_earned: awardedPoints,
@@ -302,7 +311,7 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
         setTimeout(() => setShowCongrats(false), 4000);
       } else {
         setFirstTryBonus(false);
-        await saveSubmission(challenge.id, "ai", userAnswer, 0);
+        await saveSubmission(challenge.id, "ai", userAnswer, 0, score);
         if (passed && alreadyPassedBefore) {
           setPreviousSubmission({ answer: userAnswer, points_earned: 0 });
         }
