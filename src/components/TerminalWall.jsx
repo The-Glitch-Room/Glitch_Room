@@ -11,8 +11,6 @@ import { FiClock, FiZap, FiAward, FiUsers } from "react-icons/fi";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-
-
 const rankColor = (rank) => {
   if (rank === 1) return "text-yellow-400";
   if (rank === 2) return "text-gray-300";
@@ -219,7 +217,8 @@ const LegendsPodium = ({ entries, metricLabel = "gBits" }) => {
 
   const PodiumCard = ({ entry, rank, height, delay }) => {
     if (!entry) return <div className="flex-1" />;
-    const scoreVal = entry.total_score ?? entry.points ?? entry.completions ?? 0;
+    const scoreVal =
+      entry.total_score ?? entry.points ?? entry.completions ?? 0;
 
     return (
       <motion.div
@@ -300,7 +299,8 @@ const LegendRow = ({ entry, rank, index, metric, metricLabel }) => {
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.04, duration: 0.35 }}
-      layout className="flex items-center gap-4 p-4 rounded-2xl transition-all group"
+      layout
+      className="flex items-center gap-4 p-4 rounded-2xl transition-all group"
       style={{
         background: isTop3
           ? "rgba(255,255,255,0.04)"
@@ -375,7 +375,6 @@ const SkeletonRow = ({ i }) => (
   </div>
 );
 
-
 // Typewriter effect for terminal header prompt
 const TypewriterCommand = ({ text }) => {
   const [displayedText, setDisplayedText] = useState("");
@@ -445,6 +444,10 @@ const TerminalWall = () => {
         startToday.setHours(0, 0, 0, 0);
         isoStart = startToday.toISOString();
       } else if (filter === "weekly") {
+        // 7-day trailing window: today + 6 previous days. Must match the
+        // boundary used in fetchLegends() below exactly, or "This Week"
+        // will show different totals in the two panels for no reason
+        // other than one counting an extra day.
         const startWeek = new Date();
         startWeek.setDate(startWeek.getDate() - 6);
         startWeek.setHours(0, 0, 0, 0);
@@ -487,12 +490,16 @@ const TerminalWall = () => {
           ]);
 
           userIds.forEach((uid) => {
-            const userActs = (actsRes.data || []).filter((a) => a.user_id === uid);
-            const userSubs = (subsRes.data || []).filter((s) => s.user_id === uid);
+            const userActs = (actsRes.data || []).filter(
+              (a) => a.user_id === uid,
+            );
+            const userSubs = (subsRes.data || []).filter(
+              (s) => s.user_id === uid,
+            );
 
             const eventKeys = new Set();
             userActs.forEach((a) => {
-              const key = `${a.title || 'act'}_${a.created_at?.slice(0, 16)}`;
+              const key = `${a.title || "act"}_${a.created_at?.slice(0, 16)}`;
               eventKeys.add(key);
             });
             userSubs.forEach((s) => {
@@ -501,36 +508,64 @@ const TerminalWall = () => {
             });
 
             if (map[uid]) {
-              map[uid].events_completed = Math.max(eventKeys.size, userActs.length, userSubs.length);
+              map[uid].events_completed = Math.max(
+                eventKeys.size,
+                userActs.length,
+                userSubs.length,
+              );
             }
           });
         }
       } else {
-        // "Today" / "This Week": aggregate from glitch_activity + challenge_submissions
+        // "Today" / "This Week": points come from glitch_activity ONLY.
+        //
+        // BUG THIS FIXES: every challenge completion writes a row to BOTH
+        // glitch_activity (via the DB trigger) AND challenge_submissions
+        // (via saveSubmission) for the exact same award. The previous
+        // version summed points from both tables, silently double-counting
+        // every regular challenge completion in the window (bonus-only
+        // awards like Daily Fact / streak / referral / first-try / speed,
+        // which only ever hit glitch_activity, weren't doubled — which is
+        // why the inflation looked inconsistent rather than a clean 2x).
+        // glitch_activity is the single atomic ledger; it alone is correct
+        // for a points sum. challenge_submissions is still used below, but
+        // only to help count events, never to add points a second time.
         const [actsRes, subsRes] = await Promise.all([
           supabase
             .from("glitch_activity")
-            .select("user_id, points, created_at, title")
+            .select("user_id, points, created_at, title, type")
             .gte("created_at", isoStart)
             .limit(5000),
           supabase
             .from("challenge_submissions")
-            .select("user_id, points_earned, created_at")
+            .select("user_id, created_at, points_earned")
             .gte("created_at", isoStart)
             .gt("points_earned", 0)
             .limit(5000),
         ]);
 
-        const acts = actsRes.data || [];
+        // Exclude one-off historical/manual ledger adjustments from
+        // recent-activity windows — these represent points earned over
+        // many past days but are timestamped at the moment they were
+        // inserted, which would otherwise wrongly inflate "Today"/"This
+        // Week" the day such an adjustment is made.
+        const acts = (actsRes.data || []).filter(
+          (a) => !(a.title || "").toLowerCase().includes("reconciliation"),
+        );
         const subs = subsRes.data || [];
 
         acts.forEach((row) => {
           const uid = row.user_id;
           if (!uid) return;
           if (!map[uid]) {
-            map[uid] = { user_id: uid, total_score: 0, events_completed: 0, _events: new Set() };
+            map[uid] = {
+              user_id: uid,
+              total_score: 0,
+              events_completed: 0,
+              _events: new Set(),
+            };
           }
-          const key = `${row.title || 'act'}_${row.created_at?.slice(0, 16)}`;
+          const key = `${row.title || "act"}_${row.created_at?.slice(0, 16)}`;
           if (!map[uid]._events.has(key)) {
             map[uid]._events.add(key);
             map[uid].total_score += row.points || 0;
@@ -538,16 +573,24 @@ const TerminalWall = () => {
           }
         });
 
+        // challenge_submissions rows only ever contribute to the event
+        // count here (via a distinct key namespace, so they can never
+        // collide with — or add points on top of — a glitch_activity row
+        // for the same underlying completion).
         subs.forEach((row) => {
           const uid = row.user_id;
           if (!uid) return;
           if (!map[uid]) {
-            map[uid] = { user_id: uid, total_score: 0, events_completed: 0, _events: new Set() };
+            map[uid] = {
+              user_id: uid,
+              total_score: 0,
+              events_completed: 0,
+              _events: new Set(),
+            };
           }
           const key = `sub_${row.created_at?.slice(0, 16)}`;
           if (!map[uid]._events.has(key)) {
             map[uid]._events.add(key);
-            map[uid].total_score += row.points_earned || 0;
             map[uid].events_completed += 1;
           }
         });
@@ -572,7 +615,11 @@ const TerminalWall = () => {
       }
 
       const sorted = Object.values(map)
-        .sort((a, b) => b.total_score - a.total_score || b.events_completed - a.events_completed)
+        .sort(
+          (a, b) =>
+            b.total_score - a.total_score ||
+            b.events_completed - a.events_completed,
+        )
         .slice(0, 50);
 
       setEntries(sorted);
@@ -594,8 +641,12 @@ const TerminalWall = () => {
     setLoadingLegends(true);
 
     try {
+      // 7-day trailing window: today + 6 previous days. Must match the
+      // boundary used in fetchLiveRankings() above exactly, or "This Week"
+      // will disagree between the Live Rankings and Legends panels for no
+      // reason other than one counting an extra day.
       const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
+      weekAgo.setDate(weekAgo.getDate() - 6);
       weekAgo.setHours(0, 0, 0, 0);
       const weekAgoISO = weekAgo.toISOString();
 
@@ -607,7 +658,7 @@ const TerminalWall = () => {
 
       const { data: arenaRaw } = await arenaQuery;
       const arenaUserIds = Array.from(
-        new Set((arenaRaw || []).map((r) => r.user_id))
+        new Set((arenaRaw || []).map((r) => r.user_id)),
       ).filter(Boolean);
 
       let arenaProfilesMap = {};
@@ -642,7 +693,10 @@ const TerminalWall = () => {
       });
 
       const arenaList = Object.values(arenaMap)
-        .sort((a, b) => b.total_score - a.total_score || b.completions - a.completions)
+        .sort(
+          (a, b) =>
+            b.total_score - a.total_score || b.completions - a.completions,
+        )
         .slice(0, 20);
 
       setArenaData(arenaList);
@@ -682,31 +736,28 @@ const TerminalWall = () => {
           };
         });
       } else {
-        // Weekly Top Contributors
-        const [actsRes, subsRes] = await Promise.all([
-          supabase
-            .from("glitch_activity")
-            .select("user_id, points, created_at")
-            .gte("created_at", weekAgoISO)
-            .limit(5000),
-          supabase
-            .from("challenge_submissions")
-            .select("user_id, points_earned, created_at")
-            .gte("created_at", weekAgoISO)
-            .gt("points_earned", 0)
-            .limit(5000),
-        ]);
+        // Weekly Top Contributors — points from glitch_activity ONLY.
+        // Same double-counting bug as fetchLiveRankings: every challenge
+        // completion writes to both glitch_activity and
+        // challenge_submissions for the same award, so summing both
+        // silently doubled every regular completion. challenge_submissions
+        // is no longer used here at all, since Top Contributors doesn't
+        // need an event count — only a points total.
+        const { data: actsData } = await supabase
+          .from("glitch_activity")
+          .select("user_id, points, created_at, title")
+          .gte("created_at", weekAgoISO)
+          .limit(5000);
+
+        const acts = (actsData || []).filter(
+          (a) => !(a.title || "").toLowerCase().includes("reconciliation"),
+        );
 
         const weeklyMap = {};
-        (actsRes.data || []).forEach((r) => {
+        acts.forEach((r) => {
           if (!r.user_id) return;
           if (!weeklyMap[r.user_id]) weeklyMap[r.user_id] = 0;
           weeklyMap[r.user_id] += r.points || 0;
-        });
-        (subsRes.data || []).forEach((r) => {
-          if (!r.user_id) return;
-          if (!weeklyMap[r.user_id]) weeklyMap[r.user_id] = 0;
-          weeklyMap[r.user_id] += r.points_earned || 0;
         });
 
         const wUids = Object.keys(weeklyMap);
@@ -749,8 +800,7 @@ const TerminalWall = () => {
 
   const activeLegendsData = legendsTab === "arena" ? arenaData : usersData;
   const legendsMetric = legendsTab === "arena" ? "total_score" : "points";
-  const legendsMetricLabel =
-    legendsTab === "arena" ? "Arena gBits" : "gBits";
+  const legendsMetricLabel = legendsTab === "arena" ? "Arena gBits" : "gBits";
 
   return (
     <div className="min-h-screen bg-[#06060c] text-white flex flex-col font-sans relative overflow-hidden">
@@ -957,7 +1007,10 @@ const TerminalWall = () => {
                 </div>
               </div>
 
-              <TerminalWindow title="terminal.hall-of-fame --legends" accent="#f59e0b">
+              <TerminalWindow
+                title="terminal.hall-of-fame --legends"
+                accent="#f59e0b"
+              >
                 <PromptLabel icon={FaCrown} color="#f59e0b">
                   legends_rankings --top-20
                 </PromptLabel>
@@ -972,7 +1025,10 @@ const TerminalWall = () => {
                   <EmptyState message="No legends recorded for this filter yet." />
                 ) : (
                   <>
-                    <LegendsPodium entries={activeLegendsData.slice(0, 3)} metricLabel={legendsMetricLabel} />
+                    <LegendsPodium
+                      entries={activeLegendsData.slice(0, 3)}
+                      metricLabel={legendsMetricLabel}
+                    />
 
                     <div className="space-y-3">
                       {activeLegendsData.map((entry, index) => (

@@ -34,6 +34,7 @@ import {
   pointsForScore,
   PASS_THRESHOLD,
 } from "../utils/feedbackVerdict";
+import { GBitIcon } from "./GBitIcon";
 
 const COLOR = "#FF00C8";
 
@@ -370,7 +371,7 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
               border: `1px solid ${COLOR}30`,
             }}
           >
-            ⚡ {points} pts
+            <GBitIcon size={12} /> {points} pts
           </div>
         </div>
       </div>
@@ -552,14 +553,14 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
                 Your Approach
               </p>
               <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-lg"
+                className="text-[10px] font-bold px-2 py-0.5 rounded-lg inline-flex items-center gap-1"
                 style={{
                   background: `${COLOR}15`,
                   color: COLOR,
                   border: `1px solid ${COLOR}30`,
                 }}
               >
-                up to +{earnablePoints} pts on pass
+                up to +{earnablePoints} <GBitIcon size={11} /> pts on pass
               </span>
             </div>
             <textarea
@@ -718,12 +719,15 @@ ${challenge.code ? `Challenge code given to the user:\n${challenge.code}\n\n` : 
               <p className="text-gray-400 text-sm mb-3">
                 The AI grader confirmed your approach checks out.
               </p>
-              <p className="font-bold" style={{ color: COLOR }}>
-                +{lastAwardedPoints} Points 💎
+              <p
+                className="font-bold flex items-center justify-center gap-1.5"
+                style={{ color: COLOR }}
+              >
+                +{lastAwardedPoints} Points <GBitIcon size={14} />
               </p>
               {firstTryBonus && (
-                <p className="text-xs text-yellow-400 font-semibold mt-1">
-                  ⚡ +25 Bonus — First-Try Clearance
+                <p className="text-xs text-yellow-400 font-semibold mt-1 flex items-center justify-center gap-1">
+                  <GBitIcon size={11} /> +25 Bonus — First-Try Clearance
                 </p>
               )}
             </motion.div>

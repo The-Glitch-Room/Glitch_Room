@@ -36,6 +36,7 @@ import {
   pointsForScore,
   PASS_THRESHOLD,
 } from "../utils/feedbackVerdict";
+import { GBitIcon } from "./GBitIcon";
 
 const COLOR = "#00F0FF";
 
@@ -488,7 +489,7 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
             ref={profileIconRef}
             className="flex items-center gap-1 text-xs font-semibold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full shrink-0"
           >
-            ⚡ {points} pts
+            <GBitIcon size={12} /> {points} pts
           </div>
         </div>
       </div>
@@ -668,14 +669,14 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
                 Your Fix
               </p>
               <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-lg"
+                className="text-[10px] font-bold px-2 py-0.5 rounded-lg inline-flex items-center gap-1"
                 style={{
                   background: `${COLOR}15`,
                   color: COLOR,
                   border: `1px solid ${COLOR}30`,
                 }}
               >
-                up to +{earnablePoints} pts on pass
+                up to +{earnablePoints} <GBitIcon size={11} /> pts on pass
               </span>
             </div>
             <textarea
@@ -821,17 +822,17 @@ ${glitch.code ? `Buggy code given to the user:\n${glitch.code}\n\n` : ""}${
               <p className="text-gray-400 text-sm mb-3">
                 The AI grader confirmed your fix. Keep going to level up.
               </p>
-              <p className="font-bold text-cyan-400">
-                +{lastAwardedPoints} Points 💎
+              <p className="font-bold text-cyan-400 flex items-center justify-center gap-1.5">
+                +{lastAwardedPoints} Points <GBitIcon size={14} />
               </p>
               {firstTryBonus && (
-                <p className="text-xs text-yellow-400 font-semibold mt-1">
-                  ⚡ +25 Bonus — First-Try Clearance
+                <p className="text-xs text-yellow-400 font-semibold mt-1 flex items-center justify-center gap-1">
+                  <GBitIcon size={11} /> +25 Bonus — First-Try Clearance
                 </p>
               )}
               {speedBonus && (
-                <p className="text-xs text-[#00F0FF] font-semibold mt-1">
-                  ⚡ +50 Bonus — Speed Demon Clearance
+                <p className="text-xs text-[#00F0FF] font-semibold mt-1 flex items-center justify-center gap-1">
+                  <GBitIcon size={11} /> +50 Bonus — Speed Demon Clearance
                 </p>
               )}
             </motion.div>
