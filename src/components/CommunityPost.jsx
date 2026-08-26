@@ -13,6 +13,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useAuth } from "./AuthContext";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
 import { Bold, Italic, Heading, Quote, List, ListOrdered, Link, Eye, X } from "lucide-react";
 

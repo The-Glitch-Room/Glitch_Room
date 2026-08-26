@@ -34,6 +34,7 @@ import {
   Trash2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useAuth } from "./AuthContext";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
 
 // ── Categories ────────────────────────────────────────────────────────────────
@@ -1021,7 +1022,9 @@ const PostCard = ({ post, onLike, onClick, likedIds, user, onEdit, onDelete }) =
 // ── Main Page Component ───────────────────────────────────────────────────────
 const Community = () => {
   const navigate = useNavigate();
+  const { user: ctxUser } = useAuth() || {};
   const [user, setUser] = useState(null);
+  const activeUser = user || ctxUser;
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
@@ -1387,7 +1390,7 @@ const Community = () => {
           <CreatePostModal
             onClose={() => setShowCreate(false)}
             onCreated={fetchPosts}
-            user={user}
+            user={activeUser}
           />
         )}
       </AnimatePresence>
