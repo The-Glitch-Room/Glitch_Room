@@ -1203,10 +1203,10 @@ const CreatorRoomDetail = ({ roomId }) => {
         </section>
 
         {/*  MAIN 3-COLUMN GRID  */}
-        <section className="max-w-7xl mx-auto px-6 py-6 w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* LEFT COLUMN: Goals & Policy (2 Cols) */}
-          <div className="lg:col-span-3 space-y-4">
-            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full flex-1 grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-5 items-start">
+          {/* LEFT COLUMN: Room Information (3 Cols) */}
+          <div className="col-span-1 md:col-span-4 lg:col-span-3 space-y-4">
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center gap-2 text-xs font-bold text-white mb-2">
                 <Target size={15} className="text-purple-400" /> Room Goal
               </div>
@@ -1216,7 +1216,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </p>
             </div>
 
-            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center gap-2 text-xs font-bold text-white mb-2">
                 <Clock size={15} className="text-cyan-400" /> Check-in Time
               </div>
@@ -1229,7 +1229,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </p>
             </div>
 
-            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center gap-2 text-xs font-bold text-white mb-2">
                 <Flame size={15} className="text-amber-400" /> Streak System
               </div>
@@ -1239,7 +1239,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </p>
             </div>
 
-            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center gap-2 text-xs font-bold text-white mb-1">
                 <Coins size={15} className="text-amber-400" /> Room Pool
               </div>
@@ -1269,8 +1269,8 @@ const CreatorRoomDetail = ({ roomId }) => {
             )}
           </div>
 
-          {/* MIDDLE FEED: Daily Standups & Check-ins (6 Cols) */}
-          <div className="lg:col-span-6 space-y-4">
+          {/* CENTER COLUMN: Daily Standups (6 Cols - Primary Content Area) */}
+          <div className="col-span-1 md:col-span-8 lg:col-span-6 space-y-4">
             {/* Header Tabs */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -1316,7 +1316,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
             {/* Check-in CTA Box */}
             {isMember && (
-              <div className="bg-gradient-to-r from-purple-900/30 via-[#0d0d18] to-cyan-900/30 border border-purple-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 shadow-xl">
+              <div className="bg-gradient-to-r from-purple-900/30 via-[#0d0d18] to-cyan-900/30 border border-purple-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xl">
                 <div className="flex items-center gap-3">
                   <img
                     src={
@@ -1557,10 +1557,10 @@ const CreatorRoomDetail = ({ roomId }) => {
             )}
           </div>
 
-          {/* RIGHT COLUMN: Leaderboard, Buddy & Activity (3 Cols) */}
-          <div className="lg:col-span-3 space-y-6">
+          {/* RIGHT COLUMN: Squad & Room Widgets (3 Cols) */}
+          <div className="col-span-1 md:col-span-12 lg:col-span-3 space-y-4">
             {/* Leaderboard Card */}
-            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-bold text-white flex items-center gap-2">
                   <Trophy size={15} className="text-amber-400" /> Squad
@@ -1602,7 +1602,7 @@ const CreatorRoomDetail = ({ roomId }) => {
             </div>
 
             {/* Accountability Buddy Card */}
-            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center gap-2 text-xs font-bold text-white mb-3">
                 <Handshake size={15} className="text-purple-400" />{" "}
                 Accountability Buddy
