@@ -79,58 +79,132 @@ const LINK_PROOF_TYPES = new Set([
   "Project/Demo Link",
 ]);
 
-// Shows the actual submission date AND time (not just "Today, HH:MM"),
-// always rendered in the viewer's local timezone via toLocaleString.
+// ── IST date-wise (calendar-day) timing system ───────────────────────────────
+// Every check-in, deadline, calendar cell, and streak calculation in this
+// file is bucketed by IST *calendar date* — never by rolling hours since a
+// previous check-in. Each date's window is independent: 12:00 AM to
+// 11:59 PM IST. A check-in submitted at any point in that window belongs to
+// that date and is On Time for it; a date with zero check-ins by the time
+// its window closes is Late/Missed. A check-in the day before or after can
+// never influence another date's status.
+const IST_TIME_ZONE = "Asia/Kolkata";
+
+// "YYYY-MM-DD" calendar-date key for a timestamp, always evaluated in IST.
+// This key is the single source of truth every date-based comparison below
+// is built from. "YYYY-MM-DD" strings also sort lexicographically in the
+// same order as the dates they represent, so they can be compared directly
+// with < / === for "is this in the past / is this today" checks without
+// ever constructing a Date object (and re-introducing timezone drift).
+const getISTDateKey = (input) => {
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: IST_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+};
+
+// Shift a "YYYY-MM-DD" key by N calendar days. Pure Y/M/D arithmetic on a
+// key that's already an IST calendar date — no further timezone conversion
+// needed or wanted here.
+const shiftDateKey = (dateKey, deltaDays) => {
+  const [y, m, dd] = dateKey.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, dd));
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
+  return dt.toISOString().slice(0, 10);
+};
+
+// Number of IST calendar days between two timestamps (to - from), counted
+// by date key rather than raw millisecond subtraction — so a room that
+// started at 11:50 PM IST and a check-in at 12:05 AM IST the next day
+// correctly count as 1 day apart instead of "0 days" (or "1 day" for a pair
+// that's really still the same IST date), regardless of time-of-day.
+const diffISTCalendarDays = (fromInput, toInput) => {
+  const fromKey = getISTDateKey(fromInput);
+  const toKey = getISTDateKey(toInput);
+  if (!fromKey || !toKey) return 0;
+  const [fy, fm, fd] = fromKey.split("-").map(Number);
+  const [ty, tm, td] = toKey.split("-").map(Number);
+  const fromUTC = Date.UTC(fy, fm - 1, fd);
+  const toUTC = Date.UTC(ty, tm - 1, td);
+  return Math.round((toUTC - fromUTC) / (1000 * 60 * 60 * 24));
+};
+
+// Renders a "YYYY-MM-DD" date key as a short label ("Aug 26" / with year:
+// "Aug 26, 2026"), built directly from the key's numeric components via
+// Date.UTC + timeZone: "UTC" formatting — this guarantees the label always
+// matches the key exactly, with zero risk of a viewer's local timezone
+// rolling the date to the day before/after during formatting.
+const formatDateKeyLabel = (dateKey, { withYear = false } = {}) => {
+  if (!dateKey) return "—";
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    ...(withYear ? { year: "numeric" } : {}),
+    timeZone: "UTC",
+  });
+};
+
+// Shows the actual submission date AND time, always in IST — every date
+// and time figure in this component is anchored to Asia/Kolkata so "Today",
+// the Calendar View, and On Time/Late status can never disagree with each
+// other just because a viewer's device is in a different timezone.
 const formatStandupTimestamp = (isoString) => {
   if (!isoString) return "—";
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString([], {
+  const formatted = d.toLocaleString([], {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: IST_TIME_ZONE,
   });
+  return `${formatted} IST`;
 };
 
-// On Time / Late status computed from raw timestamps using a rolling
-// 24-hour window per user, NOT a fixed clock cutoff (e.g. 11:59 PM):
-//   - A user's first check-in is On Time if it lands within 24 hours of
-//     the room's start date (their standup window "opens" when the room/
-//     their membership starts).
-//   - Every check-in after that is On Time if it lands within 24 hours of
-//     that same user's previous check-in — i.e. they kept their daily
-//     window alive. More than 24 hours since the last check-in = Late.
-// Because this is a raw epoch-millisecond difference (not a calendar-day
-// or clock-time comparison), it is inherently timezone-safe — it gives the
-// same On Time / Late result no matter what timezone the viewer or the
-// server is in, and no matter DST changes. It's also recomputed on every
-// render from `standups`, so it's always correct for existing/legacy
-// records even though older rows may have a stale `is_on_time: true` sitting
-// in the database from before this logic existed.
-const getOnTimeStatus = (standup, allStandups, room) => {
-  if (!standup?.created_at) return true;
-  const submittedAtMs = new Date(standup.created_at).getTime();
-  if (Number.isNaN(submittedAtMs)) return true;
+// A submitted check-in is On Time for the IST calendar date it falls on —
+// full stop. Per-day windows are independent (12:00 AM – 11:59 PM IST), so
+// a submitted row is never compared against a previous check-in's time or
+// a rolling-hours cutoff; it's simply On Time for whichever date it landed
+// in. "Late/Missed" only ever describes a date with NO check-in by the time
+// its window closes — that's a Calendar View concept (see the day-grid
+// below), not a property you compute on an individual submitted row.
+const getOnTimeStatus = (standup) =>
+  !!standup?.created_at &&
+  !Number.isNaN(new Date(standup.created_at).getTime());
 
-  const priorForUser = (allStandups || [])
-    .filter(
-      (s) =>
-        s.user_id &&
-        s.user_id === standup.user_id &&
-        s.id !== standup.id &&
-        new Date(s.created_at).getTime() < submittedAtMs,
-    )
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+// Consecutive-day streak counted backward from `endDateKey`, stopping the
+// instant a calendar day is missing from `dateKeySet`. A pure date-bucket
+// walk — never a rolling-hours calculation — so what time of day a
+// check-in happened within its date never changes the result.
+const getStreakEndingAt = (dateKeySet, endDateKey) => {
+  if (!endDateKey) return 0;
+  let streak = 0;
+  let cursor = endDateKey;
+  while (dateKeySet.has(cursor)) {
+    streak++;
+    cursor = shiftDateKey(cursor, -1);
+  }
+  return streak;
+};
 
-  const windowStartMs = priorForUser
-    ? new Date(priorForUser.created_at).getTime()
-    : new Date(room?.start_date || room?.created_at || submittedAtMs).getTime();
-
-  const hoursSinceWindowStart =
-    (submittedAtMs - windowStartMs) / (1000 * 60 * 60);
-  return hoursSinceWindowStart <= 24;
+// "Current" streak as of today (IST). Today's window (12:00 AM–11:59 PM
+// IST) is still open, so not having checked in yet today doesn't zero out
+// an otherwise-intact streak — the anchor falls back to yesterday in that
+// case. Any earlier gap in the date set still breaks the streak, since that
+// date's window closed with no check-in.
+const getCurrentStreak = (dateKeySet) => {
+  const todayKey = getISTDateKey(new Date());
+  const anchor = dateKeySet.has(todayKey)
+    ? todayKey
+    : shiftDateKey(todayKey, -1);
+  return getStreakEndingAt(dateKeySet, anchor);
 };
 
 // ── Auto-Scrolling Ticker Wrapper for Today's Standup Logs ───────────────────
@@ -451,19 +525,10 @@ const CreatorRoomDetail = ({ roomId }) => {
     );
     setStandups(fetchedStandups);
 
-    // Update user streaks in members array based on real check-in counts
-    if (fetchedMembers.length > 0 && fetchedStandups.length > 0) {
-      const userStreakMap = {};
-      fetchedStandups.forEach((s) => {
-        userStreakMap[s.user_id] = (userStreakMap[s.user_id] || 0) + 1;
-      });
-      setMembers((prev) =>
-        prev.map((m) => ({
-          ...m,
-          streak: userStreakMap[m.user_id] || 0,
-        })),
-      );
-    }
+    // Note: per-member streaks are no longer computed/stored here — they're
+    // derived at render time from IST calendar-date buckets (see
+    // `userDateKeySets` / `getUserStreak` in the component body) so every
+    // streak display always reflects the same date-based logic, live.
 
     // 5. Fetch Room Buddies
     const { data: buddyData } = await supabase
@@ -637,18 +702,10 @@ const CreatorRoomDetail = ({ roomId }) => {
         return;
       }
 
-      // Real-time On Time / Late status — computed from this user's actual
-      // check-in history (rolling 24-hour window), never hardcoded to true.
-      const priorForUser = standups
-        .filter((s) => s.user_id === activeUid)
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-      const windowStartMs = priorForUser
-        ? new Date(priorForUser.created_at).getTime()
-        : new Date(
-            room?.start_date || room?.created_at || Date.now(),
-          ).getTime();
-      const computedIsOnTime =
-        (Date.now() - windowStartMs) / (1000 * 60 * 60) <= 24;
+      // Every submitted check-in is On Time for the IST calendar date it's
+      // submitted on (12:00 AM – 11:59 PM IST) — no rolling-hours math, no
+      // comparison against a previous check-in's timestamp.
+      const computedIsOnTime = true;
 
       // 1. Insert into room_checkins
       let checkinInsertError = null;
@@ -898,7 +955,9 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const isHost = userId && room.created_by === userId;
 
-  // Real Progress calculation
+  // Real Progress calculation — IST calendar-date based, matching the
+  // Calendar View's day-grid exactly (both derive "how many sprint days
+  // have elapsed" from the same date-key arithmetic).
   const totalSprintDays =
     room.duration_type === "7_day"
       ? 7
@@ -910,7 +969,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const startDate = room.start_date || room.created_at;
   const daysElapsed = Math.max(
     1,
-    Math.floor((new Date() - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1,
+    diffISTCalendarDays(startDate, new Date()) + 1,
   );
   const completedDays = Math.min(daysElapsed, totalSprintDays);
   const progressPct = Math.min(
@@ -918,20 +977,62 @@ const CreatorRoomDetail = ({ roomId }) => {
     Math.round((completedDays / totalSprintDays) * 100),
   );
 
+  // Per-user IST calendar-date sets — every streak figure on this page
+  // (member sidebar, standup cards, leaderboard, Squad Overview, Calendar
+  // View) reads from this exact same date-bucketed data, so they can never
+  // disagree with each other.
+  const userDateKeySets = {};
+  standups.forEach((s) => {
+    if (!s.user_id || !s.created_at) return;
+    const key = getISTDateKey(s.created_at);
+    if (!key) return;
+    if (!userDateKeySets[s.user_id]) userDateKeySets[s.user_id] = new Set();
+    userDateKeySets[s.user_id].add(key);
+  });
+  const getUserStreak = (uid) =>
+    getCurrentStreak(userDateKeySets[uid] || new Set());
+
+  // Shared IST date keys for the Calendar View / progress stats below —
+  // computed once so the day-grid, the missed-days count, and the selected
+  // day detail panel all agree on exactly which calendar date is "today"
+  // and which date the sprint started on.
+  const roomStartKey = getISTDateKey(
+    room.start_date || room.created_at || Date.now(),
+  );
+  const todayKey = getISTDateKey(new Date());
+  const userDateKeySet = userDateKeySets[userId] || new Set();
+
+  // Actual missed dates = sprint days elapsed so far (IST) that have no
+  // check-in for this user, excluding today (its window hasn't closed yet).
+  // This walks real calendar dates rather than subtracting a raw check-in
+  // count from an elapsed-days number, so it can't be thrown off by a user
+  // submitting more than one log on the same day.
+  const missedDaysCount = (() => {
+    if (!roomStartKey) return 0;
+    let count = 0;
+    const elapsedCapped = Math.min(totalSprintDays, daysElapsed);
+    for (let i = 0; i < elapsedCapped; i++) {
+      const key = shiftDateKey(roomStartKey, i);
+      if (key === todayKey) continue;
+      if (!userDateKeySet.has(key)) count++;
+    }
+    return count;
+  })();
+
   // User standup stats
   const userStandups = standups.filter((s) => s.user_id === userId);
-  const userOnTimeCount = userStandups.filter((s) =>
-    getOnTimeStatus(s, standups, room),
-  ).length;
-  const userStreak = userStandups.length > 0 ? userStandups.length : 0;
+  const userOnTimeCount = userStandups.filter((s) => getOnTimeStatus(s)).length;
+  const userStreak = getUserStreak(userId);
   const roomPoolGBits =
     (room.entry_stake || 0) * (room.member_count || members.length || 1);
   const unreadNotifsCount = notifications.filter((n) => !n.is_read).length;
 
-  // Real Leaderboard sorted by check-in streak
-  const sortedLeaderboard = [...members].sort(
-    (a, b) => (b.streak || 0) - (a.streak || 0),
-  );
+  // Real Leaderboard sorted by check-in streak — streak recomputed here
+  // (date-based, not the stale count set during fetch) so sort order always
+  // matches what every other streak display on the page shows.
+  const sortedLeaderboard = [...members]
+    .map((m) => ({ ...m, streak: getUserStreak(m.user_id) }))
+    .sort((a, b) => (b.streak || 0) - (a.streak || 0));
 
   // Buddy profile
   const myBuddy = buddies.find(
@@ -946,16 +1047,11 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const displayStandups =
     activeTab === "today"
-      ? standups.filter((s) => {
-          if (!s.created_at) return true;
-          const d = new Date(s.created_at);
-          const today = new Date();
-          return (
-            d.getDate() === today.getDate() &&
-            d.getMonth() === today.getMonth() &&
-            d.getFullYear() === today.getFullYear()
-          );
-        })
+      ? standups.filter(
+          (s) =>
+            s.created_at &&
+            getISTDateKey(s.created_at) === getISTDateKey(new Date()),
+        )
       : standups;
 
   return (
@@ -1221,11 +1317,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Clock size={15} className="text-cyan-400" /> Check-in Time
               </div>
               <p className="text-xs text-gray-400 font-mono">
-                Before{" "}
-                <strong className="text-white">
-                  {room.checkin_deadline || "11:59 PM IST"}
-                </strong>{" "}
-                daily.
+                Check in anytime between{" "}
+                <strong className="text-white">12:00 AM</strong> and{" "}
+                <strong className="text-white">11:59 PM IST</strong> each day.
               </p>
             </div>
 
@@ -1397,10 +1491,20 @@ const CreatorRoomDetail = ({ roomId }) => {
                       (standup.user_id === buddyMember.user_id ||
                         standup.username === buddyMember.username);
 
-                    // Real On Time / Late status — recomputed live from the
-                    // full standups list on every render (never trusts a
-                    // possibly-stale `is_on_time` value stored on old rows).
-                    const isOnTime = getOnTimeStatus(standup, standups, room);
+                    // Every submitted standup is On Time for the IST
+                    // calendar date it falls on — see getOnTimeStatus above.
+                    const isOnTime = getOnTimeStatus(standup);
+
+                    // Streak as of this specific standup's IST date (i.e.
+                    // "how many consecutive days had this user checked in,
+                    // ending on the day this was posted") — date-bucket
+                    // based, so it's stable regardless of what time of day
+                    // the check-in landed at.
+                    const standupDateKey = getISTDateKey(standup.created_at);
+                    const standupStreak = getStreakEndingAt(
+                      userDateKeySets[standup.user_id] || new Set(),
+                      standupDateKey,
+                    );
 
                     const hasLinkProof =
                       standup.proof_url && standup.proof_url.trim().length > 0;
@@ -1530,7 +1634,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                               className="text-amber-400 fill-amber-400/20"
                             />
                             <span className="text-sm font-black text-cyan-400 font-mono leading-none">
-                              {standup.streak_count || 1}
+                              {standupStreak}
                             </span>
                             <span className="text-[8px] font-mono text-cyan-300/70 uppercase leading-none">
                               day
@@ -2503,19 +2607,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                           ❌ Missed
                         </div>
                         <div className="text-base font-black text-red-400">
-                          {Math.max(
-                            0,
-                            Math.min(
-                              30,
-                              Math.floor(
-                                (new Date() -
-                                  new Date(
-                                    room.start_date || room.created_at,
-                                  )) /
-                                  (1000 * 60 * 60 * 24),
-                              ),
-                            ) - userStandups.length,
-                          )}
+                          {missedDaysCount}
                         </div>
                       </div>
 
@@ -2557,25 +2649,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                     <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2 font-mono">
                       {Array.from({ length: 30 }, (_, i) => i + 1).map(
                         (dayNum) => {
-                          const startDate = new Date(
-                            room.start_date || room.created_at || Date.now(),
-                          );
-                          const dayDate = new Date(startDate);
-                          dayDate.setDate(startDate.getDate() + (dayNum - 1));
-
-                          const today = new Date();
-                          const isTodayDate =
-                            dayDate.toDateString() === today.toDateString();
-                          const isPastDate = dayDate < today && !isTodayDate;
-
-                          const hasStandup =
-                            userStandups.some((s) => {
-                              if (!s.created_at) return false;
-                              return (
-                                new Date(s.created_at).toDateString() ===
-                                dayDate.toDateString()
-                              );
-                            }) || dayNum <= userStandups.length;
+                          // Each grid cell is evaluated purely by its own
+                          // IST calendar date — never by array index/count,
+                          // so a day is only ever "Completed" if a check-in
+                          // actually landed on that exact date.
+                          const dayKey = shiftDateKey(roomStartKey, dayNum - 1);
+                          const isTodayDate = dayKey === todayKey;
+                          const isPastDate = dayKey < todayKey;
+                          const hasStandup = userDateKeySet.has(dayKey);
 
                           let statusSymbol = "⚪";
                           let bgClass =
@@ -2622,35 +2703,27 @@ const CreatorRoomDetail = ({ roomId }) => {
                   {selectedDayNum !== null && (
                     <div className="bg-[#07070d] border border-purple-500/30 rounded-2xl p-5 font-mono text-xs space-y-3">
                       {(() => {
-                        const startDate = new Date(
-                          room.start_date || room.created_at || Date.now(),
+                        // Same IST date-key approach as the grid above —
+                        // this day's identity is its calendar date, never
+                        // its position in the standups array.
+                        const dayKey = shiftDateKey(
+                          roomStartKey,
+                          selectedDayNum - 1,
                         );
-                        const dayDate = new Date(startDate);
-                        dayDate.setDate(
-                          startDate.getDate() + (selectedDayNum - 1),
-                        );
+                        const isTodayDate = dayKey === todayKey;
+                        const isPastDate = dayKey < todayKey;
 
-                        const today = new Date();
-                        const isTodayDate =
-                          dayDate.toDateString() === today.toDateString();
-                        const isPastDate = dayDate < today && !isTodayDate;
-
+                        // Matched strictly by IST calendar date — no index
+                        // fallback, so a neighboring day's check-in can
+                        // never be shown as "this" day's submission.
                         const standup =
-                          userStandups.find((s) => {
-                            if (!s.created_at) return false;
-                            return (
-                              new Date(s.created_at).toDateString() ===
-                              dayDate.toDateString()
-                            );
-                          }) ||
-                          (selectedDayNum <= userStandups.length
-                            ? userStandups[selectedDayNum - 1]
-                            : null);
+                          userStandups.find(
+                            (s) =>
+                              s.created_at &&
+                              getISTDateKey(s.created_at) === dayKey,
+                          ) || null;
 
-                        const dateFormatted = dayDate.toLocaleDateString([], {
-                          month: "short",
-                          day: "numeric",
-                        });
+                        const dateFormatted = formatDateKeyLabel(dayKey);
 
                         if (standup) {
                           return (
@@ -2673,7 +2746,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                                   ).toLocaleTimeString([], {
                                     hour: "2-digit",
                                     minute: "2-digit",
-                                  })}
+                                    timeZone: IST_TIME_ZONE,
+                                  })}{" "}
+                                  IST
                                 </p>
                                 <p>
                                   <strong className="text-white">
@@ -2710,7 +2785,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                                   <strong className="text-white">
                                     Streak:
                                   </strong>{" "}
-                                  🔥 {standup.streak_count || selectedDayNum}{" "}
+                                  🔥 {getStreakEndingAt(userDateKeySet, dayKey)}{" "}
                                   days
                                 </p>
                               </div>
@@ -2812,11 +2887,11 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                           <div className="flex items-center gap-3">
                             <span className="text-amber-400 font-bold flex items-center gap-1">
-                              <Flame size={14} /> {mStandups.length}d
+                              <Flame size={14} /> {getUserStreak(m.user_id)}d
                             </span>
                             <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-[10px]">
                               {mStandups[0]
-                                ? `Latest: ${new Date(mStandups[0].created_at).toLocaleDateString()}`
+                                ? `Latest: ${formatDateKeyLabel(getISTDateKey(mStandups[0].created_at), { withYear: true })}`
                                 : "No check-ins"}
                             </span>
                           </div>
