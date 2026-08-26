@@ -21,6 +21,15 @@ import {
   TrendingUp,
   Tag,
   Filter,
+  Bold,
+  Italic,
+  Heading,
+  Quote,
+  List,
+  ListOrdered,
+  Link,
+  Eye,
+  Edit3,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
@@ -118,8 +127,31 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
   const [category, setCategory] = useState("general");
   const [imageUrl, setImageUrl] = useState("");
   const [mode, setMode] = useState("text"); // text | code | image
+  const [isPreview, setIsPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const insertMarkdown = (prefix, suffix = "") => {
+    const textarea = document.getElementById("create-post-body-textarea");
+    if (!textarea) {
+      setBody((prev) => prev + prefix + suffix);
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = body.substring(start, end);
+    const replacement = prefix + (selectedText || "text") + suffix;
+    const newBody = body.substring(0, start) + replacement + body.substring(end);
+    setBody(newBody);
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(
+        start + prefix.length,
+        start + prefix.length + (selectedText.length || 4)
+      );
+    }, 0);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -166,19 +198,19 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto py-8 sm:py-12"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-xl bg-[#0c0c14] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+        className="relative w-full max-w-xl bg-[#0c0c14] border border-white/10 rounded-3xl shadow-2xl my-auto max-h-[85vh] flex flex-col overflow-hidden"
       >
         {/* Top glow bar */}
-        <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
+        <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF] shrink-0" />
 
-        <div className="p-6 lg:p-8">
+        <div className="p-6 sm:p-8 overflow-y-auto flex-1">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-black text-white">Create a Post</h2>
@@ -254,6 +286,112 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
           />
 
           {/* Dynamic Content Input */}
+          {mode === "text" && (
+            <div className="mb-3 bg-white/[0.02] border border-white/8 rounded-2xl p-1.5 flex items-center justify-between gap-1 flex-wrap font-mono text-xs">
+              <div className="flex items-center gap-0.5 flex-wrap">
+                <button
+                  type="button"
+                  title="Bold (**text**)"
+                  onClick={() => insertMarkdown("**", "**")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Bold size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Italic (*text*)"
+                  onClick={() => insertMarkdown("*", "*")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Italic size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Heading (### Title)"
+                  onClick={() => insertMarkdown("### ")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Heading size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Code (`code`)"
+                  onClick={() => insertMarkdown("`", "`")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Code size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Link ([title](url))"
+                  onClick={() => insertMarkdown("[", "](https://)")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Link size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Quote (> quote)"
+                  onClick={() => insertMarkdown("> ")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Quote size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Bullet List (- item)"
+                  onClick={() => insertMarkdown("- ")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <List size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Numbered List (1. item)"
+                  onClick={() => insertMarkdown("1. ")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <ListOrdered size={14} />
+                </button>
+              </div>
+
+              {/* Write vs Preview Toggle */}
+              <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-xl border border-white/6">
+                <button
+                  type="button"
+                  onClick={() => isPreview && setIsPreview(false)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                    !isPreview
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Edit3 size={12} />
+                  <span>Write</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPreview(true)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                    isPreview
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Eye size={12} />
+                  <span>Preview</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {mode === "image" ? (
             <input
               type="url"
@@ -264,14 +402,26 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
             />
           ) : mode === "code" ? (
             <textarea
+              id="create-post-body-textarea"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="// Paste your code snippet here..."
               rows={6}
               className="w-full bg-black/50 border border-white/8 rounded-xl px-4 py-3 text-green-300 text-xs focus:outline-none focus:border-[#00F0FF]/40 transition mb-4 font-mono resize-none"
             />
+          ) : isPreview ? (
+            <div className="w-full bg-[#05050b] border border-white/10 rounded-xl p-4 min-h-[140px] max-h-[220px] overflow-y-auto mb-4 font-sans text-sm">
+              {body.trim() ? (
+                <MarkdownBody content={body} />
+              ) : (
+                <span className="text-gray-600 italic text-xs font-mono">
+                  Nothing to preview yet. Write some markdown above!
+                </span>
+              )}
+            </div>
           ) : (
             <textarea
+              id="create-post-body-textarea"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="Write your post content... (Markdown supported)"
