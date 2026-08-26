@@ -30,6 +30,8 @@ import {
   Link,
   Eye,
   Edit3,
+  MoreVertical,
+  Trash2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
@@ -460,8 +462,378 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
   );
 };
 
+
+// ── Delete Confirmation Modal ─────────────────────────────────────────────────
+const DeleteConfirmModal = ({ onClose, onConfirm, deleting }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+    onClick={(e) => e.target === e.currentTarget && onClose()}
+  >
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="bg-[#0c0c14] border border-white/10 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl overflow-hidden relative"
+    >
+      <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center mx-auto mb-4">
+        <Trash2 size={22} />
+      </div>
+      <h3 className="text-lg font-black text-white mb-2">Delete Post?</h3>
+      <p className="text-gray-400 text-xs mb-6 leading-relaxed">
+        Are you sure you want to permanently delete this post? This action cannot be undone.
+      </p>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={deleting}
+          className="flex-1 py-2.5 rounded-xl bg-white/5 text-gray-400 text-xs font-semibold hover:bg-white/10 transition cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={deleting}
+          className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs font-bold disabled:opacity-50 transition cursor-pointer shadow-lg shadow-red-500/20"
+        >
+          {deleting ? "Deleting..." : "Delete"}
+        </button>
+      </div>
+    </motion.div>
+  </motion.div>
+);
+
+// ── Edit Post Modal ───────────────────────────────────────────────────────────
+const EditPostModal = ({ post, onClose, onUpdated }) => {
+  const [title, setTitle] = useState(post.title || "");
+  const [body, setBody] = useState(post.body || post.code || "");
+  const [category, setCategory] = useState(post.category || "general");
+  const [imageUrl, setImageUrl] = useState(post.image_url || "");
+  const [mode, setMode] = useState(post.code ? "code" : post.image_url ? "image" : "text");
+  const [isPreview, setIsPreview] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const insertMarkdown = (prefix, suffix = "") => {
+    const textarea = document.getElementById("edit-post-body-textarea");
+    if (!textarea) {
+      setBody((prev) => prev + prefix + suffix);
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = body.substring(start, end);
+    const replacement = prefix + (selectedText || "text") + suffix;
+    const newBody = body.substring(0, start) + replacement + body.substring(end);
+    setBody(newBody);
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(
+        start + prefix.length,
+        start + prefix.length + (selectedText.length || 4)
+      );
+    }, 0);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      setError("Please add a title to your post.");
+      return;
+    }
+
+    if (containsProfanity(title) || containsProfanity(body)) {
+      setError(PROFANITY_ERROR_MSG);
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    const updateData = {
+      title: title.trim(),
+      category,
+      body: mode === "text" ? body.trim() : null,
+      code: mode === "code" ? body.trim() : null,
+      image_url: mode === "image" ? imageUrl.trim() : null,
+    };
+
+    const { error: err } = await supabase
+      .from("community_posts")
+      .update(updateData)
+      .eq("id", post.id);
+
+    setSubmitting(false);
+
+    if (err) {
+      setError("Failed to update post. Please try again.");
+      console.error(err);
+    } else {
+      onUpdated();
+      onClose();
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto py-8 sm:py-12"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative w-full max-w-xl bg-[#0c0c14] border border-white/10 rounded-3xl shadow-2xl my-auto max-h-[85vh] flex flex-col overflow-hidden"
+      >
+        <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF] shrink-0" />
+
+        <div className="p-6 sm:p-8 overflow-y-auto flex-1">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-black text-white">Edit Post</h2>
+              <p className="text-gray-400 text-xs mt-0.5">Update your post details</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white transition cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="flex gap-2 mb-5 p-1 bg-white/[0.03] border border-white/6 rounded-2xl">
+            {[
+              { id: "text", label: "Text Post", icon: MessageSquare },
+              { id: "code", label: "Code Snippet", icon: Code },
+              { id: "image", label: "Image URL", icon: Image },
+            ].map((m) => {
+              const Icon = m.icon;
+              const active = mode === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setMode(m.id)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                    active
+                      ? "bg-white/10 text-white shadow-sm"
+                      : "text-gray-500 hover:text-gray-300"
+                  }`}
+                >
+                  <Icon size={14} />
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mb-4">
+            <label className="text-gray-400 text-xs font-mono mb-1.5 block uppercase tracking-wider">
+              Category
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.filter((c) => c.id !== "all").map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setCategory(cat.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                    category === cat.id
+                      ? "border-purple-500/60 bg-purple-500/15 text-white"
+                      : "border-white/8 bg-white/[0.02] text-gray-400 hover:border-white/20"
+                  }`}
+                >
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Post Title..."
+            className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF00C8]/40 transition mb-4 font-semibold"
+          />
+
+          {mode === "text" && (
+            <div className="mb-3 bg-white/[0.02] border border-white/8 rounded-2xl p-1.5 flex items-center justify-between gap-1 flex-wrap font-mono text-xs">
+              <div className="flex items-center gap-0.5 flex-wrap">
+                <button
+                  type="button"
+                  title="Bold (**text**)"
+                  onClick={() => insertMarkdown("**", "**")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Bold size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Italic (*text*)"
+                  onClick={() => insertMarkdown("*", "*")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Italic size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Heading (### Title)"
+                  onClick={() => insertMarkdown("### ")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Heading size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Code (`code`)"
+                  onClick={() => insertMarkdown("`", "`")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Code size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Link ([title](url))"
+                  onClick={() => insertMarkdown("[", "](https://)")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Link size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Quote (> quote)"
+                  onClick={() => insertMarkdown("> ")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Quote size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Bullet List (- item)"
+                  onClick={() => insertMarkdown("- ")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <List size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Numbered List (1. item)"
+                  onClick={() => insertMarkdown("1. ")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <ListOrdered size={14} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-xl border border-white/6">
+                <button
+                  type="button"
+                  onClick={() => isPreview && setIsPreview(false)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                    !isPreview
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Edit3 size={12} />
+                  <span>Write</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPreview(true)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                    isPreview
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Eye size={12} />
+                  <span>Preview</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "image" ? (
+            <input
+              type="url"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://example.com/image.png"
+              className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#00F0FF]/40 transition mb-4 font-mono text-xs"
+            />
+          ) : mode === "code" ? (
+            <textarea
+              id="edit-post-body-textarea"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="// Paste your code snippet here..."
+              rows={6}
+              className="w-full bg-black/50 border border-white/8 rounded-xl px-4 py-3 text-green-300 text-xs focus:outline-none focus:border-[#00F0FF]/40 transition mb-4 font-mono resize-none"
+            />
+          ) : isPreview ? (
+            <div className="w-full bg-[#05050b] border border-white/10 rounded-xl p-4 min-h-[140px] max-h-[220px] overflow-y-auto mb-4 font-sans text-sm">
+              {body.trim() ? (
+                <MarkdownBody content={body} />
+              ) : (
+                <span className="text-gray-600 italic text-xs font-mono">
+                  Nothing to preview yet.
+                </span>
+              )}
+            </div>
+          ) : (
+            <textarea
+              id="edit-post-body-textarea"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your post content..."
+              rows={5}
+              className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF00C8]/40 transition mb-4 resize-none"
+            />
+          )}
+
+          {error && (
+            <p className="text-red-400 text-xs font-mono mb-4 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-xl">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl bg-white/5 text-gray-400 text-xs font-semibold hover:bg-white/10 transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-sm font-bold disabled:opacity-50 cursor-pointer"
+            >
+              {submitting ? "Saving..." : "Save Changes ✦"}
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 // ── Post Card ─────────────────────────────────────────────────────────────────
-const PostCard = ({ post, onLike, onClick, likedIds }) => {
+const PostCard = ({ post, onLike, onClick, likedIds, user, onEdit, onDelete }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
   const cat = CATEGORIES.find((c) => c.id === post.category) || CATEGORIES[1];
   const liked = likedIds.has(post.id);
   const timeAgo = (iso) => {
@@ -515,17 +887,67 @@ const PostCard = ({ post, onLike, onClick, likedIds }) => {
             </div>
           </div>
 
-          <span
-            className="flex items-center gap-1 text-[10px] font-mono font-semibold px-2.5 py-1 rounded-full border shrink-0"
-            style={{
-              color: cat.color,
-              borderColor: `${cat.color}30`,
-              background: `${cat.color}0c`,
-            }}
-          >
-            <span>{cat.emoji}</span>
-            <span>{cat.label}</span>
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className="flex items-center gap-1 text-[10px] font-mono font-semibold px-2.5 py-1 rounded-full border"
+              style={{
+                color: cat.color,
+                borderColor: `${cat.color}30`,
+                background: `${cat.color}0c`,
+              }}
+            >
+              <span>{cat.emoji}</span>
+              <span>{cat.label}</span>
+            </span>
+
+            {user?.id === post.user_id && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen((prev) => !prev);
+                  }}
+                  className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <MoreVertical size={15} />
+                </button>
+
+                <AnimatePresence>
+                  {menuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                      className="absolute right-0 top-full mt-1 w-32 bg-[#0c0c14] border border-white/10 rounded-xl shadow-2xl py-1 z-30 overflow-hidden font-sans text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onEdit(post);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/10 transition text-left cursor-pointer"
+                      >
+                        <Edit3 size={13} className="text-purple-400" />
+                        <span>Edit Post</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onDelete(post);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition text-left cursor-pointer"
+                      >
+                        <Trash2 size={13} />
+                        <span>Delete</span>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
         </div>
 
         <h3 className="text-white font-bold text-base leading-snug mb-2 group-hover:text-[#00F0FF] transition-colors">
@@ -606,7 +1028,27 @@ const Community = () => {
   const [sort, setSort] = useState("new");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [deletingPost, setDeletingPost] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [likedIds, setLikedIds] = useState(new Set());
+
+  const handleConfirmDelete = async () => {
+    if (!deletingPost) return;
+    setDeleting(true);
+    const { error: err } = await supabase
+      .from("community_posts")
+      .delete()
+      .eq("id", deletingPost.id);
+
+    setDeleting(false);
+    if (err) {
+      console.error("Error deleting post:", err);
+    } else {
+      setDeletingPost(null);
+      fetchPosts();
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data?.user || null));
@@ -672,8 +1114,8 @@ const Community = () => {
         .in("id", userIds);
 
       (profs || []).forEach((p) => {
-        const uId = p.id || p.user_id;
-        if (uId) profilesMap[uId] = p;
+        if (p.id) profilesMap[p.id] = p;
+        if (p.user_id) profilesMap[p.user_id] = p;
       });
     }
 
