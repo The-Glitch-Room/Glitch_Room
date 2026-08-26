@@ -1051,7 +1051,12 @@ const Community = () => {
   };
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data?.user || null));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setUser(session.user);
+    });
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) setUser(data.user);
+    });
   }, []);
 
   const fetchPosts = async () => {
