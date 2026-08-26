@@ -257,6 +257,71 @@ const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
   );
 };
 
+
+// ── Helper to cleanly parse and extract standup content sections ─────────────
+const parseStandupContent = (standup) => {
+  let text = (standup?.accomplishment || "").trim();
+
+  // Strip raw markdown headers like '### ' or '# '
+  text = text.replace(/^#+s*/g, "");
+
+  let accomplishment = text;
+  let proofFromText = "";
+  let blockersFromText = "";
+
+  // Extract embedded "Blockers:" or "Blocker:"
+  const blockerIdx = text.search(/Blockers?:/i);
+  if (blockerIdx !== -1) {
+    blockersFromText = text.substring(blockerIdx).replace(/^Blockers?:s*/i, "").trim();
+    text = text.substring(0, blockerIdx).trim();
+  }
+
+  // Extract embedded "Proof of Work:"
+  const proofIdx = text.search(/Proof of Work:/i);
+  if (proofIdx !== -1) {
+    proofFromText = text.substring(proofIdx).replace(/^Proof of Work:s*/i, "").trim();
+    text = text.substring(0, proofIdx).trim();
+  }
+
+  // Clean accomplishment text
+  accomplishment = text
+    .replace(/^#+s*/g, "")
+    .replace(/^Accomplished Today:s*/i, "")
+    .replace(/^\*\*Accomplished Today:\*\*\s*/i, "")
+    .trim();
+
+  // Determine final proof URL
+  let rawProof = (standup?.proof_url || "").trim();
+  let finalProofUrl = rawProof;
+  if (!finalProofUrl && proofFromText) {
+    finalProofUrl = proofFromText;
+  }
+
+  const isValidProofLink =
+    finalProofUrl &&
+    finalProofUrl.length > 0 &&
+    finalProofUrl.toLowerCase() !== "n/a" &&
+    finalProofUrl.toLowerCase() !== "none";
+
+  // Determine final blockers
+  let rawBlockers = (standup?.blockers || "").trim();
+  let finalBlockers = rawBlockers;
+  if (!finalBlockers || finalBlockers.toLowerCase() === "none" || finalBlockers.toLowerCase() === "n/a") {
+    if (blockersFromText) {
+      finalBlockers = blockersFromText;
+    }
+  }
+  if (!finalBlockers || finalBlockers.toLowerCase() === "n/a") {
+    finalBlockers = "None";
+  }
+
+  return {
+    accomplishment: accomplishment || "Completed daily tasks",
+    proofUrl: isValidProofLink ? finalProofUrl : null,
+    blockers: finalBlockers
+  };
+};
+
 const CreatorRoomDetail = ({ roomId }) => {
   const navigate = useNavigate();
   const id = roomId;
@@ -1566,69 +1631,85 @@ const CreatorRoomDetail = ({ roomId }) => {
                         </div>
 
                         {/* Main Content & Side Widget Grid */}
-                        <div className="flex items-start justify-between gap-3">
-                          {/* Left Side: Accomplishment, Proof, Blockers */}
-                          <div className="flex-1 space-y-1.5 min-w-0">
-                            <p className="text-xs text-gray-200 font-sans leading-snug line-clamp-2">
-                              {standup.accomplishment}
-                            </p>
+                        {(() => {
+                          const parsed = parseStandupContent(standup);
+                          const proofHref = parsed.proofUrl
+                            ? parsed.proofUrl.startsWith("http")
+                              ? parsed.proofUrl
+                              : `https://${parsed.proofUrl}`
+                            : null;
 
-                            {hasLinkProof ? (
-                              <a
-                                href={proofHref}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-full"
-                              >
-                                <Share2
-                                  size={10}
-                                  className="text-purple-400 shrink-0"
-                                />
-                                {standup.proof_type && (
-                                  <span className="text-purple-300/80">
-                                    {standup.proof_type}:
+                          return (
+                            <div className="flex items-start justify-between gap-3">
+                              {/* Left Side: 3 Separate Sections (Accomplishment, Proof, Blockers) */}
+                              <div className="flex-1 space-y-2.5 min-w-0 font-sans text-xs">
+                                {/* Section 1: Accomplishment */}
+                                <div>
+                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
+                                    WHAT I ACCOMPLISHED TODAY
                                   </span>
-                                )}
-                                <span className="underline group-hover:text-white truncate max-w-[160px]">
-                                  {standup.proof_url}
-                                </span>
-                                <ExternalLink
-                                  size={9}
-                                  className="text-gray-400 shrink-0"
+                                  <p className="text-xs text-gray-200 font-sans leading-snug">
+                                    {parsed.accomplishment}
+                                  </p>
+                                </div>
+
+                                {/* Section 2: Proof of Work */}
+                                <div>
+                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-1">
+                                    PROOF OF WORK
+                                  </span>
+                                  {proofHref ? (
+                                    <a
+                                      href={proofHref}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-full"
+                                    >
+                                      <Share2 size={10} className="text-purple-400 shrink-0" />
+                                      {standup.proof_type && (
+                                        <span className="text-purple-300/80">
+                                          {standup.proof_type}:
+                                        </span>
+                                      )}
+                                      <span className="underline group-hover:text-white truncate max-w-[220px]">
+                                        {parsed.proofUrl}
+                                      </span>
+                                      <ExternalLink size={9} className="text-gray-400 shrink-0" />
+                                    </a>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.02] border border-dashed border-white/10 text-gray-500 text-[10px] font-mono">
+                                      No proof submitted
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Section 3: Blockers */}
+                                <div>
+                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
+                                    BLOCKERS
+                                  </span>
+                                  <p className="text-xs text-gray-300 font-mono">
+                                    {parsed.blockers}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Right Side: Compact Streak Count */}
+                              <div className="bg-[#07070d] border border-white/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 shrink-0 self-start">
+                                <Flame
+                                  size={13}
+                                  className="text-amber-400 fill-amber-400/20"
                                 />
-                              </a>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/[0.02] border border-dashed border-white/10 text-gray-500 text-[10px] font-mono">
-                                {standup.proof_type
-                                  ? `${standup.proof_type}: not provided`
-                                  : "No proof submitted"}
-                              </span>
-                            )}
-
-                            {standup.blockers && (
-                              <p className="text-[10px] text-red-300/80 font-sans">
-                                <span className="text-gray-500 uppercase font-mono text-[9px] font-bold mr-1">
-                                  Blocker:
+                                <span className="text-sm font-black text-cyan-400 font-mono leading-none">
+                                  {standupStreak}
                                 </span>
-                                {standup.blockers}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Right Side: Compact Streak Count */}
-                          <div className="bg-[#07070d] border border-white/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 shrink-0">
-                            <Flame
-                              size={13}
-                              className="text-amber-400 fill-amber-400/20"
-                            />
-                            <span className="text-sm font-black text-cyan-400 font-mono leading-none">
-                              {standupStreak}
-                            </span>
-                            <span className="text-[8px] font-mono text-cyan-300/70 uppercase leading-none">
-                              day
-                            </span>
-                          </div>
-                        </div>
+                                <span className="text-[8px] font-mono text-cyan-300/70 uppercase leading-none">
+                                  day
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </motion.div>
                     );
                   })}
