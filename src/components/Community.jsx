@@ -480,7 +480,15 @@ const Community = () => {
       return;
     }
 
-    let results = rawPosts || [];
+    // Filter out Daily Standup check-in logs so Community ONLY displays discussions created via Create Post
+    const validCategories = ["general", "glitch", "ai", "webdev", "creative", "offtopic"];
+    let results = (rawPosts || []).filter((p) => {
+      const cat = (p.category || "").toLowerCase();
+      const title = (p.title || "").toLowerCase();
+      const isRoomCategory = cat.startsWith("room_") || !validCategories.includes(cat);
+      const isStandupTitle = title.includes("daily standup");
+      return !isRoomCategory && !isStandupTitle;
+    });
 
     // 2. Client-side search filter
     if (search.trim()) {

@@ -754,19 +754,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         }
       }
 
-      // 2. Also insert into community_posts for feed visibility
-      try {
-        await supabase.from("community_posts").insert([
-          {
-            user_id: activeUid || userId,
-            category: `room_${id}`,
-            title: `Daily Standup: ${room?.name || "Accountability Room"}`,
-            body: `### Accomplished Today:\n${accomplishment.trim()}\n\nProof of Work:\n${proofUrl.trim() || "N/A"}\n\nBlockers:\n${blockers.trim() || "None"}`,
-          },
-        ]);
-      } catch (e) {
-        console.warn("community_posts insert notice:", e);
-      }
+      // Daily standups belong exclusively in room_checkins (not cross-posted to Community)
 
       // 3. Award +35 gBits
       if (userId) {
