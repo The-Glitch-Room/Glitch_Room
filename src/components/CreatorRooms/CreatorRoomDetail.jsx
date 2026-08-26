@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef } from "react";
-import {
-  useNavigate } from "react-router-dom";
-import { motion,
-  AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
-import { sendTestConfirmationEmail,
-  sendStandupDigestEmail } from "../../services/emailService";
+import {
+  sendTestConfirmationEmail,
+  sendStandupDigestEmail,
+} from "../../services/emailService";
 import Navbar from "../Navbar";
 import GlitchBackground from "../GlitchBackground";
 import { updatePoints } from "../../utils/pointsHelper";
@@ -48,9 +48,90 @@ import {
   UserX,
   UserCheck,
   Mail,
-  AlertTriangle
+  AlertTriangle,
 } from "lucide-react";
 
+// Shared fallback avatar — was previously declared inside fetchAllRoomData(),
+// which made it undefined (ReferenceError) anywhere else it was used in the JSX.
+const DEFAULT_AVATAR =
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
+
+// Fallback proof-of-work types for rooms created before the multi-select
+// "Accepted Proof of Work Types" field existed on CreateRoomModal (so
+// room.proof_types is empty/undefined) — mirrors CreateRoomModal's list
+// exactly so the check-in form always has something sensible to offer.
+const PROOF_TYPE_OPTIONS = [
+  "GitHub Commit",
+  "GitHub PR",
+  "Project/Demo Link",
+  "Screenshot",
+  "Code Snippet",
+  "Progress Log",
+  "File Upload",
+  "Custom Proof",
+];
+
+// A proof type is "link-shaped" when it's realistically a URL — used to
+// decide whether the proof input renders as a URL field or a free-text field.
+const LINK_PROOF_TYPES = new Set([
+  "GitHub Commit",
+  "GitHub PR",
+  "Project/Demo Link",
+]);
+
+// Shows the actual submission date AND time (not just "Today, HH:MM"),
+// always rendered in the viewer's local timezone via toLocaleString.
+const formatStandupTimestamp = (isoString) => {
+  if (!isoString) return "—";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+// On Time / Late status computed from raw timestamps using a rolling
+// 24-hour window per user, NOT a fixed clock cutoff (e.g. 11:59 PM):
+//   - A user's first check-in is On Time if it lands within 24 hours of
+//     the room's start date (their standup window "opens" when the room/
+//     their membership starts).
+//   - Every check-in after that is On Time if it lands within 24 hours of
+//     that same user's previous check-in — i.e. they kept their daily
+//     window alive. More than 24 hours since the last check-in = Late.
+// Because this is a raw epoch-millisecond difference (not a calendar-day
+// or clock-time comparison), it is inherently timezone-safe — it gives the
+// same On Time / Late result no matter what timezone the viewer or the
+// server is in, and no matter DST changes. It's also recomputed on every
+// render from `standups`, so it's always correct for existing/legacy
+// records even though older rows may have a stale `is_on_time: true` sitting
+// in the database from before this logic existed.
+const getOnTimeStatus = (standup, allStandups, room) => {
+  if (!standup?.created_at) return true;
+  const submittedAtMs = new Date(standup.created_at).getTime();
+  if (Number.isNaN(submittedAtMs)) return true;
+
+  const priorForUser = (allStandups || [])
+    .filter(
+      (s) =>
+        s.user_id &&
+        s.user_id === standup.user_id &&
+        s.id !== standup.id &&
+        new Date(s.created_at).getTime() < submittedAtMs,
+    )
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+  const windowStartMs = priorForUser
+    ? new Date(priorForUser.created_at).getTime()
+    : new Date(room?.start_date || room?.created_at || submittedAtMs).getTime();
+
+  const hoursSinceWindowStart =
+    (submittedAtMs - windowStartMs) / (1000 * 60 * 60);
+  return hoursSinceWindowStart <= 24;
+};
 
 // ── Auto-Scrolling Ticker Wrapper for Today's Standup Logs ───────────────────
 const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
@@ -58,7 +139,7 @@ const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
 
   // Auto-scroll animation is ONLY applied when "Today" tab is active and there are multiple cards
   if (activeTab !== "today" || itemCount <= 1) {
-    return <div className="space-y-4">{children}</div>;
+    return <div className="space-y-3">{children}</div>;
   }
 
   // Calculate smooth scroll duration based on item count (slow, natural scrolling speed)
@@ -70,14 +151,14 @@ const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={() => setIsPaused(true)}
       onTouchEnd={() => setIsPaused(false)}
-      className="relative overflow-hidden rounded-2xl max-h-[620px] group/ticker"
+      className="relative overflow-hidden rounded-2xl max-h-[480px] group/ticker"
     >
       {/* Top and Bottom subtle mask gradients for smooth card entry/exit */}
       <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#070709] to-transparent z-10 pointer-events-none" />
       <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[#070709] to-transparent z-10 pointer-events-none" />
 
       <div
-        className="space-y-4 standup-ticker-track"
+        className="space-y-3 standup-ticker-track"
         style={{
           animation: `standupAutoScroll ${duration}s linear infinite`,
           animationPlayState: isPaused ? "paused" : "running",
@@ -119,6 +200,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [copied, setCopied] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [activeTab, setActiveTab] = useState("today");
+  const [standupVisibleCount, setStandupVisibleCount] = useState(4);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
   const [isMember, setIsMember] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -147,6 +229,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   // Check-in Form States
   const [accomplishment, setAccomplishment] = useState("");
+  const [proofType, setProofType] = useState("");
   const [proofUrl, setProofUrl] = useState("");
   const [blockers, setBlockers] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -165,17 +248,15 @@ const CreatorRoomDetail = ({ roomId }) => {
     };
     document.addEventListener("mousedown", handleClickOutside);
     const uid = userId;
-  return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  //  Database Fetching 
+  //  Database Fetching
   const fetchAllRoomData = async () => {
     setLoading(true);
     const { data: au } = await supabase.auth.getUser();
     const uid = au?.user?.id;
     setUserId(uid);
-
-    const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
 
     if (uid) {
       const { data: uProf } = await supabase
@@ -185,11 +266,20 @@ const CreatorRoomDetail = ({ roomId }) => {
         .maybeSingle();
 
       const userMeta = au?.user?.user_metadata;
-      const avatarUrl = uProf?.avatar_url || userMeta?.avatar_url || userMeta?.picture || localStorage.getItem("user_avatar") || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
+      const avatarUrl =
+        uProf?.avatar_url ||
+        userMeta?.avatar_url ||
+        userMeta?.picture ||
+        localStorage.getItem("user_avatar") ||
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
 
       setUserProfile({
         ...uProf,
-        username: uProf?.username || uProf?.full_name || userMeta?.full_name || "Builder",
+        username:
+          uProf?.username ||
+          uProf?.full_name ||
+          userMeta?.full_name ||
+          "Builder",
         avatar_url: avatarUrl,
       });
     }
@@ -244,8 +334,12 @@ const CreatorRoomDetail = ({ roomId }) => {
       return {
         user_id: uId,
         role: mRecord?.role || (isHostUser ? "host" : "member"),
-        joined_at: mRecord?.joined_at || mRecord?.created_at || roomData?.created_at,
-        username: p?.username || p?.full_name || (isHostUser ? (roomData?.host || "Host") : "Squad Member"),
+        joined_at:
+          mRecord?.joined_at || mRecord?.created_at || roomData?.created_at,
+        username:
+          p?.username ||
+          p?.full_name ||
+          (isHostUser ? roomData?.host || "Host" : "Squad Member"),
         avatar_url: p?.avatar_url || DEFAULT_AVATAR,
         streak: 0,
       };
@@ -283,7 +377,9 @@ const CreatorRoomDetail = ({ roomId }) => {
     const seenStandupKeys = new Set();
 
     if (checkinData && checkinData.length > 0) {
-      const checkinUids = Array.from(new Set(checkinData.map((c) => c.user_id).filter(Boolean)));
+      const checkinUids = Array.from(
+        new Set(checkinData.map((c) => c.user_id).filter(Boolean)),
+      );
       let cProfs = [];
       if (checkinUids.length > 0) {
         const { data: pData } = await supabase
@@ -294,16 +390,24 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
 
       checkinData.forEach((c) => {
-        const p = cProfs.find((pr) => pr.id === c.user_id || pr.user_id === c.user_id);
+        const p = cProfs.find(
+          (pr) => pr.id === c.user_id || pr.user_id === c.user_id,
+        );
         const key = `${c.user_id}_${c.accomplishment}`;
         seenStandupKeys.add(key);
 
         fetchedStandups.push({
           id: c.id,
           user_id: c.user_id,
-          username: p?.username || p?.full_name || (c.user_id === uid ? userProfile?.username : "Builder"),
-          avatar: p?.avatar_url || (c.user_id === uid ? userProfile?.avatar_url : DEFAULT_AVATAR),
+          username:
+            p?.username ||
+            p?.full_name ||
+            (c.user_id === uid ? userProfile?.username : "Builder"),
+          avatar:
+            p?.avatar_url ||
+            (c.user_id === uid ? userProfile?.avatar_url : DEFAULT_AVATAR),
           accomplishment: c.accomplishment,
+          proof_type: c.proof_type || null,
           proof_url: c.proof_url,
           blockers: c.blockers,
           streak_count: c.streak_count || 1,
@@ -322,10 +426,16 @@ const CreatorRoomDetail = ({ roomId }) => {
           fetchedStandups.push({
             id: p.id,
             user_id: p.user_id,
-            username: p.author_username || (p.user_id === uid ? userProfile?.username : "Builder"),
-            avatar: p.author_avatar || (p.user_id === uid ? userProfile?.avatar_url : DEFAULT_AVATAR),
+            username:
+              p.author_username ||
+              (p.user_id === uid ? userProfile?.username : "Builder"),
+            avatar:
+              p.author_avatar ||
+              (p.user_id === uid ? userProfile?.avatar_url : DEFAULT_AVATAR),
             accomplishment: p.body || p.title,
-            proof_url: p.body?.includes("http") ? p.body.match(/https?:\/\/[^\s\)]+/)?.[0] : null,
+            proof_url: p.body?.includes("http")
+              ? p.body.match(/https?:\/\/[^\s\)]+/)?.[0]
+              : null,
             blockers: "None",
             streak_count: 1,
             is_on_time: true,
@@ -336,34 +446,9 @@ const CreatorRoomDetail = ({ roomId }) => {
       });
     }
 
-    if (notifList && notifList.length > 0) {
-      const standupNotifs = notifList.filter(
-        (n) => n.title?.includes("Daily Standup") || n.message?.includes("submitted today's standup")
-      );
-
-      standupNotifs.forEach((n, idx) => {
-        const uName = n.message?.split(" ")[0] || userProfile?.username || "glitch_wizard";
-        const key = `${uName}_${n.created_at || idx}`;
-        if (!seenStandupKeys.has(key)) {
-          seenStandupKeys.add(key);
-          fetchedStandups.push({
-            id: n.id || `notif_${idx}`,
-            user_id: uid || roomData?.created_by,
-            username: uName,
-            avatar: userProfile?.avatar_url || DEFAULT_AVATAR,
-            accomplishment: "Worked on my website and submitted daily progress proof of work.",
-            proof_url: "https://github.com/the-glitch-room/glitch-room",
-            blockers: "None",
-            streak_count: idx + 1,
-            is_on_time: true,
-            created_at: n.created_at || new Date().toISOString(),
-            isUser: true,
-          });
-        }
-      });
-    }
-
-    fetchedStandups.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    fetchedStandups.sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at),
+    );
     setStandups(fetchedStandups);
 
     // Update user streaks in members array based on real check-in counts
@@ -376,7 +461,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         prev.map((m) => ({
           ...m,
           streak: userStreakMap[m.user_id] || 0,
-        }))
+        })),
       );
     }
 
@@ -394,8 +479,59 @@ const CreatorRoomDetail = ({ roomId }) => {
     fetchAllRoomData();
   }, [id]);
 
-  //  Dispatch Notification Architecture 
-  const sendRoomNotification = async ({ type, title, message, targetUserId }) => {
+  // Real-time sync: live-refresh whenever anyone in the squad submits a
+  // check-in, joins/leaves, or the room's notifications change — so the
+  // feed, leaderboard, and stats update for every viewer immediately
+  // instead of only after their own next action.
+  useEffect(() => {
+    if (!id) return undefined;
+
+    const channel = supabase
+      .channel(`room-detail-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "room_checkins",
+          filter: `room_id=eq.${id}`,
+        },
+        () => fetchAllRoomData(),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "room_members",
+          filter: `room_id=eq.${id}`,
+        },
+        () => fetchAllRoomData(),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "room_notifications",
+          filter: `room_id=eq.${id}`,
+        },
+        () => fetchAllRoomData(),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+
+  //  Dispatch Notification Architecture
+  const sendRoomNotification = async ({
+    type,
+    title,
+    message,
+    targetUserId,
+  }) => {
     try {
       // 1. Insert In-App Notification
       await supabase.from("room_notifications").insert([
@@ -412,7 +548,9 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       // 2. Email Integration Architecture Hook
       if (emailNotifsEnabled) {
-        console.log(`[Email Notification Dispatch] Target: ${targetUserId || 'All Members'} | Subject: ${title} | ${message}`);
+        console.log(
+          `[Email Notification Dispatch] Target: ${targetUserId || "All Members"} | Subject: ${title} | ${message}`,
+        );
         // Note: Production ready for Resend / SendGrid API integration via Supabase Edge Functions.
       }
     } catch (e) {
@@ -420,7 +558,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
   };
 
-  //  Handlers 
+  //  Handlers
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
@@ -499,20 +637,64 @@ const CreatorRoomDetail = ({ roomId }) => {
         return;
       }
 
+      // Real-time On Time / Late status — computed from this user's actual
+      // check-in history (rolling 24-hour window), never hardcoded to true.
+      const priorForUser = standups
+        .filter((s) => s.user_id === activeUid)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      const windowStartMs = priorForUser
+        ? new Date(priorForUser.created_at).getTime()
+        : new Date(
+            room?.start_date || room?.created_at || Date.now(),
+          ).getTime();
+      const computedIsOnTime =
+        (Date.now() - windowStartMs) / (1000 * 60 * 60) <= 24;
+
       // 1. Insert into room_checkins
-      try {
-        await supabase.from("room_checkins").insert([
+      let checkinInsertError = null;
+      {
+        const { error } = await supabase.from("room_checkins").insert([
           {
             room_id: id,
             user_id: activeUid,
             accomplishment: accomplishment.trim(),
+            proof_type: proofType || null,
+            // Never fabricate/insert a default proof link — an empty field
+            // stays null, both in the DB and everywhere it's displayed.
             proof_url: proofUrl.trim() || null,
             blockers: blockers.trim() || null,
-            is_on_time: true,
+            is_on_time: computedIsOnTime,
           },
         ]);
-      } catch (e) {
-        console.warn("room_checkins insert notice:", e);
+        checkinInsertError = error;
+      }
+
+      if (checkinInsertError) {
+        console.warn("room_checkins insert notice:", checkinInsertError);
+        // If the failure is specifically because a `proof_type` column
+        // doesn't exist yet on room_checkins, retry once without it so the
+        // rest of the standup (accomplishment/proof/blockers/on-time status)
+        // still saves correctly instead of silently losing the whole row.
+        if (
+          String(checkinInsertError.message || "")
+            .toLowerCase()
+            .includes("proof_type")
+        ) {
+          const { error: retryError } = await supabase
+            .from("room_checkins")
+            .insert([
+              {
+                room_id: id,
+                user_id: activeUid,
+                accomplishment: accomplishment.trim(),
+                proof_url: proofUrl.trim() || null,
+                blockers: blockers.trim() || null,
+                is_on_time: computedIsOnTime,
+              },
+            ]);
+          if (retryError)
+            console.warn("room_checkins retry insert notice:", retryError);
+        }
       }
 
       // 2. Also insert into community_posts for feed visibility
@@ -531,7 +713,13 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       // 3. Award +35 gBits
       if (userId) {
-        await updatePoints(35, "Daily Room Standup Check-in", "bonus", id, activeUid);
+        await updatePoints(
+          35,
+          "Daily Room Standup Check-in",
+          "bonus",
+          id,
+          activeUid,
+        );
       }
 
       // 4. Send Notification
@@ -555,6 +743,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       showToast(" Daily Standup logged! +35 gBits awarded!");
       setAccomplishment("");
+      setProofType("");
       setProofUrl("");
       setBlockers("");
       setShowCheckinModal(false);
@@ -593,7 +782,10 @@ const CreatorRoomDetail = ({ roomId }) => {
   };
 
   const handleDeleteRoom = async () => {
-    if (deleteConfirmText.trim().toLowerCase() !== (room?.name || room?.title || "").toLowerCase()) {
+    if (
+      deleteConfirmText.trim().toLowerCase() !==
+      (room?.name || room?.title || "").toLowerCase()
+    ) {
       showToast(" Room title does not match. Deletion cancelled.");
       return;
     }
@@ -607,7 +799,6 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
   };
 
-  
   const handleRemoveMember = async (targetUserId) => {
     try {
       await supabase
@@ -632,7 +823,9 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const handlePairBuddies = async () => {
     if (members.length < 2) {
-      showToast(" Need at least 2 squad members to pair accountability buddies.");
+      showToast(
+        " Need at least 2 squad members to pair accountability buddies.",
+      );
       return;
     }
 
@@ -666,7 +859,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
   };
 
-  //  Calculated Real Statistics 
+  //  Calculated Real Statistics
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#070709]">
@@ -685,15 +878,18 @@ const CreatorRoomDetail = ({ roomId }) => {
         <Navbar />
         <div className="flex flex-col items-center justify-center flex-1 py-36 text-center px-6">
           <div className="text-6xl mb-4"></div>
-          <h2 className="text-2xl font-bold text-white mb-2">Creator Room Not Found</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            Creator Room Not Found
+          </h2>
           <p className="text-gray-400 text-xs max-w-md mb-6">
-            This room record does not exist or has been removed from the database.
+            This room record does not exist or has been removed from the
+            database.
           </p>
           <button
             onClick={() => navigate("/creator-rooms")}
             className="px-6 py-2.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold hover:bg-purple-500/30 transition cursor-pointer"
           >
-             Back to Creator Rooms
+            Back to Creator Rooms
           </button>
         </div>
       </div>
@@ -704,36 +900,63 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   // Real Progress calculation
   const totalSprintDays =
-    room.duration_type === "7_day" ? 7 : room.duration_type === "14_day" ? 14 : room.duration_type === "60_day" ? 60 : 30;
+    room.duration_type === "7_day"
+      ? 7
+      : room.duration_type === "14_day"
+        ? 14
+        : room.duration_type === "60_day"
+          ? 60
+          : 30;
   const startDate = room.start_date || room.created_at;
-  const daysElapsed = Math.max(1, Math.floor((new Date() - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1);
+  const daysElapsed = Math.max(
+    1,
+    Math.floor((new Date() - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1,
+  );
   const completedDays = Math.min(daysElapsed, totalSprintDays);
-  const progressPct = Math.min(100, Math.round((completedDays / totalSprintDays) * 100));
+  const progressPct = Math.min(
+    100,
+    Math.round((completedDays / totalSprintDays) * 100),
+  );
 
   // User standup stats
   const userStandups = standups.filter((s) => s.user_id === userId);
+  const userOnTimeCount = userStandups.filter((s) =>
+    getOnTimeStatus(s, standups, room),
+  ).length;
   const userStreak = userStandups.length > 0 ? userStandups.length : 0;
-  const roomPoolGBits = (room.entry_stake || 0) * (room.member_count || members.length || 1);
+  const roomPoolGBits =
+    (room.entry_stake || 0) * (room.member_count || members.length || 1);
   const unreadNotifsCount = notifications.filter((n) => !n.is_read).length;
 
   // Real Leaderboard sorted by check-in streak
-  const sortedLeaderboard = [...members].sort((a, b) => (b.streak || 0) - (a.streak || 0));
+  const sortedLeaderboard = [...members].sort(
+    (a, b) => (b.streak || 0) - (a.streak || 0),
+  );
 
   // Buddy profile
-  const myBuddy = buddies.find((b) => b.user1_id === userId || b.user2_id === userId);
-  const buddyUserId = myBuddy ? (myBuddy.user1_id === userId ? myBuddy.user2_id : myBuddy.user1_id) : null;
+  const myBuddy = buddies.find(
+    (b) => b.user1_id === userId || b.user2_id === userId,
+  );
+  const buddyUserId = myBuddy
+    ? myBuddy.user1_id === userId
+      ? myBuddy.user2_id
+      : myBuddy.user1_id
+    : null;
   const buddyMember = members.find((m) => m.user_id === buddyUserId);
 
-  const displayStandups = activeTab === "today"
-    ? standups.filter((s) => {
-        if (!s.created_at) return true;
-        const d = new Date(s.created_at);
-        const today = new Date();
-        return d.getDate() === today.getDate() &&
-               d.getMonth() === today.getMonth() &&
-               d.getFullYear() === today.getFullYear();
-      })
-    : standups;
+  const displayStandups =
+    activeTab === "today"
+      ? standups.filter((s) => {
+          if (!s.created_at) return true;
+          const d = new Date(s.created_at);
+          const today = new Date();
+          return (
+            d.getDate() === today.getDate() &&
+            d.getMonth() === today.getMonth() &&
+            d.getFullYear() === today.getFullYear()
+          );
+        })
+      : standups;
 
   return (
     <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans">
@@ -798,32 +1021,51 @@ const CreatorRoomDetail = ({ roomId }) => {
                   {isHost ? (
                     <>
                       <button
-                        onClick={() => { setShowMenu(false); setShowEditModal(true); }}
+                        onClick={() => {
+                          setShowMenu(false);
+                          setShowEditModal(true);
+                        }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
-                        <Edit3 size={14} className="text-purple-400" /> Edit Room Details
+                        <Edit3 size={14} className="text-purple-400" /> Edit
+                        Room Details
                       </button>
                       <button
-                        onClick={() => { setShowMenu(false); setShowMembersModal(true); }}
+                        onClick={() => {
+                          setShowMenu(false);
+                          setShowMembersModal(true);
+                        }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
-                        <Users size={14} className="text-cyan-400" /> Manage Squad Members ({members.length})
+                        <Users size={14} className="text-cyan-400" /> Manage
+                        Squad Members ({members.length})
                       </button>
                       <button
-                        onClick={() => { setShowMenu(false); handlePairBuddies(); }}
+                        onClick={() => {
+                          setShowMenu(false);
+                          handlePairBuddies();
+                        }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
-                        <Handshake size={14} className="text-amber-400" /> Pair Accountability Buddies
+                        <Handshake size={14} className="text-amber-400" /> Pair
+                        Accountability Buddies
                       </button>
                       <button
-                        onClick={() => { setShowMenu(false); setShowEmailPrefsModal(true); }}
+                        onClick={() => {
+                          setShowMenu(false);
+                          setShowEmailPrefsModal(true);
+                        }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
-                        <Mail size={14} className="text-pink-400" /> Email Notifications Setup
+                        <Mail size={14} className="text-pink-400" /> Email
+                        Notifications Setup
                       </button>
                       <div className="border-t border-white/10 my-1" />
                       <button
-                        onClick={() => { setShowMenu(false); setShowDeleteModal(true); }}
+                        onClick={() => {
+                          setShowMenu(false);
+                          setShowDeleteModal(true);
+                        }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-red-500/20 flex items-center gap-2.5 text-red-400 hover:text-red-300 font-semibold cursor-pointer"
                       >
                         <Trash2 size={14} /> Delete Room Permanently
@@ -832,20 +1074,31 @@ const CreatorRoomDetail = ({ roomId }) => {
                   ) : (
                     <>
                       <button
-                        onClick={() => { setShowMenu(false); setShowRulesModal(true); }}
+                        onClick={() => {
+                          setShowMenu(false);
+                          setShowRulesModal(true);
+                        }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
-                        <Target size={14} className="text-amber-400" /> Room Rules & Pledge
+                        <Target size={14} className="text-amber-400" /> Room
+                        Rules & Pledge
                       </button>
                       <button
-                        onClick={() => { setShowMenu(false); setShowEmailPrefsModal(true); }}
+                        onClick={() => {
+                          setShowMenu(false);
+                          setShowEmailPrefsModal(true);
+                        }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
-                        <Mail size={14} className="text-purple-400" /> Email Preferences
+                        <Mail size={14} className="text-purple-400" /> Email
+                        Preferences
                       </button>
                       {isMember && (
                         <button
-                          onClick={() => { setShowMenu(false); setShowLeaveModal(true); }}
+                          onClick={() => {
+                            setShowMenu(false);
+                            setShowLeaveModal(true);
+                          }}
                           className="w-full text-left px-3 py-2 rounded-xl hover:bg-red-500/20 flex items-center gap-2.5 text-red-400 hover:text-red-300 cursor-pointer"
                         >
                           <UserX size={14} /> Leave Squad
@@ -885,7 +1138,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </h1>
 
                   <p className="text-gray-400 text-xs mt-1 max-w-xl line-clamp-2">
-                    {room.description || "Commit daily, submit Proof of Work, and stay consistent with your squad."}
+                    {room.description ||
+                      "Commit daily, submit Proof of Work, and stay consistent with your squad."}
                   </p>
 
                   <div className="flex items-center gap-4 text-xs font-mono text-gray-400 mt-4 flex-wrap">
@@ -896,7 +1150,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <Clock size={13} /> {room.checkin_frequency || "Daily"}
                     </span>
                     <span className="flex items-center gap-1 text-cyan-400">
-                      <Users size={13} /> {room.member_count || members.length || 1} Members
+                      <Users size={13} />{" "}
+                      {room.member_count || members.length || 1} Members
                     </span>
                     <span className="flex items-center gap-1 text-gray-400">
                       <Globe size={13} /> {room.visibility || "Public"} Room
@@ -908,17 +1163,24 @@ const CreatorRoomDetail = ({ roomId }) => {
               {/* My Commitment Card */}
               <div className="bg-[#07070d] border border-white/10 rounded-2xl p-5 w-full lg:w-80 shrink-0">
                 <div className="flex items-center justify-between text-xs font-mono mb-2">
-                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">MY COMMITMENT</span>
+                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">
+                    MY COMMITMENT
+                  </span>
                   <span className="text-purple-300 font-bold">Goal</span>
                 </div>
                 <p className="text-xs text-white italic font-mono mb-3 line-clamp-2">
-                  "{room.goal_pledge || "Ship 1 GitHub commit & post a daily standup log"}"
+                  "
+                  {room.goal_pledge ||
+                    "Ship 1 GitHub commit & post a daily standup log"}
+                  "
                 </p>
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-[11px] font-mono">
                     <span className="text-gray-400">Progress</span>
-                    <span className="text-purple-300 font-bold">{progressPct}%</span>
+                    <span className="text-purple-300 font-bold">
+                      {progressPct}%
+                    </span>
                   </div>
                   <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/10">
                     <div
@@ -927,8 +1189,12 @@ const CreatorRoomDetail = ({ roomId }) => {
                     />
                   </div>
                   <div className="flex justify-between text-[10px] font-mono text-gray-500 pt-1">
-                    <span>{completedDays} / {totalSprintDays} Days Completed</span>
-                    <span className="text-green-400 font-semibold">On Track </span>
+                    <span>
+                      {completedDays} / {totalSprintDays} Days Completed
+                    </span>
+                    <span className="text-green-400 font-semibold">
+                      On Track{" "}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -938,7 +1204,6 @@ const CreatorRoomDetail = ({ roomId }) => {
 
         {/*  MAIN 3-COLUMN GRID  */}
         <section className="max-w-7xl mx-auto px-6 py-6 w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-
           {/* LEFT COLUMN: Goals & Policy (2 Cols) */}
           <div className="lg:col-span-3 space-y-4">
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
@@ -946,7 +1211,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Target size={15} className="text-purple-400" /> Room Goal
               </div>
               <p className="text-xs text-gray-400 leading-relaxed font-mono">
-                {room.goal_pledge || "Stay consistent by posting daily standups and proof of work."}
+                {room.goal_pledge ||
+                  "Stay consistent by posting daily standups and proof of work."}
               </p>
             </div>
 
@@ -955,7 +1221,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Clock size={15} className="text-cyan-400" /> Check-in Time
               </div>
               <p className="text-xs text-gray-400 font-mono">
-                Before <strong className="text-white">{room.checkin_deadline || "11:59 PM IST"}</strong> daily.
+                Before{" "}
+                <strong className="text-white">
+                  {room.checkin_deadline || "11:59 PM IST"}
+                </strong>{" "}
+                daily.
               </p>
             </div>
 
@@ -964,7 +1234,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Flame size={15} className="text-amber-400" /> Streak System
               </div>
               <p className="text-xs text-gray-400 font-mono leading-relaxed">
-                Your streak is part of your global uptime. Missed check-ins reset streak count.
+                Your streak is part of your global uptime. Missed check-ins
+                reset streak count.
               </p>
             </div>
 
@@ -975,7 +1246,9 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="text-xl font-black text-amber-400 font-mono">
                 {(roomPoolGBits || 0).toLocaleString()} gBits
               </div>
-              <p className="text-[10px] text-gray-500 font-mono">Stakes from committed members</p>
+              <p className="text-[10px] text-gray-500 font-mono">
+                Stakes from committed members
+              </p>
             </div>
 
             {!isMember ? (
@@ -996,26 +1269,37 @@ const CreatorRoomDetail = ({ roomId }) => {
             )}
           </div>
 
-          {/* RIGHT MAIN FEED: Daily Standups & Check-ins (8 Cols) */}
-          <div className="lg:col-span-8 space-y-4">
+          {/* MIDDLE FEED: Daily Standups & Check-ins (6 Cols) */}
+          <div className="lg:col-span-6 space-y-4">
             {/* Header Tabs */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Calendar size={18} className="text-purple-400" /> Daily Standups
+                <Calendar size={18} className="text-purple-400" /> Daily
+                Standups
               </h2>
               <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 text-xs font-mono">
                 <button
-                  onClick={() => setActiveTab("today")}
+                  onClick={() => {
+                    setActiveTab("today");
+                    setStandupVisibleCount(4);
+                  }}
                   className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                    activeTab === "today" ? "bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30" : "text-gray-400 hover:text-white"
+                    activeTab === "today"
+                      ? "bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30"
+                      : "text-gray-400 hover:text-white"
                   }`}
                 >
                   Today
                 </button>
                 <button
-                  onClick={() => setActiveTab("all")}
+                  onClick={() => {
+                    setActiveTab("all");
+                    setStandupVisibleCount(4);
+                  }}
                   className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                    activeTab === "all" ? "bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30" : "text-gray-400 hover:text-white"
+                    activeTab === "all"
+                      ? "bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30"
+                      : "text-gray-400 hover:text-white"
                   }`}
                 >
                   All Logs
@@ -1024,7 +1308,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                   onClick={() => setShowCalendarModal(true)}
                   className="px-3 py-1 rounded-lg transition cursor-pointer text-gray-400 hover:text-purple-300 hover:bg-white/5 flex items-center gap-1.5 font-bold"
                 >
-                  <Calendar size={13} className="text-purple-400" /> Calendar View
+                  <Calendar size={13} className="text-purple-400" /> Calendar
+                  View
                 </button>
               </div>
             </div>
@@ -1034,13 +1319,21 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="bg-gradient-to-r from-purple-900/30 via-[#0d0d18] to-cyan-900/30 border border-purple-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 shadow-xl">
                 <div className="flex items-center gap-3">
                   <img
-                    src={userProfile?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                    src={
+                      userProfile?.avatar_url ||
+                      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+                    }
                     alt="User"
                     className="w-10 h-10 rounded-xl border border-white/20 object-cover"
                   />
                   <div>
-                    <h4 className="text-xs font-bold text-white">What did you accomplish today?</h4>
-                    <p className="text-[11px] text-gray-400">Share your progress, add proof, and keep your streak alive!</p>
+                    <h4 className="text-xs font-bold text-white">
+                      What did you accomplish today?
+                    </h4>
+                    <p className="text-[11px] text-gray-400">
+                      Share your progress, add proof, and keep your streak
+                      alive!
+                    </p>
                   </div>
                 </div>
                 <button
@@ -1057,7 +1350,9 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="bg-[#0d0d16] border border-dashed border-white/10 rounded-2xl p-8 text-center my-6">
                 <div className="text-4xl mb-3">⚡</div>
                 <h3 className="text-sm font-bold text-white">
-                  {standups.length > 0 ? "No standups submitted today yet" : "No daily standups submitted yet"}
+                  {standups.length > 0
+                    ? "No standups submitted today yet"
+                    : "No daily standups submitted yet"}
                 </h3>
                 <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
                   {standups.length > 0
@@ -1084,153 +1379,181 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
               </div>
             ) : (
-              <StandupTickerWrapper activeTab={activeTab} itemCount={displayStandups.length}>
-                {displayStandups.map((standup) => {
-                  const isHostAuthor = standup.user_id === room?.created_by || standup.username === room?.host;
-                  const isBuddyAuthor = buddyMember && (standup.user_id === buddyMember.user_id || standup.username === buddyMember.username);
+              <StandupTickerWrapper
+                activeTab={activeTab}
+                itemCount={Math.min(
+                  displayStandups.length,
+                  standupVisibleCount,
+                )}
+              >
+                {displayStandups
+                  .slice(0, standupVisibleCount)
+                  .map((standup) => {
+                    const isHostAuthor =
+                      standup.user_id === room?.created_by ||
+                      standup.username === room?.host;
+                    const isBuddyAuthor =
+                      buddyMember &&
+                      (standup.user_id === buddyMember.user_id ||
+                        standup.username === buddyMember.username);
 
-                  // Calculate On Time vs Late check-in tag
-                  const standupTime = new Date(standup.created_at);
-                  const isOnTime = standup.is_on_time !== false;
+                    // Real On Time / Late status — recomputed live from the
+                    // full standups list on every render (never trusts a
+                    // possibly-stale `is_on_time` value stored on old rows).
+                    const isOnTime = getOnTimeStatus(standup, standups, room);
 
-                  const proofHref = standup.proof_url
-                    ? standup.proof_url.startsWith("http")
-                      ? standup.proof_url
-                      : `https://${standup.proof_url}`
-                    : null;
+                    const hasLinkProof =
+                      standup.proof_url && standup.proof_url.trim().length > 0;
+                    const proofHref = hasLinkProof
+                      ? standup.proof_url.startsWith("http")
+                        ? standup.proof_url
+                        : `https://${standup.proof_url}`
+                      : null;
 
-                  return (
-                    <motion.div
-                      key={standup.id}
-                      initial={{ opacity: 0, y: 15 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-[#0d0d16] border border-white/10 hover:border-purple-500/30 rounded-2xl p-4 shadow-lg transition relative overflow-hidden"
-                    >
-                      {/* Top Header Row */}
-                      <div className="flex items-center justify-between gap-3 mb-3 pb-2.5 border-b border-white/10 flex-wrap">
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={(standup.isUser || standup.user_id === userId || standup.username === userProfile?.username)
-                              ? (userProfile?.avatar_url || standup.avatar)
-                              : (standup.avatar || DEFAULT_AVATAR)}
-                            alt={standup.username}
-                            className="w-8 h-8 rounded-lg object-cover border border-white/15 shadow-sm shrink-0"
-                          />
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-bold text-white">{standup.username}</span>
-                              {isHostAuthor && (
-                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-0.5">
-                                  👑 Host
+                    return (
+                      <motion.div
+                        key={standup.id}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-[#0d0d16] border border-white/10 hover:border-purple-500/30 rounded-xl p-3 shadow-lg transition relative overflow-hidden"
+                      >
+                        {/* Top Header Row */}
+                        <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-white/10 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={
+                                standup.isUser ||
+                                standup.user_id === userId ||
+                                standup.username === userProfile?.username
+                                  ? userProfile?.avatar_url || standup.avatar
+                                  : standup.avatar || DEFAULT_AVATAR
+                              }
+                              alt={standup.username}
+                              className="w-6 h-6 rounded-lg object-cover border border-white/15 shadow-sm shrink-0"
+                            />
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-white">
+                                  {standup.username}
                                 </span>
-                              )}
-                              {standup.isUser && (
-                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                  You
-                                </span>
-                              )}
-                              {isBuddyAuthor && (
-                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-900/40 text-purple-300 border border-purple-500/30">
-                                  Accountability Buddy
-                                </span>
-                              )}
+                                {isHostAuthor && (
+                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-0.5">
+                                    👑 Host
+                                  </span>
+                                )}
+                                {standup.isUser && (
+                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                    You
+                                  </span>
+                                )}
+                                {isBuddyAuthor && (
+                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-900/40 text-purple-300 border border-purple-500/30">
+                                    Accountability Buddy
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
+
+                          {/* Submission Date + Time & On Time / Late Badge */}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-gray-400 font-mono">
+                              {formatStandupTimestamp(standup.created_at)}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold flex items-center gap-1 border ${
+                                isOnTime
+                                  ? "bg-green-500/20 text-green-400 border-green-500/40"
+                                  : "bg-red-500/20 text-red-400 border-red-500/40"
+                              }`}
+                            >
+                              <Clock size={10} />
+                              {isOnTime ? "On Time" : "Late"}
+                            </span>
+                          </div>
                         </div>
 
-                        {/* Submission Time & On Time / Late Badge */}
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-[10px] text-gray-400 font-mono">
-                            Today, {standupTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 border ${
-                              isOnTime
-                                ? "bg-green-500/20 text-green-400 border-green-500/40 shadow-sm shadow-green-500/10"
-                                : "bg-red-500/20 text-red-400 border-red-500/40 shadow-sm shadow-red-500/10"
-                            }`}
-                          >
-                            <Clock size={11} />
-                            {isOnTime ? "On Time" : "Late"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Main Content & Side Widget Grid */}
-                      <div className="flex flex-col sm:flex-row gap-4 items-start justify-between">
-                        {/* Left Side: Accomplishment, Proof, Blockers */}
-                        <div className="flex-1 space-y-2.5 min-w-0">
-                          <div>
-                            <h5 className="text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-0.5 font-bold">
-                              What I accomplished today
-                            </h5>
-                            <p className="text-xs text-gray-200 font-sans leading-relaxed">
+                        {/* Main Content & Side Widget Grid */}
+                        <div className="flex items-start justify-between gap-3">
+                          {/* Left Side: Accomplishment, Proof, Blockers */}
+                          <div className="flex-1 space-y-1.5 min-w-0">
+                            <p className="text-xs text-gray-200 font-sans leading-snug line-clamp-2">
                               {standup.accomplishment}
                             </p>
-                          </div>
 
-                          {proofHref && (
-                            <div>
-                              <h5 className="text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-0.5 font-bold">
-                                Proof of Work
-                              </h5>
+                            {hasLinkProof ? (
                               <a
                                 href={proofHref}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-xs font-mono transition group max-w-full"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-full"
                               >
-                                <Share2 size={12} className="text-purple-400" />
-                                <span className="underline group-hover:text-white truncate max-w-[220px]">{standup.proof_url}</span>
-                                <ExternalLink size={10} className="text-gray-400 shrink-0" />
+                                <Share2
+                                  size={10}
+                                  className="text-purple-400 shrink-0"
+                                />
+                                {standup.proof_type && (
+                                  <span className="text-purple-300/80">
+                                    {standup.proof_type}:
+                                  </span>
+                                )}
+                                <span className="underline group-hover:text-white truncate max-w-[160px]">
+                                  {standup.proof_url}
+                                </span>
+                                <ExternalLink
+                                  size={9}
+                                  className="text-gray-400 shrink-0"
+                                />
                               </a>
-                            </div>
-                          )}
-
-                          <div>
-                            <h5 className="text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-0.5 font-bold">
-                              Blockers
-                            </h5>
-                            <p className="text-xs text-gray-400 font-sans">
-                              {standup.blockers || "None"}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Right Side: Compact Streak Count & Verification Avatar Stack */}
-                        <div className="bg-[#07070d] border border-white/10 rounded-xl p-3 flex flex-col items-center justify-center text-center min-w-[110px] shrink-0 self-stretch sm:self-start">
-                          <Flame size={18} className="text-amber-400 fill-amber-400/20 animate-pulse mb-0.5" />
-                          <div className="text-xl font-black text-cyan-400 font-mono">
-                            {standup.streak_count || 1}
-                          </div>
-                          <div className="text-[9px] font-mono text-cyan-300/80 uppercase tracking-wider mb-2 font-bold">
-                            Day Streak
-                          </div>
-
-                          <div className="text-[8px] font-mono text-gray-500 uppercase tracking-wider mb-1">
-                            Verified by
-                          </div>
-                          <div className="flex -space-x-1.5 overflow-hidden justify-center items-center">
-                            {members.slice(0, 3).map((m, i) => (
-                              <img
-                                key={i}
-                                src={(m.user_id === userId || m.username === userProfile?.username) ? (userProfile?.avatar_url || m.avatar_url) : (m.avatar_url || DEFAULT_AVATAR)}
-                                alt={m.username}
-                                className="inline-block h-5 w-5 rounded-full ring-1 ring-[#07070d] object-cover"
-                              />
-                            ))}
-                            {members.length > 3 && (
-                              <span className="flex items-center justify-center h-5 w-5 rounded-full bg-purple-900/60 border border-purple-500/40 text-[8px] font-bold text-purple-300 font-mono ring-1 ring-[#07070d]">
-                                +{members.length - 3}
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/[0.02] border border-dashed border-white/10 text-gray-500 text-[10px] font-mono">
+                                {standup.proof_type
+                                  ? `${standup.proof_type}: not provided`
+                                  : "No proof submitted"}
                               </span>
                             )}
+
+                            {standup.blockers && (
+                              <p className="text-[10px] text-red-300/80 font-sans">
+                                <span className="text-gray-500 uppercase font-mono text-[9px] font-bold mr-1">
+                                  Blocker:
+                                </span>
+                                {standup.blockers}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Right Side: Compact Streak Count */}
+                          <div className="bg-[#07070d] border border-white/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 shrink-0">
+                            <Flame
+                              size={13}
+                              className="text-amber-400 fill-amber-400/20"
+                            />
+                            <span className="text-sm font-black text-cyan-400 font-mono leading-none">
+                              {standup.streak_count || 1}
+                            </span>
+                            <span className="text-[8px] font-mono text-cyan-300/70 uppercase leading-none">
+                              day
+                            </span>
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                      </motion.div>
+                    );
+                  })}
               </StandupTickerWrapper>
+            )}
+
+            {/* Load More */}
+            {displayStandups.length > standupVisibleCount && (
+              <div className="flex justify-center pt-1">
+                <button
+                  onClick={() => setStandupVisibleCount((c) => c + 4)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold hover:bg-white/10 hover:border-purple-500/30 transition cursor-pointer"
+                >
+                  Show More ({displayStandups.length - standupVisibleCount}{" "}
+                  more)
+                </button>
+              </div>
             )}
           </div>
 
@@ -1240,12 +1563,15 @@ const CreatorRoomDetail = ({ roomId }) => {
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                  <Trophy size={15} className="text-amber-400" /> Squad Leaderboard
+                  <Trophy size={15} className="text-amber-400" /> Squad
+                  Leaderboard
                 </h3>
               </div>
 
               {sortedLeaderboard.length === 0 ? (
-                <p className="text-xs text-gray-500 font-mono text-center py-4">No squad rankings yet.</p>
+                <p className="text-xs text-gray-500 font-mono text-center py-4">
+                  No squad rankings yet.
+                </p>
               ) : (
                 <div className="space-y-2.5">
                   {sortedLeaderboard.slice(0, 5).map((mem, idx) => (
@@ -1254,13 +1580,17 @@ const CreatorRoomDetail = ({ roomId }) => {
                       className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="text-xs font-bold font-mono text-gray-400 w-4">{idx + 1}</span>
+                        <span className="text-xs font-bold font-mono text-gray-400 w-4">
+                          {idx + 1}
+                        </span>
                         <img
                           src={mem.avatar_url}
                           alt={mem.username}
                           className="w-7 h-7 rounded-lg object-cover"
                         />
-                        <span className="text-xs font-bold text-gray-200 line-clamp-1">{mem.username}</span>
+                        <span className="text-xs font-bold text-gray-200 line-clamp-1">
+                          {mem.username}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1 text-amber-400 text-xs font-mono font-bold">
                         <Flame size={12} /> {mem.streak}d
@@ -1274,7 +1604,8 @@ const CreatorRoomDetail = ({ roomId }) => {
             {/* Accountability Buddy Card */}
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-5">
               <div className="flex items-center gap-2 text-xs font-bold text-white mb-3">
-                <Handshake size={15} className="text-purple-400" /> Accountability Buddy
+                <Handshake size={15} className="text-purple-400" />{" "}
+                Accountability Buddy
               </div>
 
               {buddyMember ? (
@@ -1285,13 +1616,19 @@ const CreatorRoomDetail = ({ roomId }) => {
                     className="w-9 h-9 rounded-xl object-cover"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-white truncate">{buddyMember.username}</p>
-                    <p className="text-[10px] text-green-400 font-mono">Paired Partner </p>
+                    <p className="text-xs font-bold text-white truncate">
+                      {buddyMember.username}
+                    </p>
+                    <p className="text-[10px] text-green-400 font-mono">
+                      Paired Partner{" "}
+                    </p>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-4 border border-dashed border-white/10 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 mb-2 font-mono">No buddy paired yet.</p>
+                  <p className="text-xs text-gray-400 mb-2 font-mono">
+                    No buddy paired yet.
+                  </p>
                   {isHost && (
                     <button
                       onClick={handlePairBuddies}
@@ -1310,24 +1647,37 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <div className="w-7 h-7 rounded-xl bg-pink-500/20 border border-pink-500/30 flex items-center justify-center text-pink-400 shrink-0">
                   <Activity size={15} />
                 </div>
-                <h3 className="text-sm font-bold text-white font-sans">Room Activity</h3>
+                <h3 className="text-sm font-bold text-white font-sans">
+                  Room Activity
+                </h3>
               </div>
 
               {notifications.length === 0 ? (
-                <p className="text-xs text-gray-500 font-mono text-center py-4">No recent squad activity recorded.</p>
+                <p className="text-xs text-gray-500 font-mono text-center py-4">
+                  No recent squad activity recorded.
+                </p>
               ) : (
                 <div className="space-y-3.5 mb-4 font-sans text-xs">
                   {notifications.slice(0, 5).map((n, idx) => {
-                    const timeAgo = n.created_at ? (() => {
-                      const diffSec = Math.floor((new Date() - new Date(n.created_at)) / 1000);
-                      if (diffSec < 60) return "1m ago";
-                      if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-                      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
-                      return `${Math.floor(diffSec / 86400)}d ago`;
-                    })() : `${(idx + 1) * 5}m ago`;
+                    const timeAgo = n.created_at
+                      ? (() => {
+                          const diffSec = Math.floor(
+                            (new Date() - new Date(n.created_at)) / 1000,
+                          );
+                          if (diffSec < 60) return "1m ago";
+                          if (diffSec < 3600)
+                            return `${Math.floor(diffSec / 60)}m ago`;
+                          if (diffSec < 86400)
+                            return `${Math.floor(diffSec / 3600)}h ago`;
+                          return `${Math.floor(diffSec / 86400)}d ago`;
+                        })()
+                      : `${(idx + 1) * 5}m ago`;
 
                     return (
-                      <div key={n.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                      <div
+                        key={n.id || idx}
+                        className="flex items-center justify-between gap-3 text-xs"
+                      >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0">
                             <User size={12} />
@@ -1347,10 +1697,16 @@ const CreatorRoomDetail = ({ roomId }) => {
 
               <div className="pt-3 border-t border-white/10">
                 <button
-                  onClick={() => showToast("Viewing complete squad activity history...")}
+                  onClick={() =>
+                    showToast("Viewing complete squad activity history...")
+                  }
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-400 hover:text-purple-300 transition cursor-pointer font-sans group"
                 >
-                  View All Activity <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                  View All Activity{" "}
+                  <ArrowRight
+                    size={14}
+                    className="group-hover:translate-x-1 transition-transform"
+                  />
                 </button>
               </div>
             </div>
@@ -1368,9 +1724,15 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Flame size={20} className="fill-amber-400/20" />
               </div>
               <div>
-                <div className="text-[11px] text-gray-400 font-sans font-medium">Check-in Streak</div>
-                <div className="text-sm font-black text-white font-mono">{userStreak} Days</div>
-                <div className="text-[10px] text-gray-400 font-sans">Keep it up!</div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">
+                  Check-in Streak
+                </div>
+                <div className="text-sm font-black text-white font-mono">
+                  {userStreak} Days
+                </div>
+                <div className="text-[10px] text-gray-400 font-sans">
+                  Keep it up!
+                </div>
               </div>
             </div>
 
@@ -1382,9 +1744,15 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <CheckCircle size={20} />
               </div>
               <div>
-                <div className="text-[11px] text-gray-400 font-sans font-medium">Total Check-ins</div>
-                <div className="text-sm font-black text-white font-mono">{userStandups.length} / {totalSprintDays}</div>
-                <div className="text-[10px] text-gray-400 font-sans">This Sprint</div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">
+                  Total Check-ins
+                </div>
+                <div className="text-sm font-black text-white font-mono">
+                  {userStandups.length} / {totalSprintDays}
+                </div>
+                <div className="text-[10px] text-gray-400 font-sans">
+                  This Sprint
+                </div>
               </div>
             </div>
 
@@ -1396,14 +1764,17 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Clock size={20} />
               </div>
               <div>
-                <div className="text-[11px] text-gray-400 font-sans font-medium">On-time Check-ins</div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">
+                  On-time Check-ins
+                </div>
                 <div className="text-sm font-black text-white font-mono">
-                  {userStandups.filter((s) => s.is_on_time !== false).length}
+                  {userOnTimeCount}
                 </div>
                 <div className="text-[10px] text-emerald-400 font-mono">
                   {userStandups.length > 0
-                    ? Math.round((userStandups.filter((s) => s.is_on_time !== false).length / userStandups.length) * 100)
-                    : 100}% on time
+                    ? Math.round((userOnTimeCount / userStandups.length) * 100)
+                    : 100}
+                  % on time
                 </div>
               </div>
             </div>
@@ -1416,9 +1787,15 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Coins size={20} />
               </div>
               <div>
-                <div className="text-[11px] text-gray-400 font-sans font-medium">gBits at Stake</div>
-                <div className="text-sm font-black text-amber-300 font-mono">{room.entry_stake || 50} gBits</div>
-                <div className="text-[10px] text-gray-400 font-sans">Your Stake</div>
+                <div className="text-[11px] text-gray-400 font-sans font-medium">
+                  gBits at Stake
+                </div>
+                <div className="text-sm font-black text-amber-300 font-mono">
+                  {room.entry_stake || 50} gBits
+                </div>
+                <div className="text-[10px] text-gray-400 font-sans">
+                  Your Stake
+                </div>
               </div>
             </div>
 
@@ -1430,18 +1807,28 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <Gift size={20} />
               </div>
               <div>
-                <div className="text-[11px] text-gray-400 font-sans font-medium">Potential Reward</div>
-                <div className="text-sm font-black text-pink-300 font-mono">
-                  {(room.entry_stake || 50) * Math.max(1, room.member_count || members.length || 1)}+ gBits
+                <div className="text-[11px] text-gray-400 font-sans font-medium">
+                  Potential Reward
                 </div>
-                <div className="text-[10px] text-gray-400 font-sans">If you complete</div>
+                <div className="text-sm font-black text-pink-300 font-mono">
+                  {(room.entry_stake || 50) *
+                    Math.max(1, room.member_count || members.length || 1)}
+                  + gBits
+                </div>
+                <div className="text-[10px] text-gray-400 font-sans">
+                  If you complete
+                </div>
               </div>
             </div>
           </div>
 
           {/* CTA Button */}
           <button
-            onClick={() => showToast(`Pool Reward: ${(room.entry_stake || 50) * Math.max(1, room.member_count || members.length || 1)} gBits for completing the sprint!`)}
+            onClick={() =>
+              showToast(
+                `Pool Reward: ${(room.entry_stake || 50) * Math.max(1, room.member_count || members.length || 1)} gBits for completing the sprint!`,
+              )
+            }
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 transition cursor-pointer shrink-0"
           >
             View Rewards
@@ -1463,16 +1850,22 @@ const CreatorRoomDetail = ({ roomId }) => {
             >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Sparkles size={18} className="text-purple-400" /> Submit Daily Standup Log
+                  <Sparkles size={18} className="text-purple-400" /> Submit
+                  Daily Standup Log
                 </h3>
-                <button onClick={() => setShowCheckinModal(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <button
+                  onClick={() => setShowCheckinModal(false)}
+                  className="text-gray-400 hover:text-white cursor-pointer"
+                >
                   <X size={18} />
                 </button>
               </div>
 
               <div className="space-y-4 text-xs font-mono">
                 <div>
-                  <label className="block text-gray-300 mb-1 font-bold">What did you accomplish today? *</label>
+                  <label className="block text-gray-300 mb-1 font-bold">
+                    What did you accomplish today? *
+                  </label>
                   <textarea
                     rows={3}
                     value={accomplishment}
@@ -1483,18 +1876,78 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 mb-1 font-bold">Proof of Work URL (Optional)</label>
+                  <label className="block text-gray-300 mb-1.5 font-bold">
+                    Proof of Work Type (Optional)
+                  </label>
+                  <div className="flex flex-wrap gap-1.5 mb-2.5">
+                    {(room?.proof_types?.length > 0
+                      ? room.proof_types
+                      : PROOF_TYPE_OPTIONS
+                    ).map((type) => {
+                      const isSelected = proofType === type;
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setProofType(isSelected ? "" : type)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-semibold transition flex items-center gap-1 cursor-pointer border ${
+                            isSelected
+                              ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                              : "bg-[#07070d] text-gray-400 border-white/10 hover:text-white"
+                          }`}
+                        >
+                          {isSelected && (
+                            <CheckCircle2
+                              size={11}
+                              className="text-purple-400"
+                            />
+                          )}
+                          {type}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <label className="block text-gray-300 mb-1 font-bold">
+                    {LINK_PROOF_TYPES.has(proofType) || !proofType
+                      ? "Proof of Work URL (Optional)"
+                      : "Proof of Work (Optional)"}
+                  </label>
                   <input
-                    type="url"
+                    type={
+                      LINK_PROOF_TYPES.has(proofType) || !proofType
+                        ? "url"
+                        : "text"
+                    }
                     value={proofUrl}
                     onChange={(e) => setProofUrl(e.target.value)}
-                    placeholder="https://github.com/your-username/repo-name"
+                    placeholder={
+                      proofType === "Screenshot"
+                        ? "Link to your screenshot (Drive, Imgur, etc.)"
+                        : proofType === "Code Snippet"
+                          ? "Paste a link to the snippet, or describe it"
+                          : proofType === "Progress Log"
+                            ? "Paste a link to your log, or describe your progress"
+                            : proofType === "File Upload"
+                              ? "Link to your uploaded file"
+                              : proofType === "Custom Proof"
+                                ? "Describe or link your proof"
+                                : "https://github.com/your-username/repo-name"
+                    }
                     className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs"
                   />
+                  {/* Never auto-fills or falls back to a default link — leaving
+                      this blank stores/displays as "not provided", not a URL. */}
+                  <p className="text-[9px] text-gray-500 mt-1">
+                    Leave blank if you have no proof to attach — it'll be marked
+                    as not provided, never filled in automatically.
+                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 mb-1 font-bold">Blockers / Notes (Optional)</label>
+                  <label className="block text-gray-300 mb-1 font-bold">
+                    Blockers / Notes (Optional)
+                  </label>
                   <input
                     type="text"
                     value={blockers}
@@ -1516,7 +1969,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                     disabled={submitting || !accomplishment.trim()}
                     className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-[#FF00C8]/20"
                   >
-                    {submitting ? "Submitting..." : "Submit Standup & Claim +35 gBits "}
+                    {submitting
+                      ? "Submitting..."
+                      : "Submit Standup & Claim +35 gBits "}
                   </button>
                 </div>
               </div>
@@ -1538,9 +1993,13 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div>
                 <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Bell size={16} className="text-purple-400" /> Room Notifications
+                    <Bell size={16} className="text-purple-400" /> Room
+                    Notifications
                   </h3>
-                  <button onClick={() => setShowNotifDrawer(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                  <button
+                    onClick={() => setShowNotifDrawer(false)}
+                    className="text-gray-400 hover:text-white cursor-pointer"
+                  >
                     <X size={16} />
                   </button>
                 </div>
@@ -1548,7 +2007,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                 {notifications.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="text-3xl mb-2"></div>
-                    <p className="text-xs text-gray-400 font-mono">No room notifications yet.</p>
+                    <p className="text-xs text-gray-400 font-mono">
+                      No room notifications yet.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3 overflow-y-auto max-h-[70vh] pr-1">
@@ -1556,13 +2017,20 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <div
                         key={n.id}
                         className={`p-3 rounded-xl border text-xs font-mono transition ${
-                          n.is_read ? "bg-white/5 border-white/5 text-gray-400" : "bg-purple-500/10 border-purple-500/30 text-white"
+                          n.is_read
+                            ? "bg-white/5 border-white/5 text-gray-400"
+                            : "bg-purple-500/10 border-purple-500/30 text-white"
                         }`}
                       >
                         <p className="font-bold text-purple-300">{n.title}</p>
-                        <p className="text-[11px] text-gray-300 mt-1 font-sans">{n.message}</p>
+                        <p className="text-[11px] text-gray-300 mt-1 font-sans">
+                          {n.message}
+                        </p>
                         <span className="text-[9px] text-gray-500 block mt-2">
-                          {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(n.created_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </span>
                       </div>
                     ))}
@@ -1575,7 +2043,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   onClick={handleMarkNotifsRead}
                   className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-xs font-bold text-purple-300 transition cursor-pointer"
                 >
-                   Mark All as Read
+                  Mark All as Read
                 </button>
               )}
             </motion.div>
@@ -1595,16 +2063,25 @@ const CreatorRoomDetail = ({ roomId }) => {
             >
               <div className="flex items-center gap-3 text-red-400 mb-3">
                 <AlertTriangle size={24} />
-                <h3 className="text-lg font-bold text-white">Delete Creator Room Permanently</h3>
+                <h3 className="text-lg font-bold text-white">
+                  Delete Creator Room Permanently
+                </h3>
               </div>
 
               <p className="text-xs text-gray-300 mb-4 leading-relaxed font-mono">
-                This action is <strong className="text-red-400">irreversible</strong>. Deleting this room will permanently wipe its members, check-ins, standings, and activity history from the database.
+                This action is{" "}
+                <strong className="text-red-400">irreversible</strong>. Deleting
+                this room will permanently wipe its members, check-ins,
+                standings, and activity history from the database.
               </p>
 
               <div className="mb-4">
                 <label className="block text-[11px] text-gray-400 mb-1 font-mono">
-                  Type <strong className="text-white">"{room?.name || room?.title}"</strong> to confirm deletion:
+                  Type{" "}
+                  <strong className="text-white">
+                    "{room?.name || room?.title}"
+                  </strong>{" "}
+                  to confirm deletion:
                 </label>
                 <input
                   type="text"
@@ -1624,10 +2101,13 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </button>
                 <button
                   onClick={handleDeleteRoom}
-                  disabled={deleteConfirmText.trim().toLowerCase() !== (room?.name || room?.title || "").toLowerCase()}
+                  disabled={
+                    deleteConfirmText.trim().toLowerCase() !==
+                    (room?.name || room?.title || "").toLowerCase()
+                  }
                   className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-red-600/30"
                 >
-                  Confirm Delete Room 
+                  Confirm Delete Room
                 </button>
               </div>
             </motion.div>
@@ -1647,16 +2127,22 @@ const CreatorRoomDetail = ({ roomId }) => {
             >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Edit3 size={18} className="text-purple-400" /> Edit Room Details
+                  <Edit3 size={18} className="text-purple-400" /> Edit Room
+                  Details
                 </h3>
-                <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-400 hover:text-white cursor-pointer"
+                >
                   <X size={18} />
                 </button>
               </div>
 
               <div className="space-y-4 text-xs font-mono">
                 <div>
-                  <label className="block text-gray-300 mb-1 font-bold">Room Title *</label>
+                  <label className="block text-gray-300 mb-1 font-bold">
+                    Room Title *
+                  </label>
                   <input
                     type="text"
                     value={editTitle}
@@ -1666,7 +2152,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 mb-1 font-bold">Group Commitment Pledge *</label>
+                  <label className="block text-gray-300 mb-1 font-bold">
+                    Group Commitment Pledge *
+                  </label>
                   <input
                     type="text"
                     value={editPledge}
@@ -1676,7 +2164,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 mb-1 font-bold">Room Description</label>
+                  <label className="block text-gray-300 mb-1 font-bold">
+                    Room Description
+                  </label>
                   <textarea
                     rows={3}
                     value={editDescription}
@@ -1706,7 +2196,6 @@ const CreatorRoomDetail = ({ roomId }) => {
         )}
       </AnimatePresence>
 
-      
       {/* 5. Manage Squad Members Modal */}
       <AnimatePresence>
         {showMembersModal && (
@@ -1720,32 +2209,59 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Users size={18} className="text-cyan-400" /> Manage Squad Members
+                    <Users size={18} className="text-cyan-400" /> Manage Squad
+                    Members
                   </h3>
-                  <p className="text-xs text-gray-400">Total {members.length} committed builder(s)</p>
+                  <p className="text-xs text-gray-400">
+                    Total {members.length} committed builder(s)
+                  </p>
                 </div>
-                <button onClick={() => setShowMembersModal(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <button
+                  onClick={() => setShowMembersModal(false)}
+                  className="text-gray-400 hover:text-white cursor-pointer"
+                >
                   <X size={18} />
                 </button>
               </div>
 
               <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                 {members.map((m) => {
-                  const isHostMember = m.role === "host" || m.user_id === room?.created_by;
+                  const isHostMember =
+                    m.role === "host" || m.user_id === room?.created_by;
                   return (
-                    <div key={m.user_id} className="flex items-center justify-between p-3 rounded-2xl bg-[#07070d] border border-white/5">
+                    <div
+                      key={m.user_id}
+                      className="flex items-center justify-between p-3 rounded-2xl bg-[#07070d] border border-white/5"
+                    >
                       <div className="flex items-center gap-3">
-                        <img src={m.avatar_url} alt={m.username} className="w-9 h-9 rounded-xl object-cover border border-white/10" />
+                        <img
+                          src={m.avatar_url}
+                          alt={m.username}
+                          className="w-9 h-9 rounded-xl object-cover border border-white/10"
+                        />
                         <div>
                           <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                            {m.username} {isHostMember && <ShieldCheck size={13} className="text-[#00F0FF]" />}
+                            {m.username}{" "}
+                            {isHostMember && (
+                              <ShieldCheck
+                                size={13}
+                                className="text-[#00F0FF]"
+                              />
+                            )}
                           </h4>
-                          <p className="text-[10px] text-gray-500 font-mono">Joined {new Date(m.joined_at || Date.now()).toLocaleDateString()}</p>
+                          <p className="text-[10px] text-gray-500 font-mono">
+                            Joined{" "}
+                            {new Date(
+                              m.joined_at || Date.now(),
+                            ).toLocaleDateString()}
+                          </p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${isHostMember ? "bg-purple-500/20 text-purple-300 border-purple-500/40" : "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"}`}>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${isHostMember ? "bg-purple-500/20 text-purple-300 border-purple-500/40" : "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"}`}
+                        >
                           {isHostMember ? "Host" : "Member"}
                         </span>
                         {!isHostMember && isHost && (
@@ -1764,7 +2280,10 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
 
               <div className="pt-4 flex justify-end">
-                <button onClick={() => setShowMembersModal(false)} className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold cursor-pointer">
+                <button
+                  onClick={() => setShowMembersModal(false)}
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold cursor-pointer"
+                >
                   Done
                 </button>
               </div>
@@ -1786,11 +2305,17 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Mail size={18} className="text-pink-400" /> Email Notifications Setup
+                    <Mail size={18} className="text-pink-400" /> Email
+                    Notifications Setup
                   </h3>
-                  <p className="text-xs text-gray-400">Configure automated standup digests and daily reminders</p>
+                  <p className="text-xs text-gray-400">
+                    Configure automated standup digests and daily reminders
+                  </p>
                 </div>
-                <button onClick={() => setShowEmailPrefsModal(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <button
+                  onClick={() => setShowEmailPrefsModal(false)}
+                  className="text-gray-400 hover:text-white cursor-pointer"
+                >
                   <X size={18} />
                 </button>
               </div>
@@ -1798,8 +2323,13 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="space-y-4 text-xs font-mono">
                 <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#07070d] border border-white/5">
                   <div>
-                    <h4 className="font-bold text-white mb-0.5">Daily Standup Reminder Email</h4>
-                    <p className="text-[11px] text-gray-400">Receive an email 2 hours before daily deadline ({room?.checkin_deadline || "11:59 PM IST"})</p>
+                    <h4 className="font-bold text-white mb-0.5">
+                      Daily Standup Reminder Email
+                    </h4>
+                    <p className="text-[11px] text-gray-400">
+                      Receive an email 2 hours before daily deadline (
+                      {room?.checkin_deadline || "11:59 PM IST"})
+                    </p>
                   </div>
                   <input
                     type="checkbox"
@@ -1811,24 +2341,41 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                 <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#07070d] border border-white/5">
                   <div>
-                    <h4 className="font-bold text-white mb-0.5">Squad Check-in Activity Digest</h4>
-                    <p className="text-[11px] text-gray-400">Get notified via email when squad members log proof of work</p>
+                    <h4 className="font-bold text-white mb-0.5">
+                      Squad Check-in Activity Digest
+                    </h4>
+                    <p className="text-[11px] text-gray-400">
+                      Get notified via email when squad members log proof of
+                      work
+                    </p>
                   </div>
-                  <input type="checkbox" defaultChecked className="w-4 h-4 accent-purple-500 cursor-pointer" />
+                  <input
+                    type="checkbox"
+                    defaultChecked
+                    className="w-4 h-4 accent-purple-500 cursor-pointer"
+                  />
                 </div>
 
                 <div className="pt-3 flex justify-end gap-3">
-                  <button onClick={() => setShowEmailPrefsModal(false)} className="px-4 py-2 rounded-xl bg-white/5 text-gray-300 text-xs font-bold cursor-pointer">
+                  <button
+                    onClick={() => setShowEmailPrefsModal(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-gray-300 text-xs font-bold cursor-pointer"
+                  >
                     Cancel
                   </button>
                   <button
                     onClick={async () => {
-                      localStorage.setItem(`glitch_email_prefs_${id}`, JSON.stringify({ enabled: emailNotifsEnabled }));
+                      localStorage.setItem(
+                        `glitch_email_prefs_${id}`,
+                        JSON.stringify({ enabled: emailNotifsEnabled }),
+                      );
                       const { data: au } = await supabase.auth.getUser();
                       const userEmail = au?.user?.email;
                       if (emailNotifsEnabled && userEmail) {
                         sendTestConfirmationEmail(userEmail);
-                        showToast("Email notification preferences saved persistently!");
+                        showToast(
+                          "Email notification preferences saved persistently!",
+                        );
                       } else {
                         showToast("Email notification preferences saved!");
                       }
@@ -1840,7 +2387,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </button>
                 </div>
                 <p className="text-[10px] text-gray-500 font-mono text-center pt-2">
-                  ℹ️ Preferences are saved persistently in room settings. (Live email delivery requires configured SMTP/Resend service).
+                  ℹ️ Preferences are saved persistently in room settings. (Live
+                  email delivery requires configured SMTP/Resend service).
                 </p>
               </div>
             </motion.div>
@@ -1848,7 +2396,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         )}
       </AnimatePresence>
 
-            {/* 7. 30-Day Sprint Calendar View Modal */}
+      {/* 7. 30-Day Sprint Calendar View Modal */}
       <AnimatePresence>
         {showCalendarModal && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 backdrop-blur-md pt-24 pb-20 px-4 flex justify-center items-start">
@@ -1862,7 +2410,8 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6 flex-wrap gap-4">
                 <div>
                   <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Calendar size={22} className="text-[#FF00C8]" /> 30-Day Sprint Calendar
+                    <Calendar size={22} className="text-[#FF00C8]" /> 30-Day
+                    Sprint Calendar
                   </h3>
                   <p className="text-xs text-gray-400 font-mono">
                     Track your daily check-in streak & proof of work progress
@@ -1914,7 +2463,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                         30-Day Progress
                       </h4>
                       <span className="text-xs font-mono font-bold text-cyan-400">
-                        {userStandups.length} / 30 Days Completed — {Math.round((userStandups.length / 30) * 100)}%
+                        {userStandups.length} / 30 Days Completed —{" "}
+                        {Math.round((userStandups.length / 30) * 100)}%
                       </span>
                     </div>
 
@@ -1922,31 +2472,57 @@ const CreatorRoomDetail = ({ roomId }) => {
                     <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden mb-5 border border-white/10">
                       <div
                         className="h-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF] transition-all duration-500"
-                        style={{ width: `${Math.min(100, Math.round((userStandups.length / 30) * 100))}%` }}
+                        style={{
+                          width: `${Math.min(100, Math.round((userStandups.length / 30) * 100))}%`,
+                        }}
                       />
                     </div>
 
                     {/* 4 Key Stat Cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
                       <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
-                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">🔥 Current Streak</div>
-                        <div className="text-base font-black text-amber-400">{userStreak} Days</div>
-                      </div>
-
-                      <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
-                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">✅ Completed</div>
-                        <div className="text-base font-black text-emerald-400">{userStandups.length}</div>
-                      </div>
-
-                      <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
-                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">❌ Missed</div>
-                        <div className="text-base font-black text-red-400">
-                          {Math.max(0, Math.min(30, Math.floor((new Date() - new Date(room.start_date || room.created_at)) / (1000 * 60 * 60 * 24))) - userStandups.length)}
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+                          🔥 Current Streak
+                        </div>
+                        <div className="text-base font-black text-amber-400">
+                          {userStreak} Days
                         </div>
                       </div>
 
                       <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
-                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">⏳ Remaining</div>
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+                          ✅ Completed
+                        </div>
+                        <div className="text-base font-black text-emerald-400">
+                          {userStandups.length}
+                        </div>
+                      </div>
+
+                      <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+                          ❌ Missed
+                        </div>
+                        <div className="text-base font-black text-red-400">
+                          {Math.max(
+                            0,
+                            Math.min(
+                              30,
+                              Math.floor(
+                                (new Date() -
+                                  new Date(
+                                    room.start_date || room.created_at,
+                                  )) /
+                                  (1000 * 60 * 60 * 24),
+                              ),
+                            ) - userStandups.length,
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+                          ⏳ Remaining
+                        </div>
                         <div className="text-base font-black text-purple-300">
                           {Math.max(0, 30 - userStandups.length)}
                         </div>
@@ -1959,57 +2535,86 @@ const CreatorRoomDetail = ({ roomId }) => {
                     <div className="text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-3 flex items-center justify-between flex-wrap gap-2">
                       <span>Sprint Days Grid (Days 1 — 30)</span>
                       <div className="flex items-center gap-3 text-[10px]">
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Completed</span>
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Pending (Today)</span>
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Missed</span>
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-600 inline-block" /> Upcoming</span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />{" "}
+                          Completed
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />{" "}
+                          Pending (Today)
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />{" "}
+                          Missed
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-full bg-gray-600 inline-block" />{" "}
+                          Upcoming
+                        </span>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2 font-mono">
-                      {Array.from({ length: 30 }, (_, i) => i + 1).map((dayNum) => {
-                        const startDate = new Date(room.start_date || room.created_at || Date.now());
-                        const dayDate = new Date(startDate);
-                        dayDate.setDate(startDate.getDate() + (dayNum - 1));
+                      {Array.from({ length: 30 }, (_, i) => i + 1).map(
+                        (dayNum) => {
+                          const startDate = new Date(
+                            room.start_date || room.created_at || Date.now(),
+                          );
+                          const dayDate = new Date(startDate);
+                          dayDate.setDate(startDate.getDate() + (dayNum - 1));
 
-                        const today = new Date();
-                        const isTodayDate = dayDate.toDateString() === today.toDateString();
-                        const isPastDate = dayDate < today && !isTodayDate;
+                          const today = new Date();
+                          const isTodayDate =
+                            dayDate.toDateString() === today.toDateString();
+                          const isPastDate = dayDate < today && !isTodayDate;
 
-                        const hasStandup = userStandups.some((s) => {
-                          if (!s.created_at) return false;
-                          return new Date(s.created_at).toDateString() === dayDate.toDateString();
-                        }) || (dayNum <= userStandups.length);
+                          const hasStandup =
+                            userStandups.some((s) => {
+                              if (!s.created_at) return false;
+                              return (
+                                new Date(s.created_at).toDateString() ===
+                                dayDate.toDateString()
+                              );
+                            }) || dayNum <= userStandups.length;
 
-                        let statusSymbol = "⚪";
-                        let bgClass = "bg-white/5 border-white/10 text-gray-400";
+                          let statusSymbol = "⚪";
+                          let bgClass =
+                            "bg-white/5 border-white/10 text-gray-400";
 
-                        if (hasStandup) {
-                          statusSymbol = "🟢";
-                          bgClass = "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 font-bold";
-                        } else if (isTodayDate) {
-                          statusSymbol = "🟡";
-                          bgClass = "bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold animate-pulse";
-                        } else if (isPastDate) {
-                          statusSymbol = "🔴";
-                          bgClass = "bg-red-500/10 border-red-500/30 text-red-400";
-                        }
+                          if (hasStandup) {
+                            statusSymbol = "🟢";
+                            bgClass =
+                              "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 font-bold";
+                          } else if (isTodayDate) {
+                            statusSymbol = "🟡";
+                            bgClass =
+                              "bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold animate-pulse";
+                          } else if (isPastDate) {
+                            statusSymbol = "🔴";
+                            bgClass =
+                              "bg-red-500/10 border-red-500/30 text-red-400";
+                          }
 
-                        const isSelected = selectedDayNum === dayNum;
+                          const isSelected = selectedDayNum === dayNum;
 
-                        return (
-                          <button
-                            key={dayNum}
-                            onClick={() => setSelectedDayNum(dayNum)}
-                            className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${bgClass} ${
-                              isSelected ? "ring-2 ring-[#FF00C8] shadow-lg shadow-[#FF00C8]/30 scale-105" : "hover:border-white/30"
-                            }`}
-                          >
-                            <span className="text-[10px] text-gray-400">Day {dayNum}</span>
-                            <span className="text-base">{statusSymbol}</span>
-                          </button>
-                        );
-                      })}
+                          return (
+                            <button
+                              key={dayNum}
+                              onClick={() => setSelectedDayNum(dayNum)}
+                              className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${bgClass} ${
+                                isSelected
+                                  ? "ring-2 ring-[#FF00C8] shadow-lg shadow-[#FF00C8]/30 scale-105"
+                                  : "hover:border-white/30"
+                              }`}
+                            >
+                              <span className="text-[10px] text-gray-400">
+                                Day {dayNum}
+                              </span>
+                              <span className="text-base">{statusSymbol}</span>
+                            </button>
+                          );
+                        },
+                      )}
                     </div>
                   </div>
 
@@ -2017,20 +2622,35 @@ const CreatorRoomDetail = ({ roomId }) => {
                   {selectedDayNum !== null && (
                     <div className="bg-[#07070d] border border-purple-500/30 rounded-2xl p-5 font-mono text-xs space-y-3">
                       {(() => {
-                        const startDate = new Date(room.start_date || room.created_at || Date.now());
+                        const startDate = new Date(
+                          room.start_date || room.created_at || Date.now(),
+                        );
                         const dayDate = new Date(startDate);
-                        dayDate.setDate(startDate.getDate() + (selectedDayNum - 1));
+                        dayDate.setDate(
+                          startDate.getDate() + (selectedDayNum - 1),
+                        );
 
                         const today = new Date();
-                        const isTodayDate = dayDate.toDateString() === today.toDateString();
+                        const isTodayDate =
+                          dayDate.toDateString() === today.toDateString();
                         const isPastDate = dayDate < today && !isTodayDate;
 
-                        const standup = userStandups.find((s) => {
-                          if (!s.created_at) return false;
-                          return new Date(s.created_at).toDateString() === dayDate.toDateString();
-                        }) || (selectedDayNum <= userStandups.length ? userStandups[selectedDayNum - 1] : null);
+                        const standup =
+                          userStandups.find((s) => {
+                            if (!s.created_at) return false;
+                            return (
+                              new Date(s.created_at).toDateString() ===
+                              dayDate.toDateString()
+                            );
+                          }) ||
+                          (selectedDayNum <= userStandups.length
+                            ? userStandups[selectedDayNum - 1]
+                            : null);
 
-                        const dateFormatted = dayDate.toLocaleDateString([], { month: "short", day: "numeric" });
+                        const dateFormatted = dayDate.toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                        });
 
                         if (standup) {
                           return (
@@ -2044,18 +2664,55 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 </span>
                               </div>
                               <div className="space-y-2 text-gray-300">
-                                <p><strong className="text-white">Check-in:</strong> {new Date(standup.created_at || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                                <p><strong className="text-white">What I accomplished:</strong> {standup.accomplishment}</p>
+                                <p>
+                                  <strong className="text-white">
+                                    Check-in:
+                                  </strong>{" "}
+                                  {new Date(
+                                    standup.created_at || Date.now(),
+                                  ).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                                <p>
+                                  <strong className="text-white">
+                                    What I accomplished:
+                                  </strong>{" "}
+                                  {standup.accomplishment}
+                                </p>
                                 {standup.proof_url && (
                                   <p className="flex items-center gap-1">
-                                    <strong className="text-white">Proof of Work:</strong>{" "}
-                                    <a href={standup.proof_url.startsWith("http") ? standup.proof_url : `https://${standup.proof_url}`} target="_blank" rel="noreferrer" className="text-cyan-400 underline truncate max-w-md">
+                                    <strong className="text-white">
+                                      Proof of Work:
+                                    </strong>{" "}
+                                    <a
+                                      href={
+                                        standup.proof_url.startsWith("http")
+                                          ? standup.proof_url
+                                          : `https://${standup.proof_url}`
+                                      }
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-cyan-400 underline truncate max-w-md"
+                                    >
                                       {standup.proof_url}
                                     </a>
                                   </p>
                                 )}
-                                <p><strong className="text-white">Blockers:</strong> {standup.blockers || "None"}</p>
-                                <p><strong className="text-white">Streak:</strong> 🔥 {standup.streak_count || selectedDayNum} days</p>
+                                <p>
+                                  <strong className="text-white">
+                                    Blockers:
+                                  </strong>{" "}
+                                  {standup.blockers || "None"}
+                                </p>
+                                <p>
+                                  <strong className="text-white">
+                                    Streak:
+                                  </strong>{" "}
+                                  🔥 {standup.streak_count || selectedDayNum}{" "}
+                                  days
+                                </p>
                               </div>
                             </div>
                           );
@@ -2065,7 +2722,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                               <h4 className="font-bold text-amber-300 text-sm mb-1">
                                 Day {selectedDayNum} — Today ({dateFormatted})
                               </h4>
-                              <p className="text-gray-400 mb-3">🟡 Check-in pending for today!</p>
+                              <p className="text-gray-400 mb-3">
+                                🟡 Check-in pending for today!
+                              </p>
                               {isMember && (
                                 <button
                                   onClick={() => {
@@ -2090,7 +2749,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                                   ❌ Missed
                                 </span>
                               </div>
-                              <p className="text-gray-400">No check-in was submitted for this day.</p>
+                              <p className="text-gray-400">
+                                No check-in was submitted for this day.
+                              </p>
                             </div>
                           );
                         } else {
@@ -2104,7 +2765,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                                   ⚪ Upcoming
                                 </span>
                               </div>
-                              <p className="text-gray-400">This sprint day has not started yet. Keep your momentum going!</p>
+                              <p className="text-gray-400">
+                                This sprint day has not started yet. Keep your
+                                momentum going!
+                              </p>
                             </div>
                           );
                         }
@@ -2115,18 +2779,34 @@ const CreatorRoomDetail = ({ roomId }) => {
               ) : (
                 /* Squad Activity Overview for Host */
                 <div className="space-y-4 font-mono text-xs">
-                  <h4 className="text-sm font-bold text-white">Squad Participation Overview</h4>
+                  <h4 className="text-sm font-bold text-white">
+                    Squad Participation Overview
+                  </h4>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {members.map((m) => {
-                      const mStandups = standups.filter((s) => s.user_id === m.user_id || s.username === m.username);
+                      const mStandups = standups.filter(
+                        (s) =>
+                          s.user_id === m.user_id || s.username === m.username,
+                      );
                       const mPct = Math.round((mStandups.length / 30) * 100);
                       return (
-                        <div key={m.user_id} className="p-4 rounded-2xl bg-[#07070d] border border-white/10 flex items-center justify-between gap-4">
+                        <div
+                          key={m.user_id}
+                          className="p-4 rounded-2xl bg-[#07070d] border border-white/10 flex items-center justify-between gap-4"
+                        >
                           <div className="flex items-center gap-3">
-                            <img src={m.avatar_url || DEFAULT_AVATAR} alt={m.username} className="w-9 h-9 rounded-xl object-cover border border-white/10" />
+                            <img
+                              src={m.avatar_url || DEFAULT_AVATAR}
+                              alt={m.username}
+                              className="w-9 h-9 rounded-xl object-cover border border-white/10"
+                            />
                             <div>
-                              <h5 className="font-bold text-white">{m.username}</h5>
-                              <p className="text-[10px] text-gray-500">{mStandups.length} / 30 Days ({mPct}%)</p>
+                              <h5 className="font-bold text-white">
+                                {m.username}
+                              </h5>
+                              <p className="text-[10px] text-gray-500">
+                                {mStandups.length} / 30 Days ({mPct}%)
+                              </p>
                             </div>
                           </div>
 
@@ -2135,7 +2815,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                               <Flame size={14} /> {mStandups.length}d
                             </span>
                             <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-[10px]">
-                              {mStandups[0] ? `Latest: ${new Date(mStandups[0].created_at).toLocaleDateString()}` : "No check-ins"}
+                              {mStandups[0]
+                                ? `Latest: ${new Date(mStandups[0].created_at).toLocaleDateString()}`
+                                : "No check-ins"}
                             </span>
                           </div>
                         </div>
@@ -2167,6 +2849,3 @@ const CreatorRoomDetail = ({ roomId }) => {
 };
 
 export default CreatorRoomDetail;
-
-
-
