@@ -32,8 +32,11 @@ import {
   Edit3,
   MoreVertical,
   Trash2,
+  Terminal,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useAuth } from "./AuthContext";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
 
@@ -94,18 +97,50 @@ const MarkdownBody = ({ content }) => (
           {children}
         </blockquote>
       ),
-      code: ({ inline, children }) =>
-        inline ? (
-          <code className="bg-white/8 text-[#00F0FF] text-xs px-1.5 py-0.5 rounded font-mono">
-            {children}
-          </code>
-        ) : (
-          <pre className="bg-[#080810] border border-white/8 rounded-xl p-4 overflow-x-auto my-3">
-            <code className="text-green-300 text-xs font-mono whitespace-pre-wrap">
-              {children}
-            </code>
-          </pre>
-        ),
+      code: ({ children, className }) => (
+        <code
+          className={
+            className
+              ? "font-mono"
+              : "bg-white/8 text-[#00F0FF] text-xs px-1.5 py-0.5 rounded font-mono"
+          }
+        >
+          {children}
+        </code>
+      ),
+      pre: ({ children }) => {
+        // Fenced code blocks always arrive as <pre><code>...</code></pre> —
+        // intercepting here (rather than relying on a since-removed
+        // `inline` prop on `code`) is the reliable way to tell a fenced
+        // block apart from genuine inline code with modern react-markdown.
+        const codeEl = Array.isArray(children) ? children[0] : children;
+        const codeClassName = codeEl?.props?.className || "";
+        const match = /language-(\w+)/.exec(codeClassName);
+        const language = match ? match[1] : "text";
+        const codeString = String(codeEl?.props?.children ?? "").replace(/\n$/, "");
+        return (
+          <div className="my-3 rounded-xl overflow-hidden border border-white/8 bg-[#080810]">
+            <div className="flex items-center justify-between px-4 py-2 bg-white/[0.03] border-b border-white/8">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-gray-500">
+                {language}
+              </span>
+            </div>
+            <SyntaxHighlighter
+              language={language}
+              style={oneDark}
+              customStyle={{
+                margin: 0,
+                background: "transparent",
+                padding: "1rem",
+                fontSize: "0.75rem",
+              }}
+              wrapLongLines
+            >
+              {codeString}
+            </SyntaxHighlighter>
+          </div>
+        );
+      },
       hr: () => <hr className="border-white/8 my-4" />,
       a: ({ href, children }) => (
         <a
@@ -321,11 +356,19 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
 
                 <button
                   type="button"
-                  title="Code (`code`)"
+                  title="Inline Code (`code`)"
                   onClick={() => insertMarkdown("`", "`")}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition cursor-pointer"
                 >
                   <Code size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Code Block (```lang)"
+                  onClick={() => insertMarkdown("```js\n", "\n```")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Terminal size={14} />
                 </button>
 
                 <button
@@ -695,11 +738,19 @@ const EditPostModal = ({ post, onClose, onUpdated }) => {
                 </button>
                 <button
                   type="button"
-                  title="Code (`code`)"
+                  title="Inline Code (`code`)"
                   onClick={() => insertMarkdown("`", "`")}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition cursor-pointer"
                 >
                   <Code size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Code Block (```lang)"
+                  onClick={() => insertMarkdown("```js\n", "\n```")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Terminal size={14} />
                 </button>
                 <button
                   type="button"
@@ -1116,14 +1167,15 @@ const Community = () => {
 
     let profilesMap = {};
     if (userIds.length > 0) {
-      const { data: profs } = await supabase
+      const { data: profs, error: profErr } = await supabase
         .from("profiles")
-        .select("id, user_id, username, full_name, avatar_url")
+        .select("id, username, full_name, avatar_url")
         .in("id", userIds);
 
+      if (profErr) console.error("profiles fetch error:", profErr);
+
       (profs || []).forEach((p) => {
-        if (p.id) profilesMap[p.id] = p;
-        if (p.user_id) profilesMap[p.user_id] = p;
+        profilesMap[p.id] = p;
       });
     }
 
@@ -1374,6 +1426,9 @@ const Community = () => {
                       onLike={handleLike}
                       likedIds={likedIds}
                       onClick={(p) => navigate(`/community/${p.id}`)}
+                      user={activeUser}
+                      onEdit={setEditingPost}
+                      onDelete={setDeletingPost}
                     />
                   ))}
                 </div>
@@ -1391,6 +1446,20 @@ const Community = () => {
             onClose={() => setShowCreate(false)}
             onCreated={fetchPosts}
             user={activeUser}
+          />
+        )}
+        {editingPost && (
+          <EditPostModal
+            post={editingPost}
+            onClose={() => setEditingPost(null)}
+            onUpdated={fetchPosts}
+          />
+        )}
+        {deletingPost && (
+          <DeleteConfirmModal
+            deleting={deleting}
+            onClose={() => setDeletingPost(null)}
+            onConfirm={handleConfirmDelete}
           />
         )}
       </AnimatePresence>

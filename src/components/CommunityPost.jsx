@@ -11,8 +11,13 @@ import {
   Send,
   Code,
   ChevronDown,
+  Terminal,
+  Edit3,
+  Trash2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useAuth } from "./AuthContext";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
 import { Bold, Italic, Heading, Quote, List, ListOrdered, Link, Eye, X } from "lucide-react";
@@ -74,18 +79,46 @@ const MarkdownBody = ({ content }) => (
           {children}
         </blockquote>
       ),
-      code: ({ inline, children }) =>
-        inline ? (
-          <code className="bg-white/8 text-[#00F0FF] text-xs px-1.5 py-0.5 rounded font-mono">
-            {children}
-          </code>
-        ) : (
-          <pre className="bg-[#080810] border border-white/8 rounded-xl p-4 overflow-x-auto my-3">
-            <code className="text-green-300 text-xs font-mono whitespace-pre-wrap">
-              {children}
-            </code>
-          </pre>
-        ),
+      code: ({ children, className }) => (
+        <code
+          className={
+            className
+              ? "font-mono"
+              : "bg-white/8 text-[#00F0FF] text-xs px-1.5 py-0.5 rounded font-mono"
+          }
+        >
+          {children}
+        </code>
+      ),
+      pre: ({ children }) => {
+        const codeEl = Array.isArray(children) ? children[0] : children;
+        const codeClassName = codeEl?.props?.className || "";
+        const match = /language-(\w+)/.exec(codeClassName);
+        const language = match ? match[1] : "text";
+        const codeString = String(codeEl?.props?.children ?? "").replace(/\n$/, "");
+        return (
+          <div className="my-3 rounded-xl overflow-hidden border border-white/8 bg-[#080810]">
+            <div className="flex items-center justify-between px-4 py-2 bg-white/[0.03] border-b border-white/8">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-gray-500">
+                {language}
+              </span>
+            </div>
+            <SyntaxHighlighter
+              language={language}
+              style={oneDark}
+              customStyle={{
+                margin: 0,
+                background: "transparent",
+                padding: "1rem",
+                fontSize: "0.75rem",
+              }}
+              wrapLongLines
+            >
+              {codeString}
+            </SyntaxHighlighter>
+          </div>
+        );
+      },
       hr: () => <hr className="border-white/8 my-4" />,
       a: ({ href, children }) => (
         <a
@@ -504,11 +537,19 @@ const EditPostModal = ({ post, onClose, onUpdated }) => {
                 </button>
                 <button
                   type="button"
-                  title="Code (`code`)"
+                  title="Inline Code (`code`)"
                   onClick={() => insertMarkdown("`", "`")}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition cursor-pointer"
                 >
                   <Code size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Code Block (```lang)"
+                  onClick={() => insertMarkdown("```js\n", "\n```")}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition cursor-pointer"
+                >
+                  <Terminal size={14} />
                 </button>
                 <button
                   type="button"
@@ -654,6 +695,9 @@ const CommunityPost = () => {
   const [submitting, setSubmitting] = useState(false);
   const [liked, setLiked] = useState(false);
   const [commentError, setCommentError] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data?.user || null));
@@ -667,7 +711,32 @@ const CommunityPost = () => {
       .select("*")
       .eq("id", postId)
       .single();
-    setPost(postData);
+
+    if (postData?.user_id) {
+      const { data: authorProfile, error: authorErr } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, avatar_url")
+        .eq("id", postData.user_id)
+        .maybeSingle();
+
+      if (authorErr) console.error("author profile fetch error:", authorErr);
+
+      // Same source of truth the post card list uses (Community.jsx) —
+      // the current profile row, not whatever was snapshotted on the post
+      // at creation time. This is what fixes the avatar/username mismatch
+      // between the card and this full-post view.
+      setPost({
+        ...postData,
+        username:
+          authorProfile?.username ||
+          authorProfile?.full_name ||
+          postData.username ||
+          "Anonymous",
+        avatar_url: authorProfile?.avatar_url || postData.avatar_url || null,
+      });
+    } else {
+      setPost(postData);
+    }
 
     const { data: allComments } = await supabase
       .from("community_comments")
@@ -685,6 +754,22 @@ const CommunityPost = () => {
     const stored = JSON.parse(localStorage.getItem("liked_posts") || "[]");
     setLiked(stored.includes(postId));
     setLoading(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!post) return;
+    setDeleting(true);
+    const { error: err } = await supabase
+      .from("community_posts")
+      .delete()
+      .eq("id", post.id);
+    setDeleting(false);
+    if (err) {
+      console.error("Error deleting post:", err);
+    } else {
+      setShowDeleteModal(false);
+      navigate("/community");
+    }
   };
 
   const handleLike = async () => {
@@ -772,12 +857,35 @@ const CommunityPost = () => {
 
       <main className="max-w-3xl mx-auto w-full px-6 py-32 flex-1">
         {/* Back */}
-        <button
-          onClick={() => navigate("/community")}
-          className="flex items-center gap-2 text-gray-500 hover:text-white text-sm mb-8 transition cursor-pointer"
-        >
-          <ArrowLeft size={15} /> Back to Community
-        </button>
+        <div className="flex items-center justify-between mb-8">
+          <button
+            onClick={() => navigate("/community")}
+            className="flex items-center gap-2 text-gray-500 hover:text-white text-sm transition cursor-pointer"
+          >
+            <ArrowLeft size={15} /> Back to Community
+          </button>
+
+          {user?.id === post?.user_id && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-300 border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 transition cursor-pointer"
+              >
+                <Edit3 size={13} />
+                Edit Post
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition cursor-pointer"
+              >
+                <Trash2 size={13} />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Post */}
         <motion.div
@@ -974,6 +1082,23 @@ const CommunityPost = () => {
       </main>
 
       <Footer />
+
+      <AnimatePresence>
+        {showEditModal && post && (
+          <EditPostModal
+            post={post}
+            onClose={() => setShowEditModal(false)}
+            onUpdated={fetchPost}
+          />
+        )}
+        {showDeleteModal && (
+          <DeleteConfirmModal
+            deleting={deleting}
+            onClose={() => setShowDeleteModal(false)}
+            onConfirm={handleConfirmDelete}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
