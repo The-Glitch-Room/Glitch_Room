@@ -236,19 +236,19 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto py-8 sm:py-12"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto py-6 sm:py-10"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-xl bg-[#0c0c14] border border-white/10 rounded-3xl shadow-2xl my-auto max-h-[85vh] flex flex-col overflow-hidden"
+        className="relative w-full max-w-3xl sm:max-w-4xl bg-[#0c0c14] border border-white/10 rounded-3xl shadow-2xl my-auto overflow-hidden"
       >
         {/* Top glow bar */}
-        <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF] shrink-0" />
+        <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
 
-        <div className="p-6 sm:p-8 overflow-y-auto flex-1">
+        <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-black text-white">Create a Post</h2>
@@ -456,7 +456,7 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
               className="w-full bg-black/50 border border-white/8 rounded-xl px-4 py-3 text-green-300 text-xs focus:outline-none focus:border-[#00F0FF]/40 transition mb-4 font-mono resize-none"
             />
           ) : isPreview ? (
-            <div className="w-full bg-[#05050b] border border-white/10 rounded-xl p-4 min-h-[140px] max-h-[220px] overflow-y-auto mb-4 font-sans text-sm">
+            <div className="w-full bg-[#05050b] border border-white/10 rounded-xl p-5 min-h-[160px] mb-4 font-sans text-sm">
               {body.trim() ? (
                 <MarkdownBody content={body} />
               ) : (
@@ -628,18 +628,18 @@ const EditPostModal = ({ post, onClose, onUpdated }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto py-8 sm:py-12"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto py-6 sm:py-10"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-xl bg-[#0c0c14] border border-white/10 rounded-3xl shadow-2xl my-auto max-h-[85vh] flex flex-col overflow-hidden"
+        className="relative w-full max-w-3xl sm:max-w-4xl bg-[#0c0c14] border border-white/10 rounded-3xl shadow-2xl my-auto overflow-hidden"
       >
-        <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF] shrink-0" />
+        <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
 
-        <div className="p-6 sm:p-8 overflow-y-auto flex-1">
+        <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-black text-white">Edit Post</h2>
@@ -833,7 +833,7 @@ const EditPostModal = ({ post, onClose, onUpdated }) => {
               className="w-full bg-black/50 border border-white/8 rounded-xl px-4 py-3 text-green-300 text-xs focus:outline-none focus:border-[#00F0FF]/40 transition mb-4 font-mono resize-none"
             />
           ) : isPreview ? (
-            <div className="w-full bg-[#05050b] border border-white/10 rounded-xl p-4 min-h-[140px] max-h-[220px] overflow-y-auto mb-4 font-sans text-sm">
+            <div className="w-full bg-[#05050b] border border-white/10 rounded-xl p-5 min-h-[160px] mb-4 font-sans text-sm">
               {body.trim() ? (
                 <MarkdownBody content={body} />
               ) : (
