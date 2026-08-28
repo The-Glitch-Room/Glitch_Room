@@ -145,6 +145,32 @@ const ProRoomDashboard = () => {
     }
   };
 
+  const handleUpdateRegistrationStatus = async (regId, newStatus) => {
+    if (!isHost) return;
+    try {
+      const { error } = await supabase
+        .from("pro_room_registrations")
+        .update({ status: newStatus })
+        .eq("id", regId);
+
+      if (error) {
+        console.error("Failed to update registration status:", error);
+        showToast("⚠️ Couldn't update the application — please try again.");
+        return;
+      }
+
+      showToast(
+        newStatus === "approved"
+          ? "✅ Application approved."
+          : "Application rejected.",
+      );
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      showToast("⚠️ Couldn't update the application — please try again.");
+    }
+  };
+
   const handlePublishResults = async () => {
     if (!isHost) return;
     setPublishing(true);
@@ -358,9 +384,38 @@ const ProRoomDashboard = () => {
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-bold text-emerald-400 uppercase">
-                      {r.status || "Registered"}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {r.status === "pending" ? (
+                        <>
+                          <button
+                            onClick={() =>
+                              handleUpdateRegistrationStatus(r.id, "approved")
+                            }
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold hover:bg-emerald-500/25 cursor-pointer"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleUpdateRegistrationStatus(r.id, "rejected")
+                            }
+                            className="px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-500/40 text-red-300 text-[10px] font-bold hover:bg-red-500/25 cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      ) : (
+                        <span
+                          className={`text-xs font-mono font-bold uppercase ${
+                            r.status === "rejected"
+                              ? "text-red-400"
+                              : "text-emerald-400"
+                          }`}
+                        >
+                          {r.status || "Registered"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

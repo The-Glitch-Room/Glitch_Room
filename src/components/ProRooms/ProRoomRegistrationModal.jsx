@@ -66,10 +66,16 @@ const ProRoomRegistrationModal = ({
 
     setSubmitting(true);
     try {
+      // Respect the host's require_application setting (set in
+      // CreateProRoomPage.jsx) — previously every registration was
+      // hardcoded to "approved" regardless of it, silently ignoring any
+      // host who configured manual application review.
+      const requiresReview = room.require_application === true;
+
       const payload = {
         room_id: room.id,
         user_id: currentUser.id,
-        status: "approved",
+        status: requiresReview ? "pending" : "approved",
         answers_json: customAnswers,
         registered_at: new Date().toISOString(),
       };
@@ -91,10 +97,13 @@ const ProRoomRegistrationModal = ({
         return;
       }
 
-      if (showToast)
+      if (showToast) {
         showToast(
-          `🎉 Registration approved! Welcome to ${room.name || room.title}`,
+          requiresReview
+            ? `📝 Application submitted for ${room.name || room.title} — the host will review it.`
+            : `🎉 Registration approved! Welcome to ${room.name || room.title}`,
         );
+      }
       if (onRegistrationSuccess) onRegistrationSuccess(data);
       onClose();
     } catch (err) {
@@ -118,7 +127,9 @@ const ProRoomRegistrationModal = ({
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div>
               <span className="text-[10px] font-mono font-bold text-[#00F0FF] uppercase tracking-widest block mb-1">
-                Automatic Registration
+                {room.require_application === true
+                  ? "Application Review Required"
+                  : "Automatic Registration"}
               </span>
               <h3 className="text-base font-bold text-white leading-snug">
                 Register for {room.name || room.title}
@@ -231,8 +242,9 @@ const ProRoomRegistrationModal = ({
 
             {/* Terms / Confirmation notice */}
             <p className="text-[10px] text-gray-500 leading-relaxed font-mono">
-              By registering, you agree to abide by event rules. Registration is
-              automatically approved instantly.
+              {room.require_application === true
+                ? "By registering, you agree to abide by event rules. The host reviews applications manually — you'll be notified once yours is approved."
+                : "By registering, you agree to abide by event rules. Registration is automatically approved instantly."}
             </p>
 
             {/* Submit Button */}
@@ -250,10 +262,17 @@ const ProRoomRegistrationModal = ({
                 className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer disabled:opacity-50 flex items-center gap-2"
               >
                 {submitting ? (
-                  <>Registering...</>
+                  room.require_application === true ? (
+                    <>Submitting...</>
+                  ) : (
+                    <>Registering...</>
+                  )
                 ) : (
                   <>
-                    <CheckCircle2 size={15} /> Complete Registration
+                    <CheckCircle2 size={15} />{" "}
+                    {room.require_application === true
+                      ? "Submit Application"
+                      : "Complete Registration"}
                   </>
                 )}
               </button>

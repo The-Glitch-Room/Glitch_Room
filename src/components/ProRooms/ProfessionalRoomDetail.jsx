@@ -50,6 +50,30 @@ import ProRoomHelpModal from "./ProRoomHelpModal";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import { supabase } from "../../supabaseClient";
 
+// Shared date+time formatter for notifications — previously each entry
+// only showed "07:11 PM" with no date at all, so anything more than a few
+// hours old was ambiguous about which day it happened. Shows a relative
+// "Today"/"Yesterday" label where it helps, otherwise the actual date.
+const formatNotificationTimestamp = (input) => {
+  const d = input instanceof Date ? input : new Date(input || Date.now());
+  if (Number.isNaN(d.getTime())) return "";
+
+  const now = new Date();
+  const isSameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  if (isSameDay(d, now)) return `Today, ${time}`;
+  if (isSameDay(d, yesterday)) return `Yesterday, ${time}`;
+  return `${d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}, ${time}`;
+};
+
 const ProfessionalRoomDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -84,6 +108,13 @@ const ProfessionalRoomDetail = () => {
   const isRegistered =
     isHost ||
     Boolean(userRegistration && userRegistration.status === "approved");
+  // A registration exists but is awaiting the host's manual review
+  // (require_application: true rooms) — distinct from isRegistered so this
+  // person sees "application pending" instead of the register button again,
+  // and can't submit a second application.
+  const isPendingApproval = Boolean(
+    !isHost && userRegistration && userRegistration.status === "pending",
+  );
 
   // Dropdowns & Modal States
   const [showNotifications, setShowNotifications] = useState(false);
@@ -168,21 +199,34 @@ const ProfessionalRoomDetail = () => {
       setSections(secData || []);
 
       // 3. Fetch User Registration & User's OWN Submission
+      // `reg`/`sub` are declared here (not just inside the `if`) so the
+      // notification-synthesis step below can read these freshly-fetched
+      // values directly — using the `userRegistration`/`userSubmission`
+      // state instead (as this used to) reads whatever was left over from
+      // the PREVIOUS render, since React state setters don't apply
+      // synchronously within the same function call. That meant a
+      // brand-new registration/submission wouldn't show its "Registration
+      // Approved" / "Submission Recorded" notification until some later,
+      // unrelated re-render happened to pick up the update.
+      let reg = null;
+      let sub = null;
       if (uid) {
-        const { data: reg } = await supabase
+        const { data: regData } = await supabase
           .from("pro_room_registrations")
           .select("*")
           .eq("room_id", id)
           .eq("user_id", uid)
           .maybeSingle();
+        reg = regData;
         setUserRegistration(reg);
 
-        const { data: sub } = await supabase
+        const { data: subData } = await supabase
           .from("pro_room_submissions")
           .select("*")
           .eq("room_id", id)
           .eq("user_id", uid)
           .maybeSingle();
+        sub = subData;
         setUserSubmission(sub);
       }
 
@@ -266,11 +310,11 @@ const ProfessionalRoomDetail = () => {
             id: n.id,
             title: n.title,
             subtitle: n.message || n.subtitle || "Room Update",
-            time: new Date(n.created_at || Date.now()).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
+            time: formatNotificationTimestamp(n.created_at),
             read: n.read || false,
+            // Backed by a real pro_room_notifications row — "mark as read"
+            // can persist this one to the database.
+            persistable: true,
           }));
         }
       } catch (err) {
@@ -285,32 +329,53 @@ const ProfessionalRoomDetail = () => {
               id: `ann-${a.id || idx}`,
               title: `Announcement: ${a.title}`,
               subtitle: a.content,
-              time: new Date(a.created_at || Date.now()).toLocaleTimeString(
-                [],
-                { hour: "2-digit", minute: "2-digit" },
-              ),
+              time: formatNotificationTimestamp(a.created_at),
               read: false,
+              // Synthesized from pro_room_announcements, not a real
+              // pro_room_notifications row — "read" only lives in local
+              // state for these, nothing to persist to.
+              persistable: false,
             });
           });
         }
 
-        if (userRegistration) {
+        if (reg && reg.status === "approved") {
           dynamicNotifs.push({
-            id: `reg-${userRegistration.id || "ok"}`,
+            id: `reg-${reg.id || "ok"}`,
             title: "Registration Approved",
             subtitle: `You are registered for ${currentRoom.name || currentRoom.title}`,
-            time: "Active",
-            read: true,
+            time: formatNotificationTimestamp(reg.registered_at),
+            read: false,
+            persistable: false,
+          });
+        } else if (reg && reg.status === "pending") {
+          dynamicNotifs.push({
+            id: `reg-${reg.id || "pending"}`,
+            title: "Application Pending Review",
+            subtitle: `Your application for ${currentRoom.name || currentRoom.title} is awaiting host approval`,
+            time: formatNotificationTimestamp(reg.registered_at),
+            read: false,
+            persistable: false,
+          });
+        } else if (reg && reg.status === "rejected") {
+          dynamicNotifs.push({
+            id: `reg-${reg.id || "rejected"}`,
+            title: "Application Not Approved",
+            subtitle: `Your application for ${currentRoom.name || currentRoom.title} was not approved`,
+            time: formatNotificationTimestamp(reg.registered_at),
+            read: false,
+            persistable: false,
           });
         }
 
-        if (userSubmission) {
+        if (sub) {
           dynamicNotifs.push({
-            id: `sub-${userSubmission.id || "ok"}`,
+            id: `sub-${sub.id || "ok"}`,
             title: "Assessment Submission Recorded",
-            subtitle: `Total Score: ${userSubmission.total_score || 0} pts`,
-            time: "Recorded",
-            read: true,
+            subtitle: `Total Score: ${sub.total_score || 0} pts`,
+            time: formatNotificationTimestamp(sub.submitted_at),
+            read: false,
+            persistable: false,
           });
         }
       }
@@ -359,10 +424,55 @@ const ProfessionalRoomDetail = () => {
     }
   }, [isHost, activeSidebarTab, loading]);
 
-  const markNotificationRead = (notifId) => {
+  const markNotificationRead = async (notifId) => {
+    const notif = notifications.find((n) => n.id === notifId);
+    if (!notif || notif.read) return;
+
+    // Optimistic — update immediately so the click feels instant.
     setNotifications((prev) =>
       prev.map((n) => (n.id === notifId ? { ...n, read: true } : n)),
     );
+
+    if (!notif.persistable) return; // synthesized entry, nothing to save
+
+    const { error } = await supabase
+      .from("pro_room_notifications")
+      .update({ read: true })
+      .eq("id", notifId);
+
+    if (error) {
+      console.error("Failed to mark notification as read:", error);
+      // Revert the optimistic update so the UI matches reality.
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notifId ? { ...n, read: false } : n)),
+      );
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    const unread = notifications.filter((n) => !n.read);
+    if (unread.length === 0) return;
+
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+
+    const persistableIds = unread.filter((n) => n.persistable).map((n) => n.id);
+    if (persistableIds.length === 0) return;
+
+    const { error } = await supabase
+      .from("pro_room_notifications")
+      .update({ read: true })
+      .in("id", persistableIds);
+
+    if (error) {
+      console.error("Failed to mark all notifications as read:", error);
+      showToast("⚠️ Couldn't mark all as read — please try again.");
+      // Revert only the ones that were actually persistable and failed.
+      setNotifications((prev) =>
+        prev.map((n) =>
+          persistableIds.includes(n.id) ? { ...n, read: false } : n,
+        ),
+      );
+    }
   };
 
   const handleShareRoom = () => {
@@ -512,17 +622,65 @@ const ProfessionalRoomDetail = () => {
   const handleDeleteRoom = async () => {
     if (!isHost) return;
     try {
+      // Clean up every table that references this room BEFORE deleting the
+      // room itself — previously this went straight to deleting pro_rooms,
+      // which either left orphaned rows behind forever (registrations,
+      // submissions, answers, sections, questions, announcements,
+      // discussions, leaderboard, help tickets) or failed outright on an FK
+      // constraint depending on the schema, with the failure invisible to
+      // the host either way. Order matters: children that reference other
+      // children (answers→submissions, replies→discussions) go first.
+      // Any single failure here aborts before touching pro_rooms, so we
+      // never delete the parent while children still exist.
+      const { data: discRows } = await supabase
+        .from("pro_room_discussions")
+        .select("id")
+        .eq("room_id", id);
+      const discussionIds = (discRows || []).map((d) => d.id);
+
+      const cleanupSteps = [
+        () => supabase.from("pro_room_answers").delete().eq("room_id", id),
+        () =>
+          discussionIds.length > 0
+            ? supabase
+                .from("pro_room_discussion_replies")
+                .delete()
+                .in("discussion_id", discussionIds)
+            : Promise.resolve({ error: null }),
+        () => supabase.from("pro_room_discussions").delete().eq("room_id", id),
+        () => supabase.from("pro_room_help_tickets").delete().eq("room_id", id),
+        () => supabase.from("pro_room_leaderboard").delete().eq("room_id", id),
+        () => supabase.from("pro_room_submissions").delete().eq("room_id", id),
+        () =>
+          supabase.from("pro_room_registrations").delete().eq("room_id", id),
+        () =>
+          supabase.from("pro_room_announcements").delete().eq("room_id", id),
+        () => supabase.from("pro_room_questions").delete().eq("room_id", id),
+        () => supabase.from("pro_room_sections").delete().eq("room_id", id),
+      ];
+
+      for (const step of cleanupSteps) {
+        const { error: stepErr } = await step();
+        if (stepErr) {
+          console.error("Failed to clean up related room data:", stepErr);
+          showToast(
+            "⚠️ Couldn't delete this room — failed clearing related data. Nothing was deleted.",
+          );
+          return;
+        }
+      }
+
       const { error } = await supabase.from("pro_rooms").delete().eq("id", id);
 
       if (error) {
         console.error("Failed to delete room:", error);
         showToast(
-          "⚠️ Couldn't delete this room — it may have related data (registrations, submissions) blocking removal.",
+          "⚠️ Related data was cleared, but the room itself couldn't be deleted — please try again.",
         );
         return;
       }
 
-      showToast("🗑️ Room archived/deleted.");
+      showToast("🗑️ Room and all related data deleted.");
       setTimeout(() => navigate("/pro-rooms"), 1200);
     } catch (err) {
       console.error(err);
@@ -696,21 +854,34 @@ const ProfessionalRoomDetail = () => {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#0d0d16] border border-white/10 rounded-2xl shadow-2xl p-4 z-50 font-sans"
+                  className="absolute right-0 mt-2 w-80 sm:w-[420px] bg-[#0d0d16] border border-white/10 rounded-2xl shadow-2xl z-50 font-sans flex flex-col max-h-[75vh] overflow-hidden"
                 >
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
-                    <h4 className="text-xs font-mono font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                      <Bell size={14} className="text-[#FF00C8]" /> Room
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
+                    <h4 className="text-base font-bold text-white flex items-center gap-2">
+                      <Bell size={18} className="text-[#FF00C8]" /> Room
                       Notifications
                     </h4>
-                    <span className="text-[10px] font-mono text-gray-400">
-                      {unreadCount} Unread
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {unreadCount > 0 && (
+                        <span className="text-[10px] font-mono text-gray-400">
+                          {unreadCount} Unread
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowNotifications(false)}
+                        className="p-1 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="space-y-2.5 max-h-80 overflow-y-auto">
+                  {/* List */}
+                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                     {notifications.length === 0 ? (
-                      <p className="text-xs text-gray-500 text-center py-6">
+                      <p className="text-xs text-gray-500 text-center py-10">
                         No notifications yet.
                       </p>
                     ) : (
@@ -718,27 +889,61 @@ const ProfessionalRoomDetail = () => {
                         <div
                           key={n.id}
                           onClick={() => markNotificationRead(n.id)}
-                          className={`p-3 rounded-xl border transition cursor-pointer ${
+                          className={`relative p-4 pl-5 rounded-xl border transition cursor-pointer ${
                             n.read
-                              ? "bg-white/[0.02] border-white/5 text-gray-400 opacity-60"
-                              : "bg-[#12121e] border-purple-500/30 text-white hover:border-[#00F0FF]"
+                              ? "bg-white/[0.02] border-white/5"
+                              : "bg-[#12121e] border-purple-500/30 hover:border-[#00F0FF]/50"
                           }`}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-xs font-bold block">
+                          {/* Unread accent bar */}
+                          {!n.read && (
+                            <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-gradient-to-b from-[#FF00C8] to-purple-500" />
+                          )}
+
+                          <div className="flex items-start justify-between gap-3">
+                            <span
+                              className={`text-sm font-bold ${
+                                n.read ? "text-gray-400" : "text-white"
+                              }`}
+                            >
                               {n.title}
                             </span>
-                            <span className="text-[9px] font-mono text-gray-500 shrink-0">
+                            <span className="text-[10px] font-mono text-gray-500 shrink-0 whitespace-nowrap">
                               {n.time}
                             </span>
                           </div>
-                          <p className="text-[11px] text-gray-400 mt-1 line-clamp-1">
+                          <p
+                            className={`text-xs mt-1.5 leading-relaxed ${
+                              n.read ? "text-gray-500" : "text-gray-300"
+                            }`}
+                          >
                             {n.subtitle}
                           </p>
+
+                          {!n.read && (
+                            <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold text-[#00F0FF]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#00F0FF]" />
+                              Mark as read
+                            </span>
+                          )}
                         </div>
                       ))
                     )}
                   </div>
+
+                  {/* Footer */}
+                  {notifications.length > 0 && (
+                    <div className="px-4 py-3 border-t border-white/10 shrink-0">
+                      <button
+                        type="button"
+                        onClick={markAllNotificationsRead}
+                        disabled={unreadCount === 0}
+                        className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-[#FF00C8] text-xs font-bold hover:bg-white/10 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Mark All as Read
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1481,29 +1686,51 @@ const ProfessionalRoomDetail = () => {
             {/* STANDARD ROOM NAVIGATION TABS */}
             {activeSidebarTab === "overview" && (
               <div className="space-y-6">
-                {!isRegistered && (
-                  <div className="bg-[#07070e] border border-[#00F0FF]/30 rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+                {isPendingApproval ? (
+                  <div className="bg-[#07070e] border border-amber-500/30 rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center shrink-0">
-                        <Sparkles size={20} className="text-[#00F0FF]" />
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                        <Clock size={20} className="text-amber-400" />
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-white">
-                          Registration Open for this Pro Room
+                          Application Pending Review
                         </h4>
                         <p className="text-xs text-gray-400">
-                          Register now for automatic approval and instant access
-                          to assessment sections.
+                          Your application has been submitted — the host reviews
+                          these manually. You'll get access once it's approved.
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setShowRegModal(true)}
-                      className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer whitespace-nowrap"
-                    >
-                      Register Now →
-                    </button>
                   </div>
+                ) : (
+                  !isRegistered && (
+                    <div className="bg-[#07070e] border border-[#00F0FF]/30 rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center shrink-0">
+                          <Sparkles size={20} className="text-[#00F0FF]" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white">
+                            Registration Open for this Pro Room
+                          </h4>
+                          <p className="text-xs text-gray-400">
+                            {room?.require_application === true
+                              ? "Apply now — the host reviews applications manually before granting access."
+                              : "Register now for automatic approval and instant access to assessment sections."}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowRegModal(true)}
+                        className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer whitespace-nowrap"
+                      >
+                        {room?.require_application === true
+                          ? "Apply Now →"
+                          : "Register Now →"}
+                      </button>
+                    </div>
+                  )
                 )}
 
                 <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
@@ -1877,7 +2104,21 @@ const ProfessionalRoomDetail = () => {
                   )}
                 </div>
 
-                {!isRegistered ? (
+                {isPendingApproval ? (
+                  <div className="bg-[#07070e] border border-amber-500/30 rounded-2xl p-10 text-center space-y-4 my-4">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+                      <Clock size={28} />
+                    </div>
+                    <h3 className="text-base font-bold text-white">
+                      Application Pending Review
+                    </h3>
+                    <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
+                      The host reviews applications manually — you'll be able to
+                      view sections and start the assessment once yours is
+                      approved.
+                    </p>
+                  </div>
+                ) : !isRegistered ? (
                   <div className="bg-[#07070e] border border-cyan-500/30 rounded-2xl p-10 text-center space-y-4 my-4">
                     <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mx-auto text-[#00F0FF]">
                       <Lock size={28} />
@@ -1894,7 +2135,9 @@ const ProfessionalRoomDetail = () => {
                       onClick={() => setShowRegModal(true)}
                       className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer"
                     >
-                      Register Now to Unlock
+                      {room?.require_application === true
+                        ? "Apply Now"
+                        : "Register Now to Unlock"}
                     </button>
                   </div>
                 ) : sections.length === 0 ? (
