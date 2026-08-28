@@ -50,10 +50,15 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
         status: "open",
       };
 
-      const { error } = await supabase.from("pro_room_help_tickets").insert([payload]);
+      const { error } = await supabase
+        .from("pro_room_help_tickets")
+        .insert([payload]);
 
       if (error) {
-        console.warn("Insert into pro_room_help_tickets fallback:", error);
+        console.error("Failed to send host ticket:", error);
+        showToast("⚠️ Couldn't send your message — please try again.");
+        setSubmittingHost(false);
+        return;
       }
 
       showToast("Support ticket sent directly to the Host!");
@@ -61,7 +66,7 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
       setHostMessage("");
     } catch (err) {
       console.error("Error sending host ticket:", err);
-      showToast("Message sent to Host!");
+      showToast("⚠️ Couldn't send your message — please try again.");
     } finally {
       setSubmittingHost(false);
     }
@@ -87,10 +92,15 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
         status: "open",
       };
 
-      const { error } = await supabase.from("pro_room_help_tickets").insert([payload]);
+      const { error } = await supabase
+        .from("pro_room_help_tickets")
+        .insert([payload]);
 
       if (error) {
-        console.warn("Insert into pro_room_help_tickets fallback:", error);
+        console.error("Failed to send platform ticket:", error);
+        showToast("⚠️ Couldn't report the issue — please try again.");
+        setSubmittingPlat(false);
+        return;
       }
 
       showToast("Platform issue reported to Glitch Support!");
@@ -98,7 +108,7 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
       setPlatMessage("");
     } catch (err) {
       console.error("Error sending platform ticket:", err);
-      showToast("Issue reported to Glitch Support!");
+      showToast("⚠️ Couldn't report the issue — please try again.");
     } finally {
       setSubmittingPlat(false);
     }
@@ -125,10 +135,12 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                   DUAL SUPPORT DESK
                 </span>
                 <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-                  <LifeBuoy size={20} className="text-[#00F0FF]" /> Pro Room Help & Support
+                  <LifeBuoy size={20} className="text-[#00F0FF]" /> Pro Room
+                  Help & Support
                 </h2>
                 <p className="text-xs text-gray-400">
-                  Get assistance from either the event Host or the Glitch Room Platform engineering team.
+                  Get assistance from either the event Host or the Glitch Room
+                  Platform engineering team.
                 </p>
               </div>
 
@@ -192,9 +204,13 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                     )}
                     <div>
                       <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        {room?.org_name || "Verified Organization"} <ShieldCheck size={13} className="text-[#00F0FF]" />
+                        {room?.org_name || "Verified Organization"}{" "}
+                        <ShieldCheck size={13} className="text-[#00F0FF]" />
                       </h4>
-                      <p className="text-[11px] text-gray-400">Event Host for {room?.name || room?.title || "this Pro Room"}</p>
+                      <p className="text-[11px] text-gray-400">
+                        Event Host for{" "}
+                        {room?.name || room?.title || "this Pro Room"}
+                      </p>
                     </div>
                   </div>
                   <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold shrink-0">
@@ -204,10 +220,13 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
 
                 {/* Host FAQ Preview */}
                 {Array.isArray(room?.custom_app_questions) &&
-                  room.custom_app_questions.filter((q) => q && (q.question || q.title)).length > 0 && (
+                  room.custom_app_questions.filter(
+                    (q) => q && (q.question || q.title),
+                  ).length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                        <HelpCircle size={14} className="text-purple-400" /> Host FAQ Quick Answers
+                        <HelpCircle size={14} className="text-purple-400" />{" "}
+                        Host FAQ Quick Answers
                       </h4>
                       <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
                         {room.custom_app_questions
@@ -224,7 +243,9 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                                 </span>
                               </summary>
                               <p className="mt-2 text-gray-400 leading-relaxed pt-2 border-t border-white/5">
-                                {faq.answer || faq.description || "Refer to room rules or message host below."}
+                                {faq.answer ||
+                                  faq.description ||
+                                  "Refer to room rules or message host below."}
                               </p>
                             </details>
                           ))}
@@ -233,9 +254,13 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                   )}
 
                 {/* Private Host Ticket Form */}
-                <form onSubmit={handleSendHostTicket} className="space-y-3 pt-2 border-t border-white/10">
+                <form
+                  onSubmit={handleSendHostTicket}
+                  className="space-y-3 pt-2 border-t border-white/10"
+                >
                   <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <MessageSquare size={14} className="text-purple-400" /> Send Private Ticket to Host
+                    <MessageSquare size={14} className="text-purple-400" /> Send
+                    Private Ticket to Host
                   </h4>
                   <input
                     type="text"
@@ -256,7 +281,9 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                     disabled={submittingHost}
                     className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition shadow-lg shadow-purple-600/25 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {submittingHost ? "Sending Ticket..." : "Send Ticket to Host →"}
+                    {submittingHost
+                      ? "Sending Ticket..."
+                      : "Send Ticket to Host →"}
                   </button>
                 </form>
               </div>
@@ -273,9 +300,13 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        Glitch Platform Engines <CheckCircle2 size={13} className="text-emerald-400" />
+                        Glitch Platform Engines{" "}
+                        <CheckCircle2 size={13} className="text-emerald-400" />
                       </h4>
-                      <p className="text-[11px] text-gray-400">All code execution, evaluation, and realtime servers active</p>
+                      <p className="text-[11px] text-gray-400">
+                        All code execution, evaluation, and realtime servers
+                        active
+                      </p>
                     </div>
                   </div>
                   <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] font-bold shrink-0">
@@ -286,19 +317,42 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                 {/* Troubleshooting Tips */}
                 <div className="space-y-2">
                   <h4 className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                    <AlertTriangle size={14} className="text-amber-400" /> Technical Troubleshooting
+                    <AlertTriangle size={14} className="text-amber-400" />{" "}
+                    Technical Troubleshooting
                   </h4>
                   <div className="p-3.5 rounded-xl bg-[#030308] border border-white/5 space-y-2 text-xs text-gray-400">
-                    <p>• <strong className="text-white">Code Runner Stalled?</strong> Refresh the browser page or re-select your language dialect.</p>
-                    <p>• <strong className="text-white">Focus Monitor Alert?</strong> Avoid leaving the browser tab during timed assessment sections.</p>
-                    <p>• <strong className="text-white">Session Sync?</strong> Ensure your network connection remains active during code submission.</p>
+                    <p>
+                      •{" "}
+                      <strong className="text-white">
+                        Code Runner Stalled?
+                      </strong>{" "}
+                      Refresh the browser page or re-select your language
+                      dialect.
+                    </p>
+                    <p>
+                      •{" "}
+                      <strong className="text-white">
+                        Focus Monitor Alert?
+                      </strong>{" "}
+                      Avoid leaving the browser tab during timed assessment
+                      sections.
+                    </p>
+                    <p>
+                      • <strong className="text-white">Session Sync?</strong>{" "}
+                      Ensure your network connection remains active during code
+                      submission.
+                    </p>
                   </div>
                 </div>
 
                 {/* Platform Ticket Form */}
-                <form onSubmit={handleSendPlatformTicket} className="space-y-3 pt-2 border-t border-white/10">
+                <form
+                  onSubmit={handleSendPlatformTicket}
+                  className="space-y-3 pt-2 border-t border-white/10"
+                >
                   <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <Send size={14} className="text-[#00F0FF]" /> Report Technical Platform Issue
+                    <Send size={14} className="text-[#00F0FF]" /> Report
+                    Technical Platform Issue
                   </h4>
                   <input
                     type="text"
@@ -319,7 +373,9 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                     disabled={submittingPlat}
                     className="w-full py-2.5 rounded-xl bg-[#00F0FF]/20 border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/30 text-xs font-bold transition shadow-lg shadow-[#00F0FF]/15 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {submittingPlat ? "Submitting Report..." : "Submit Technical Ticket to Glitch Support →"}
+                    {submittingPlat
+                      ? "Submitting Report..."
+                      : "Submit Technical Ticket to Glitch Support →"}
                   </button>
                 </form>
               </div>

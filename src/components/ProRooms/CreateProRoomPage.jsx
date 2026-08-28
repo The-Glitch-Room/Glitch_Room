@@ -265,12 +265,38 @@ const CreateProRoomPage = () => {
             });
           }
 
-          // Fetch Sections & Questions
-          const { data: sData } = await supabase
+          // Fetch Sections & Questions — questions come from
+          // pro_room_questions_safe, not the base pro_room_questions table:
+          // correct_answer is no longer readable from the base table at
+          // all (by anyone, host included — see
+          // fix_3_hide_correct_answers.sql), so editing has to go through
+          // the view, which re-exposes it specifically because this is the
+          // room's host.
+          const { data: sRows } = await supabase
             .from("pro_room_sections")
-            .select("*, pro_room_questions(*)")
+            .select("*")
             .eq("room_id", editRoomId)
             .order("order_index", { ascending: true });
+
+          let sData = [];
+          if (sRows && sRows.length > 0) {
+            const sectionIds = sRows.map((s) => s.id);
+            const { data: qRows, error: qErr } = await supabase
+              .from("pro_room_questions_safe")
+              .select("*")
+              .in("section_id", sectionIds);
+
+            if (qErr) {
+              console.error("Could not load questions for edit:", qErr);
+            }
+
+            sData = sRows.map((s) => ({
+              ...s,
+              pro_room_questions: (qRows || []).filter(
+                (q) => q.section_id === s.id,
+              ),
+            }));
+          }
 
           if (sData && sData.length > 0) {
             setSections(

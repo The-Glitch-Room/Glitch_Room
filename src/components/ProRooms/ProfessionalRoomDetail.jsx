@@ -23,6 +23,7 @@ import {
   Bell,
   MoreVertical,
   ArrowLeft,
+  Search,
   Megaphone,
   Layers,
   MessageSquare,
@@ -55,6 +56,7 @@ const ProfessionalRoomDetail = () => {
 
   // Database States
   const [room, setRoom] = useState(null);
+  const [roomNotFound, setRoomNotFound] = useState(false);
   const [sections, setSections] = useState([]);
   const [registrations, setRegistrations] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -71,10 +73,13 @@ const ProfessionalRoomDetail = () => {
   const [isFollowingOrg, setIsFollowingOrg] = useState(false);
 
   // Dynamic Database Host & Registration Verification
+  // pro_rooms only ever sets host_id at creation (both CreateProRoomPage.jsx
+  // and the orphaned CreateProRoomModal.jsx write host_id, never
+  // created_by) — that column belongs to the separate Creator Rooms
+  // feature's `rooms` table. Checking it here was dead code implying a
+  // second valid ownership path that doesn't actually exist for pro_rooms.
   const isHost = Boolean(
-    currentUserId &&
-    room &&
-    (room.host_id === currentUserId || room.created_by === currentUserId),
+    currentUserId && room && room.host_id === currentUserId,
   );
   const isRegistered =
     isHost ||
@@ -138,34 +143,19 @@ const ProfessionalRoomDetail = () => {
         .eq("id", id)
         .maybeSingle();
 
-      const currentRoom = roomData || {
-        id,
-        name: "Pro Assessment Arena",
-        title: "Pro Assessment Arena",
-        short_description:
-          "Time-bound professional evaluation arena for candidates.",
-        detailed_description:
-          "Comprehensive evaluation arena featuring timed sections, automated code execution, and leaderboards.",
-        category: "Software Engineering",
-        event_type: "Technical Assessment",
-        org_name: "Verified Organization",
-        org_logo: null,
-        cover_image: null,
-        reg_start_at: new Date().toISOString(),
-        reg_end_at: new Date(Date.now() + 86400000).toISOString(),
-        event_start_at: new Date().toISOString(),
-        event_end_at: new Date(Date.now() + 172800000).toISOString(),
-        timezone: "IST (UTC +05:30)",
-        duration_minutes: 2880,
-        status: "registration_open",
-        max_participants: 500,
-        participation_type: "individual",
-        max_team_size: 1,
-        gbits_prize_pool: 1000,
-        total_possible_score: 300,
-        passing_score: 50,
-      };
+      if (!roomData) {
+        // Previously fabricated a complete fake room here (fake dates, fake
+        // prize pool, fake description) and rendered it as if real — a bad
+        // link, a deleted room, or an RLS-blocked fetch would show a fully
+        // functional-looking fake event instead of an error. Show the real
+        // state instead.
+        setRoom(null);
+        setRoomNotFound(true);
+        setLoading(false);
+        return;
+      }
 
+      const currentRoom = roomData;
       setRoom(currentRoom);
 
       // 2. Fetch Sections & Question Counts
@@ -409,25 +399,12 @@ const ProfessionalRoomDetail = () => {
         .single();
 
       if (insertErr) {
-        console.warn(
-          "Supabase insert error, fallback state update:",
-          insertErr,
-        );
-        const fallbackDisc = {
-          id: `disc-${Date.now()}`,
-          room_id: id,
-          user_id: userId,
-          title: discTitle.trim(),
-          content: discContent.trim(),
-          created_at: new Date().toISOString(),
-          profiles: { full_name: "You", username: "you" },
-          replies: [],
-        };
-        setDiscussions((prev) => [fallbackDisc, ...prev]);
-      } else {
-        setDiscussions((prev) => [{ ...insertedDisc, replies: [] }, ...prev]);
+        console.error("Failed to post discussion:", insertErr);
+        showToast("⚠️ Couldn't post your question — please try again.");
+        return;
       }
 
+      setDiscussions((prev) => [{ ...insertedDisc, replies: [] }, ...prev]);
       setDiscTitle("");
       setDiscContent("");
       showToast("💬 Question posted successfully! Opening Discussion feed...");
@@ -461,27 +438,12 @@ const ProfessionalRoomDetail = () => {
         });
 
       if (repErr) {
-        // Local state fallback if table isn't created yet in DB
-        setDiscussions((prev) =>
-          prev.map((d) => {
-            if (d.id === discussionId) {
-              const newRep = {
-                id: `rep-${Date.now()}`,
-                discussion_id: discussionId,
-                user_id: userId,
-                content: text.trim(),
-                created_at: new Date().toISOString(),
-                profiles: { full_name: "You", username: "you" },
-              };
-              return { ...d, replies: [...(d.replies || []), newRep] };
-            }
-            return d;
-          }),
-        );
-      } else {
-        fetchRoomData();
+        console.error("Failed to post reply:", repErr);
+        showToast("⚠️ Couldn't post your reply — please try again.");
+        return;
       }
 
+      fetchRoomData();
       setReplyTextMap((prev) => ({ ...prev, [discussionId]: "" }));
       showToast("💬 Reply posted successfully!");
     } catch (err) {
@@ -494,13 +456,22 @@ const ProfessionalRoomDetail = () => {
     const disc = discussions.find((d) => d.id === discId);
     if (!disc || !(disc.user_id === currentUserId || isHost)) return;
     try {
-      await supabase.from("pro_room_discussions").delete().eq("id", discId);
+      const { error } = await supabase
+        .from("pro_room_discussions")
+        .delete()
+        .eq("id", discId);
+
+      if (error) {
+        console.error("Failed to delete discussion:", error);
+        showToast("⚠️ Couldn't delete — please try again.");
+        return;
+      }
+
       setDiscussions((prev) => prev.filter((d) => d.id !== discId));
       showToast("🗑️ Question deleted.");
     } catch (err) {
       console.error(err);
-      setDiscussions((prev) => prev.filter((d) => d.id !== discId));
-      showToast("🗑️ Question removed.");
+      showToast("⚠️ Couldn't delete — please try again.");
     }
   };
 
@@ -509,10 +480,17 @@ const ProfessionalRoomDetail = () => {
     const reply = disc?.replies?.find((r) => r.id === replyId);
     if (!reply || !(reply.user_id === currentUserId || isHost)) return;
     try {
-      await supabase
+      const { error } = await supabase
         .from("pro_room_discussion_replies")
         .delete()
         .eq("id", replyId);
+
+      if (error) {
+        console.error("Failed to delete reply:", error);
+        showToast("⚠️ Couldn't delete — please try again.");
+        return;
+      }
+
       setDiscussions((prev) =>
         prev.map((d) => {
           if (d.id === discId) {
@@ -527,25 +505,23 @@ const ProfessionalRoomDetail = () => {
       showToast("🗑️ Reply deleted.");
     } catch (err) {
       console.error(err);
-      setDiscussions((prev) =>
-        prev.map((d) => {
-          if (d.id === discId) {
-            return {
-              ...d,
-              replies: (d.replies || []).filter((r) => r.id !== replyId),
-            };
-          }
-          return d;
-        }),
-      );
-      showToast("🗑️ Reply removed.");
+      showToast("⚠️ Couldn't delete — please try again.");
     }
   };
 
   const handleDeleteRoom = async () => {
     if (!isHost) return;
     try {
-      await supabase.from("pro_rooms").delete().eq("id", id);
+      const { error } = await supabase.from("pro_rooms").delete().eq("id", id);
+
+      if (error) {
+        console.error("Failed to delete room:", error);
+        showToast(
+          "⚠️ Couldn't delete this room — it may have related data (registrations, submissions) blocking removal.",
+        );
+        return;
+      }
+
       showToast("🗑️ Room archived/deleted.");
       setTimeout(() => navigate("/pro-rooms"), 1200);
     } catch (err) {
@@ -559,12 +535,18 @@ const ProfessionalRoomDetail = () => {
     setPostingAnn(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
-      await supabase.from("pro_room_announcements").insert({
+      const { error } = await supabase.from("pro_room_announcements").insert({
         room_id: id,
         author_id: authData?.user?.id,
         title: annTitle,
         content: annContent,
       });
+
+      if (error) {
+        console.error("Failed to post announcement:", error);
+        showToast("⚠️ Couldn't post the announcement — please try again.");
+        return;
+      }
 
       setAnnTitle("");
       setAnnContent("");
@@ -572,6 +554,7 @@ const ProfessionalRoomDetail = () => {
       fetchRoomData();
     } catch (err) {
       console.error(err);
+      showToast("⚠️ Couldn't post the announcement — please try again.");
     } finally {
       setPostingAnn(false);
     }
@@ -580,11 +563,22 @@ const ProfessionalRoomDetail = () => {
   const handleDeleteAnnouncement = async (annId) => {
     if (!isHost) return;
     try {
-      await supabase.from("pro_room_announcements").delete().eq("id", annId);
+      const { error } = await supabase
+        .from("pro_room_announcements")
+        .delete()
+        .eq("id", annId);
+
+      if (error) {
+        console.error("Failed to delete announcement:", error);
+        showToast("⚠️ Couldn't delete — please try again.");
+        return;
+      }
+
       showToast("🗑️ Announcement deleted.");
       fetchRoomData();
     } catch (err) {
       console.error(err);
+      showToast("⚠️ Couldn't delete — please try again.");
     }
   };
 
@@ -592,6 +586,25 @@ const ProfessionalRoomDetail = () => {
     return (
       <div className="min-h-screen bg-[#070709] flex items-center justify-center">
         <div className="w-10 h-10 border-2 border-t-transparent border-[#FF00C8] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (roomNotFound) {
+    return (
+      <div className="min-h-screen bg-[#070709] text-white flex flex-col items-center justify-center px-6 text-center font-sans">
+        <Search size={40} className="mx-auto mb-4 text-gray-500" />
+        <h1 className="text-xl font-black text-white mb-2">Room Not Found</h1>
+        <p className="text-gray-400 text-sm max-w-sm mb-6">
+          This Pro Room doesn't exist, may have been removed, or the link is
+          incorrect.
+        </p>
+        <button
+          onClick={() => navigate("/pro-rooms")}
+          className="px-5 py-2.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer flex items-center gap-1.5"
+        >
+          <ArrowLeft size={14} /> Back to Pro Rooms
+        </button>
       </div>
     );
   }

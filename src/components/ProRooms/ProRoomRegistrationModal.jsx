@@ -1,9 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ShieldCheck, Building2, Trophy, CheckCircle2, User, Mail, AtSign } from "lucide-react";
+import {
+  X,
+  ShieldCheck,
+  Building2,
+  Trophy,
+  CheckCircle2,
+  User,
+  Mail,
+  AtSign,
+} from "lucide-react";
 import { supabase } from "../../supabaseClient";
 
-const ProRoomRegistrationModal = ({ isOpen, onClose, room, onRegistrationSuccess, showToast }) => {
+const ProRoomRegistrationModal = ({
+  isOpen,
+  onClose,
+  room,
+  onRegistrationSuccess,
+  showToast,
+}) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [customAnswers, setCustomAnswers] = useState({});
@@ -36,7 +51,11 @@ const ProRoomRegistrationModal = ({ isOpen, onClose, room, onRegistrationSuccess
   if (!isOpen || !room) return null;
 
   // Custom questions defined by host in room configuration
-  const customQuestions = Array.isArray(room?.custom_app_questions) ? room.custom_app_questions : (Array.isArray(room?.custom_questions) ? room.custom_questions : []);
+  const customQuestions = Array.isArray(room?.custom_app_questions)
+    ? room.custom_app_questions
+    : Array.isArray(room?.custom_questions)
+      ? room.custom_questions
+      : [];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,11 +81,21 @@ const ProRoomRegistrationModal = ({ isOpen, onClose, room, onRegistrationSuccess
         .single();
 
       if (error) {
-        console.warn("Supabase registration insert warning, using fallback payload:", error);
+        console.error("Registration insert failed:", error);
+        if (showToast) {
+          showToast(
+            "⚠️ Registration couldn't be completed — please try again.",
+          );
+        }
+        setSubmitting(false);
+        return;
       }
 
-      if (showToast) showToast(`🎉 Registration approved! Welcome to ${room.name || room.title}`);
-      if (onRegistrationSuccess) onRegistrationSuccess(data || payload);
+      if (showToast)
+        showToast(
+          `🎉 Registration approved! Welcome to ${room.name || room.title}`,
+        );
+      if (onRegistrationSuccess) onRegistrationSuccess(data);
       onClose();
     } catch (err) {
       console.error("Error submitting registration:", err);
@@ -107,11 +136,17 @@ const ProRoomRegistrationModal = ({ isOpen, onClose, room, onRegistrationSuccess
           <div className="bg-[#06060c] border border-white/5 rounded-2xl p-4 flex items-center justify-between text-xs font-mono text-gray-300">
             <div className="flex items-center gap-2">
               <Building2 size={15} className="text-[#00F0FF]" />
-              <span className="truncate max-w-[150px]">{room.org_name || "Verified Org"}</span>
+              <span className="truncate max-w-[150px]">
+                {room.org_name || "Verified Org"}
+              </span>
             </div>
             <div className="flex items-center gap-2 text-amber-400 font-bold">
               <Trophy size={14} />
-              <span>{room.gbits_prize_pool ? `${room.gbits_prize_pool} gBits` : "Rewards Pool"}</span>
+              <span>
+                {room.gbits_prize_pool
+                  ? `${room.gbits_prize_pool} gBits`
+                  : "Rewards Pool"}
+              </span>
             </div>
           </div>
 
@@ -120,32 +155,47 @@ const ProRoomRegistrationModal = ({ isOpen, onClose, room, onRegistrationSuccess
             {/* Auto-filled Profile Info */}
             <div className="space-y-2 bg-[#06060c] border border-white/5 rounded-2xl p-4">
               <h4 className="text-[11px] font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                <ShieldCheck size={13} className="text-emerald-400" /> Participant Profile Info
+                <ShieldCheck size={13} className="text-emerald-400" />{" "}
+                Participant Profile Info
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-gray-400 font-mono block mb-1">Full Name</label>
+                  <label className="text-[10px] text-gray-400 font-mono block mb-1">
+                    Full Name
+                  </label>
                   <div className="bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-white font-semibold flex items-center gap-2">
                     <User size={13} className="text-gray-500" />
-                    <span className="truncate">{userProfile?.full_name || currentUser?.user_metadata?.full_name || "Candidate"}</span>
+                    <span className="truncate">
+                      {userProfile?.full_name ||
+                        currentUser?.user_metadata?.full_name ||
+                        "Candidate"}
+                    </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-gray-400 font-mono block mb-1">Username</label>
+                  <label className="text-[10px] text-gray-400 font-mono block mb-1">
+                    Username
+                  </label>
                   <div className="bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-cyan-300 font-mono font-bold flex items-center gap-2">
                     <AtSign size={13} className="text-gray-500" />
-                    <span className="truncate">{userProfile?.username || "candidate"}</span>
+                    <span className="truncate">
+                      {userProfile?.username || "candidate"}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="pt-1">
-                <label className="text-[10px] text-gray-400 font-mono block mb-1">Email Address</label>
+                <label className="text-[10px] text-gray-400 font-mono block mb-1">
+                  Email Address
+                </label>
                 <div className="bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-gray-300 font-mono flex items-center gap-2">
                   <Mail size={13} className="text-gray-500" />
-                  <span className="truncate">{currentUser?.email || "candidate@glitchroom.com"}</span>
+                  <span className="truncate">
+                    {currentUser?.email || "candidate@glitchroom.com"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -166,7 +216,12 @@ const ProRoomRegistrationModal = ({ isOpen, onClose, room, onRegistrationSuccess
                       required
                       placeholder="Enter your response..."
                       value={customAnswers[q.id || idx] || ""}
-                      onChange={(e) => setCustomAnswers({ ...customAnswers, [q.id || idx]: e.target.value })}
+                      onChange={(e) =>
+                        setCustomAnswers({
+                          ...customAnswers,
+                          [q.id || idx]: e.target.value,
+                        })
+                      }
                       className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                     />
                   </div>
@@ -176,7 +231,8 @@ const ProRoomRegistrationModal = ({ isOpen, onClose, room, onRegistrationSuccess
 
             {/* Terms / Confirmation notice */}
             <p className="text-[10px] text-gray-500 leading-relaxed font-mono">
-              By registering, you agree to abide by event rules. Registration is automatically approved instantly.
+              By registering, you agree to abide by event rules. Registration is
+              automatically approved instantly.
             </p>
 
             {/* Submit Button */}

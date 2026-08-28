@@ -122,12 +122,18 @@ const ProRoomDashboard = () => {
     if (!isHost || !annTitle || !annContent) return;
     try {
       const { data: authData } = await supabase.auth.getUser();
-      await supabase.from("pro_room_announcements").insert({
+      const { error } = await supabase.from("pro_room_announcements").insert({
         room_id: id,
         author_id: authData?.user?.id,
         title: annTitle,
         content: annContent,
       });
+
+      if (error) {
+        console.error("Failed to post announcement:", error);
+        showToast("⚠️ Couldn't post the announcement — please try again.");
+        return;
+      }
 
       setAnnTitle("");
       setAnnContent("");
@@ -135,6 +141,7 @@ const ProRoomDashboard = () => {
       fetchDashboardData();
     } catch (err) {
       console.error(err);
+      showToast("⚠️ Couldn't post the announcement — please try again.");
     }
   };
 
@@ -142,15 +149,22 @@ const ProRoomDashboard = () => {
     if (!isHost) return;
     setPublishing(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from("pro_rooms")
         .update({ status: "results_published" })
         .eq("id", id);
+
+      if (error) {
+        console.error("Failed to publish results:", error);
+        showToast("⚠️ Couldn't publish results — please try again.");
+        return;
+      }
 
       showToast("🏆 Results published successfully!");
       fetchDashboardData();
     } catch (err) {
       console.error(err);
+      showToast("⚠️ Couldn't publish results — please try again.");
     } finally {
       setPublishing(false);
     }

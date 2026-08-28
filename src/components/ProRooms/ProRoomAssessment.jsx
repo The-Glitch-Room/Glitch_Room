@@ -64,6 +64,7 @@ const ProRoomAssessment = () => {
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [submitError, setSubmitError] = useState("");
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [notConfigured, setNotConfigured] = useState(false);
   const [answersHydrated, setAnswersHydrated] = useState(false);
 
   // Once time is up or the test is submitted, the whole test surface freezes —
@@ -318,68 +319,51 @@ const ProRoomAssessment = () => {
       }
 
       // ── Access granted from here on ─────────────────────────────────────
-      const { data: secData } = await supabase
+      // Sections come from the base table (safe — no answer-key columns
+      // live there). Questions come from pro_room_questions_safe, NOT the
+      // base pro_room_questions table: that view is what actually redacts
+      // correct_answer (and, until the room is live, the question content
+      // itself) — see fix_3_hide_correct_answers.sql. The base table can no
+      // longer be queried for correct_answer at all, by anyone, so this
+      // isn't optional.
+      const { data: secRows } = await supabase
         .from("pro_room_sections")
-        .select("*, pro_room_questions(*)")
+        .select("*")
         .eq("room_id", id)
         .order("order_index", { ascending: true });
+
+      let secData = [];
+      if (secRows && secRows.length > 0) {
+        const sectionIds = secRows.map((s) => s.id);
+        const { data: qRows, error: qErr } = await supabase
+          .from("pro_room_questions_safe")
+          .select("*")
+          .in("section_id", sectionIds);
+
+        if (qErr) console.error("Could not load questions:", qErr);
+
+        secData = secRows.map((s) => ({
+          ...s,
+          pro_room_questions: (qRows || []).filter(
+            (q) => q.section_id === s.id,
+          ),
+        }));
+      }
 
       if (secData && secData.length > 0) {
         setSections(secData);
       } else {
-        // Fallback demo sections for test run
-        setSections([
-          {
-            id: "sec-demo-1",
-            section_name: "Section 1: Aptitude & Fundamentals",
-            pro_room_questions: [
-              {
-                id: "qd-101",
-                question_text:
-                  "What is the time complexity of building a heap from an array of N elements?",
-                question_type: "mcq",
-                difficulty: "Medium",
-                points: 10,
-                options: ["O(N log N)", "O(N)", "O(N^2)", "O(log N)"],
-                correct_answer: "O(N)",
-              },
-              {
-                id: "qd-102",
-                question_text:
-                  "Which data structure is primarily used for breadth-first traversal of a graph?",
-                question_type: "mcq",
-                difficulty: "Easy",
-                points: 10,
-                options: [
-                  "Stack",
-                  "Queue",
-                  "Binary Search Tree",
-                  "Priority Queue",
-                ],
-                correct_answer: "Queue",
-              },
-            ],
-          },
-          {
-            id: "sec-demo-2",
-            section_name: "Section 2: Algorithmic Coding",
-            pro_room_questions: [
-              {
-                id: "qd-201",
-                question_text:
-                  "Write a function to find the length of the longest substring without repeating characters.",
-                description: "Input string `s`. Return integer length.",
-                question_type: "coding",
-                difficulty: "Hard",
-                points: 50,
-                test_cases: [
-                  { input: '"abcabcbb"', expected_output: "3" },
-                  { input: '"bbbbb"', expected_output: "1" },
-                ],
-              },
-            ],
-          },
-        ]);
+        // No real sections/questions exist for this room. Previously this
+        // silently substituted a hardcoded demo assessment (with a
+        // hardcoded "correct answer" baked right into the JS bundle,
+        // regardless of any DB-level protection) and let the candidate
+        // take — and "submit" — a fake exam without anyone noticing the
+        // real one was never configured. Show an honest empty state
+        // instead, and don't burn a submission attempt on it.
+        setSections([]);
+        setNotConfigured(true);
+        setLoading(false);
+        return;
       }
 
       const durationMinutes = roomData?.duration_minutes || 120;
@@ -787,6 +771,40 @@ const ProRoomAssessment = () => {
 
   // Already submitted in an earlier session — the test is over. Don't let
   // them reopen it and start editing "final" answers.
+  if (notConfigured) {
+    return (
+      <div className="min-h-screen bg-[#080810] text-white flex flex-col items-center justify-center px-6 text-center font-sans">
+        <AlertTriangle size={40} className="text-amber-400 mb-4" />
+        <h1 className="text-xl font-black text-white mb-2">
+          {isHostPreview
+            ? "No Questions Configured Yet"
+            : "Assessment Isn't Ready Yet"}
+        </h1>
+        <p className="text-gray-400 text-sm max-w-sm mb-6">
+          {isHostPreview
+            ? "This room doesn't have any sections or questions set up yet. Add content before candidates can take this assessment."
+            : "This assessment hasn't been configured yet. Please check back later or contact the host."}
+        </p>
+        <div className="flex items-center gap-3">
+          {isHostPreview && (
+            <button
+              onClick={() => navigate(`/pro-rooms/create?edit=${id}`)}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 text-white text-xs font-bold cursor-pointer"
+            >
+              Configure Assessment
+            </button>
+          )}
+          <button
+            onClick={() => navigate(`/pro-rooms/${id}`)}
+            className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 hover:text-white cursor-pointer"
+          >
+            Back to Room
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (alreadySubmitted) {
     return (
       <div className="min-h-screen bg-[#080810] text-white flex flex-col items-center justify-center px-6 text-center font-sans">
