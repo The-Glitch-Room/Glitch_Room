@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 
+const DEFAULT_BANNER_GRADIENT = "bg-gradient-to-br from-purple-900/60 via-black to-[#00F0FF]/20";
+
 const EVENT_TYPES = [
   "Hackathon",
   "Hiring Assessment",
