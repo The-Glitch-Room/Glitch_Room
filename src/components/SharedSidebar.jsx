@@ -51,23 +51,28 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
   const [accentColor, setAccentColor] = useState(() => {
     return (
-      getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() ||
-      "#FF00C8"
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--accent")
+        .trim() || "#FF00C8"
     );
   });
 
   useEffect(() => {
     const updateAccent = () => {
       const col =
-        getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() ||
-        "#FF00C8";
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--accent")
+          .trim() || "#FF00C8";
       setAccentColor(col);
     };
 
     updateAccent();
     window.addEventListener("accent_color_changed", updateAccent);
     const observer = new MutationObserver(updateAccent);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
 
     return () => {
       window.removeEventListener("accent_color_changed", updateAccent);
@@ -86,7 +91,9 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       const { data: authData } = await supabase.auth.getUser();
       const currentUser = authData?.user;
       const userId = currentUser?.id;
-      const cachedAvatar = userId ? localStorage.getItem(`glitch_avatar_${userId}`) : null;
+      const cachedAvatar = userId
+        ? localStorage.getItem(`glitch_avatar_${userId}`)
+        : null;
 
       let name =
         user?.user_metadata?.full_name ||
@@ -191,7 +198,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
         )}
         <button
           onClick={toggleCollapse}
-          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 transition-all duration-200"
+          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 transition-all duration-200 cursor-pointer"
           style={{ color: accentColor }}
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
@@ -289,7 +296,10 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
 
           if (item.danger) {
             return (
-              <div key="logout-wrapper" className="pt-3 border-t border-white/10">
+              <div
+                key="logout-wrapper"
+                className="pt-3 border-t border-white/10"
+              >
                 <div className="relative">
                   <button
                     onClick={handleLogout}
@@ -308,7 +318,11 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                         initial={{ opacity: 0, scale: 0.85, x: -10 }}
                         animate={{ opacity: 1, scale: 1, x: 0 }}
                         exit={{ opacity: 0, scale: 0.85, x: -10 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 400,
+                          damping: 25,
+                        }}
                         className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 z-50 pointer-events-none px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0d0d14]/95 backdrop-blur-md border border-red-500/30 text-red-400 shadow-2xl whitespace-nowrap"
                       >
                         {item.name}
@@ -350,10 +364,16 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                     className="shrink-0"
                     style={{ color: isActive ? accentColor : "#9ca3af" }}
                   />
-                  {!isCollapsed && <span className="truncate">{item.name}</span>}
+                  {!isCollapsed && (
+                    <span className="truncate">{item.name}</span>
+                  )}
                 </div>
                 {!isCollapsed && isActive && (
-                  <ChevronRight size={14} style={{ color: accentColor }} className="shrink-0" />
+                  <ChevronRight
+                    size={14}
+                    style={{ color: accentColor }}
+                    className="shrink-0"
+                  />
                 )}
               </Link>
 
@@ -382,7 +402,10 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
           <>
             <div className="flex items-center justify-between text-xs font-semibold text-gray-300 mb-1.5">
               <span className="font-mono">gBits Progress</span>
-              <span className="font-mono font-bold" style={{ color: accentColor }}>
+              <span
+                className="font-mono font-bold"
+                style={{ color: accentColor }}
+              >
                 Lv {level}
               </span>
             </div>
@@ -398,7 +421,8 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
               />
             </div>
             <p className="text-xs font-mono text-gray-400 text-right font-medium">
-              {(displayXp || 0).toLocaleString()} / {(nextLevelXP || 250).toLocaleString()}
+              {(displayXp || 0).toLocaleString()} /{" "}
+              {(nextLevelXP || 250).toLocaleString()}
             </p>
           </>
         ) : (
