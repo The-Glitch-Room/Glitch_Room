@@ -335,10 +335,14 @@ const ProRoomAssessment = () => {
       let secData = [];
       if (secRows && secRows.length > 0) {
         const sectionIds = secRows.map((s) => s.id);
-        const { data: qRows, error: qErr } = await supabase
-          .from("pro_room_questions_safe")
-          .select("*")
-          .in("section_id", sectionIds);
+        // pro_room_questions_safe was converted from a view to a function
+        // (get_pro_room_questions_safe) to close a Supabase Advisor
+        // "Security Definer View" finding — same redaction behavior,
+        // called via .rpc() instead of .from().
+        const { data: qRows, error: qErr } = await supabase.rpc(
+          "get_pro_room_questions_safe",
+          { p_section_ids: sectionIds },
+        );
 
         if (qErr) console.error("Could not load questions:", qErr);
 

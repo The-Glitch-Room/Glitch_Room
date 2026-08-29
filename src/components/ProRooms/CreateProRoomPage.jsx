@@ -36,8 +36,6 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 
-const DEFAULT_BANNER_GRADIENT = "bg-gradient-to-br from-purple-900/60 via-black to-[#00F0FF]/20";
-
 const EVENT_TYPES = [
   "Hackathon",
   "Hiring Assessment",
@@ -178,6 +176,265 @@ const GlitchSelect = ({
         )}
       </AnimatePresence>
     </div>
+  );
+};
+
+// Themed gradient shown wherever a room has no cover_image — never an
+// external URL, just CSS, so it can't 404/CORS-fail.
+const DEFAULT_BANNER_GRADIENT =
+  "bg-gradient-to-br from-purple-900/60 via-[#0c0c16] to-[#00F0FF]/20";
+
+// ── Per-question-type answer-key editor ─────────────────────────────────
+// Without this, a host had no way to ever set real options or a real
+// correct answer — every question silently kept addQuestion's defaults.
+// The grading system (grade_pro_room_submission in the SQL) is only ever
+// as good as what gets set here.
+const QuestionAnswerEditor = ({ question, onChange }) => {
+  const type = question.question_type;
+
+  const setOption = (idx, text) => {
+    const next = [...(question.options || [])];
+    next[idx] = text;
+    onChange({ options: next });
+  };
+  const addOption = () =>
+    onChange({ options: [...(question.options || []), ""] });
+  const removeOption = (idx) => {
+    const next = (question.options || []).filter((_, i) => i !== idx);
+    onChange({ options: next });
+    // Keep correct_answer/MSQ selections consistent if the removed option
+    // was one of them.
+    if (type === "mcq" && question.correct_answer === question.options[idx]) {
+      onChange({ options: next, correct_answer: "" });
+    }
+    if (type === "msq") {
+      let selected = [];
+      try {
+        selected = JSON.parse(question.correct_answer || "[]");
+      } catch {
+        selected = [];
+      }
+      onChange({
+        options: next,
+        correct_answer: JSON.stringify(
+          selected.filter((v) => v !== question.options[idx]),
+        ),
+      });
+    }
+  };
+
+  if (type === "mcq") {
+    return (
+      <div className="space-y-2 pt-1">
+        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          Options — select the correct answer
+        </label>
+        {(question.options || []).map((opt, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onChange({ correct_answer: opt })}
+              className={`w-4 h-4 rounded-full border shrink-0 cursor-pointer transition ${
+                opt && opt === question.correct_answer
+                  ? "bg-[#00F0FF] border-[#00F0FF]"
+                  : "border-white/20 hover:border-white/40"
+              }`}
+            />
+            <input
+              type="text"
+              value={opt}
+              placeholder={`Option ${idx + 1}`}
+              onChange={(e) => setOption(idx, e.target.value)}
+              className="flex-1 bg-[#12121e] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+            />
+            {(question.options || []).length > 2 && (
+              <button
+                type="button"
+                onClick={() => removeOption(idx)}
+                className="text-gray-600 hover:text-red-400 cursor-pointer"
+              >
+                <FiTrash2 size={12} />
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addOption}
+          className="text-[10px] font-bold text-purple-300 hover:text-purple-200 flex items-center gap-1 cursor-pointer"
+        >
+          <FiPlus size={10} /> Add Option
+        </button>
+      </div>
+    );
+  }
+
+  if (type === "msq") {
+    let selected = [];
+    try {
+      selected = JSON.parse(question.correct_answer || "[]");
+    } catch {
+      selected = [];
+    }
+    const toggle = (opt) => {
+      const next = selected.includes(opt)
+        ? selected.filter((v) => v !== opt)
+        : [...selected, opt];
+      onChange({ correct_answer: JSON.stringify(next) });
+    };
+    return (
+      <div className="space-y-2 pt-1">
+        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          Options — check all correct answers
+        </label>
+        {(question.options || []).map((opt, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => opt && toggle(opt)}
+              className={`w-4 h-4 rounded border shrink-0 cursor-pointer transition flex items-center justify-center ${
+                opt && selected.includes(opt)
+                  ? "bg-[#00F0FF] border-[#00F0FF]"
+                  : "border-white/20 hover:border-white/40"
+              }`}
+            >
+              {opt && selected.includes(opt) && (
+                <FiCheck size={10} className="text-black" />
+              )}
+            </button>
+            <input
+              type="text"
+              value={opt}
+              placeholder={`Option ${idx + 1}`}
+              onChange={(e) => setOption(idx, e.target.value)}
+              className="flex-1 bg-[#12121e] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+            />
+            {(question.options || []).length > 2 && (
+              <button
+                type="button"
+                onClick={() => removeOption(idx)}
+                className="text-gray-600 hover:text-red-400 cursor-pointer"
+              >
+                <FiTrash2 size={12} />
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addOption}
+          className="text-[10px] font-bold text-purple-300 hover:text-purple-200 flex items-center gap-1 cursor-pointer"
+        >
+          <FiPlus size={10} /> Add Option
+        </button>
+      </div>
+    );
+  }
+
+  if (type === "true_false") {
+    return (
+      <div className="space-y-2 pt-1">
+        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          Correct Answer
+        </label>
+        <div className="flex items-center gap-2">
+          {["True", "False"].map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onChange({ correct_answer: v })}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                question.correct_answer === v
+                  ? "bg-[#00F0FF]/20 border-[#00F0FF] text-[#00F0FF]"
+                  : "bg-[#12121e] border-white/10 text-gray-400 hover:text-white"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "short_answer" || type === "output_pred") {
+    return (
+      <div className="space-y-1.5 pt-1">
+        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          Correct Answer (matched case-insensitively)
+        </label>
+        <input
+          type="text"
+          value={question.correct_answer || ""}
+          placeholder="e.g., 42"
+          onChange={(e) => onChange({ correct_answer: e.target.value })}
+          className="w-full bg-[#12121e] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+        />
+      </div>
+    );
+  }
+
+  if (["coding", "sql", "debugging", "code_analysis"].includes(type)) {
+    const cases = question.test_cases || [];
+    const setCase = (idx, field, val) => {
+      const next = [...cases];
+      next[idx] = { ...next[idx], [field]: val };
+      onChange({ test_cases: next });
+    };
+    return (
+      <div className="space-y-2 pt-1">
+        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          Test Cases (shown to the host for manual review — not auto-graded, no
+          code execution sandbox exists in this app)
+        </label>
+        {cases.map((tc, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={tc.input || ""}
+              placeholder="Input"
+              onChange={(e) => setCase(idx, "input", e.target.value)}
+              className="flex-1 bg-[#12121e] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+            />
+            <input
+              type="text"
+              value={tc.expected_output || ""}
+              placeholder="Expected Output"
+              onChange={(e) => setCase(idx, "expected_output", e.target.value)}
+              className="flex-1 bg-[#12121e] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+            />
+            <button
+              type="button"
+              onClick={() =>
+                onChange({ test_cases: cases.filter((_, i) => i !== idx) })
+              }
+              className="text-gray-600 hover:text-red-400 cursor-pointer"
+            >
+              <FiTrash2 size={12} />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            onChange({
+              test_cases: [...cases, { input: "", expected_output: "" }],
+            })
+          }
+          className="text-[10px] font-bold text-purple-300 hover:text-purple-200 flex items-center gap-1 cursor-pointer"
+        >
+          <FiPlus size={10} /> Add Test Case
+        </button>
+      </div>
+    );
+  }
+
+  // file_upload / project / video — nothing to key against; always manual.
+  return (
+    <p className="text-[10px] text-gray-500 pt-1">
+      This question type is always graded manually by the host — there's no
+      answer key to set here.
+    </p>
   );
 };
 
@@ -357,12 +614,14 @@ const CreateProRoomPage = () => {
           }
 
           // Fetch Sections & Questions — questions come from
-          // pro_room_questions_safe, not the base pro_room_questions table:
-          // correct_answer is no longer readable from the base table at
-          // all (by anyone, host included — see
+          // get_pro_room_questions_safe (converted from a view to a
+          // SECURITY DEFINER function to close a Supabase Advisor finding —
+          // same behavior, called via .rpc()), not the base
+          // pro_room_questions table: correct_answer is no longer readable
+          // from the base table at all (by anyone, host included — see
           // fix_3_hide_correct_answers.sql), so editing has to go through
-          // the view, which re-exposes it specifically because this is the
-          // room's host.
+          // this function, which re-exposes it specifically because this
+          // is the room's host.
           const { data: sRows } = await supabase
             .from("pro_room_sections")
             .select("*")
@@ -372,10 +631,10 @@ const CreateProRoomPage = () => {
           let sData = [];
           if (sRows && sRows.length > 0) {
             const sectionIds = sRows.map((s) => s.id);
-            const { data: qRows, error: qErr } = await supabase
-              .from("pro_room_questions_safe")
-              .select("*")
-              .in("section_id", sectionIds);
+            const { data: qRows, error: qErr } = await supabase.rpc(
+              "get_pro_room_questions_safe",
+              { p_section_ids: sectionIds },
+            );
 
             if (qErr) {
               console.error("Could not load questions for edit:", qErr);
@@ -533,12 +792,12 @@ const CreateProRoomPage = () => {
               ...s.questions,
               {
                 id: `q-${Date.now()}`,
-                question_text: "New Assessment Question",
+                question_text: "",
                 question_type: "mcq",
                 difficulty: "Medium",
                 points: 25,
-                options: ["Option A", "Option B", "Option C", "Option D"],
-                correct_answer: "Option A",
+                options: ["", "", "", ""],
+                correct_answer: "",
               },
             ],
           };
@@ -560,6 +819,47 @@ const CreateProRoomPage = () => {
         return s;
       }),
     );
+  };
+
+  // Single place to patch one field on one question — every input in the
+  // question card and its answer-key editor goes through this instead of
+  // repeating the same three-level sections→questions→field map inline.
+  const updateQuestion = (secId, qId, patch) => {
+    setSections(
+      sections.map((s) =>
+        s.id === secId
+          ? {
+              ...s,
+              questions: s.questions.map((qu) =>
+                qu.id === qId ? { ...qu, ...patch } : qu,
+              ),
+            }
+          : s,
+      ),
+    );
+  };
+
+  // Blank answer-key fields for a given question type — used when a
+  // question's type changes, so switching e.g. MCQ → Coding doesn't leave
+  // the old options/correct_answer sitting around unused in state (and
+  // reappearing with stale data if the host switches back).
+  const blankAnswerFieldsForType = (type) => {
+    if (type === "mcq")
+      return { options: ["", "", "", ""], correct_answer: "", test_cases: [] };
+    if (type === "msq")
+      return {
+        options: ["", "", "", ""],
+        correct_answer: "[]",
+        test_cases: [],
+      };
+    if (type === "true_false")
+      return { options: [], correct_answer: "", test_cases: [] };
+    if (type === "short_answer" || type === "output_pred")
+      return { options: [], correct_answer: "", test_cases: [] };
+    if (["coding", "sql", "debugging", "code_analysis"].includes(type))
+      return { options: [], correct_answer: "", test_cases: [] };
+    // file_upload / project / video — always manual, no answer key at all.
+    return { options: [], correct_answer: "", test_cases: [] };
   };
 
   // Final Publish Handler
@@ -641,6 +941,37 @@ const CreateProRoomPage = () => {
         for (const q of sec.questions) {
           if (!q.question_text || !q.question_text.trim())
             return `A question in "${sec.section_name}" is missing its question text.`;
+
+          // Objective types need a real answer key — without this the
+          // grading system (fix #8/#9) has nothing to compare against and
+          // every submission would sit permanently "pending review".
+          if (["mcq", "msq"].includes(q.question_type)) {
+            const filledOptions = (q.options || []).filter((o) => o.trim());
+            if (filledOptions.length < 2)
+              return `"${q.question_text || "A question"}" in "${sec.section_name}" needs at least 2 options.`;
+            if (q.question_type === "mcq" && !q.correct_answer)
+              return `"${q.question_text}" in "${sec.section_name}" needs a correct answer selected.`;
+            if (q.question_type === "msq") {
+              let selected = [];
+              try {
+                selected = JSON.parse(q.correct_answer || "[]");
+              } catch {
+                selected = [];
+              }
+              if (selected.length === 0)
+                return `"${q.question_text}" in "${sec.section_name}" needs at least one correct answer checked.`;
+            }
+          }
+          if (
+            q.question_type === "true_false" &&
+            !["True", "False"].includes(q.correct_answer)
+          )
+            return `"${q.question_text || "A question"}" in "${sec.section_name}" needs True or False selected.`;
+          if (
+            ["short_answer", "output_pred"].includes(q.question_type) &&
+            !(q.correct_answer || "").trim()
+          )
+            return `"${q.question_text || "A question"}" in "${sec.section_name}" needs a correct answer entered.`;
         }
       }
       return null;
@@ -1869,23 +2200,10 @@ const CreateProRoomPage = () => {
                               <GlitchSelect
                                 value={q.question_type}
                                 onChange={(v) =>
-                                  setSections(
-                                    sections.map((s) =>
-                                      s.id === sec.id
-                                        ? {
-                                            ...s,
-                                            questions: s.questions.map((qu) =>
-                                              qu.id === q.id
-                                                ? {
-                                                    ...qu,
-                                                    question_type: v,
-                                                  }
-                                                : qu,
-                                            ),
-                                          }
-                                        : s,
-                                    ),
-                                  )
+                                  updateQuestion(sec.id, q.id, {
+                                    question_type: v,
+                                    ...blankAnswerFieldsForType(v),
+                                  })
                                 }
                                 options={QUESTION_TYPES.map((qt) => ({
                                   value: qt.id,
@@ -1899,23 +2217,9 @@ const CreateProRoomPage = () => {
                                 placeholder="Points"
                                 value={q.points}
                                 onChange={(e) =>
-                                  setSections(
-                                    sections.map((s) =>
-                                      s.id === sec.id
-                                        ? {
-                                            ...s,
-                                            questions: s.questions.map((qu) =>
-                                              qu.id === q.id
-                                                ? {
-                                                    ...qu,
-                                                    points: e.target.value,
-                                                  }
-                                                : qu,
-                                            ),
-                                          }
-                                        : s,
-                                    ),
-                                  )
+                                  updateQuestion(sec.id, q.id, {
+                                    points: e.target.value,
+                                  })
                                 }
                                 className="w-20 bg-[#12121e] border border-white/10 text-xs text-white rounded-lg px-2 py-1 outline-none text-center"
                               />
@@ -1933,25 +2237,18 @@ const CreateProRoomPage = () => {
                               placeholder="Question Problem Statement..."
                               value={q.question_text}
                               onChange={(e) =>
-                                setSections(
-                                  sections.map((s) =>
-                                    s.id === sec.id
-                                      ? {
-                                          ...s,
-                                          questions: s.questions.map((qu) =>
-                                            qu.id === q.id
-                                              ? {
-                                                  ...qu,
-                                                  question_text: e.target.value,
-                                                }
-                                              : qu,
-                                          ),
-                                        }
-                                      : s,
-                                  ),
-                                )
+                                updateQuestion(sec.id, q.id, {
+                                  question_text: e.target.value,
+                                })
                               }
                               className="w-full bg-[#12121e] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#00F0FF]"
+                            />
+
+                            <QuestionAnswerEditor
+                              question={q}
+                              onChange={(patch) =>
+                                updateQuestion(sec.id, q.id, patch)
+                              }
                             />
                           </div>
                         ))}
