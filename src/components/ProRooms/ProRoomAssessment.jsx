@@ -330,6 +330,7 @@ const ProRoomAssessment = () => {
         .from("pro_room_sections")
         .select("*")
         .eq("room_id", id)
+        .eq("is_deleted", false)
         .order("order_index", { ascending: true });
 
       let secData = [];

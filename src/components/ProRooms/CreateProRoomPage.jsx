@@ -18,6 +18,7 @@ import {
   FiSave,
   FiArrowRight,
   FiArrowLeft,
+  FiAlertTriangle,
   FiX,
   FiEdit2,
 } from "react-icons/fi";
@@ -132,9 +133,7 @@ const GlitchSelect = ({
             : "border-white/10 hover:border-white/20"
         } ${selected ? "text-white" : "text-gray-500"}`}
       >
-        <span className="truncate">
-          {selected ? selected.label : placeholder}
-        </span>
+        <span className="truncate">{selected ? selected.label : placeholder}</span>
         <FiArrowRight
           size={12}
           className={`shrink-0 text-gray-500 transition-transform ${
@@ -167,9 +166,7 @@ const GlitchSelect = ({
                 }`}
               >
                 <span className="truncate">{o.label}</span>
-                {o.value === value && (
-                  <FiCheck size={12} className="shrink-0" />
-                )}
+                {o.value === value && <FiCheck size={12} className="shrink-0" />}
               </button>
             ))}
           </motion.div>
@@ -183,6 +180,17 @@ const GlitchSelect = ({
 // external URL, just CSS, so it can't 404/CORS-fail.
 const DEFAULT_BANNER_GRADIENT =
   "bg-gradient-to-br from-purple-900/60 via-[#0c0c16] to-[#00F0FF]/20";
+
+// Distinguishes a real Supabase row (a UUID) from a client-side temp ID
+// (`sec-${Date.now()}` / `q-${Date.now()}`, from addSection/addQuestion).
+// This is what makes the save logic safe: a real ID means "this row
+// already exists, UPDATE it in place" — its ID never changes, so any
+// pro_room_answers already pointing at it stay valid. A temp ID means
+// "this is new," so it always gets a fresh INSERT, never reusing or
+// colliding with a retired question's old ID.
+const isRealId = (id) =>
+  typeof id === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 // ── Per-question-type answer-key editor ─────────────────────────────────
 // Without this, a host had no way to ever set real options or a real
@@ -384,8 +392,8 @@ const QuestionAnswerEditor = ({ question, onChange }) => {
     return (
       <div className="space-y-2 pt-1">
         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-          Test Cases (shown to the host for manual review — not auto-graded, no
-          code execution sandbox exists in this app)
+          Test Cases (shown to the host for manual review — not
+          auto-graded, no code execution sandbox exists in this app)
         </label>
         {cases.map((tc, idx) => (
           <div key={idx} className="flex items-center gap-2">
@@ -457,6 +465,27 @@ const CreateProRoomPage = () => {
   // update that same row instead of creating a new one each time. Starts
   // as the room we're already editing, if any.
   const [draftRoomId, setDraftRoomId] = useState(editRoomId || null);
+  // The room's real status as loaded from the DB when editing — lets
+  // handleSaveDraft/handlePublishProRoom avoid clobbering it (previously
+  // both unconditionally forced status to "draft" / "registration_open"
+  // on every save, which would silently un-publish or reset the lifecycle
+  // of a room that was already live, in evaluation, or had results
+  // published).
+  const [loadedRoomStatus, setLoadedRoomStatus] = useState(null);
+  // Snapshot of sections/questions exactly as loaded from the DB at
+  // edit-open time — diffed against current state at save time to detect
+  // new vs. existing vs. removed questions, and to know what changed on
+  // an existing one. Null for a brand-new room (nothing to diff against).
+  const originalAssessmentRef = React.useRef(null);
+  // Scoring-impact confirmation gate — set when a save would touch a
+  // question that already has participant answers.
+  const [scoringWarning, setScoringWarning] = useState({
+    show: false,
+    items: [],
+    roomId: null,
+    action: null, // 'draft' | 'publish'
+  });
+  const [confirmingScoringChange, setConfirmingScoringChange] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [toastMsg, setToastMsg] = useState("");
@@ -541,6 +570,10 @@ const CreateProRoomPage = () => {
             return;
           }
           setEditAccessAllowed(true);
+          // Remember the room's actual current status so save/publish can
+          // preserve it instead of forcing it back to "draft" or
+          // "registration_open" on every edit.
+          setLoadedRoomStatus(rData.status || null);
 
           if (rData) {
             setBasicInfo({
@@ -621,11 +654,14 @@ const CreateProRoomPage = () => {
           // from the base table at all (by anyone, host included — see
           // fix_3_hide_correct_answers.sql), so editing has to go through
           // this function, which re-exposes it specifically because this
-          // is the room's host.
+          // is the room's host. Both the section fetch and the function
+          // itself exclude soft-deleted rows (is_deleted = true) — a
+          // previously-removed question never resurfaces in the builder.
           const { data: sRows } = await supabase
             .from("pro_room_sections")
             .select("*")
             .eq("room_id", editRoomId)
+            .eq("is_deleted", false)
             .order("order_index", { ascending: true });
 
           let sData = [];
@@ -649,25 +685,31 @@ const CreateProRoomPage = () => {
           }
 
           if (sData && sData.length > 0) {
-            setSections(
-              sData.map((s) => ({
-                id: s.id,
-                section_name: s.section_name,
-                section_type: s.section_type,
-                order_index: s.order_index,
-                time_limit_minutes: s.time_limit_minutes,
-                total_points: s.total_points,
-                questions: (s.pro_room_questions || []).map((q) => ({
-                  id: q.id,
-                  question_text: q.question_text,
-                  question_type: q.question_type,
-                  difficulty: q.difficulty,
-                  points: q.points,
-                  options: q.options || [],
-                  correct_answer: q.correct_answer || "",
-                  test_cases: q.test_cases || [],
-                })),
+            const loadedSections = sData.map((s) => ({
+              id: s.id,
+              section_name: s.section_name,
+              section_type: s.section_type,
+              order_index: s.order_index,
+              time_limit_minutes: s.time_limit_minutes,
+              total_points: s.total_points,
+              questions: (s.pro_room_questions || []).map((q) => ({
+                id: q.id,
+                question_text: q.question_text,
+                question_type: q.question_type,
+                difficulty: q.difficulty,
+                points: q.points,
+                options: q.options || [],
+                correct_answer: q.correct_answer || "",
+                test_cases: q.test_cases || [],
               })),
+            }));
+            setSections(loadedSections);
+            // Snapshot exactly what was loaded — this is what save-time
+            // diffing compares against to find new/changed/removed
+            // questions. Deep-cloned so later edits to `sections` state
+            // can never mutate this reference.
+            originalAssessmentRef.current = JSON.parse(
+              JSON.stringify(loadedSections),
             );
           }
         } catch (err) {
@@ -847,11 +889,7 @@ const CreateProRoomPage = () => {
     if (type === "mcq")
       return { options: ["", "", "", ""], correct_answer: "", test_cases: [] };
     if (type === "msq")
-      return {
-        options: ["", "", "", ""],
-        correct_answer: "[]",
-        test_cases: [],
-      };
+      return { options: ["", "", "", ""], correct_answer: "[]", test_cases: [] };
     if (type === "true_false")
       return { options: [], correct_answer: "", test_cases: [] };
     if (type === "short_answer" || type === "output_pred")
@@ -882,8 +920,10 @@ const CreateProRoomPage = () => {
         return "Organization / College / Company Name is required.";
       if (!basicInfo.organizer_name.trim())
         return "Organizer Name is required.";
-      if (!basicInfo.org_email.trim()) return "Organizer Email is required.";
-      if (!basicInfo.org_logo.trim()) return "Organization Logo is required.";
+      if (!basicInfo.org_email.trim())
+        return "Organizer Email is required.";
+      if (!basicInfo.org_logo.trim())
+        return "Organization Logo is required.";
       return null;
     }
 
@@ -900,15 +940,14 @@ const CreateProRoomPage = () => {
       const evStart = new Date(schedule.event_start_at);
       const evEnd = new Date(schedule.event_end_at);
       if (
-        [regStart, regEnd, evStart, evEnd].some((d) =>
-          Number.isNaN(d.getTime()),
-        )
+        [regStart, regEnd, evStart, evEnd].some((d) => Number.isNaN(d.getTime()))
       ) {
         return "One of the schedule dates is invalid.";
       }
       if (regEnd <= regStart)
         return "Registration Closes must be after Registration Opens.";
-      if (evEnd <= evStart) return "Event Ends must be after Event Starts.";
+      if (evEnd <= evStart)
+        return "Event Ends must be after Event Starts.";
       if (evStart < regStart)
         return "Event Starts can't be before Registration Opens.";
       return null;
@@ -979,7 +1018,8 @@ const CreateProRoomPage = () => {
 
     if (step === 5) {
       if (!evaluation.eval_method) return "Please select an Evaluation Method.";
-      if (!evaluation.passing_score) return "Passing Score is required.";
+      if (!evaluation.passing_score)
+        return "Passing Score is required.";
       if (
         Number(evaluation.passing_score) < 0 ||
         Number(evaluation.passing_score) > 100
@@ -999,6 +1039,257 @@ const CreateProRoomPage = () => {
     }
     setErrorMsg("");
     setCurrentStep(currentStep + 1);
+  };
+
+  // ── Assessment save: upsert-by-id + soft-delete, never delete-and-recreate ─
+  // This replaces the old approach (delete every section/question for the
+  // room, then re-insert everything from scratch), which reassigned a new
+  // random UUID to every question on every single save — orphaning any
+  // pro_room_answers already pointing at the old IDs. Now:
+  //   - a question with a real DB id (isRealId) is UPDATEd in place — its
+  //     id never changes, so existing answers stay correctly linked.
+  //   - a question with a temp id (freshly added in this session) is
+  //     INSERTed and gets a genuinely new id.
+  //   - a question that existed before but isn't in current state anymore
+  //     is soft-deleted (is_deleted = true), never hard-deleted — its row,
+  //     and any answers tied to it, are preserved for history/scoring.
+  // If a question that already has participant answers had its text,
+  // options, correct answer, type, or points changed (or was removed),
+  // this returns { blocked: true, items } instead of writing anything,
+  // UNLESS `force` is true (the host has explicitly confirmed via the
+  // warning modal) — in which case it writes and then re-grades every
+  // affected submission so scores reflect the correction.
+  const persistAssessment = async (roomId, force = false) => {
+    const originalSections = originalAssessmentRef.current || [];
+    const originalSectionById = new Map(originalSections.map((s) => [s.id, s]));
+    const originalQuestionById = new Map();
+    originalSections.forEach((s) =>
+      (s.questions || []).forEach((q) =>
+        originalQuestionById.set(q.id, {
+          ...q,
+          __sectionName: s.section_name,
+        }),
+      ),
+    );
+
+    const currentSectionIds = new Set(
+      sections.filter((s) => isRealId(s.id)).map((s) => s.id),
+    );
+    const currentQuestionIds = new Set();
+    sections.forEach((s) =>
+      (s.questions || []).forEach((q) => {
+        if (isRealId(q.id)) currentQuestionIds.add(q.id);
+      }),
+    );
+
+    const removedSectionIds = [...originalSectionById.keys()].filter(
+      (id) => !currentSectionIds.has(id),
+    );
+    // Covers both individually-removed questions AND questions whose
+    // parent section was removed wholesale — either way, if it's not in
+    // current state, it's gone.
+    const removedQuestionIds = [...originalQuestionById.keys()].filter(
+      (id) => !currentQuestionIds.has(id),
+    );
+
+    // Any edit to these fields on a question that already has answers
+    // needs a host confirmation — exactly the fields specified: question
+    // text, options, correct answer, question type, or points.
+    const warnableChangedIds = [];
+    sections.forEach((s) => {
+      (s.questions || []).forEach((q) => {
+        if (!isRealId(q.id)) return;
+        const orig = originalQuestionById.get(q.id);
+        if (!orig) return;
+        const changed =
+          orig.question_text !== q.question_text ||
+          JSON.stringify(orig.options || []) !== JSON.stringify(q.options || []) ||
+          (orig.correct_answer || "") !== (q.correct_answer || "") ||
+          orig.question_type !== q.question_type ||
+          Number(orig.points) !== Number(q.points);
+        if (changed) warnableChangedIds.push(q.id);
+      });
+    });
+
+    const idsNeedingAnswerCheck = [
+      ...new Set([...removedQuestionIds, ...warnableChangedIds]),
+    ];
+
+    let items = [];
+    if (idsNeedingAnswerCheck.length > 0) {
+      const { data: answerRows, error: answerCheckErr } = await supabase
+        .from("pro_room_answers")
+        .select("question_id")
+        .in("question_id", idsNeedingAnswerCheck);
+
+      if (answerCheckErr) throw answerCheckErr;
+
+      const counts = {};
+      (answerRows || []).forEach((r) => {
+        counts[r.question_id] = (counts[r.question_id] || 0) + 1;
+      });
+
+      removedQuestionIds.forEach((qid) => {
+        if (counts[qid] > 0) {
+          const orig = originalQuestionById.get(qid);
+          items.push({
+            questionId: qid,
+            questionText: orig.question_text || "(untitled question)",
+            sectionName: orig.__sectionName,
+            answerCount: counts[qid],
+            kind: "removed",
+          });
+        }
+      });
+      warnableChangedIds.forEach((qid) => {
+        if (counts[qid] > 0) {
+          const orig = originalQuestionById.get(qid);
+          items.push({
+            questionId: qid,
+            questionText: orig.question_text || "(untitled question)",
+            sectionName: orig.__sectionName,
+            answerCount: counts[qid],
+            kind: "edited",
+          });
+        }
+      });
+    }
+
+    if (items.length > 0 && !force) {
+      return { blocked: true, items };
+    }
+
+    // ── Write ────────────────────────────────────────────────────────────
+    if (removedSectionIds.length > 0) {
+      const { error } = await supabase
+        .from("pro_room_sections")
+        .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+        .in("id", removedSectionIds);
+      if (error) throw error;
+    }
+
+    if (removedQuestionIds.length > 0) {
+      const { error } = await supabase
+        .from("pro_room_questions")
+        .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+        .in("id", removedQuestionIds);
+      if (error) throw error;
+    }
+
+    const sectionIdMap = {}; // client id (temp or real) -> real DB id
+    for (let i = 0; i < sections.length; i++) {
+      const sec = sections[i];
+      const payload = {
+        room_id: roomId,
+        section_name: sec.section_name || `Section ${i + 1}`,
+        section_type: sec.section_type,
+        order_index: i + 1,
+        time_limit_minutes: Number(sec.time_limit_minutes) || 30,
+        total_points: Number(sec.total_points) || 100,
+      };
+      if (isRealId(sec.id)) {
+        const { error } = await supabase
+          .from("pro_room_sections")
+          .update(payload)
+          .eq("id", sec.id);
+        if (error) throw error;
+        sectionIdMap[sec.id] = sec.id;
+      } else {
+        const { data: created, error } = await supabase
+          .from("pro_room_sections")
+          .insert(payload)
+          .select()
+          .single();
+        if (error) throw error;
+        sectionIdMap[sec.id] = created.id;
+      }
+    }
+
+    for (const sec of sections) {
+      const realSectionId = sectionIdMap[sec.id];
+      const qs = sec.questions || [];
+      for (let qIdx = 0; qIdx < qs.length; qIdx++) {
+        const q = qs[qIdx];
+        const payload = {
+          room_id: roomId,
+          section_id: realSectionId,
+          question_text: q.question_text || "",
+          question_type: q.question_type,
+          difficulty: q.difficulty || "Medium",
+          points: Number(q.points) || 25,
+          options: q.options || [],
+          correct_answer: q.correct_answer || "",
+          test_cases: q.test_cases || [],
+          order_index: qIdx + 1,
+        };
+        if (isRealId(q.id)) {
+          const { error } = await supabase
+            .from("pro_room_questions")
+            .update(payload)
+            .eq("id", q.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("pro_room_questions")
+            .insert(payload);
+          if (error) throw error;
+        }
+      }
+    }
+
+    // Re-grade every submission affected by a confirmed answer-key change.
+    // (Removed questions need no regrade — their row is only soft-deleted,
+    // so the score a candidate already earned on it is untouched; see the
+    // SQL migration's comments for why that's the deliberate choice here.)
+    if (force) {
+      for (const item of items) {
+        if (item.kind !== "edited") continue;
+        const { error } = await supabase.rpc(
+          "regrade_submissions_for_question",
+          { p_question_id: item.questionId },
+        );
+        if (error) {
+          console.error("Regrade failed for", item.questionId, error);
+        }
+      }
+    }
+
+    // Update the snapshot to match what was just saved, so the next save
+    // in this same session diffs against current reality, not stale data.
+    originalAssessmentRef.current = JSON.parse(JSON.stringify(sections));
+
+    return { blocked: false };
+  };
+
+  const handleConfirmScoringChange = async () => {
+    const { roomId, action } = scoringWarning;
+    setConfirmingScoringChange(true);
+    if (action === "draft") setSavingDraft(true);
+    if (action === "publish") setPublishing(true);
+
+    try {
+      await persistAssessment(roomId, true);
+      setScoringWarning({ show: false, items: [], roomId: null, action: null });
+
+      if (action === "draft") {
+        showToast("💾 Pro Room configuration saved as draft!");
+      } else {
+        showToast(
+          editRoomId
+            ? "🚀 Pro Room updated successfully!"
+            : "🚀 Pro Room published successfully!",
+        );
+        setTimeout(() => navigate(`/pro-rooms/${roomId}`), 1200);
+      }
+    } catch (err) {
+      console.error("Failed to save after confirmation:", err);
+      setErrorMsg(err.message || "Failed to save — please try again.");
+      setScoringWarning({ show: false, items: [], roomId: null, action: null });
+    } finally {
+      setConfirmingScoringChange(false);
+      setSavingDraft(false);
+      setPublishing(false);
+    }
   };
 
   const handleSaveDraft = async () => {
@@ -1039,7 +1330,16 @@ const CreateProRoomPage = () => {
         org_logo: basicInfo.org_logo || null,
         cover_image: basicInfo.cover_image || null,
         host_id: userId,
-        status: "draft",
+        // Only force "draft" for a genuinely new/still-draft room. If
+        // we're editing a room that's already past draft (live,
+        // registration_open, evaluation, results_published — anything),
+        // "Save as Draft" here means "save my in-progress edits," not
+        // "un-publish this room." Previously this was unconditional and
+        // would silently hide an already-live room from candidates.
+        status:
+          loadedRoomStatus && loadedRoomStatus !== "draft"
+            ? loadedRoomStatus
+            : "draft",
 
         reg_start_at: schedule.reg_start_at
           ? new Date(schedule.reg_start_at).toISOString()
@@ -1105,54 +1405,21 @@ const CreateProRoomPage = () => {
         setDraftRoomId(roomId);
       }
 
-      // Replace sections/questions the same way publish does, so the draft
-      // reflects whatever's currently in the Assessment step too.
-      const { error: delQErr } = await supabase
-        .from("pro_room_questions")
-        .delete()
-        .eq("room_id", roomId);
-      if (delQErr) throw delQErr;
-
-      const { error: delSErr } = await supabase
-        .from("pro_room_sections")
-        .delete()
-        .eq("room_id", roomId);
-      if (delSErr) throw delSErr;
-
-      for (let i = 0; i < sections.length; i++) {
-        const sec = sections[i];
-        const { data: createdSec, error: secErr } = await supabase
-          .from("pro_room_sections")
-          .insert({
-            room_id: roomId,
-            section_name: sec.section_name || `Section ${i + 1}`,
-            section_type: sec.section_type,
-            order_index: i + 1,
-            time_limit_minutes: Number(sec.time_limit_minutes) || 30,
-            total_points: Number(sec.total_points) || 100,
-          })
-          .select()
-          .single();
-        if (secErr) throw secErr;
-
-        if (createdSec && sec.questions && sec.questions.length > 0) {
-          const qPayloads = sec.questions.map((q, qIdx) => ({
-            room_id: roomId,
-            section_id: createdSec.id,
-            question_text: q.question_text || "",
-            question_type: q.question_type,
-            difficulty: q.difficulty || "Medium",
-            points: Number(q.points) || 25,
-            options: q.options || [],
-            correct_answer: q.correct_answer || "",
-            test_cases: q.test_cases || [],
-            order_index: qIdx + 1,
-          }));
-          const { error: qErr } = await supabase
-            .from("pro_room_questions")
-            .insert(qPayloads);
-          if (qErr) throw qErr;
-        }
+      // Sections/questions are upserted by id and soft-deleted when
+      // removed (see persistAssessment) — never a blanket delete+recreate.
+      // If this touches a question that already has participant answers,
+      // it returns { blocked: true } and shows a confirmation modal
+      // instead of writing anything.
+      const result = await persistAssessment(roomId, false);
+      if (result.blocked) {
+        setScoringWarning({
+          show: true,
+          items: result.items,
+          roomId,
+          action: "draft",
+        });
+        setSavingDraft(false);
+        return;
       }
 
       showToast("💾 Pro Room configuration saved as draft!");
@@ -1217,7 +1484,16 @@ const CreateProRoomPage = () => {
         timezone: schedule.timezone,
         duration_minutes: 2880,
         allow_late_entry: schedule.allow_late_entry,
-        status: "registration_open",
+        // Only force "registration_open" for a genuinely new room, or one
+        // that's still a draft being published for the first time. If
+        // we're editing a room that's already live, in evaluation, or has
+        // results published, this must preserve that status — previously
+        // it was unconditional and would silently reset an in-progress or
+        // finished assessment's lifecycle back to "just opened."
+        status:
+          loadedRoomStatus && loadedRoomStatus !== "draft"
+            ? loadedRoomStatus
+            : "registration_open",
 
         access_type: eligibility.access_type,
         max_participants: Number(eligibility.max_participants) || 500,
@@ -1255,22 +1531,6 @@ const CreateProRoomPage = () => {
           .eq("id", existingRoomId);
 
         if (roomErr) throw roomErr;
-
-        // Clean up old sections and questions for this room before
-        // re-inserting the current ones. Both now check their error instead
-        // of failing silently — a blocked delete here previously meant the
-        // insert below would just pile new rows on top of the old ones.
-        const { error: delQErr } = await supabase
-          .from("pro_room_questions")
-          .delete()
-          .eq("room_id", existingRoomId);
-        if (delQErr) throw delQErr;
-
-        const { error: delSErr } = await supabase
-          .from("pro_room_sections")
-          .delete()
-          .eq("room_id", existingRoomId);
-        if (delSErr) throw delSErr;
       } else {
         const { data: createdRoom, error: roomErr } = await supabase
           .from("pro_rooms")
@@ -1282,38 +1542,21 @@ const CreateProRoomPage = () => {
         roomId = createdRoom.id;
       }
 
-      // Insert Sections & Questions
-      for (let i = 0; i < sections.length; i++) {
-        const sec = sections[i];
-        const { data: createdSec } = await supabase
-          .from("pro_room_sections")
-          .insert({
-            room_id: roomId,
-            section_name: sec.section_name,
-            section_type: sec.section_type,
-            order_index: i + 1,
-            time_limit_minutes: Number(sec.time_limit_minutes) || 30,
-            total_points: Number(sec.total_points) || 100,
-          })
-          .select()
-          .single();
-
-        if (createdSec && sec.questions && sec.questions.length > 0) {
-          const qPayloads = sec.questions.map((q, qIdx) => ({
-            room_id: roomId,
-            section_id: createdSec.id,
-            question_text: q.question_text,
-            question_type: q.question_type,
-            difficulty: q.difficulty || "Medium",
-            points: Number(q.points) || 25,
-            options: q.options || [],
-            correct_answer: q.correct_answer || "",
-            test_cases: q.test_cases || [],
-            order_index: qIdx + 1,
-          }));
-
-          await supabase.from("pro_room_questions").insert(qPayloads);
-        }
+      // Sections/questions are upserted by id and soft-deleted when
+      // removed (see persistAssessment) — never a blanket delete+recreate.
+      // If this touches a question that already has participant answers,
+      // it returns { blocked: true } and shows a confirmation modal
+      // instead of writing anything.
+      const result = await persistAssessment(roomId, false);
+      if (result.blocked) {
+        setScoringWarning({
+          show: true,
+          items: result.items,
+          roomId,
+          action: "publish",
+        });
+        setPublishing(false);
+        return;
       }
 
       showToast(
@@ -2139,10 +2382,7 @@ const CreateProRoomPage = () => {
                 <div className="space-y-6">
                   {sections.length === 0 && (
                     <div className="text-center py-10 px-6 bg-[#06060c] border border-dashed border-white/10 rounded-2xl">
-                      <FiLayers
-                        size={24}
-                        className="mx-auto text-gray-600 mb-2"
-                      />
+                      <FiLayers size={24} className="mx-auto text-gray-600 mb-2" />
                       <p className="text-xs text-gray-500">
                         No sections yet. Click "+ Add Section" to start building
                         your assessment.
@@ -2595,6 +2835,101 @@ const CreateProRoomPage = () => {
           </div>
         </div>
       </main>
+
+      {/* Scoring-Impact Confirmation Modal — blocks a save that would edit
+          or remove a question candidates have already answered, until the
+          host explicitly confirms. Never silently alters existing scores. */}
+      <AnimatePresence>
+        {scoringWarning.show && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0c0c16] border border-amber-500/30 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <FiAlertTriangle size={20} className="text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    This Affects Already-Submitted Answers
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Candidates have already answered the question(s) below.
+                  </p>
+                </div>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto space-y-2">
+                {scoringWarning.items.map((item) => (
+                  <div
+                    key={item.questionId}
+                    className="p-3 rounded-xl bg-[#06060c] border border-white/10 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className={`font-bold ${
+                          item.kind === "removed"
+                            ? "text-red-400"
+                            : "text-amber-300"
+                        }`}
+                      >
+                        {item.kind === "removed" ? "Will be removed" : "Edited"}
+                      </span>
+                      <span className="text-gray-500 font-mono">
+                        {item.answerCount} candidate
+                        {item.answerCount === 1 ? "" : "s"} answered
+                      </span>
+                    </div>
+                    <p className="text-gray-300 mt-1">{item.questionText}</p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">
+                      {item.sectionName}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[11px] text-gray-400 leading-relaxed bg-white/5 border border-white/10 rounded-xl p-3">
+                Edited questions will be automatically re-graded against the
+                corrected answer key — no one's existing score is silently
+                changed without this. Removed questions keep whatever score
+                candidates already earned on them; they just won't be shown
+                to future candidates.
+              </p>
+
+              <div className="flex items-center justify-end gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setScoringWarning({
+                      show: false,
+                      items: [],
+                      roomId: null,
+                      action: null,
+                    })
+                  }
+                  disabled={confirmingScoringChange}
+                  className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-400 hover:text-white transition cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmScoringChange}
+                  disabled={confirmingScoringChange}
+                  className="px-5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                >
+                  {confirmingScoringChange
+                    ? "Saving..."
+                    : "Confirm & Save Anyway"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
