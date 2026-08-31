@@ -744,18 +744,36 @@ const CreateProRoomPage = () => {
     prize_details: "",
   });
 
-  // Calculate duration in hours
+  // Dynamically calculate overall event window (Registration Start -> Event End)
   const calculateDurationHours = () => {
     try {
-      const start = new Date(schedule.event_start_at);
-      const end = new Date(schedule.event_end_at);
-      const diffMs = end - start;
-      if (diffMs > 0) {
-        const hours = Math.round(diffMs / (1000 * 60 * 60));
-        return `${hours} Hours`;
+      const startStr = schedule.reg_start_at || schedule.event_start_at;
+      const endStr = schedule.event_end_at;
+      if (!startStr || !endStr) return "Select dates above";
+
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return "Select complete date & time";
       }
-    } catch (e) {}
-    return "48 Hours";
+
+      const diffMs = end - start;
+      if (diffMs <= 0) return "Event End must be after Start date";
+
+      const totalMinutes = Math.floor(diffMs / (1000 * 60));
+      const days = Math.floor(totalMinutes / (24 * 60));
+      const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+
+      let parts = [];
+      if (days > 0) parts.push(`${days} Day${days > 1 ? "s" : ""}`);
+      if (hours > 0) parts.push(`${hours} Hour${hours > 1 ? "s" : ""}`);
+
+      const durationStr = parts.join(" ") || `${totalMinutes} Mins`;
+      const totalHours = Math.round(diffMs / (1000 * 60 * 60));
+      return `${durationStr} (${totalHours} Total Hours)`;
+    } catch (e) {
+      return "Select dates above";
+    }
   };
 
   // Compute live event state badge
@@ -934,10 +952,14 @@ const CreateProRoomPage = () => {
     }
 
     if (step === 2) {
-      if (!schedule.reg_start_at) return "Registration Opens date is required.";
-      if (!schedule.reg_end_at) return "Registration Closes date is required.";
-      if (!schedule.event_start_at) return "Event Starts date is required.";
-      if (!schedule.event_end_at) return "Event Ends date is required.";
+      if (!schedule.reg_start_at)
+        return "Registration Opens date & time are required. Please select both date and time (hours & minutes).";
+      if (!schedule.reg_end_at)
+        return "Registration Closes date & time are required. Please select both date and time (hours & minutes).";
+      if (!schedule.event_start_at)
+        return "Event Starts date & time are required. Please select both date and time (hours & minutes).";
+      if (!schedule.event_end_at)
+        return "Event Ends date & time are required. Please select both date and time (hours & minutes).";
       if (!schedule.timezone) return "Please select a Timezone.";
       if (!schedule.mode) return "Please select an Event Mode.";
       if (!schedule.duration_minutes)
@@ -2061,13 +2083,16 @@ const CreateProRoomPage = () => {
                         type="datetime-local"
                         value={schedule.reg_start_at}
                         onChange={(e) =>
-                          setSchedule({
-                            ...schedule,
+                          setSchedule((prev) => ({
+                            ...prev,
                             reg_start_at: e.target.value,
-                          })
+                          }))
                         }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Select date & time (HH:MM)
+                      </p>
                     </div>
 
                     <div>
@@ -2078,13 +2103,16 @@ const CreateProRoomPage = () => {
                         type="datetime-local"
                         value={schedule.reg_end_at}
                         onChange={(e) =>
-                          setSchedule({
-                            ...schedule,
+                          setSchedule((prev) => ({
+                            ...prev,
                             reg_end_at: e.target.value,
-                          })
+                          }))
                         }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Select date & time (HH:MM)
+                      </p>
                     </div>
 
                     <div>
@@ -2095,13 +2123,16 @@ const CreateProRoomPage = () => {
                         type="datetime-local"
                         value={schedule.event_start_at}
                         onChange={(e) =>
-                          setSchedule({
-                            ...schedule,
+                          setSchedule((prev) => ({
+                            ...prev,
                             event_start_at: e.target.value,
-                          })
+                          }))
                         }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Select date & time (HH:MM)
+                      </p>
                     </div>
 
                     <div>
@@ -2112,13 +2143,16 @@ const CreateProRoomPage = () => {
                         type="datetime-local"
                         value={schedule.event_end_at}
                         onChange={(e) =>
-                          setSchedule({
-                            ...schedule,
+                          setSchedule((prev) => ({
+                            ...prev,
                             event_end_at: e.target.value,
-                          })
+                          }))
                         }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Select date & time (HH:MM)
+                      </p>
                     </div>
                   </div>
 
