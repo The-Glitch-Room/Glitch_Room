@@ -523,6 +523,11 @@ const CreateProRoomPage = () => {
     allow_late_entry: true,
     mode: "Online",
     submission_deadline: "",
+    // How long each candidate gets on the timed test once THEY start it —
+    // completely separate from the event window above (which is when
+    // registration/the event as a whole is open). This drives the actual
+    // countdown timer in ProRoomAssessment.jsx.
+    duration_minutes: "",
   });
 
   // STEP 3: Eligibility & Participation State
@@ -610,6 +615,7 @@ const CreateProRoomPage = () => {
                 submission_deadline: rData.event_end_at
                   ? rData.event_end_at.slice(0, 16)
                   : "",
+                duration_minutes: rData.duration_minutes || "",
               });
             }
 
@@ -934,6 +940,15 @@ const CreateProRoomPage = () => {
       if (!schedule.event_end_at) return "Event Ends date is required.";
       if (!schedule.timezone) return "Please select a Timezone.";
       if (!schedule.mode) return "Please select an Event Mode.";
+      if (!schedule.duration_minutes)
+        return "Assessment Time Limit is required.";
+      if (
+        Number.isNaN(Number(schedule.duration_minutes)) ||
+        Number(schedule.duration_minutes) < 1
+      )
+        return "Assessment Time Limit must be at least 1 minute.";
+      if (Number(schedule.duration_minutes) > 10080)
+        return "Assessment Time Limit can't be more than a week (10080 minutes) — check the value.";
 
       const regStart = new Date(schedule.reg_start_at);
       const regEnd = new Date(schedule.reg_end_at);
@@ -1355,6 +1370,9 @@ const CreateProRoomPage = () => {
           : null,
         timezone: schedule.timezone || null,
         allow_late_entry: schedule.allow_late_entry,
+        duration_minutes: schedule.duration_minutes
+          ? Number(schedule.duration_minutes)
+          : null,
 
         access_type: eligibility.access_type,
         max_participants: eligibility.max_participants
@@ -1482,7 +1500,7 @@ const CreateProRoomPage = () => {
         event_start_at: new Date(schedule.event_start_at).toISOString(),
         event_end_at: new Date(schedule.event_end_at).toISOString(),
         timezone: schedule.timezone,
-        duration_minutes: 2880,
+        duration_minutes: Number(schedule.duration_minutes) || 120,
         allow_late_entry: schedule.allow_late_entry,
         // Only force "registration_open" for a genuinely new room, or one
         // that's still a draft being published for the first time. If
@@ -2107,6 +2125,48 @@ const CreateProRoomPage = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-1">
+                        Assessment Time Limit (minutes) *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="e.g., 90"
+                        value={schedule.duration_minutes}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            duration_minutes: e.target.value,
+                          })
+                        }
+                        className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        How long each candidate's timer runs once THEY start
+                        the test — not the same as the event window below.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-300 block mb-1">
+                        Event Window (Registration → Event End)
+                      </label>
+                      <input
+                        type="text"
+                        disabled
+                        value={durationText}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs font-bold text-[#00F0FF] outline-none cursor-not-allowed"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        When registration and the overall event are open —
+                        candidates can start their timed test any time in
+                        this window.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-gray-300 block mb-1">
                         Timezone *
                       </label>
                       <GlitchSelect
@@ -2132,18 +2192,6 @@ const CreateProRoomPage = () => {
                           { value: "Hybrid", label: "Hybrid" },
                         ]}
                         placeholder="Select Event Mode"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-gray-300 block mb-1">
-                        Calculated Duration
-                      </label>
-                      <input
-                        type="text"
-                        disabled
-                        value={durationText}
-                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs font-bold text-[#00F0FF] outline-none cursor-not-allowed"
                       />
                     </div>
                   </div>
