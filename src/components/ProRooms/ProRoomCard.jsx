@@ -21,6 +21,9 @@ export const getProRoomLifecycleState = (room) => {
   const eventStart = room.event_start_at ? new Date(room.event_start_at) : null;
   const eventEnd = room.event_end_at ? new Date(room.event_end_at) : null;
 
+  if (room.status === "draft") {
+    return { label: "✏️ DRAFT", color: "amber", isLive: false, key: "draft" };
+  }
   if (room.status === "results_published") {
     return { label: "Results Published", color: "purple", isLive: false, key: "completed" };
   }
@@ -64,6 +67,9 @@ const ProRoomCard = ({ room, isRegistered, onSelect }) => {
   };
 
   const getButtonText = () => {
+    if (lifecycle.key === "draft") {
+      return "✏️ Resume Editing →";
+    }
     // 1. Completed / Ended events (SUBMISSION CLOSED / Results Published / Evaluation)
     if (lifecycle.key === "completed") {
       return "View Results →";

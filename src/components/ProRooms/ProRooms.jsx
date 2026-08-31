@@ -56,6 +56,7 @@ const STATUSES = [
   "Registration Open",
   "Upcoming",
   "Completed",
+  "My Drafts 📝",
 ];
 
 const formatNumber = (n) => {
@@ -66,6 +67,7 @@ const formatNumber = (n) => {
 const ProRooms = () => {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Filters State
@@ -96,7 +98,8 @@ const ProRooms = () => {
     setLoading(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
-      const uid = authData?.user?.id;
+      const uid = authData?.user?.id || null;
+      setCurrentUserId(uid);
 
       // 1. Fetch Rooms from Supabase
       const { data: dbRooms, error } = await supabase
@@ -167,8 +170,22 @@ const ProRooms = () => {
         selectedType === "All Types" ||
         (room.event_type || "").toLowerCase() === selectedType.toLowerCase();
 
-      // Status
+      // Status & Draft protection logic
       const state = getProRoomLifecycleState(room);
+      const isDraft = room.status === "draft";
+      const isMyDraft = isDraft && currentUserId && room.host_id === currentUserId;
+
+      // Drafts belong ONLY to their host in "My Drafts" tab / status
+      if (activeTab === "drafts" || selectedStatus === "My Drafts 📝") {
+        return isMyDraft && (
+          (room.name || room.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (room.org_name || "").toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      }
+
+      // Public discovery tabs MUST hide draft rooms
+      if (isDraft) return false;
+
       let matchesStatus = true;
       if (selectedStatus === "Live") matchesStatus = state.isLive;
       else if (selectedStatus === "Registration Open") matchesStatus = state.key === "registration_open";
@@ -202,11 +219,12 @@ const ProRooms = () => {
 
   // Calculate Dynamic Tab Counts
   const tabCounts = {
-    all: rooms.length,
-    live: rooms.filter((r) => getProRoomLifecycleState(r).isLive).length,
-    upcoming: rooms.filter((r) => getProRoomLifecycleState(r).key === "upcoming").length,
-    registration_open: rooms.filter((r) => getProRoomLifecycleState(r).key === "registration_open").length,
-    completed: rooms.filter((r) => getProRoomLifecycleState(r).key === "completed").length,
+    all: rooms.filter((r) => r.status !== "draft").length,
+    live: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).isLive).length,
+    upcoming: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).key === "upcoming").length,
+    registration_open: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).key === "registration_open").length,
+    completed: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).key === "completed").length,
+    drafts: rooms.filter((r) => r.status === "draft" && currentUserId && r.host_id === currentUserId).length,
   };
 
   const statItems = [
@@ -260,9 +278,20 @@ const ProRooms = () => {
               ))}
             </div>
 
-            {/* CTA Button */}
-            <div className="flex justify-center" onClick={() => navigate("/pro-rooms/create")}>
-              <Button content="+ Host a Pro Room" accent="pink" />
+            {/* CTA Buttons */}
+            <div className="flex justify-center items-center gap-3 flex-wrap">
+              <div onClick={() => navigate("/pro-rooms/create")}>
+                <Button content="+ Host a Pro Room" accent="pink" />
+              </div>
+              {currentUserId && tabCounts.drafts > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("drafts")}
+                  className="px-5 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer flex items-center gap-2"
+                >
+                  📝 My Saved Drafts ({tabCounts.drafts})
+                </button>
+              )}
             </div>
           </div>
         </section>
@@ -342,6 +371,7 @@ const ProRooms = () => {
                 { id: "upcoming", label: `📅 Upcoming (${tabCounts.upcoming})` },
                 { id: "registration_open", label: `📝 Registration Open (${tabCounts.registration_open})` },
                 { id: "completed", label: `✓ Completed (${tabCounts.completed})` },
+                ...(currentUserId ? [{ id: "drafts", label: `📝 My Drafts (${tabCounts.drafts})` }] : []),
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -390,7 +420,9 @@ const ProRooms = () => {
                     isRegistered={isReg}
                     onSelect={() => {
                       const state = getProRoomLifecycleState(room);
-                      if (isReg || state.key === "completed") {
+                      if (room.status === "draft") {
+                        navigate(`/pro-rooms/create?edit=${room.id}`);
+                      } else if (isReg || state.key === "completed") {
                         navigate(`/pro-rooms/${room.id}`);
                       } else {
                         setSelectedRegRoom(room);
