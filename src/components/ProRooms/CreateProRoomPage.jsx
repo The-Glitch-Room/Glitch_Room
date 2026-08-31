@@ -732,8 +732,8 @@ const CreateProRoomPage = () => {
 
   // STEP 5: Evaluation & Rewards State
   const [evaluation, setEvaluation] = useState({
-    eval_method: "",
-    passing_score: "",
+    eval_method: "Automatic",
+    passing_score: "50",
     negative_marking: false,
     partial_scoring: true,
     tie_breaker_rule: "score_speed",
@@ -2595,7 +2595,7 @@ const CreateProRoomPage = () => {
                 </div>
 
                 <div className="space-y-4 pt-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-1">
                         Evaluation Method *
@@ -2621,6 +2621,29 @@ const CreateProRoomPage = () => {
                         ]}
                         placeholder="Select Evaluation Method"
                       />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-300 block mb-1">
+                        Passing Score (%) *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="e.g., 50"
+                        value={evaluation.passing_score}
+                        onChange={(e) =>
+                          setEvaluation({
+                            ...evaluation,
+                            passing_score: e.target.value,
+                          })
+                        }
+                        className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Minimum percentage score required to pass.
+                      </p>
                     </div>
 
                     <div>
