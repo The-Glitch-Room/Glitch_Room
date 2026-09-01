@@ -1,8 +1,8 @@
-# ⚡ Glitch Room — Interactive Developer Arena & Assessment Platform
+# Glitch Room — Interactive Developer Arena & Assessment Platform
 
-![Glitch Room Banner](public/logo_GR.png)
+**Glitch Room** is a state-of-the-art competitive coding platform, interactive developer arena, and room hosting system. Master real-world debugging, tackle AI/ML challenges, host custom assessment rooms for colleges/companies, and climb the Terminal Wall leaderboard!
 
-> **Glitch Room** is a state-of-the-art competitive coding platform, interactive developer arena, and room hosting system. Master real-world debugging, tackle AI/ML challenges, host custom assessment rooms for colleges/companies, and climb the Terminal Wall leaderboard!
+Live: https://glitch-room.netlify.app/
 
 ---
 
