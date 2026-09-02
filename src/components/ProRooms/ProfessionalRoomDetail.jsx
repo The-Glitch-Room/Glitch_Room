@@ -2391,7 +2391,7 @@ const ProfessionalRoomDetail = () => {
                     <Layers size={16} className="text-[#00F0FF]" /> Assessment
                     Sections ({sections.length})
                   </h3>
-                  {(canStartAssessment || isHost) && isRegistered && (
+                  {canStartAssessment && (
                     <button
                       onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
                       className="px-4 py-2 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center gap-1.5"
@@ -2437,7 +2437,7 @@ const ProfessionalRoomDetail = () => {
                         : "Register Now to Unlock"}
                     </button>
                   </div>
-                ) : !isHost && !lifecycle.isLive ? (
+                ) : !lifecycle.isLive ? (
                   // Registered, but outside the Event Start -> Event End
                   // window — registration being open/closed has no bearing
                   // here; this is purely the event timeline.

@@ -285,9 +285,7 @@ const ProRoomAssessment = () => {
 
       const isHostUser = roomData.host_id === uid;
 
-      if (isHostUser) {
-        setAccessState("host-preview");
-      } else {
+      if (!isHostUser) {
         const { data: regRow } = await supabase
           .from("pro_room_registrations")
           .select("id, status")
@@ -300,23 +298,29 @@ const ProRoomAssessment = () => {
           setLoading(false);
           return;
         }
-
-        const lifecycle = getProRoomLifecycleState(roomData);
-        if (!lifecycle.isLive) {
-          const eventStart = roomData.event_start_at
-            ? new Date(roomData.event_start_at)
-            : null;
-          setAccessState(
-            eventStart && new Date() < eventStart
-              ? "not-live-yet"
-              : "not-live-ended",
-          );
-          setLoading(false);
-          return;
-        }
-
-        setAccessState("candidate");
       }
+
+      // Event Start -> Event End is the only thing that gates the
+      // assessment itself, host included — the host previously bypassed
+      // this entirely ("host-preview" was set unconditionally above),
+      // which let a host open/start their own assessment before the
+      // event's configured start time. Registration status/dates never
+      // factor in here.
+      const lifecycle = getProRoomLifecycleState(roomData);
+      if (!lifecycle.isLive) {
+        const eventStart = roomData.event_start_at
+          ? new Date(roomData.event_start_at)
+          : null;
+        setAccessState(
+          eventStart && new Date() < eventStart
+            ? "not-live-yet"
+            : "not-live-ended",
+        );
+        setLoading(false);
+        return;
+      }
+
+      setAccessState(isHostUser ? "host-preview" : "candidate");
 
       // ── Access granted from here on ─────────────────────────────────────
       // Sections come from the base table (safe — no answer-key columns
@@ -711,8 +715,8 @@ const ProRoomAssessment = () => {
           Assessment Hasn't Started Yet
         </h1>
         <p className="text-gray-400 text-sm max-w-sm mb-6">
-          You're registered — the assessment will unlock once the event goes
-          live. Check back at the scheduled start time.
+          The assessment unlocks once the event goes live. Check back at the
+          scheduled start time.
         </p>
         <button
           onClick={() => navigate(`/pro-rooms/${id}`)}

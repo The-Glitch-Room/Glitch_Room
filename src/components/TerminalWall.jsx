@@ -444,12 +444,17 @@ const TerminalWall = () => {
         startToday.setHours(0, 0, 0, 0);
         isoStart = startToday.toISOString();
       } else if (filter === "weekly") {
-        // 7-day trailing window: today + 6 previous days. Must match the
+        // Calendar week, Monday -> Sunday (not a rolling 7-day trailing
+        // window — that previously pulled in days from the *previous*
+        // calendar week, inflating "This Week" counts). Must match the
         // boundary used in fetchLegends() below exactly, or "This Week"
         // will show different totals in the two panels for no reason
-        // other than one counting an extra day.
-        const startWeek = new Date();
-        startWeek.setDate(startWeek.getDate() - 6);
+        // other than one using a different week-start rule.
+        const now = new Date();
+        const day = now.getDay(); // 0 = Sun, 1 = Mon, ... 6 = Sat
+        const daysSinceMonday = day === 0 ? 6 : day - 1;
+        const startWeek = new Date(now);
+        startWeek.setDate(now.getDate() - daysSinceMonday);
         startWeek.setHours(0, 0, 0, 0);
         isoStart = startWeek.toISOString();
       }
@@ -457,7 +462,13 @@ const TerminalWall = () => {
       const map = {};
 
       if (!isoStart) {
-        // "All Time": user_points table is master source for total gBits
+        // "All Time": user_points table is master source for total gBits.
+        // Reverted to a bounded top-50 "active" leaderboard per request —
+        // showing literally every registered user (including brand-new
+        // ones at 0 points) doesn't fit a wall meant to be a highlight
+        // reel, and doesn't actually scale past Supabase's 1000-row REST
+        // cap anyway. .limit(100) is a buffer so the 0-point exclusion
+        // below still leaves plenty of rows for the top-50 slice.
         const { data: userPts } = await supabase
           .from("user_points")
           .select("user_id, points")
@@ -480,12 +491,14 @@ const TerminalWall = () => {
               .from("glitch_activity")
               .select("user_id, created_at, title")
               .in("user_id", userIds)
+              .order("created_at", { ascending: false })
               .limit(5000),
             supabase
               .from("challenge_submissions")
               .select("user_id, created_at, points_earned")
               .in("user_id", userIds)
               .gt("points_earned", 0)
+              .order("created_at", { ascending: false })
               .limit(5000),
           ]);
 
@@ -535,12 +548,14 @@ const TerminalWall = () => {
             .from("glitch_activity")
             .select("user_id, points, created_at, title, type")
             .gte("created_at", isoStart)
+            .order("created_at", { ascending: false })
             .limit(5000),
           supabase
             .from("challenge_submissions")
             .select("user_id, created_at, points_earned")
             .gte("created_at", isoStart)
             .gt("points_earned", 0)
+            .order("created_at", { ascending: false })
             .limit(5000),
         ]);
 
@@ -641,12 +656,15 @@ const TerminalWall = () => {
     setLoadingLegends(true);
 
     try {
-      // 7-day trailing window: today + 6 previous days. Must match the
-      // boundary used in fetchLiveRankings() above exactly, or "This Week"
-      // will disagree between the Live Rankings and Legends panels for no
-      // reason other than one counting an extra day.
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 6);
+      // Calendar week, Monday -> Sunday — must match the boundary used in
+      // fetchLiveRankings() above exactly, or "This Week" will disagree
+      // between the Live Rankings and Legends panels for no reason other
+      // than one using a different week-start rule.
+      const now = new Date();
+      const day = now.getDay(); // 0 = Sun, 1 = Mon, ... 6 = Sat
+      const daysSinceMonday = day === 0 ? 6 : day - 1;
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - daysSinceMonday);
       weekAgo.setHours(0, 0, 0, 0);
       const weekAgoISO = weekAgo.toISOString();
 
@@ -747,6 +765,7 @@ const TerminalWall = () => {
           .from("glitch_activity")
           .select("user_id, points, created_at, title")
           .gte("created_at", weekAgoISO)
+          .order("created_at", { ascending: false })
           .limit(5000);
 
         const acts = (actsData || []).filter(
@@ -882,6 +901,12 @@ const TerminalWall = () => {
                 })}
               </div>
 
+              {filter === "weekly" && (
+                <p className="text-center text-[10px] font-mono text-gray-500 -mt-5 mb-6">
+                  Week: Mon – Sun
+                </p>
+              )}
+
               <TerminalWindow title="terminal.rankings --live" accent="#00F0FF">
                 <PromptLabel icon={FiUsers} color="#00F0FF">
                   active_leaderboard --top-50
@@ -909,7 +934,7 @@ const TerminalWall = () => {
                             key={entry.user_id}
                             initial={{ opacity: 0, x: -16 }}
                             animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.03 }}
+                            transition={{ delay: Math.min(index * 0.03, 0.6) }}
                             className={`flex items-center justify-between p-4 rounded-xl border ${rankBg(rank)} transition-all`}
                           >
                             <div className="flex items-center gap-3.5 min-w-0">
@@ -1006,6 +1031,12 @@ const TerminalWall = () => {
                   ))}
                 </div>
               </div>
+
+              {timeFilter === "weekly" && (
+                <p className="text-center text-[10px] font-mono text-gray-500 -mt-2 mb-4">
+                  Week: Mon – Sun
+                </p>
+              )}
 
               <TerminalWindow
                 title="terminal.hall-of-fame --legends"
