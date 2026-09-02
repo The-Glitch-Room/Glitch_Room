@@ -393,14 +393,33 @@ const ProfessionalRoomDetail = () => {
     fetchRoomData();
   }, [id]);
 
-  // 2. Separate countdown timer (does not re-trigger fetchRoomData)
+  // 2. Separate countdown timer (does not re-trigger fetchRoomData).
+  // Registration dates never enter this calculation. Three phases only:
+  //  - before Event Start: counts down TO Event Start ("Starts In")
+  //  - Event Start <= now <= Event End: counts down TO Event End
+  //    ("Time Remaining")
+  //  - after Event End: pinned at 00:00:00
+  const [timerPhase, setTimerPhase] = useState("upcoming");
   useEffect(() => {
-    const timer = setInterval(() => {
+    const tick = () => {
       const now = new Date();
-      const end = room?.event_end_at
-        ? new Date(room.event_end_at)
-        : new Date(Date.now() + 172800000);
-      const diff = end - now;
+      const start = room?.event_start_at ? new Date(room.event_start_at) : null;
+      const end = room?.event_end_at ? new Date(room.event_end_at) : null;
+
+      let target = null;
+      let phase = "upcoming";
+      if (start && now < start) {
+        target = start;
+        phase = "upcoming";
+      } else if (end && now <= end) {
+        target = end;
+        phase = "live";
+      } else {
+        phase = "ended";
+      }
+      setTimerPhase(phase);
+
+      const diff = target ? target - now : 0;
       if (diff > 0) {
         const hrs = String(Math.floor(diff / (1000 * 60 * 60))).padStart(
           2,
@@ -412,11 +431,27 @@ const ProfessionalRoomDetail = () => {
         );
         const secs = String(Math.floor((diff / 1000) % 60)).padStart(2, "0");
         setTimeLeft({ hours: hrs, mins, secs });
+      } else {
+        setTimeLeft({ hours: "00", mins: "00", secs: "00" });
       }
-    }, 1000);
+    };
 
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [room?.event_end_at]);
+  }, [room?.event_start_at, room?.event_end_at]);
+
+  // 2b. While an application is pending host approval, poll periodically
+  // so approval is picked up without the visitor needing to manually
+  // refresh the page.
+  useEffect(() => {
+    if (!isPendingApproval) return;
+    const poll = setInterval(() => {
+      fetchRoomData();
+    }, 20000);
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPendingApproval]);
 
   useEffect(() => {
     if (!loading && room && !isHost && activeSidebarTab.startsWith("host_")) {
@@ -772,6 +807,137 @@ const ProfessionalRoomDetail = () => {
     room?.participation_type === "team" || room?.participation_type === "both";
   const unreadCount = (notifications || []).filter((n) => n && !n.read).length;
 
+  // ACCESS GATE — a host always has access; everyone else needs an
+  // "approved" registration. This runs for every visitor to this route,
+  // regardless of how they got here (shared/direct link, or navigating
+  // in from the room list). The normal list flow already registers the
+  // user (or opens the registration modal) before ever landing on this
+  // page, so isRegistered is already true by the time they arrive here —
+  // this gate is a no-op for that flow. It only actually engages for
+  // someone who reaches this URL without a registration yet (a shared
+  // link) or whose application is still pending host review, and it
+  // replaces whatever previously rendered/crashed for those visitors
+  // with an explicit, correct state instead of guessing.
+  if (!isHost && !isRegistered) {
+    return (
+      <div className="min-h-screen bg-[#070709] text-white flex flex-col font-sans relative overflow-hidden">
+        <GlitchBackground />
+
+        <AnimatePresence>
+          {toastMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-6 right-6 z-50 px-4 py-3 rounded-2xl bg-[#0d0d16] border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-mono font-bold shadow-2xl shadow-[#00F0FF]/20 flex items-center gap-2"
+            >
+              <Zap size={14} className="text-amber-400" /> {toastMsg}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="relative z-30 border-b border-white/10 bg-[#07070e]/90 backdrop-blur-md px-6 py-3.5">
+          <button
+            type="button"
+            onClick={() => navigate("/pro-rooms")}
+            className="flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-white transition cursor-pointer"
+          >
+            <ArrowLeft size={16} /> Back to Pro Rooms
+          </button>
+        </div>
+
+        <div className="relative z-10 flex-1 flex items-center justify-center px-6 py-16">
+          <div className="max-w-md w-full bg-[#0c0c16] border border-white/10 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
+            <div className="flex items-center justify-center gap-2">
+              {room.org_logo ? (
+                <img
+                  src={room.org_logo}
+                  alt=""
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                  className="w-10 h-10 rounded-xl object-cover border border-white/10"
+                />
+              ) : (
+                <Building2 size={18} className="text-purple-300" />
+              )}
+              <span className="text-[11px] font-mono font-bold text-gray-400">
+                By {room.org_name || "Verified Organization"}
+              </span>
+            </div>
+
+            <h1 className="text-lg font-bold text-white leading-snug">
+              {room.name || room.title}
+            </h1>
+
+            {isPendingApproval ? (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+                  <Clock size={26} className="text-amber-400" />
+                </div>
+                <h2 className="text-base font-bold text-white">
+                  Waiting for Host Approval
+                </h2>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Your application has been submitted. The host reviews these
+                  manually — you'll get access as soon as it's approved. This
+                  page checks automatically, or you can check now.
+                </p>
+                <button
+                  type="button"
+                  onClick={fetchRoomData}
+                  className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-gray-300 hover:text-white transition cursor-pointer"
+                >
+                  Check Status Now
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center mx-auto">
+                  <Sparkles size={26} className="text-[#00F0FF]" />
+                </div>
+                <h2 className="text-base font-bold text-white">
+                  Register to Enter This Room
+                </h2>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  {room.require_application === true
+                    ? "This room requires host approval. Submit an application to request access."
+                    : "Registration is instant — you'll get access right away."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowRegModal(true)}
+                  className="w-full px-6 py-3 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer"
+                >
+                  {room.require_application === true
+                    ? "Apply Now →"
+                    : "Register Now →"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <ProRoomRegistrationModal
+          isOpen={showRegModal}
+          onClose={() => setShowRegModal(false)}
+          room={room}
+          showToast={showToast}
+          onRegistrationSuccess={(payload) => {
+            // Automatic Approval -> payload.status === "approved" ->
+            // isRegistered flips true on the next render -> this gate
+            // stops matching and the full room renders normally, with no
+            // separate navigate() call needed since we're already on
+            // this route. Host Approval -> "pending" -> the gate above
+            // re-renders into the Waiting screen instead.
+            setUserRegistration(payload);
+            fetchRoomData();
+          }}
+        />
+      </div>
+    );
+  }
+
   // Compute User Specific Rank & Score
   const myRankItem = (leaderboard || []).find(
     (l) => l.user_id === currentUserId,
@@ -781,7 +947,15 @@ const ProfessionalRoomDetail = () => {
     userSubmission?.total_score || myRankItem?.total_score || 0;
   const totalPossible = room?.total_possible_score || 300;
 
-  // Format Event End Time
+  // Format Event Start / End Time
+  const eventStartFormatted = room?.event_start_at
+    ? new Date(room.event_start_at).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
   const eventEndFormatted = room?.event_end_at
     ? new Date(room?.event_end_at || Date.now()).toLocaleString("en-US", {
         month: "short",
@@ -790,6 +964,82 @@ const ProfessionalRoomDetail = () => {
         minute: "2-digit",
       })
     : "—";
+
+  // Shared 12-hour, always-AM/PM date formatter for the timeline block below.
+  const formatEventDateTime = (value) => {
+    if (!value) return "—";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  // Registration and Event are two completely independent timelines — each
+  // gets its own status computed only from its own two dates. Neither
+  // reads the other's dates. Recomputed on every render (the 1s countdown
+  // tick already forces a re-render), so these labels update live without
+  // any extra polling.
+  const getRegistrationStatus = () => {
+    const now = new Date();
+    const regStart = room?.reg_start_at ? new Date(room.reg_start_at) : null;
+    const regEnd = room?.reg_end_at ? new Date(room.reg_end_at) : null;
+    if (regStart && now < regStart)
+      return {
+        label: "Upcoming",
+        color: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+      };
+    if (regEnd && now > regEnd)
+      return {
+        label: "Closed",
+        color: "text-gray-400 bg-white/5 border-white/10",
+      };
+    if (regStart || regEnd)
+      return {
+        label: "Open",
+        color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
+      };
+    return { label: "—", color: "text-gray-400 bg-white/5 border-white/10" };
+  };
+
+  const getEventStatus = () => {
+    const now = new Date();
+    const eventStart = room?.event_start_at
+      ? new Date(room.event_start_at)
+      : null;
+    const eventEnd = room?.event_end_at ? new Date(room.event_end_at) : null;
+    if (eventStart && now < eventStart)
+      return {
+        label: "Upcoming",
+        color: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+      };
+    if (eventEnd && now > eventEnd)
+      return {
+        label: "Ended",
+        color: "text-gray-400 bg-white/5 border-white/10",
+      };
+    if (eventStart)
+      return {
+        label: "Active",
+        color: "text-red-400 bg-red-500/10 border-red-500/30",
+      };
+    return { label: "—", color: "text-gray-400 bg-white/5 border-white/10" };
+  };
+
+  const registrationStatus = getRegistrationStatus();
+  const eventStatus = getEventStatus();
+
+  // The assessment is only ever available inside the Event Start -> Event
+  // End window — lifecycle.isLive already encodes exactly that (and
+  // nothing about registration dates), so it's the single source of truth
+  // reused here, in the sections tab, and in ProRoomAssessment.jsx's own
+  // access gate.
+  const canStartAssessment = isRegistered && lifecycle.isLive;
 
   return (
     <div className="min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans relative">
@@ -1205,7 +1455,12 @@ const ProfessionalRoomDetail = () => {
             <div className="bg-[#0c0c16] border border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
               <div className="flex items-center justify-between text-xs text-gray-400">
                 <span className="flex items-center gap-1">
-                  <Clock size={13} className="text-purple-400" /> Time Remaining
+                  <Clock size={13} className="text-purple-400" />{" "}
+                  {timerPhase === "upcoming"
+                    ? "Event Starts In"
+                    : timerPhase === "ended"
+                      ? "Event Ended"
+                      : "Time Remaining"}
                 </span>
               </div>
               <div className="my-2">
@@ -1221,7 +1476,11 @@ const ProfessionalRoomDetail = () => {
                 </div>
               </div>
               <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">
-                Active Timeline
+                {timerPhase === "upcoming"
+                  ? "Counting down to Event Start"
+                  : timerPhase === "ended"
+                    ? "Assessment window closed"
+                    : "Counting down to Event End"}
               </span>
             </div>
 
@@ -1757,20 +2016,6 @@ const ProfessionalRoomDetail = () => {
                     </div>
                     <div>
                       <span className="text-gray-500 block text-[10px] font-mono">
-                        End Date
-                      </span>
-                      <span className="text-white font-bold">
-                        {eventEndFormatted}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">
-                        Registration
-                      </span>
-                      <span className="text-white font-bold">Open</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">
                         Eligibility
                       </span>
                       <span className="text-white font-bold">
@@ -1779,17 +2024,69 @@ const ProfessionalRoomDetail = () => {
                     </div>
                     <div>
                       <span className="text-gray-500 block text-[10px] font-mono">
-                        Start Date
-                      </span>
-                      <span className="text-white font-bold">Active</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block text-[10px] font-mono">
                         Timezone
                       </span>
                       <span className="text-white font-bold">
-                        {room.timezone || "IST (UTC +05:30)"}
+                        {room.timezone || "IST (UTC+5:30)"}
                       </span>
+                    </div>
+                  </div>
+
+                  {/* Registration and Event are two independent timelines —
+                      each with its own two dates and its own status,
+                      computed only from its own dates (see
+                      getRegistrationStatus / getEventStatus above). Neither
+                      badge nor date pair here is derived from the other
+                      timeline. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-white/10 text-xs">
+                    <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider">
+                          Registration Window
+                        </span>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${registrationStatus.color}`}
+                        >
+                          {registrationStatus.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Opens</span>
+                        <span className="text-white font-bold font-mono">
+                          {formatEventDateTime(room.reg_start_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Closes</span>
+                        <span className="text-white font-bold font-mono">
+                          {formatEventDateTime(room.reg_end_at)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider">
+                          Event Window
+                        </span>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${eventStatus.color}`}
+                        >
+                          {eventStatus.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Starts</span>
+                        <span className="text-white font-bold font-mono">
+                          {formatEventDateTime(room.event_start_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Ends</span>
+                        <span className="text-white font-bold font-mono">
+                          {formatEventDateTime(room.event_end_at)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2094,7 +2391,7 @@ const ProfessionalRoomDetail = () => {
                     <Layers size={16} className="text-[#00F0FF]" /> Assessment
                     Sections ({sections.length})
                   </h3>
-                  {isRegistered && (
+                  {(canStartAssessment || isHost) && isRegistered && (
                     <button
                       onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
                       className="px-4 py-2 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center gap-1.5"
@@ -2139,6 +2436,25 @@ const ProfessionalRoomDetail = () => {
                         ? "Apply Now"
                         : "Register Now to Unlock"}
                     </button>
+                  </div>
+                ) : !isHost && !lifecycle.isLive ? (
+                  // Registered, but outside the Event Start -> Event End
+                  // window — registration being open/closed has no bearing
+                  // here; this is purely the event timeline.
+                  <div className="bg-[#07070e] border border-purple-500/30 rounded-2xl p-10 text-center space-y-4 my-4">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-300">
+                      <Clock size={28} />
+                    </div>
+                    <h3 className="text-base font-bold text-white">
+                      {timerPhase === "ended"
+                        ? "Assessment Window Closed"
+                        : "Assessment Not Started Yet"}
+                    </h3>
+                    <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
+                      {timerPhase === "ended"
+                        ? "This room's Event window has ended and the assessment is no longer accepting attempts."
+                        : `You're registered — the assessment unlocks automatically at Event Start (${formatEventDateTime(room.event_start_at)}).`}
+                    </p>
                   </div>
                 ) : sections.length === 0 ? (
                   <p className="text-xs text-gray-500 text-center py-10">
@@ -2255,12 +2571,22 @@ const ProfessionalRoomDetail = () => {
                         Complete your assessment tasks in the sections
                         environment to view your test score.
                       </p>
-                      <button
-                        onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
-                        className="px-5 py-2.5 rounded-xl bg-[#FF00C8] text-white text-xs font-bold cursor-pointer"
-                      >
-                        Start Assessment Now →
-                      </button>
+                      {lifecycle.isLive ? (
+                        <button
+                          onClick={() =>
+                            navigate(`/pro-rooms/${id}/assessment`)
+                          }
+                          className="px-5 py-2.5 rounded-xl bg-[#FF00C8] text-white text-xs font-bold cursor-pointer"
+                        >
+                          Start Assessment Now →
+                        </button>
+                      ) : (
+                        <p className="text-[10px] text-purple-300 font-mono">
+                          {timerPhase === "ended"
+                            ? "Event window has ended."
+                            : `Unlocks at Event Start (${formatEventDateTime(room.event_start_at)})`}
+                        </p>
+                      )}
                     </div>
                   )
                 ) : (
@@ -2637,17 +2963,32 @@ const ProfessionalRoomDetail = () => {
               </div>
             </div>
 
-            {/* Total Points */}
+            {/* Your Score (earned in this room) */}
             <div className="flex flex-col items-center text-center gap-1 shrink-0 border-l border-white/10 pl-3 sm:pl-8">
               <div className="w-8 h-8 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center shrink-0">
                 <Award size={16} className="text-[#00F0FF]" />
               </div>
               <div>
                 <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">
-                  {totalPossible}
+                  {userScoreDisplay} / {totalPossible}
                 </span>
                 <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
                   Total Points
+                </span>
+              </div>
+            </div>
+
+            {/* Event Starts Time */}
+            <div className="flex flex-col items-center text-center gap-1 shrink-0 border-l border-white/10 pl-3 sm:pl-8">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <Play size={16} className="text-emerald-400" />
+              </div>
+              <div>
+                <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">
+                  {eventStartFormatted}
+                </span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
+                  Event Starts
                 </span>
               </div>
             </div>

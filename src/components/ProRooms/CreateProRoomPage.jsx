@@ -133,7 +133,9 @@ const GlitchSelect = ({
             : "border-white/10 hover:border-white/20"
         } ${selected ? "text-white" : "text-gray-500"}`}
       >
-        <span className="truncate">{selected ? selected.label : placeholder}</span>
+        <span className="truncate">
+          {selected ? selected.label : placeholder}
+        </span>
         <FiArrowRight
           size={12}
           className={`shrink-0 text-gray-500 transition-transform ${
@@ -166,7 +168,9 @@ const GlitchSelect = ({
                 }`}
               >
                 <span className="truncate">{o.label}</span>
-                {o.value === value && <FiCheck size={12} className="shrink-0" />}
+                {o.value === value && (
+                  <FiCheck size={12} className="shrink-0" />
+                )}
               </button>
             ))}
           </motion.div>
@@ -392,8 +396,8 @@ const QuestionAnswerEditor = ({ question, onChange }) => {
     return (
       <div className="space-y-2 pt-1">
         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-          Test Cases (shown to the host for manual review — not
-          auto-graded, no code execution sandbox exists in this app)
+          Test Cases (shown to the host for manual review — not auto-graded, no
+          code execution sandbox exists in this app)
         </label>
         {cases.map((tc, idx) => (
           <div key={idx} className="flex items-center gap-2">
@@ -965,7 +969,11 @@ const CreateProRoomPage = () => {
     if (type === "mcq")
       return { options: ["", "", "", ""], correct_answer: "", test_cases: [] };
     if (type === "msq")
-      return { options: ["", "", "", ""], correct_answer: "[]", test_cases: [] };
+      return {
+        options: ["", "", "", ""],
+        correct_answer: "[]",
+        test_cases: [],
+      };
     if (type === "true_false")
       return { options: [], correct_answer: "", test_cases: [] };
     if (type === "short_answer" || type === "output_pred")
@@ -996,10 +1004,8 @@ const CreateProRoomPage = () => {
         return "Organization / College / Company Name is required.";
       if (!basicInfo.organizer_name.trim())
         return "Organizer Name is required.";
-      if (!basicInfo.org_email.trim())
-        return "Organizer Email is required.";
-      if (!basicInfo.org_logo.trim())
-        return "Organization Logo is required.";
+      if (!basicInfo.org_email.trim()) return "Organizer Email is required.";
+      if (!basicInfo.org_logo.trim()) return "Organization Logo is required.";
       return null;
     }
 
@@ -1029,14 +1035,15 @@ const CreateProRoomPage = () => {
       const evStart = new Date(schedule.event_start_at);
       const evEnd = new Date(schedule.event_end_at);
       if (
-        [regStart, regEnd, evStart, evEnd].some((d) => Number.isNaN(d.getTime()))
+        [regStart, regEnd, evStart, evEnd].some((d) =>
+          Number.isNaN(d.getTime()),
+        )
       ) {
         return "One of the schedule dates is invalid.";
       }
       if (regEnd <= regStart)
         return "Registration Closes must be after Registration Opens.";
-      if (evEnd <= evStart)
-        return "Event Ends must be after Event Starts.";
+      if (evEnd <= evStart) return "Event Ends must be after Event Starts.";
       if (evStart < regStart)
         return "Event Starts can't be before Registration Opens.";
       return null;
@@ -1107,8 +1114,7 @@ const CreateProRoomPage = () => {
 
     if (step === 5) {
       if (!evaluation.eval_method) return "Please select an Evaluation Method.";
-      if (!evaluation.passing_score)
-        return "Passing Score is required.";
+      if (!evaluation.passing_score) return "Passing Score is required.";
       if (
         Number(evaluation.passing_score) < 0 ||
         Number(evaluation.passing_score) > 100
@@ -1192,7 +1198,8 @@ const CreateProRoomPage = () => {
         if (!orig) return;
         const changed =
           orig.question_text !== q.question_text ||
-          JSON.stringify(orig.options || []) !== JSON.stringify(q.options || []) ||
+          JSON.stringify(orig.options || []) !==
+            JSON.stringify(q.options || []) ||
           (orig.correct_answer || "") !== (q.correct_answer || "") ||
           orig.question_type !== q.question_type ||
           Number(orig.points) !== Number(q.points);
@@ -2322,8 +2329,8 @@ const CreateProRoomPage = () => {
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                       />
                       <p className="text-[10px] text-gray-500 mt-1">
-                        How long each candidate's timer runs once THEY start
-                        the test — not the same as the event window below.
+                        How long each candidate's timer runs once THEY start the
+                        test — not the same as the event window below.
                       </p>
                     </div>
 
@@ -2338,10 +2345,10 @@ const CreateProRoomPage = () => {
                         className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs font-bold text-[#00F0FF] outline-none cursor-not-allowed"
                       />
                       <p className="text-[10px] text-gray-500 mt-1">
-                        The live assessment window — candidates can start
-                        their timed test any time between Event Starts and
-                        Event Ends. Registration Opens/Closes is a separate
-                        timeline and does not affect this.
+                        The live assessment window — candidates can start their
+                        timed test any time between Event Starts and Event Ends.
+                        Registration Opens/Closes is a separate timeline and
+                        does not affect this.
                       </p>
                     </div>
                   </div>
@@ -2476,7 +2483,9 @@ const CreateProRoomPage = () => {
                       Registration Approval *
                     </label>
                     <GlitchSelect
-                      value={eligibility.require_application ? "manual" : "automatic"}
+                      value={
+                        eligibility.require_application ? "manual" : "automatic"
+                      }
                       onChange={(v) =>
                         setEligibility({
                           ...eligibility,
@@ -2485,14 +2494,17 @@ const CreateProRoomPage = () => {
                       }
                       options={[
                         { value: "automatic", label: "Automatic Approval" },
-                        { value: "manual", label: "Host Approval (Manual Review)" },
+                        {
+                          value: "manual",
+                          label: "Host Approval (Manual Review)",
+                        },
                       ]}
                       placeholder="Select Approval Method"
                     />
                     <p className="text-[10px] text-gray-500 mt-1">
-                      Automatic Approval confirms every registration
-                      instantly. Host Approval holds new registrations as
-                      "Pending" until you review and approve them.
+                      Automatic Approval confirms every registration instantly.
+                      Host Approval holds new registrations as "Pending" until
+                      you review and approve them.
                     </p>
                   </div>
 
@@ -2637,7 +2649,10 @@ const CreateProRoomPage = () => {
                 <div className="space-y-6">
                   {sections.length === 0 && (
                     <div className="text-center py-10 px-6 bg-[#06060c] border border-dashed border-white/10 rounded-2xl">
-                      <FiLayers size={24} className="mx-auto text-gray-600 mb-2" />
+                      <FiLayers
+                        size={24}
+                        className="mx-auto text-gray-600 mb-2"
+                      />
                       <p className="text-xs text-gray-500">
                         No sections yet. Click "+ Add Section" to start building
                         your assessment.
@@ -3173,8 +3188,8 @@ const CreateProRoomPage = () => {
                 Edited questions will be automatically re-graded against the
                 corrected answer key — no one's existing score is silently
                 changed without this. Removed questions keep whatever score
-                candidates already earned on them; they just won't be shown
-                to future candidates.
+                candidates already earned on them; they just won't be shown to
+                future candidates.
               </p>
 
               <div className="flex items-center justify-end gap-3 pt-1">
