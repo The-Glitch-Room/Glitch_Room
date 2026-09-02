@@ -498,6 +498,53 @@ const CreateProRoomPage = () => {
     setTimeout(() => setToastMsg(""), 3500);
   };
 
+  // Tracks whether the currently-typed logo/banner URL failed to load, so
+  // the preview box can fall back to the placeholder icon instead of
+  // silently showing nothing (see the onError handlers below).
+  const [logoLoadError, setLogoLoadError] = useState(false);
+  const [bannerLoadError, setBannerLoadError] = useState(false);
+
+  // Saved Drafts panel — lets a host jump straight into resuming an
+  // existing draft from the create page itself, instead of having to
+  // leave and find it in the Pro Rooms list. Only relevant when starting
+  // fresh (not already editing a specific room via ?edit=).
+  const [myDrafts, setMyDrafts] = useState([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(false);
+  const [showDraftsList, setShowDraftsList] = useState(false);
+
+  const loadMyDrafts = async () => {
+    setLoadingDrafts(true);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id;
+      if (!uid) {
+        setMyDrafts([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("pro_rooms")
+        .select("id, name, title, event_type, cover_image, created_at")
+        .eq("host_id", uid)
+        .eq("status", "draft")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setMyDrafts(data || []);
+    } catch (err) {
+      console.error("Failed to load saved drafts:", err);
+    } finally {
+      setLoadingDrafts(false);
+    }
+  };
+
+  useEffect(() => {
+    // Only fetch the drafts list when starting a brand-new room — once
+    // ?edit= is present we're already resuming a specific draft/room.
+    if (!editRoomId) {
+      loadMyDrafts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editRoomId]);
+
   // STEP 1: Basic Information State
   const [basicInfo, setBasicInfo] = useState({
     name: "",
@@ -744,10 +791,15 @@ const CreateProRoomPage = () => {
     prize_details: "",
   });
 
-  // Dynamically calculate overall event window (Registration Start -> Event End)
+  // Event Timer duration — strictly Event Start -> Event End. Registration
+  // dates must never feed into this: the Event Timer is when the assessment
+  // itself is live, which is a completely separate window from when
+  // registration is open. (Previously this fell back to reg_start_at
+  // whenever it was set, which silently pulled the registration-open date
+  // into the "event" duration shown to the host.)
   const calculateDurationHours = () => {
     try {
-      const startStr = schedule.reg_start_at || schedule.event_start_at;
+      const startStr = schedule.event_start_at;
       const endStr = schedule.event_end_at;
       if (!startStr || !endStr) return "Select dates above";
 
@@ -1463,6 +1515,7 @@ const CreateProRoomPage = () => {
       }
 
       showToast("💾 Pro Room configuration saved as draft!");
+      loadMyDrafts();
     } catch (err) {
       console.error("Failed to save draft:", err);
       setErrorMsg(err.message || "Failed to save draft — please try again.");
@@ -1769,6 +1822,90 @@ const CreateProRoomPage = () => {
           </div>
         </div>
 
+        {/* Saved Drafts Panel — only shown when starting a brand-new room
+            (not while already editing one via ?edit=) and only once we
+            know there's something to resume. */}
+        {!editRoomId && !loadingDrafts && myDrafts.length > 0 && (
+          <div className="bg-[#0c0c16] border border-amber-500/20 rounded-2xl p-4 sm:p-5 mb-8 shadow-xl">
+            <button
+              type="button"
+              onClick={() => setShowDraftsList((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-xs font-bold text-amber-300">
+                <FiSave size={14} /> Saved Drafts ({myDrafts.length})
+              </span>
+              <FiArrowRight
+                size={12}
+                className={`text-amber-300 transition-transform ${
+                  showDraftsList ? "-rotate-90" : "rotate-90"
+                }`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {showDraftsList && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-3 space-y-2">
+                    {myDrafts.map((d) => (
+                      <div
+                        key={d.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#06060c] border border-white/10"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {d.cover_image ? (
+                            <img
+                              src={d.cover_image}
+                              alt=""
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                              className="w-9 h-9 rounded-lg object-cover border border-white/10 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-[#12121e] border border-white/10 flex items-center justify-center shrink-0">
+                              <Building2 size={14} className="text-white/40" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate">
+                              {d.name || d.title || "Untitled Draft"}
+                            </p>
+                            <p className="text-[10px] text-gray-500 font-mono">
+                              {d.event_type || "Draft"} · Saved{" "}
+                              {d.created_at
+                                ? new Date(d.created_at).toLocaleDateString(
+                                    "en-US",
+                                    { month: "short", day: "numeric" },
+                                  )
+                                : "recently"}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(`/pro-rooms/create?edit=${d.id}`)
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold hover:bg-amber-500/25 transition cursor-pointer shrink-0"
+                        >
+                          Resume Editing →
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
         {/* Error Banner */}
         {errorMsg && (
           <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono">
@@ -1983,32 +2120,40 @@ const CreateProRoomPage = () => {
                   </h3>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Logo Box */}
+                    {/* Logo Box — always shows a preview square (fallback
+                        icon when empty/broken), matching the Banner box's
+                        behavior below. Previously this only rendered an
+                        <img> when org_logo was set, so an empty or invalid
+                        URL left no preview at all. */}
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-2">
                         Organization Logo *
                       </label>
                       <div className="flex items-center gap-3">
-                        {basicInfo.org_logo && (
+                        {basicInfo.org_logo && !logoLoadError ? (
                           <img
+                            key={basicInfo.org_logo}
                             src={basicInfo.org_logo}
                             alt="Logo"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
+                            onError={() => setLogoLoadError(true)}
                             className="w-14 h-14 rounded-2xl object-cover border border-[#FF00C8] shrink-0"
                           />
+                        ) : (
+                          <div className="w-14 h-14 rounded-2xl border border-white/10 shrink-0 flex items-center justify-center bg-[#12121e]">
+                            <Building2 size={16} className="text-white/40" />
+                          </div>
                         )}
                         <input
                           type="text"
                           placeholder="Paste Logo Image URL..."
                           value={basicInfo.org_logo}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            setLogoLoadError(false);
                             setBasicInfo({
                               ...basicInfo,
                               org_logo: e.target.value,
-                            })
-                          }
+                            });
+                          }}
                           className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                         />
                       </div>
@@ -2016,42 +2161,44 @@ const CreateProRoomPage = () => {
 
                     {/* Banner Box — optional, falls back to a themed gradient
                         banner (no external URL, nothing written to the DB)
-                        anywhere this room's cover_image is rendered. */}
+                        anywhere this room's cover_image is rendered. Preview
+                        is now a full-width horizontal strip (same width as
+                        the input, stacked above it) instead of a small
+                        square, so the host can actually see how a wide
+                        banner will look. */}
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-2">
                         Event Banner / Cover Image (Optional)
                       </label>
-                      <div className="flex items-center gap-3">
-                        {basicInfo.cover_image ? (
-                          <img
-                            key={basicInfo.cover_image}
-                            src={basicInfo.cover_image}
-                            alt="Banner"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                            onLoad={(e) => {
-                              e.currentTarget.style.display = "block";
-                            }}
-                            className="w-14 h-14 rounded-2xl object-cover border border-[#00F0FF] shrink-0"
-                          />
-                        ) : (
-                          <div
-                            className={`w-14 h-14 rounded-2xl border border-white/10 shrink-0 flex items-center justify-center ${DEFAULT_BANNER_GRADIENT}`}
-                          >
-                            <Building2 size={16} className="text-white/60" />
-                          </div>
-                        )}
+                      <div className="space-y-2">
+                        <div className="w-full h-20 rounded-xl border border-white/10 overflow-hidden">
+                          {basicInfo.cover_image && !bannerLoadError ? (
+                            <img
+                              key={basicInfo.cover_image}
+                              src={basicInfo.cover_image}
+                              alt="Banner"
+                              onError={() => setBannerLoadError(true)}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              className={`w-full h-full flex items-center justify-center ${DEFAULT_BANNER_GRADIENT}`}
+                            >
+                              <Building2 size={18} className="text-white/60" />
+                            </div>
+                          )}
+                        </div>
                         <input
                           type="text"
                           placeholder="Paste Cover Banner URL — leave blank for a default banner"
                           value={basicInfo.cover_image}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            setBannerLoadError(false);
                             setBasicInfo({
                               ...basicInfo,
                               cover_image: e.target.value,
-                            })
-                          }
+                            });
+                          }}
                           className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                         />
                       </div>
@@ -2182,7 +2329,7 @@ const CreateProRoomPage = () => {
 
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-1">
-                        Event Window (Registration → Event End)
+                        Event Timer (Event Start → Event End)
                       </label>
                       <input
                         type="text"
@@ -2191,9 +2338,10 @@ const CreateProRoomPage = () => {
                         className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs font-bold text-[#00F0FF] outline-none cursor-not-allowed"
                       />
                       <p className="text-[10px] text-gray-500 mt-1">
-                        When registration and the overall event are open —
-                        candidates can start their timed test any time in
-                        this window.
+                        The live assessment window — candidates can start
+                        their timed test any time between Event Starts and
+                        Event Ends. Registration Opens/Closes is a separate
+                        timeline and does not affect this.
                       </p>
                     </div>
                   </div>
@@ -2321,6 +2469,31 @@ const CreateProRoomPage = () => {
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-gray-300 block mb-1">
+                      Registration Approval *
+                    </label>
+                    <GlitchSelect
+                      value={eligibility.require_application ? "manual" : "automatic"}
+                      onChange={(v) =>
+                        setEligibility({
+                          ...eligibility,
+                          require_application: v === "manual",
+                        })
+                      }
+                      options={[
+                        { value: "automatic", label: "Automatic Approval" },
+                        { value: "manual", label: "Host Approval (Manual Review)" },
+                      ]}
+                      placeholder="Select Approval Method"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Automatic Approval confirms every registration
+                      instantly. Host Approval holds new registrations as
+                      "Pending" until you review and approve them.
+                    </p>
                   </div>
 
                   <div>
