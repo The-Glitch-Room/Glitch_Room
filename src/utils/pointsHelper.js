@@ -512,7 +512,9 @@ export const ensureSignupBonus = async (userId) => {
       .eq("type", "signup")
       .maybeSingle();
 
-    if (!bonusData) {
+    const { data: prof } = await supabase.from("profiles").select("points").eq("id", userId).maybeSingle();
+    const currentPts = prof?.points ?? 0;
+    if (!bonusData && currentPts < 100) {
       console.log("Awarding missing 100 gBits signup bonus to user:", userId);
       await updatePoints(100, "Welcome Bonus - Joined Glitch Room", "signup", null, userId);
     }
