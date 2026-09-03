@@ -1330,13 +1330,13 @@ export default function YourProfile() {
                             {item.title}
                           </h3>
 
-                          <div className="bg-[#07070d] border border-white/5 rounded-lg p-2 mb-2.5 font-mono text-[11px] text-green-400 truncate">
+                          <div className="bg-[#07070d] border border-white/5 rounded-lg p-2 mb-2.5 font-mono text-[11px] text-gray-400 truncate">
                             <code className="truncate block">{item.codeSnippet}</code>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                          <span className="text-[11px] font-bold text-[#22c55e]">
+                          <span className="text-[11px] font-bold text-[#00F0FF]">
                             {item.status} (+{item.points} gBits)
                           </span>
                           <button
