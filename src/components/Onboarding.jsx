@@ -110,7 +110,7 @@ const Onboarding = ({ onFinish }) => {
   const Icon = currentSlide.icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-xl font-sans">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 sm:p-10 bg-[#05050c]/95 backdrop-blur-2xl font-sans overflow-y-auto">
       {/* Background Orbs */}
       <div
         className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-20"
@@ -125,7 +125,7 @@ const Onboarding = ({ onFinish }) => {
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-lg rounded-3xl p-6 sm:p-8 bg-[#0c0c16] border border-white/10 shadow-2xl overflow-hidden flex flex-col justify-between"
+        className="relative w-full max-w-lg rounded-3xl p-6 sm:p-8 bg-[#0c0c16] border border-white/12 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col justify-between my-auto max-h-[85vh]"
       >
         {/* Top Gradient Accent Line */}
         <div
