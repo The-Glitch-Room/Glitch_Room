@@ -596,6 +596,7 @@ const CreateProRoomPage = () => {
     exp_level: "All Levels",
     require_application: true,
     custom_app_questions: [],
+    custom_registration_questions: [],
   });
 
   // Pre-load room configuration & set initial step when editing
@@ -1469,6 +1470,7 @@ const CreateProRoomPage = () => {
           : null,
         require_application: eligibility.require_application,
         custom_app_questions: eligibility.custom_app_questions,
+        custom_registration_questions: eligibility.custom_registration_questions,
 
         passing_score: evaluation.passing_score
           ? Number(evaluation.passing_score)
@@ -2524,6 +2526,92 @@ const CreateProRoomPage = () => {
                       }
                       className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
                     />
+                  </div>
+
+                  {/* Candidate Registration Questions (Asked to applicants) */}
+                  <div className="pt-4 border-t border-white/5 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-300">
+                          Candidate Registration Questions
+                        </h4>
+                        <p className="text-[11px] text-gray-500">
+                          Add custom questions that candidates must answer when applying/registering (e.g. "Why do you want to participate?", "GitHub link").
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addRegistrationQuestion}
+                        className="px-3 py-1.5 rounded-lg bg-[#FF00C8]/15 border border-[#FF00C8]/30 text-[#FF00C8] text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                      >
+                        <FiPlus /> Add Candidate Question
+                      </button>
+                    </div>
+
+                    {eligibility.custom_registration_questions.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-3 bg-[#06060c] border border-white/5 rounded-xl">
+                        No custom registration questions added. Candidates will complete basic profile verification.
+                      </p>
+                    ) : (
+                      eligibility.custom_registration_questions.map((rq, rIdx) => (
+                        <div
+                          key={rq.id || rIdx}
+                          className="p-3.5 rounded-xl bg-[#06060c] border border-white/10 space-y-2.5 relative"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-mono text-[#FF00C8] font-bold uppercase">
+                              Applicant Question #{rIdx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeRegistrationQuestion(rq.id)}
+                              className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
+                            >
+                              <FiTrash2 size={13} />
+                            </button>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                            <input
+                              type="text"
+                              placeholder="e.g. Why do you want to participate in this challenge?"
+                              value={rq.question || ""}
+                              onChange={(e) =>
+                                setEligibility({
+                                  ...eligibility,
+                                  custom_registration_questions:
+                                    eligibility.custom_registration_questions.map((q) =>
+                                      q.id === rq.id
+                                        ? { ...q, question: e.target.value }
+                                        : q
+                                    ),
+                                })
+                              }
+                              className="flex-1 w-full bg-[#030308] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FF00C8]"
+                            />
+                            <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={rq.required !== false}
+                                onChange={(e) =>
+                                  setEligibility({
+                                    ...eligibility,
+                                    custom_registration_questions:
+                                      eligibility.custom_registration_questions.map((q) =>
+                                        q.id === rq.id
+                                          ? { ...q, required: e.target.checked }
+                                          : q
+                                      ),
+                                  })
+                                }
+                                className="rounded border-white/20 bg-black text-[#FF00C8] focus:ring-0"
+                              />
+                              Required
+                            </label>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   {/* Host-Created FAQ / Common Questions */}

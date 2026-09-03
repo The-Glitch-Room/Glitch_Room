@@ -10,6 +10,9 @@ import {
   Mail,
   AtSign,
   Lock,
+  Globe,
+  Briefcase,
+  Check,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 
@@ -22,7 +25,11 @@ const ProRoomRegistrationModal = ({
 }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [orgCollege, setOrgCollege] = useState("");
+  const [currentRole, setCurrentRole] = useState("Student");
+  const [portfolioUrl, setPortfolioUrl] = useState("");
   const [customAnswers, setCustomAnswers] = useState({});
+  const [agreedToRules, setAgreedToRules] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -43,6 +50,7 @@ const ProRoomRegistrationModal = ({
           .eq("id", user.id)
           .maybeSingle();
         setUserProfile(prof);
+        if (prof?.college) setOrgCollege(prof.college);
       }
     } catch (err) {
       console.error("Error loading user info for registration:", err);
@@ -53,8 +61,8 @@ const ProRoomRegistrationModal = ({
 
   const isClosed = room?.reg_end_at && new Date() > new Date(room.reg_end_at);
 
-  // Custom registration questions (Filter out Host FAQ items which have an 'answer' property)
-  const customQuestions = Array.isArray(room?.custom_registration_questions)
+  // Read explicitly defined candidate registration questions (fallback to questions without answer)
+  const customQuestions = Array.isArray(room?.custom_registration_questions) && room.custom_registration_questions.length > 0
     ? room.custom_registration_questions
     : Array.isArray(room?.custom_questions)
       ? room.custom_questions.filter((q) => !q.answer && !q.is_faq)
@@ -67,6 +75,11 @@ const ProRoomRegistrationModal = ({
     if (isClosed) {
       if (showToast) showToast("⚠️ Registration for this room is closed.");
       onClose();
+      return;
+    }
+
+    if (!agreedToRules) {
+      if (showToast) showToast("⚠️ Please confirm that your information is accurate and accept event rules.");
       return;
     }
 
@@ -83,7 +96,12 @@ const ProRoomRegistrationModal = ({
         room_id: room.id,
         user_id: currentUser.id,
         status: requiresReview ? "pending" : "approved",
-        answers_json: customAnswers,
+        answers_json: {
+          ...customAnswers,
+          _organization_college: orgCollege,
+          _current_role: currentRole,
+          _portfolio_url: portfolioUrl,
+        },
         registered_at: new Date().toISOString(),
       };
 
@@ -153,74 +171,22 @@ const ProRoomRegistrationModal = ({
           </div>
 
           {isClosed ? (
-            (() => {
-              const now = new Date();
-              const eventStart = room?.event_start_at ? new Date(room.event_start_at) : null;
-              const eventEnd = room?.event_end_at ? new Date(room.event_end_at) : null;
-              const isEnded = (eventEnd && now > eventEnd) || room?.status === "results_published" || room?.status === "evaluation" || room?.status === "completed";
-              const isLive = eventStart && now >= eventStart && (!eventEnd || now <= eventEnd);
-
-              if (isEnded) {
-                return (
-                  <div className="text-center py-8 space-y-4 flex-1 flex flex-col items-center justify-center">
-                    <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                      <Trophy size={28} />
-                    </div>
-                    <h3 className="text-base font-bold text-white">Event Completed</h3>
-                    <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
-                      This event has ended and submissions are closed. Results and leaderboards are available for participants.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="px-6 py-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold hover:bg-purple-500/25 transition cursor-pointer"
-                    >
-                      Close & Explore Other Rooms
-                    </button>
-                  </div>
-                );
-              }
-
-              if (isLive) {
-                return (
-                  <div className="text-center py-8 space-y-4 flex-1 flex flex-col items-center justify-center">
-                    <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">
-                      <Trophy size={28} className="animate-pulse text-red-400" />
-                    </div>
-                    <h3 className="text-base font-bold text-white">Event in Progress</h3>
-                    <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
-                      This event is currently live and in progress. Registration is closed and only registered participants can access the live room.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="px-6 py-2.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-bold hover:bg-red-500/25 transition cursor-pointer"
-                    >
-                      Close & Explore Other Rooms
-                    </button>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="text-center py-8 space-y-4 flex-1 flex flex-col items-center justify-center">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                    <Lock size={28} />
-                  </div>
-                  <h3 className="text-base font-bold text-white">Registration Closed</h3>
-                  <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
-                    Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-6 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer"
-                  >
-                    Close & Explore Other Rooms
-                  </button>
-                </div>
-              );
-            })()
+            <div className="text-center py-8 space-y-4 flex-1 flex flex-col items-center justify-center">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Lock size={28} />
+              </div>
+              <h3 className="text-base font-bold text-white">Registration Closed</h3>
+              <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+                Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
+              </p>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer"
+              >
+                Close & Explore Other Rooms
+              </button>
+            </div>
           ) : (
             <div className="flex-1 overflow-y-auto pr-1 no-scrollbar space-y-4 pt-4">
               {/* Event Quick Info Pill */}
@@ -243,11 +209,11 @@ const ProRoomRegistrationModal = ({
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-                {/* Auto-filled Profile Info */}
-                <div className="space-y-2 bg-[#06060c] border border-white/5 rounded-2xl p-4">
+                {/* 1. Account Information (Read-Only) */}
+                <div className="space-y-2.5 bg-[#06060c] border border-white/5 rounded-2xl p-4">
                   <h4 className="text-[11px] font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
                     <ShieldCheck size={13} className="text-emerald-400" />{" "}
-                    Participant Profile Info
+                    1. Profile Verification (Read-Only)
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -291,20 +257,75 @@ const ProRoomRegistrationModal = ({
                   </div>
                 </div>
 
-                {/* Custom Registration Questions from Host */}
+                {/* 2. Additional Information & Portfolio Links */}
+                <div className="space-y-3 bg-[#06060c] border border-white/5 rounded-2xl p-4">
+                  <h4 className="text-[11px] font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                    <Briefcase size={13} className="text-purple-400" />{" "}
+                    2. Additional Information
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-mono block mb-1">
+                        College / Organization
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Stanford University / TechCorp"
+                        value={orgCollege}
+                        onChange={(e) => setOrgCollege(e.target.value)}
+                        className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-mono block mb-1">
+                        Current Status
+                      </label>
+                      <select
+                        value={currentRole}
+                        onChange={(e) => setCurrentRole(e.target.value)}
+                        className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#00F0FF]"
+                      >
+                        <option value="Student">Student</option>
+                        <option value="Professional">Professional</option>
+                        <option value="Freelancer">Freelancer</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-mono block mb-1">
+                      GitHub / Portfolio Link (Optional)
+                    </label>
+                    <div className="flex items-center gap-2 bg-[#030308] border border-white/10 rounded-xl px-3 py-2 focus-within:border-[#00F0FF]">
+                      <Globe size={13} className="text-gray-500 shrink-0" />
+                      <input
+                        type="url"
+                        placeholder="https://github.com/yourusername"
+                        value={portfolioUrl}
+                        onChange={(e) => setPortfolioUrl(e.target.value)}
+                        className="w-full bg-transparent text-xs text-white placeholder-gray-600 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Custom Registration Questions from Host */}
                 {customQuestions.length > 0 && (
                   <div className="space-y-3 bg-[#06060c] border border-cyan-500/20 rounded-2xl p-4">
                     <h4 className="text-[11px] font-mono font-bold text-[#00F0FF] uppercase tracking-wider">
-                      Registration Eligibility Questions
+                      3. Eligibility & Application Questions
                     </h4>
                     {customQuestions.map((q, idx) => (
                       <div key={q.id || idx} className="space-y-1.5">
                         <label className="text-xs font-semibold text-gray-200 block">
-                          {q.question || q.text || `Question ${idx + 1}`} *
+                          {q.question || q.text || `Question ${idx + 1}`} {q.required !== false ? "*" : "(Optional)"}
                         </label>
                         <input
                           type="text"
-                          required
+                          required={q.required !== false}
                           placeholder="Enter your response..."
                           value={customAnswers[q.id || idx] || ""}
                           onChange={(e) =>
@@ -320,12 +341,26 @@ const ProRoomRegistrationModal = ({
                   </div>
                 )}
 
-                {/* Terms / Confirmation notice */}
-                <p className="text-[10px] text-gray-500 leading-relaxed font-mono">
-                  {room.require_application === true
-                    ? "By registering, you agree to abide by event rules. The host reviews applications manually — you'll be notified once yours is approved."
-                    : "By registering, you agree to abide by event rules. Registration is automatically approved instantly."}
-                </p>
+                {/* 4. Agreement Checkbox & Approval Notice */}
+                <div className="space-y-3 bg-[#06060c] border border-white/5 rounded-2xl p-4">
+                  <label className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-300 leading-relaxed">
+                    <input
+                      type="checkbox"
+                      checked={agreedToRules}
+                      onChange={(e) => setAgreedToRules(e.target.checked)}
+                      className="mt-0.5 rounded border-white/20 bg-black text-[#FF00C8] focus:ring-0 cursor-pointer"
+                    />
+                    <span>
+                      I confirm that the information provided is accurate and I agree to follow the rules and guidelines of this Pro Room.
+                    </span>
+                  </label>
+
+                  <p className="text-[11px] text-gray-400 font-mono pt-1 border-t border-white/5">
+                    {room.require_application === true
+                      ? "📝 Host Approval: Your application will be reviewed by the host. You can enter the room once approved."
+                      : "⚡ Automatic Approval: Your registration will be approved automatically after submission."}
+                  </p>
+                </div>
 
                 {/* Submit Button */}
                 <div className="flex items-center justify-end gap-3 pt-2">
@@ -338,7 +373,7 @@ const ProRoomRegistrationModal = ({
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || !agreedToRules}
                     className="px-6 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer disabled:opacity-50 flex items-center gap-2"
                   >
                     {submitting ? (
