@@ -420,9 +420,14 @@ const ProRooms = () => {
                     isRegistered={isReg}
                     onSelect={() => {
                       const state = getProRoomLifecycleState(room);
+                      const isClosed = room.reg_end_at && new Date() > new Date(room.reg_end_at);
+
                       if (room.status === "draft") {
                         navigate(`/pro-rooms/create?edit=${room.id}`);
                       } else if (isReg || state.key === "completed") {
+                        navigate(`/pro-rooms/${room.id}`);
+                      } else if (isClosed) {
+                        showToast("Sorry, registration for this room is closed. Please check out other rooms.");
                         navigate(`/pro-rooms/${room.id}`);
                       } else {
                         setSelectedRegRoom(room);

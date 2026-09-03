@@ -12,6 +12,14 @@ import {
   Bell,
 } from "lucide-react";
 
+export const isRegistrationClosed = (room) => {
+  if (!room) return false;
+  const now = new Date();
+  const regEnd = room.reg_end_at ? new Date(room.reg_end_at) : null;
+  if (regEnd && now > regEnd) return true;
+  return false;
+};
+
 export const getProRoomLifecycleState = (room) => {
   if (!room) return { label: "UPCOMING", color: "purple", isLive: false, key: "upcoming" };
   const now = new Date();
@@ -40,7 +48,7 @@ export const getProRoomLifecycleState = (room) => {
     return { label: "REGISTRATION OPEN", color: "emerald", isLive: false, key: "registration_open" };
   }
   if (regEnd && now > regEnd && (!eventStart || now < eventStart)) {
-    return { label: "REGISTRATION CLOSED", color: "amber", isLive: false, key: "upcoming" };
+    return { label: "REGISTRATION CLOSED", color: "amber", isLive: false, key: "registration_closed" };
   }
   return { label: "UPCOMING", color: "purple", isLive: false, key: "upcoming" };
 };

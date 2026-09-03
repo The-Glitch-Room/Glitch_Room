@@ -50,12 +50,14 @@ const ProRoomRegistrationModal = ({
 
   if (!isOpen || !room) return null;
 
-  // Custom questions defined by host in room configuration
-  const customQuestions = Array.isArray(room?.custom_app_questions)
-    ? room.custom_app_questions
+  // Custom registration questions (Filter out Host FAQ items which have an 'answer' property)
+  const customQuestions = Array.isArray(room?.custom_registration_questions)
+    ? room.custom_registration_questions
     : Array.isArray(room?.custom_questions)
-      ? room.custom_questions
-      : [];
+      ? room.custom_questions.filter((q) => !q.answer && !q.is_faq)
+      : Array.isArray(room?.custom_app_questions)
+        ? room.custom_app_questions.filter((q) => !q.answer && !q.is_faq)
+        : [];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -116,13 +118,33 @@ const ProRoomRegistrationModal = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto font-sans">
+      <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto font-sans">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-[#0c0c16] border border-[#00F0FF]/30 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-left relative overflow-hidden"
+          className="bg-[#0c0c16] border border-[#00F0FF]/30 rounded-3xl max-w-lg w-full max-h-[85vh] max-h-[85dvh] flex flex-col p-6 shadow-2xl shadow-[#00F0FF]/10 text-left relative my-auto overflow-hidden"
         >
+          {/* Registration Closed Notice if opened directly */}
+          {room?.reg_end_at && new Date() > new Date(room.reg_end_at) ? (
+            <div className="text-center py-6 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+                <Trophy size={24} />
+              </div>
+              <h3 className="text-base font-bold text-white">Registration Closed</h3>
+              <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+                Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
+              </p>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer"
+              >
+                Close & Explore Other Rooms
+              </button>
+            </div>
+          ) : (
+            <>
           {/* Top Banner */}
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div>
@@ -162,7 +184,7 @@ const ProRoomRegistrationModal = ({
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleSubmit} className="space-y-4 text-xs overflow-y-auto pr-1 flex-1 no-scrollbar">
             {/* Auto-filled Profile Info */}
             <div className="space-y-2 bg-[#06060c] border border-white/5 rounded-2xl p-4">
               <h4 className="text-[11px] font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
@@ -278,6 +300,8 @@ const ProRoomRegistrationModal = ({
               </button>
             </div>
           </form>
+            </>
+          )}
         </motion.div>
       </div>
     </AnimatePresence>
