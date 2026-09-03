@@ -241,6 +241,76 @@ const resolveCategoryTag = (type = "", title = "") => {
   return "Glitches";
 };
 
+// ── Custom Glitch Role Select Component ──────────────────────────────────────────
+const CustomRoleSelect = ({ value, onChange, options }) => {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDocClick = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`w-full bg-[#070709] border rounded-xl px-3.5 py-2 text-white text-xs text-left flex items-center justify-between gap-2 outline-none transition cursor-pointer ${
+          open
+            ? "border-[#00F0FF] ring-1 ring-[#00F0FF]/30"
+            : "border-white/10 hover:border-white/20"
+        }`}
+      >
+        <span className="truncate">{value || "Select Role"}</span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-gray-400 transition-transform duration-200 ${
+            open ? "rotate-180 text-[#00F0FF]" : ""
+          }`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.15 }}
+            className="absolute left-0 right-0 z-50 mt-1.5 bg-[#0c0c16] border border-white/10 rounded-xl shadow-2xl p-1.5 space-y-0.5 max-h-56 overflow-y-auto no-scrollbar"
+          >
+            {options.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  onChange(opt);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-between ${
+                  opt === value
+                    ? "bg-[#00F0FF]/15 text-[#00F0FF]"
+                    : "text-gray-300 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <span>{opt}</span>
+                {opt === value && <Check size={13} className="text-[#00F0FF]" />}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export default function YourProfile() {
   const [profile, setProfile] = useState(null);
   const [authUser, setAuthUser] = useState(null);
