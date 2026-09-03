@@ -12,7 +12,7 @@ import {
   FiImage,
 } from "react-icons/fi";
 import { FaGithub, FaTwitter, FaDiscord, FaLinkedin } from "react-icons/fa";
-import { Zap, Trophy, Shield, Sparkles, ArrowRight, ChevronDown, Check } from "lucide-react";
+import { Zap, Trophy, Shield, Sparkles, ArrowRight, ChevronDown, Check, GraduationCap, Briefcase } from "lucide-react";
 import Navbar from "./Navbar";
 import GlitchBackground from "./GlitchBackground";
 import SharedSidebar from "./SharedSidebar";
@@ -438,10 +438,15 @@ export default function YourProfile() {
         : [];
 
       const submissions = submissionsRes.data || [];
+      const cachedCollege = userId ? localStorage.getItem(`glitch_college_${userId}`) : null;
+      const cachedRole = userId ? localStorage.getItem(`glitch_role_${userId}`) : null;
+
       setProfile({
         ...pd,
         tagline: pd?.tagline || pd?.headline || userMeta?.tagline || cachedTagline || "",
         bio: pd?.bio || userMeta?.bio || "",
+        college: pd?.college || userMeta?.college || cachedCollege || "",
+        current_role: pd?.current_role || pd?.role || userMeta?.current_role || cachedRole || "",
         hobbies: parsedHobbies,
         banner_url: bannerUrl,
         points: totalPoints,
@@ -797,6 +802,18 @@ export default function YourProfile() {
       localStorage.removeItem(`glitch_hobbies_${userId}`);
     }
 
+    if (editForm.college) {
+      localStorage.setItem(`glitch_college_${userId}`, editForm.college);
+    } else {
+      localStorage.removeItem(`glitch_college_${userId}`);
+    }
+
+    if (editForm.current_role) {
+      localStorage.setItem(`glitch_role_${userId}`, editForm.current_role);
+    } else {
+      localStorage.removeItem(`glitch_role_${userId}`);
+    }
+
     // Immediately update local profile state so it shows on screen instantly!
     setProfile((prev) => ({
       ...prev,
@@ -805,6 +822,8 @@ export default function YourProfile() {
       tagline: editForm.tagline,
       headline: editForm.tagline,
       bio: editForm.bio,
+      college: editForm.college,
+      current_role: editForm.current_role,
       hobbies: editForm.hobbies,
       banner_url: editForm.banner_url || prev?.banner_url || "",
     }));
@@ -1302,6 +1321,24 @@ export default function YourProfile() {
                     <p className="text-[#00F0FF] text-xs sm:text-sm font-semibold font-mono tracking-wide mt-1.5">
                       {profile.tagline}
                     </p>
+                  )}
+
+                  {/* College / Organization & Current Role Metadata Pills */}
+                  {(profile?.college || profile?.current_role) && (
+                    <div className="flex flex-wrap items-center gap-2.5 mt-2.5 pt-1">
+                      {profile?.current_role && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-[#FF00C8]/10 border border-[#FF00C8]/30 text-[#FF00C8] shadow-sm">
+                          <Briefcase size={12} className="text-[#FF00C8]" />
+                          {profile.current_role}
+                        </span>
+                      )}
+                      {profile?.college && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] shadow-sm">
+                          <GraduationCap size={13} className="text-[#00F0FF]" />
+                          {profile.college}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
 
