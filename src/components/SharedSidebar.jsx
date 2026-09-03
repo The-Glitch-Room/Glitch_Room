@@ -190,7 +190,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       }`}
     >
       {/* ── Top Toggle Control Bar ── */}
-      <div className="p-3 border-b border-white/10 flex items-center justify-between">
+      <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between shrink-0">
         {!isCollapsed && (
           <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-gray-400 pl-2">
             Navigation
@@ -289,7 +289,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       </div>
 
       {/* ── Navigation Links ── */}
-      <nav className="p-3 space-y-1 flex-1">
+      <nav className="px-2 py-1.5 space-y-0.5 flex-1 overflow-hidden flex flex-col justify-around">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.path && location.pathname === item.path;
@@ -298,14 +298,14 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             return (
               <div
                 key="logout-wrapper"
-                className="pt-3 border-t border-white/10"
+                className="pt-1.5 border-t border-white/10 shrink-0"
               >
                 <div className="relative">
                   <button
                     onClick={handleLogout}
                     onMouseEnter={() => setHoveredItem(item.name)}
                     onMouseLeave={() => setHoveredItem(null)}
-                    className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-red-400 hover:text-red-300 hover:bg-red-500/10 ${
+                    className={`w-full flex items-center gap-3.5 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 text-red-400 hover:text-red-300 hover:bg-red-500/10 ${
                       isCollapsed ? "justify-center" : ""
                     }`}
                   >
@@ -340,7 +340,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
                 to={item.path}
                 onMouseEnter={() => setHoveredItem(item.name)}
                 onMouseLeave={() => setHoveredItem(null)}
-                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
                   isCollapsed ? "justify-center" : ""
                 } ${
                   isActive
@@ -397,7 +397,7 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
       </nav>
 
       {/* ── Level Progress Bar at Bottom ── */}
-      <div className="p-4 border-t border-white/10 bg-[#070709]">
+      <div className="p-2.5 border-t border-white/10 bg-[#070709] shrink-0">
         {!isCollapsed ? (
           <>
             <div className="flex items-center justify-between text-xs font-semibold text-gray-300 mb-1.5">
