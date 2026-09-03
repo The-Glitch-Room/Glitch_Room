@@ -891,6 +891,25 @@ const ProfessionalRoomDetail = () => {
                   Check Status Now
                 </button>
               </>
+            ) : room?.reg_end_at && new Date() > new Date(room.reg_end_at) ? (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+                  <Lock size={26} className="text-amber-400" />
+                </div>
+                <h2 className="text-base font-bold text-white">
+                  Registration Closed
+                </h2>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate("/pro-rooms")}
+                  className="w-full px-6 py-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer"
+                >
+                  Explore Other Rooms →
+                </button>
+              </>
             ) : (
               <>
                 <div className="w-14 h-14 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center mx-auto">
