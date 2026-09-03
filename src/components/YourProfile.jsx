@@ -211,6 +211,35 @@ const SocialIconSlot = ({
 };
 
 // ── Main Profile Component ──────────────────────────────────────────────────
+
+const resolveCategoryTag = (type = "", title = "") => {
+  const t = (type || "").toLowerCase();
+  const titleLower = (title || "").toLowerCase();
+
+  if (t === "signup" || t === "bonus" || titleLower.includes("welcome bonus") || titleLower.includes("signup bonus")) {
+    return "Bonus";
+  }
+  if (t === "daily_fact" || titleLower.includes("daily fact")) {
+    return "Daily Fact";
+  }
+  if (t === "ai" || titleLower.includes("ai challenge") || titleLower.includes("ai glitch")) {
+    return "AI Glitches";
+  }
+  if (t === "bug" || titleLower.includes("bug fix") || titleLower.includes("bug glitch")) {
+    return "Bug Glitches";
+  }
+  if (t === "spark" || titleLower.includes("creative spark")) {
+    return "Creative";
+  }
+  if (t === "arena" || titleLower.includes("arena")) {
+    return "Game Arena";
+  }
+  if (t === "referral" || titleLower.includes("referral")) {
+    return "Referral Bonus";
+  }
+  return "Glitches";
+};
+
 export default function YourProfile() {
   const [profile, setProfile] = useState(null);
   const [authUser, setAuthUser] = useState(null);
@@ -397,21 +426,8 @@ export default function YourProfile() {
             Math.abs(new Date(a.created_at) - new Date(subDate)) < 600000
         );
 
-        let category = "Glitches";
-        let accent = "#00F0FF";
-        if (sub.challenge_type === "debug") {
-          category = "Debug Mode";
-          accent = "#FF00C8";
-        } else if (sub.challenge_type === "ai") {
-          category = "AI Challenge";
-          accent = "#a855f7";
-        } else if (sub.challenge_type === "spark") {
-          category = "Creative Spark";
-          accent = "#f59e0b";
-        } else if (sub.challenge_type === "arena") {
-          category = "Game Arena";
-          accent = "#22c55e";
-        }
+        const category = resolveCategoryTag(sub.challenge_type, matchedAct?.title || "");
+        const accent = "#00F0FF";
 
         items.push({
           id: sub.id,
@@ -427,21 +443,8 @@ export default function YourProfile() {
 
       // Process remaining glitch_activity items
       activities.forEach((act) => {
-        let category = "Glitches";
-        let accent = "#00F0FF";
-        if (act.type === "debug") {
-          category = "Debug Mode";
-          accent = "#FF00C8";
-        } else if (act.type === "ai") {
-          category = "AI Challenge";
-          accent = "#a855f7";
-        } else if (act.type === "spark") {
-          category = "Creative Spark";
-          accent = "#f59e0b";
-        } else if (act.type === "arena") {
-          category = "Game Arena";
-          accent = "#22c55e";
-        }
+        const category = resolveCategoryTag(act.type, act.title || "");
+        const accent = "#00F0FF";
 
         const key = `${act.title}_${act.created_at}`;
         if (!seenKeys.has(key)) {
