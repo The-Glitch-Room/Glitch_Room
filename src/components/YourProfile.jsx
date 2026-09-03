@@ -263,6 +263,8 @@ export default function YourProfile() {
     hobbies: [],
     avatar_url: "",
     banner_url: "",
+    college: "",
+    current_role: "Student",
   });
   const [hobbyInput, setHobbyInput] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -696,6 +698,8 @@ export default function YourProfile() {
         bio: editForm.bio,
         hobbies: editForm.hobbies,
         banner_url: editForm.banner_url || null,
+        college: editForm.college || null,
+        current_role: editForm.current_role || null,
       },
     });
 
@@ -888,6 +892,37 @@ export default function YourProfile() {
                         onChange={(e) => setEditForm({ ...editForm, tagline: e.target.value })}
                         className="w-full bg-[#070709] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition"
                       />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
+                          College / Organization
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Stanford / TechCorp"
+                          value={editForm.college}
+                          onChange={(e) => setEditForm({ ...editForm, college: e.target.value })}
+                          className="w-full bg-[#070709] border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/40 transition"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
+                          Current Status / Role
+                        </label>
+                        <select
+                          value={editForm.current_role}
+                          onChange={(e) => setEditForm({ ...editForm, current_role: e.target.value })}
+                          className="w-full bg-[#070709] border border-white/10 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-[#00F0FF]/40 transition"
+                        >
+                          <option value="Student">Student</option>
+                          <option value="Professional">Professional</option>
+                          <option value="Freelancer">Freelancer</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
 
