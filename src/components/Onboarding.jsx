@@ -125,7 +125,7 @@ const Onboarding = ({ onFinish }) => {
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-lg rounded-3xl p-6 sm:p-8 bg-[#0c0c16] border border-white/12 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col justify-between my-auto max-h-[85vh]"
+        className="relative w-full max-w-lg rounded-3xl p-6 sm:p-8 bg-[#0c0c16] border border-white/15 shadow-[0_0_80px_rgba(0,0,0,0.9)] flex flex-col justify-between my-auto max-h-[90vh] overflow-hidden"
       >
         {/* Top Gradient Accent Line */}
         <div
@@ -162,7 +162,7 @@ const Onboarding = ({ onFinish }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -25 }}
             transition={{ duration: 0.25 }}
-            className="flex-1 py-2"
+            className="flex-1 overflow-y-auto no-scrollbar py-2 my-1"
           >
             {/* Visual Icon Badge */}
             <div
@@ -197,7 +197,7 @@ const Onboarding = ({ onFinish }) => {
             </p>
 
             {/* Highlights List */}
-            <div className="space-y-2.5 bg-[#06060c] border border-white/5 rounded-2xl p-4 mb-6">
+            <div className="space-y-2 bg-[#06060c] border border-white/5 rounded-2xl p-3.5 mb-3">
               {currentSlide.highlights.map((h, i) => (
                 <div key={i} className="flex items-start gap-2.5 text-xs text-gray-300">
                   <CheckCircle2 size={15} className="text-emerald-400 shrink-0 mt-0.5" />
@@ -238,7 +238,7 @@ const Onboarding = ({ onFinish }) => {
 
             <button
               onClick={handleNext}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center gap-2 cursor-pointer shadow-lg"
+              className="px-6 py-2.5 rounded-2xl text-xs font-extrabold text-black transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(0,240,255,0.35)] hover:scale-105"
               style={{
                 background: currentSlideIndex === slides.length - 1 ? "#FF00C8" : "#00F0FF",
                 color: "#000",
