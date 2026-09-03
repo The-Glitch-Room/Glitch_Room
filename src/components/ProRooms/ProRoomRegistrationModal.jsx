@@ -153,22 +153,74 @@ const ProRoomRegistrationModal = ({
           </div>
 
           {isClosed ? (
-            <div className="text-center py-8 space-y-4 flex-1 flex flex-col items-center justify-center">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                <Lock size={28} />
-              </div>
-              <h3 className="text-base font-bold text-white">Registration Closed</h3>
-              <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
-                Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
-              </p>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer"
-              >
-                Close & Explore Other Rooms
-              </button>
-            </div>
+            (() => {
+              const now = new Date();
+              const eventStart = room?.event_start_at ? new Date(room.event_start_at) : null;
+              const eventEnd = room?.event_end_at ? new Date(room.event_end_at) : null;
+              const isEnded = (eventEnd && now > eventEnd) || room?.status === "results_published" || room?.status === "evaluation" || room?.status === "completed";
+              const isLive = eventStart && now >= eventStart && (!eventEnd || now <= eventEnd);
+
+              if (isEnded) {
+                return (
+                  <div className="text-center py-8 space-y-4 flex-1 flex flex-col items-center justify-center">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                      <Trophy size={28} />
+                    </div>
+                    <h3 className="text-base font-bold text-white">Event Completed</h3>
+                    <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+                      This event has ended and submissions are closed. Results and leaderboards are available for participants.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-6 py-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold hover:bg-purple-500/25 transition cursor-pointer"
+                    >
+                      Close & Explore Other Rooms
+                    </button>
+                  </div>
+                );
+              }
+
+              if (isLive) {
+                return (
+                  <div className="text-center py-8 space-y-4 flex-1 flex flex-col items-center justify-center">
+                    <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">
+                      <Trophy size={28} className="animate-pulse text-red-400" />
+                    </div>
+                    <h3 className="text-base font-bold text-white">Event in Progress</h3>
+                    <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+                      This event is currently live and in progress. Registration is closed and only registered participants can access the live room.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-6 py-2.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-bold hover:bg-red-500/25 transition cursor-pointer"
+                    >
+                      Close & Explore Other Rooms
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="text-center py-8 space-y-4 flex-1 flex flex-col items-center justify-center">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <Lock size={28} />
+                  </div>
+                  <h3 className="text-base font-bold text-white">Registration Closed</h3>
+                  <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+                    Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-6 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer"
+                  >
+                    Close & Explore Other Rooms
+                  </button>
+                </div>
+              );
+            })()
           ) : (
             <div className="flex-1 overflow-y-auto pr-1 no-scrollbar space-y-4 pt-4">
               {/* Event Quick Info Pill */}

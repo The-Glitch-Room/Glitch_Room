@@ -914,25 +914,82 @@ const ProfessionalRoomDetail = () => {
                   Back to Pro Rooms →
                 </button>
               </>
-            ) : (room?.reg_end_at && new Date() > new Date(room.reg_end_at)) || lifecycle.isLive ? (
-              <>
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
-                  <Lock size={26} className="text-amber-400" />
-                </div>
-                <h2 className="text-base font-bold text-white">
-                  Registration Closed
-                </h2>
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate("/pro-rooms")}
-                  className="w-full px-6 py-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer"
-                >
-                  Explore Other Rooms →
-                </button>
-              </>
+            ) : (room?.reg_end_at && new Date() > new Date(room.reg_end_at)) || lifecycle.isLive || (room?.event_end_at && new Date() > new Date(room.event_end_at)) || room?.status === "completed" || room?.status === "results_published" || room?.status === "evaluation" ? (
+              (() => {
+                const now = new Date();
+                const eventStart = room?.event_start_at ? new Date(room.event_start_at) : null;
+                const eventEnd = room?.event_end_at ? new Date(room.event_end_at) : null;
+
+                const isEventEnded = (eventEnd && now > eventEnd) || room?.status === "results_published" || room?.status === "evaluation" || room?.status === "completed";
+                const isEventLive = lifecycle.isLive || (eventStart && now >= eventStart && (!eventEnd || now <= eventEnd));
+
+                if (isEventEnded) {
+                  return (
+                    <>
+                      <div className="w-14 h-14 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center mx-auto">
+                        <Trophy size={26} className="text-purple-300" />
+                      </div>
+                      <h2 className="text-base font-bold text-white">
+                        Event Completed
+                      </h2>
+                      <p className="text-xs text-gray-400 leading-relaxed">
+                        This event has ended and submissions are closed. Results and leaderboards are available for participants.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/pro-rooms")}
+                        className="w-full px-6 py-3 rounded-xl bg-purple-500/15 border border-purple-500/40 text-purple-300 text-xs font-bold hover:bg-purple-500/25 transition cursor-pointer"
+                      >
+                        Explore Other Rooms →
+                      </button>
+                    </>
+                  );
+                }
+
+                if (isEventLive) {
+                  return (
+                    <>
+                      <div className="w-14 h-14 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center mx-auto">
+                        <Zap size={26} className="text-red-400 animate-pulse" />
+                      </div>
+                      <h2 className="text-base font-bold text-white">
+                        Event in Progress
+                      </h2>
+                      <p className="text-xs text-gray-400 leading-relaxed">
+                        This event is currently live and in progress. Registration is closed and only registered participants can access the live room.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/pro-rooms")}
+                        className="w-full px-6 py-3 rounded-xl bg-red-500/15 border border-red-500/40 text-red-300 text-xs font-bold hover:bg-red-500/25 transition cursor-pointer"
+                      >
+                        Explore Other Rooms →
+                      </button>
+                    </>
+                  );
+                }
+
+                return (
+                  <>
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+                      <Lock size={26} className="text-amber-400" />
+                    </div>
+                    <h2 className="text-base font-bold text-white">
+                      Registration Closed
+                    </h2>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/pro-rooms")}
+                      className="w-full px-6 py-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold hover:bg-amber-500/25 transition cursor-pointer"
+                    >
+                      Explore Other Rooms →
+                    </button>
+                  </>
+                );
+              })()
             ) : (
               <>
                 <div className="w-14 h-14 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center mx-auto">
