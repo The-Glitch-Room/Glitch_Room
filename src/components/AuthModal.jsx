@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -22,12 +22,38 @@ const AuthModal = ({ isOpen, onClose }) => {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
 
+    const isSubmittingRef = useRef(false);
+
+  const formatAuthError = (msg) => {
+    if (!msg) return "An error occurred. Please try again.";
+    const lower = msg.toLowerCase();
+    if (
+      lower.includes("rate limit") ||
+      lower.includes("security purposes") ||
+      lower.includes("try again after") ||
+      lower.includes("over_email_send_rate_limit")
+    ) {
+      return "Security Rate Limit: Multiple attempts detected. Please wait 1 minute before trying again or try logging in if you already have an account.";
+    }
+    if (
+      lower.includes("already registered") ||
+      lower.includes("user_already_exists")
+    ) {
+      return "An account with this email address already exists. Please log in.";
+    }
+    if (lower.includes("invalid login credentials")) {
+      return "Invalid email or password. Please check your credentials.";
+    }
+    return msg;
+  };
+
   const resetState = () => {
     setError("");
     setForgotEmail("");
     setForgotSent(false);
     setShowPassword(false);
     setLoading(false);
+    isSubmittingRef.current = false;
   };
 
   const switchView = (v) => {
@@ -38,92 +64,135 @@ const AuthModal = ({ isOpen, onClose }) => {
   /* ── Login / Signup ── */
   const handleAuth = async (e) => {
     e.preventDefault();
+    if (loading || isSubmittingRef.current) return;
+
     setError("");
     setLoading(true);
+    isSubmittingRef.current = true;
 
-    const email = e.target.email.value;
-    const password = e.target.password.value;
+    try {
+      const email = (e.target.email.value || "").trim().toLowerCase();
+      const password = e.target.password.value;
 
-    if (view === "login") {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      setLoading(false);
-      if (error) setError(error.message);
-      else {
-        resetState();
-        onClose();
-      }
-    } else {
-      const fullName = e.target.fullName.value;
-      const { data: signUpData, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      });
-      setLoading(false);
-      if (error) {
-        setError(error.message);
+      if (!email || !password) {
+        setError("Please enter both email and password.");
+        setLoading(false);
+        isSubmittingRef.current = false;
         return;
       }
 
-      const newUserId = signUpData?.user?.id;
-      if (newUserId) {
-        const cleanName = (fullName || "Glitcher").trim();
-        const baseUsername = `@${cleanName.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "")}_${newUserId.slice(0, 8)}`;
+      if (view === "login") {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) {
+          setError(formatAuthError(error.message));
+        } else {
+          resetState();
+          onClose();
+        }
+      } else {
+        const fullName = (e.target.fullName?.value || "").trim();
+        if (!fullName) {
+          setError("Please enter your full name.");
+          setLoading(false);
+          isSubmittingRef.current = false;
+          return;
+        }
 
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const candidateUsername =
-            attempt === 0
-              ? baseUsername
-              : `${baseUsername}_${Math.floor(1000 + Math.random() * 9000)}`;
+        const { data: signUpData, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName } },
+        });
 
-          const { error: profileErr } = await supabase.from("profiles").upsert(
-            {
-              id: newUserId,
-              full_name: cleanName,
-              username: candidateUsername,
-              points: 100,
-            },
-            { onConflict: "id" }
-          );
+        if (error) {
+          setError(formatAuthError(error.message));
+          return;
+        }
 
-          if (!profileErr) break;
-          if (profileErr.code !== "23505") {
-            console.error("Profile creation failed:", profileErr);
-            break;
+        // Detect if user already exists (Supabase returns empty identities array)
+        if (signUpData?.user && signUpData?.user?.identities?.length === 0) {
+          setError("An account with this email address already exists. Please log in.");
+          return;
+        }
+
+        const newUserId = signUpData?.user?.id;
+        if (newUserId) {
+          const cleanName = fullName || "Glitcher";
+          const baseUsername = `@${cleanName.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "")}_${newUserId.slice(0, 8)}`;
+
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const candidateUsername =
+              attempt === 0
+                ? baseUsername
+                : `${baseUsername}_${Math.floor(1000 + Math.random() * 9000)}`;
+
+            const { error: profileErr } = await supabase.from("profiles").upsert(
+              {
+                id: newUserId,
+                full_name: cleanName,
+                username: candidateUsername,
+                points: 100,
+              },
+              { onConflict: "id" }
+            );
+
+            if (!profileErr) break;
+            if (profileErr.code !== "23505") {
+              console.error("Profile creation failed:", profileErr);
+              break;
+            }
           }
         }
-      }
 
-      window.dispatchEvent(new Event("profile_updated"));
-      window.dispatchEvent(new Event("points_updated"));
-      resetState();
-      onClose();
-      try {
-        navigate("/create-profile");
-      } catch (navErr) {
-        window.location.href = "/create-profile";
+        window.dispatchEvent(new Event("profile_updated"));
+        window.dispatchEvent(new Event("points_updated"));
+        resetState();
+        onClose();
+        try {
+          navigate("/create-profile");
+        } catch (navErr) {
+          window.location.href = "/create-profile";
+        }
       }
+    } catch (err) {
+      console.error("Auth submit error:", err);
+      setError(formatAuthError(err?.message));
+    } finally {
+      setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
   /* ── Forgot password — send reset email ── */
   const handleForgotSubmit = async (e) => {
     e.preventDefault();
-    if (!forgotEmail.trim()) return;
+    if (!forgotEmail.trim() || loading || isSubmittingRef.current) return;
+
     setLoading(true);
+    isSubmittingRef.current = true;
     setError("");
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      forgotEmail.trim(),
-      {
-        redirectTo: `${window.location.origin}/reset-password`,
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        forgotEmail.trim().toLowerCase(),
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }
+      );
+      if (error) {
+        setError(formatAuthError(error.message));
+      } else {
+        setForgotSent(true);
       }
-    );
-    setLoading(false);
-    if (error) setError(error.message);
-    else setForgotSent(true);
+    } catch (err) {
+      setError(formatAuthError(err?.message));
+    } finally {
+      setLoading(false);
+      isSubmittingRef.current = false;
+    }
   };
 
   const inputRow =
@@ -312,8 +381,17 @@ const AuthModal = ({ isOpen, onClose }) => {
 
                     {/* Error */}
                     {error && (
-                      <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-                        {error}
+                      <div className="mb-4 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs space-y-1.5">
+                        <p className="leading-relaxed">{error}</p>
+                        {error.includes("already exists") && view === "signup" && (
+                          <button
+                            type="button"
+                            onClick={() => switchView("login")}
+                            className="inline-block text-[#00F0FF] font-bold underline hover:text-white transition cursor-pointer pt-0.5"
+                          >
+                            Click here to Log In instead →
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -335,6 +413,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                               <input
                                 type="text"
                                 name="fullName"
+                                disabled={loading}
                                 placeholder="Full Name"
                                 required={view === "signup"}
                                 className={inputCls}
@@ -350,6 +429,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                         <input
                           type="email"
                           name="email"
+                          disabled={loading}
                           placeholder="Email address"
                           required
                           className={inputCls}
@@ -362,6 +442,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                         <input
                           type={showPassword ? "text" : "password"}
                           name="password"
+                          disabled={loading}
                           placeholder="Password"
                           required
                           className={inputCls}
