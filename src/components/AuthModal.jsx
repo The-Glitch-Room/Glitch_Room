@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -21,6 +21,8 @@ const AuthModal = ({ isOpen, onClose }) => {
   const [error, setError] = useState("");
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
+  const [confirmedEmail, setConfirmedEmail] = useState("");
+  const [resendMsg, setResendMsg] = useState("");
 
     const isSubmittingRef = useRef(false);
 
@@ -47,10 +49,22 @@ const AuthModal = ({ isOpen, onClose }) => {
     return msg;
   };
 
+  useEffect(() => {
+    const handleSetError = (e) => {
+      if (e?.detail?.error) {
+        setError(formatAuthError(e.detail.error));
+      }
+    };
+    window.addEventListener("set_auth_modal_error", handleSetError);
+    return () => window.removeEventListener("set_auth_modal_error", handleSetError);
+  }, []);
+
   const resetState = () => {
     setError("");
     setForgotEmail("");
     setForgotSent(false);
+    setConfirmedEmail("");
+    setResendMsg("");
     setShowPassword(false);
     setLoading(false);
     isSubmittingRef.current = false;
@@ -101,10 +115,14 @@ const AuthModal = ({ isOpen, onClose }) => {
           return;
         }
 
+        const redirectUrl = `${window.location.origin}`;
         const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName } },
+          options: {
+            data: { full_name: fullName },
+            emailRedirectTo: redirectUrl,
+          },
         });
 
         if (error) {
@@ -149,16 +167,54 @@ const AuthModal = ({ isOpen, onClose }) => {
 
         window.dispatchEvent(new Event("profile_updated"));
         window.dispatchEvent(new Event("points_updated"));
-        resetState();
-        onClose();
-        try {
-          navigate("/create-profile");
-        } catch (navErr) {
-          window.location.href = "/create-profile";
+
+        // If session was created immediately (auto-confirm enabled)
+        if (signUpData?.session) {
+          resetState();
+          onClose();
+          try {
+            navigate("/create-profile");
+          } catch (navErr) {
+            window.location.href = "/create-profile";
+          }
+        } else {
+          // Email confirmation is required — show confirm_email view
+          setConfirmedEmail(email);
+          setLoading(false);
+          isSubmittingRef.current = false;
+          setView("confirm_email");
         }
       }
     } catch (err) {
       console.error("Auth submit error:", err);
+      setError(formatAuthError(err?.message));
+    } finally {
+      setLoading(false);
+      isSubmittingRef.current = false;
+    }
+  };
+
+  /* ── Resend Signup Confirmation Email ── */
+  const handleResendSignupEmail = async () => {
+    if (!confirmedEmail || loading || isSubmittingRef.current) return;
+    setLoading(true);
+    isSubmittingRef.current = true;
+    setError("");
+    setResendMsg("");
+
+    try {
+      const redirectUrl = `${window.location.origin}`;
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: confirmedEmail,
+        options: { emailRedirectTo: redirectUrl },
+      });
+      if (error) {
+        setError(formatAuthError(error.message));
+      } else {
+        setResendMsg("Confirmation link resent! Check your inbox.");
+      }
+    } catch (err) {
       setError(formatAuthError(err?.message));
     } finally {
       setLoading(false);
@@ -237,6 +293,73 @@ const AuthModal = ({ isOpen, onClose }) => {
             {/* Content area */}
             <div className="relative z-10">
               <AnimatePresence mode="wait">
+                {/* ══════════ CONFIRM EMAIL PLACEHOLDER VIEW ══════════ */}
+                {view === "confirm_email" && (
+                  <motion.div
+                    key="confirm_email"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.22 }}
+                    className="text-center space-y-4 py-2"
+                  >
+                    <div className="w-16 h-16 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center mx-auto text-[#00F0FF]">
+                      <FiMail size={32} className="animate-pulse" />
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-black text-white mb-1">
+                        Check your inbox!
+                      </h3>
+                      <p className="text-xs text-gray-400 max-w-xs mx-auto leading-relaxed">
+                        We sent a confirmation link to{" "}
+                        <span className="text-[#00F0FF] font-bold font-mono">
+                          {confirmedEmail}
+                        </span>
+                        . Please click the link in your email to activate your account.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/8 text-[11px] text-gray-400 text-left space-y-1">
+                      <p className="font-bold text-gray-300">What to do next:</p>
+                      <p>1. Open your email inbox (and check spam folder).</p>
+                      <p>2. Click <strong>Confirm your mail</strong> link.</p>
+                      <p>3. Return here and log in with your credentials.</p>
+                    </div>
+
+                    {resendMsg && (
+                      <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
+                        {resendMsg}
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                        {error}
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => switchView("login")}
+                        className="w-full py-3 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black font-bold text-xs transition cursor-pointer"
+                      >
+                        ← Return to Log In
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleResendSignupEmail}
+                        disabled={loading}
+                        className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white font-bold text-xs transition cursor-pointer disabled:opacity-50"
+                      >
+                        {loading ? "Sending..." : "Didn't get email? Resend link"}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* ══════════ FORGOT PASSWORD VIEW ══════════ */}
                 {view === "forgot" && (
                   <motion.div
@@ -344,7 +467,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                 )}
 
                 {/* ══════════ LOGIN / SIGNUP VIEW ══════════ */}
-                {view !== "forgot" && (
+                {view !== "forgot" && view !== "confirm_email" && (
                   <motion.div
                     key="auth"
                     initial={{ opacity: 0, x: -30 }}

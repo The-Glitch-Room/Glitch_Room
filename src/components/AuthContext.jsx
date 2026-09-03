@@ -20,6 +20,28 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("gr_referral_code", refCode.trim().toUpperCase());
     }
 
+    // Handle URL hash error parameters (e.g., expired confirmation links)
+    if (window.location.hash && window.location.hash.includes("error=")) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const errorDesc = hashParams.get("error_description");
+        if (errorDesc) {
+          const cleanErr = decodeURIComponent(errorDesc).replace(/\+/g, " ");
+          setIsAuthOpen(true);
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent("set_auth_modal_error", {
+                detail: { error: cleanErr },
+              })
+            );
+          }, 200);
+        }
+      } catch (err) {
+        console.error("Error parsing auth URL hash:", err);
+      }
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+
     // Single robust session initialization
     supabase.auth
       .getSession()
