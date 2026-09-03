@@ -575,7 +575,7 @@ const Settings = () => {
   return (
     <div className="min-h-screen bg-[#070709] text-white">
       <Navbar />
-      <div className="flex pt-24 min-h-[calc(100vh-80px)]">
+      <div className="flex pt-[18vh]">
         <SharedSidebar user={authUser} xp={xp} level={level} />
 
         <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto pb-24 md:pb-12">
