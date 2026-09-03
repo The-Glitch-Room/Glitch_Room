@@ -12,7 +12,7 @@ import {
   FiImage,
 } from "react-icons/fi";
 import { FaGithub, FaTwitter, FaDiscord, FaLinkedin } from "react-icons/fa";
-import { Zap, Trophy, Shield, Sparkles, ArrowRight, ChevronDown } from "lucide-react";
+import { Zap, Trophy, Shield, Sparkles, ArrowRight, ChevronDown, Check } from "lucide-react";
 import Navbar from "./Navbar";
 import GlitchBackground from "./GlitchBackground";
 import SharedSidebar from "./SharedSidebar";
