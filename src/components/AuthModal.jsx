@@ -381,16 +381,18 @@ const AuthModal = ({ isOpen, onClose }) => {
 
                     {/* Error */}
                     {error && (
-                      <div className="mb-4 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs space-y-1.5">
+                      <div className="mb-4 px-3.5 py-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs space-y-2">
                         <p className="leading-relaxed">{error}</p>
-                        {error.includes("already exists") && view === "signup" && (
-                          <button
-                            type="button"
-                            onClick={() => switchView("login")}
-                            className="inline-block text-[#00F0FF] font-bold underline hover:text-white transition cursor-pointer pt-0.5"
-                          >
-                            Click here to Log In instead →
-                          </button>
+                        {view === "signup" && (
+                          <div className="pt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => switchView("login")}
+                              className="px-3 py-1.5 rounded-lg bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] font-bold text-[11px] hover:bg-[#00F0FF]/25 transition cursor-pointer"
+                            >
+                              🔑 Try Logging In Instead →
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}

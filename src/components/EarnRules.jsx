@@ -80,55 +80,85 @@ const BONUS_RULES = [
   },
 ];
 
-// ── Bonus rule card ──────────────────────────────────────────────────────────
-const BonusCard = ({ rule }) => {
-  const Icon = rule.icon;
-  return (
-    <motion.div
-      whileHover={{ y: -3 }}
-      className="bg-[#0f0f13] border border-white/5 rounded-2xl p-4 flex items-start gap-3.5 transition-all duration-300"
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = `${rule.color}40`;
-        e.currentTarget.style.boxShadow = `0 0 20px ${rule.color}15`;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)";
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    >
-      <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-        style={{
-          background: `${rule.color}15`,
-          border: `1px solid ${rule.color}30`,
-        }}
-      >
-        <Icon size={16} style={{ color: rule.color }} />
-      </div>
+// ── Shared "settings-style" building blocks ─────────────────────────────────
+// Matches the clean, spacious Settings page pattern: one bordered card per
+// section, a small icon-badge + label header, then full-width rows
+// separated by hairline dividers — instead of a grid of separately
+// bordered/hovering mini-cards, which is what made this page feel congested.
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <h4 className="text-xs font-bold text-white truncate font-sans">
-            {rule.title}
-          </h4>
-          <span
-            className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0"
-            style={{
-              background: `${rule.color}20`,
-              color: rule.color,
-              border: `1px solid ${rule.color}40`,
-            }}
-          >
-            {rule.reward}
-          </span>
+const SectionCard = ({ icon: Icon, color, label, children }) => (
+  <section className="mb-12">
+    <div className="bg-[#0c0c16] border border-white/10 rounded-3xl overflow-hidden shadow-xl">
+      <div className="flex items-center gap-3 px-6 sm:px-7 py-5">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: `${color}15`, border: `1px solid ${color}30` }}
+        >
+          <Icon size={16} style={{ color }} />
         </div>
-        <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
-          {rule.desc}
+        <h2 className="text-sm font-bold text-gray-200 uppercase tracking-wider font-sans">
+          {label}
+        </h2>
+      </div>
+      <div className="border-t border-white/5">{children}</div>
+    </div>
+  </section>
+);
+
+const RewardRow = ({
+  icon: Icon,
+  color,
+  eyebrow,
+  title,
+  desc,
+  reward,
+  isLast,
+}) => (
+  <div
+    className={`flex items-start sm:items-center justify-between gap-4 sm:gap-6 px-6 sm:px-7 py-5 ${
+      !isLast ? "border-b border-white/5" : ""
+    }`}
+  >
+    <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+      {Icon && (
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 sm:mt-0"
+          style={{ background: `${color}15`, border: `1px solid ${color}30` }}
+        >
+          <Icon size={15} style={{ color }} />
+        </div>
+      )}
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          {eyebrow && (
+            <span
+              className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md shrink-0"
+              style={{
+                color,
+                background: `${color}15`,
+                border: `1px solid ${color}30`,
+              }}
+            >
+              {eyebrow}
+            </span>
+          )}
+          <h3 className="text-sm font-bold text-white font-sans">{title}</h3>
+        </div>
+        <p className="text-xs text-gray-500 leading-relaxed font-sans max-w-lg">
+          {desc}
         </p>
       </div>
-    </motion.div>
-  );
-};
+    </div>
+
+    <span
+      className="text-base sm:text-lg font-black font-mono shrink-0 whitespace-nowrap"
+      style={{ color }}
+    >
+      {reward}
+      <span className="text-[10px] font-normal text-gray-500 ml-1">gBits</span>
+    </span>
+  </div>
+);
 
 const EarnRules = () => {
   const [xp, setXp] = useState(0);
@@ -158,14 +188,14 @@ const EarnRules = () => {
       <div className="flex pt-24 min-h-[calc(100vh-80px)]">
         <SharedSidebar xp={xp} />
 
-        <main className="flex-1 min-w-0 p-4 sm:p-6 max-w-5xl mx-auto pb-20 mb-12">
-          {/* Header Banner */}
-          <div className="relative rounded-3xl p-6 sm:p-8 mb-8 overflow-hidden bg-gradient-to-r from-purple-900/30 via-[#0d0d14] to-[#00F0FF]/10 border border-white/10 shadow-2xl">
-            <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-[#00F0FF] to-purple-500 absolute top-0 left-0" />
-
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <main className="flex-1 min-w-0 p-4 sm:p-8 max-w-5xl mx-auto pb-20 mb-12">
+          {/* Header — flat, bordered card matching the rest of the site
+              (Settings, Pro Rooms, etc.) instead of a gradient wash, which
+              was the biggest thing making this page look out of place. */}
+          <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 sm:p-8 mb-12 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
               <div>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-3">
                   <span className="bg-[#FF00C8]/10 text-[#FF00C8] border border-[#FF00C8]/30 font-bold text-[10px] uppercase px-2.5 py-0.5 rounded-full tracking-wider font-mono">
                     Points &amp; Rewards
                   </span>
@@ -176,169 +206,133 @@ const EarnRules = () => {
                 <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-sans">
                   Earn Rules &amp; Payouts
                 </h1>
-                <p className="text-gray-400 text-xs sm:text-sm mt-1 max-w-xl font-sans">
-                  Learn how gBits are awarded across Glitches, Debug Mode, AI Challenges, Creative Sparks, Room Check-ins, and Special Bonuses.
+                <p className="text-gray-400 text-xs sm:text-sm mt-2 max-w-xl font-sans leading-relaxed">
+                  Learn how gBits are awarded across Glitches, Debug Mode, AI
+                  Challenges, Creative Sparks, Room Check-ins, and Special
+                  Bonuses.
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 bg-[#070709]/80 border border-white/10 p-3.5 rounded-2xl shrink-0 backdrop-blur-md">
-                <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF]">
+              <div className="flex items-center gap-3 bg-[#070709] border border-white/10 p-4 rounded-2xl shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shrink-0">
                   <Gift size={20} />
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-500 font-mono uppercase">Your Balance</div>
-                  <div className="text-lg font-black text-white font-mono">{xp} gBits</div>
+                  <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">
+                    Your Balance
+                  </div>
+                  <div className="text-lg font-black text-white font-mono">
+                    {xp} gBits
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Section 1: Core Challenge & Arena Payouts */}
-          <section className="mb-10">
-            <div className="flex items-center gap-2 mb-4">
-              <Star size={16} className="text-[#FF00C8]" />
-              <h2 className="text-base font-bold text-white uppercase tracking-wider font-sans">
-                1. Core Challenge &amp; Arena Payouts
-              </h2>
-            </div>
-            <p className="text-xs text-gray-400 mb-4 font-sans">
-              Applies across Glitches, Debug Mode, AI Challenges, Creative Sparks, and Game Arena events. Earned automatically upon solving.
+          <SectionCard
+            icon={Star}
+            color="#FF00C8"
+            label="Core Challenge & Arena Payouts"
+          >
+            <p className="text-xs text-gray-500 font-sans leading-relaxed px-6 sm:px-7 pt-5 pb-1">
+              Applies across Glitches, Debug Mode, AI Challenges, Creative
+              Sparks, and Game Arena events. Earned automatically upon solving.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {/* Easy */}
-              <div className="bg-[#0f0f18] border border-white/10 hover:border-green-500/40 rounded-2xl p-5 relative overflow-hidden transition-all group shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-mono font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-0.5 rounded-md uppercase tracking-wider">
-                    Easy
-                  </span>
-                  <span className="text-xl font-black font-mono text-green-400">
-                    +10 <span className="text-xs font-normal text-gray-400">gBits</span>
-                  </span>
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1">Easy Difficulty</h3>
-                <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                  Awarded for every verified solve on easy-level challenges.
-                </p>
-              </div>
+            {DIFFICULTY_TIERS.map((tier) => (
+              <RewardRow
+                key={tier.label}
+                color={tier.color}
+                eyebrow={tier.label}
+                title={`${tier.label} Difficulty`}
+                desc={`Awarded for every verified solve on ${tier.label.toLowerCase()}-level challenges.`}
+                reward={`+${tier.reward}`}
+              />
+            ))}
 
-              {/* Medium */}
-              <div className="bg-[#0f0f18] border border-white/10 hover:border-amber-500/40 rounded-2xl p-5 relative overflow-hidden transition-all group shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-md uppercase tracking-wider">
-                    Medium
-                  </span>
-                  <span className="text-xl font-black font-mono text-amber-400">
-                    +25 <span className="text-xs font-normal text-gray-400">gBits</span>
-                  </span>
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1">Medium Difficulty</h3>
-                <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                  Awarded for every verified solve on medium-level challenges.
-                </p>
-              </div>
+            <RewardRow
+              icon={Swords}
+              color="#00F0FF"
+              eyebrow="Arena"
+              title="Game Arena Events"
+              desc="Conquer 3-stage live arena challenges hosted by the community."
+              reward="75–100"
+            />
 
-              {/* Hard */}
-              <div className="bg-[#0f0f18] border border-white/10 hover:border-red-500/40 rounded-2xl p-5 relative overflow-hidden transition-all group shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-mono font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md uppercase tracking-wider">
-                    Hard
-                  </span>
-                  <span className="text-xl font-black font-mono text-red-400">
-                    +50 <span className="text-xs font-normal text-gray-400">gBits</span>
-                  </span>
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1">Hard Difficulty</h3>
-                <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                  Awarded for every verified solve on hard-level challenges.
-                </p>
-              </div>
-
-              {/* Game Arena Events */}
-              <div className="bg-[#0f0f18] border border-white/10 hover:border-[#00F0FF]/40 rounded-2xl p-5 relative overflow-hidden transition-all group shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-mono font-bold text-[#00F0FF] bg-[#00F0FF]/10 border border-[#00F0FF]/20 px-2.5 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
-                    <Swords size={12} /> Arena
-                  </span>
-                  <span className="text-xl font-black font-mono text-[#00F0FF]">
-                    75–100 <span className="text-xs font-normal text-gray-400">gBits</span>
-                  </span>
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1">Game Arena Events</h3>
-                <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                  Conquer 3-stage live arena challenges hosted by the community.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-[#0b0b10] border border-white/5 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 font-sans">
-              <span className="font-semibold text-gray-300">Active Categories &amp; Arena:</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 sm:px-7 py-5 text-xs text-gray-400 font-sans">
+              <span className="font-semibold text-gray-300 shrink-0">
+                Active Categories &amp; Arena
+              </span>
               <div className="flex flex-wrap items-center gap-2">
-                {["Glitches", "Debug Mode", "AI Challenges", "Creative Sparks", "Game Arena Events"].map((cat) => (
+                {[
+                  "Glitches",
+                  "Debug Mode",
+                  "AI Challenges",
+                  "Creative Sparks",
+                  "Game Arena Events",
+                ].map((cat) => (
                   <span
                     key={cat}
-                    className="bg-white/5 border border-white/10 px-3 py-1 rounded-lg text-gray-300 font-medium"
+                    className="bg-white/5 border border-white/10 px-3 py-1 rounded-lg text-gray-300 font-medium font-sans"
                   >
                     {cat}
                   </span>
                 ))}
               </div>
             </div>
-          </section>
+          </SectionCard>
 
           {/* Section 2: Bonus Mechanics */}
-          <section className="mb-10">
-            <div className="flex items-center gap-2 mb-4">
-              <Zap size={16} className="text-[#00F0FF]" />
-              <h2 className="text-base font-bold text-white uppercase tracking-wider font-sans">
-                2. Special Bonus Rewards
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {BONUS_RULES.map((rule) => (
-                <BonusCard key={rule.title} rule={rule} />
-              ))}
-            </div>
-          </section>
+          <SectionCard icon={Zap} color="#00F0FF" label="Special Bonus Rewards">
+            {BONUS_RULES.map((rule, i) => (
+              <RewardRow
+                key={rule.title}
+                icon={rule.icon}
+                color={rule.color}
+                title={rule.title}
+                desc={rule.desc}
+                reward={rule.reward.replace(/\s*gBits$/i, "")}
+                isLast={i === BONUS_RULES.length - 1}
+              />
+            ))}
+          </SectionCard>
 
           {/* Section 3: Level Progression Curve */}
-          <section className="mb-10">
-            <div className="flex items-center gap-2 mb-4">
-              <Layers size={16} className="text-[#a855f7]" />
-              <h2 className="text-base font-bold text-white uppercase tracking-wider font-sans">
-                3. Level Progression Curve
-              </h2>
-            </div>
-
-            <div className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5">
-              <p className="text-xs text-gray-400 mb-4 leading-relaxed font-sans">
-                Your Level increases automatically as you accumulate total gBits. XP thresholds scale progressively:
+          <SectionCard
+            icon={Layers}
+            color="#a855f7"
+            label="Level Progression Curve"
+          >
+            <div className="px-6 sm:px-7 py-6">
+              <p className="text-xs text-gray-500 mb-5 leading-relaxed font-sans max-w-lg">
+                Your Level increases automatically as you accumulate total
+                gBits. XP thresholds scale progressively:
               </p>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                 {LEVEL_THRESHOLDS.slice(0, 6).map((item) => (
                   <div
                     key={item.level}
-                    className="bg-[#070709] border border-white/5 rounded-xl p-3 text-center flex flex-col justify-between"
+                    className="bg-[#070709] border border-white/5 rounded-xl p-4 text-center flex flex-col gap-1.5"
                   >
-                    <div className="text-[10px] font-mono text-[#00F0FF] font-bold uppercase mb-0.5">
+                    <div className="text-[10px] font-mono text-[#a855f7] font-bold uppercase tracking-wider">
                       Level {item.level}
                     </div>
-                    <div className="text-xs font-mono font-bold text-white mb-1">
+                    <div className="text-sm font-mono font-bold text-white">
                       {item.minXP} gBits
                     </div>
-                    <div className="text-[10px] text-gray-400 font-sans truncate">
+                    <div className="text-[10px] text-gray-500 font-sans truncate">
                       {item.title}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          </section>
+          </SectionCard>
 
           {/* Section 4: Referral Program Card */}
-          <section className="mb-10">
+          <section className="mb-12">
             <ReferralSection />
           </section>
         </main>
