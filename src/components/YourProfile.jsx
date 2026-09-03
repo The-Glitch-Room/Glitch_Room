@@ -912,16 +912,11 @@ export default function YourProfile() {
                         <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
                           Current Status / Role
                         </label>
-                        <select
+                        <CustomRoleSelect
                           value={editForm.current_role}
-                          onChange={(e) => setEditForm({ ...editForm, current_role: e.target.value })}
-                          className="w-full bg-[#070709] border border-white/10 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-[#00F0FF]/40 transition"
-                        >
-                          <option value="Student">Student</option>
-                          <option value="Professional">Professional</option>
-                          <option value="Freelancer">Freelancer</option>
-                          <option value="Other">Other</option>
-                        </select>
+                          onChange={(val) => setEditForm({ ...editForm, current_role: val })}
+                          options={["Student", "Professional", "Freelancer", "Other"]}
+                        />
                       </div>
                     </div>
                   </div>
