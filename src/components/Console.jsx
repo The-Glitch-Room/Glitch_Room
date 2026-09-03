@@ -426,7 +426,7 @@ const Console = () => {
       <GlitchBackground />
       <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar />
-      <div className="flex pt-[18vh]">
+      <div className="flex pt-24 min-h-[calc(100vh-80px)]">
         <SharedSidebar user={authUser} xp={xp} level={level} />
 
         <main className="flex-1 min-w-0 p-6 lg:p-10 overflow-y-auto pb-24 md:pb-12">
