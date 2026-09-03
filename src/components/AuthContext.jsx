@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient";
 import AuthModal from "./AuthModal";
 import Onboarding from "./Onboarding";
 import { linkReferralSignup } from "../utils/referralHelper";
+import { ensureSignupBonus } from "../utils/pointsHelper";
 
 const AuthContext = createContext();
 
@@ -46,8 +47,10 @@ export const AuthProvider = ({ children }) => {
     supabase.auth
       .getSession()
       .then(({ data: { session } }) => {
-        setUser(session?.user || null);
+        const u = session?.user || null;
+        setUser(u);
         setLoading(false);
+        if (u) ensureSignupBonus(u.id);
       })
       .catch((err) => {
         console.error("Auth session check error:", err);
@@ -60,6 +63,7 @@ export const AuthProvider = ({ children }) => {
         const currentUser = session?.user || null;
         setUser(currentUser);
         setLoading(false);
+        if (currentUser) ensureSignupBonus(currentUser.id);
 
         if (_event === "SIGNED_IN" && currentUser) {
           const savedRefCode = localStorage.getItem("gr_referral_code");

@@ -498,3 +498,25 @@ export const saveSubmission = async (
 
   return { speedBonusAwarded };
 };
+
+
+// ── Ensure Signup Bonus Helper ─────────────────────────────────────────────
+export const ensureSignupBonus = async (userId) => {
+  if (!userId) return;
+  try {
+    // Check if user has already received signup bonus
+    const { data: bonusData } = await supabase
+      .from("glitch_activity")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("type", "signup")
+      .maybeSingle();
+
+    if (!bonusData) {
+      console.log("Awarding missing 100 gBits signup bonus to user:", userId);
+      await updatePoints(100, "Welcome Bonus - Joined Glitch Room", "signup", null, userId);
+    }
+  } catch (err) {
+    console.error("Error ensuring signup bonus:", err);
+  }
+};

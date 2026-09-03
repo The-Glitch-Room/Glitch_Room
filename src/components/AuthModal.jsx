@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { updatePoints } from "../utils/pointsHelper";
 import {
   FiUser,
   FiMail,
@@ -157,7 +158,10 @@ const AuthModal = ({ isOpen, onClose }) => {
               { onConflict: "id" }
             );
 
-            if (!profileErr) break;
+            if (!profileErr) {
+              await updatePoints(100, "Welcome Bonus - Joined Glitch Room", "signup", null, newUserId).catch(e => console.error("Signup points update error:", e));
+              break;
+            }
             if (profileErr.code !== "23505") {
               console.error("Profile creation failed:", profileErr);
               break;
