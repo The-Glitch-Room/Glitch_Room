@@ -110,17 +110,19 @@ export const fetchPoints = async (userId) => {
   }
   if (!userId) return 0;
 
-  const { data, error } = await supabase
-    .from("user_points")
-    .select("points")
-    .eq("user_id", userId)
-    .maybeSingle();
+  try {
+    const [ptsRes, profRes] = await Promise.all([
+      supabase.from("user_points").select("points").eq("user_id", userId).maybeSingle(),
+      supabase.from("profiles").select("points").eq("id", userId).maybeSingle(),
+    ]);
 
-  if (error) {
+    const userPts = ptsRes.data?.points ?? 0;
+    const profPts = profRes.data?.points ?? 0;
+    return Math.max(userPts, profPts);
+  } catch (error) {
     console.error("fetchPoints error:", error);
     return 0;
   }
-  return data?.points ?? 0;
 };
 
 // Legacy alias for backwards compatibility across any un-updated references
@@ -501,22 +503,35 @@ export const saveSubmission = async (
 
 
 // ── Ensure Signup Bonus Helper ─────────────────────────────────────────────
+// ── Ensure Signup Bonus Helper ─────────────────────────────────────────────
 export const ensureSignupBonus = async (userId) => {
   if (!userId) return;
+  const storageKey = `signup_bonus_granted_${userId}`;
+  if (typeof window !== "undefined" && localStorage.getItem(storageKey)) {
+    return; // Already granted in this browser session
+  }
+
   try {
-    // Check if user has already received signup bonus
-    const { data: bonusData } = await supabase
-      .from("glitch_activity")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("type", "signup")
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("points")
+      .eq("id", userId)
       .maybeSingle();
 
-    const { data: prof } = await supabase.from("profiles").select("points").eq("id", userId).maybeSingle();
     const currentPts = prof?.points ?? 0;
-    if (!bonusData && currentPts < 100) {
+
+    // Mark as checked to prevent loop
+    if (typeof window !== "undefined") {
+      localStorage.setItem(storageKey, "true");
+    }
+
+    if (currentPts < 100) {
       console.log("Awarding missing 100 gBits signup bonus to user:", userId);
-      await updatePoints(100, "Welcome Bonus - Joined Glitch Room", "signup", null, userId);
+      const newTotal = currentPts + 100;
+      await supabase.from("profiles").update({ points: newTotal }).eq("id", userId);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("points_updated", { detail: { points: newTotal } }));
+      }
     }
   } catch (err) {
     console.error("Error ensuring signup bonus:", err);
