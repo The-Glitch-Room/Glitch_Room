@@ -84,6 +84,7 @@ const SocialIconSlot = ({
   brandFg,
   value,
   onSave,
+  align = "left",
 }) => {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value || "");
@@ -168,7 +169,7 @@ const SocialIconSlot = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-10 left-1/2 -translate-x-1/2 z-30 w-56 rounded-xl p-3 bg-[#0d0d14] border border-white/10 shadow-2xl"
+            className={`absolute top-10 ${align === "left" ? "left-0" : "right-0"} z-30 w-56 sm:w-60 rounded-xl p-3 bg-[#0d0d14] border border-white/10 shadow-2xl`}
           >
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
               {label} URL
@@ -1238,7 +1239,7 @@ export default function YourProfile() {
 
               {/* 4. Social Links Row */}
               <div className="flex items-center gap-3 pt-4 border-t border-white/5">
-                {SOCIAL_PLATFORMS.map((p) => (
+                {SOCIAL_PLATFORMS.map((p, idx) => (
                   <SocialIconSlot
                     key={p.field}
                     Icon={p.icon}
@@ -1248,6 +1249,7 @@ export default function YourProfile() {
                     brandFg={p.brandFg}
                     value={profile?.[p.field]}
                     onSave={(val) => handleSaveSocial(p.field, val)}
+                    align={idx < 2 ? "left" : "right"}
                   />
                 ))}
               </div>
