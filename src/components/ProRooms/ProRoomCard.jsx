@@ -33,16 +33,19 @@ export const getProRoomLifecycleState = (room) => {
     return { label: "✏️ DRAFT", color: "amber", isLive: false, key: "draft" };
   }
   if (room.status === "results_published") {
-    return { label: "Results Published", color: "purple", isLive: false, key: "completed" };
+    return { label: "RESULTS PUBLISHED", color: "purple", isLive: false, key: "completed" };
   }
   if (room.status === "evaluation") {
-    return { label: "Evaluation", color: "amber", isLive: false, key: "completed" };
+    return { label: "EVALUATION", color: "amber", isLive: false, key: "completed" };
   }
   if (eventEnd && now > eventEnd) {
     return { label: "SUBMISSION CLOSED", color: "gray", isLive: false, key: "completed" };
   }
   if (eventStart && now >= eventStart && (!eventEnd || now <= eventEnd)) {
     return { label: "🔴 LIVE", color: "red", isLive: true, key: "live" };
+  }
+  if (regStart && now < regStart) {
+    return { label: "REGISTRATION NOT OPEN", color: "purple", isLive: false, key: "before_registration" };
   }
   if (regStart && now >= regStart && (!regEnd || now <= regEnd)) {
     return { label: "REGISTRATION OPEN", color: "emerald", isLive: false, key: "registration_open" };
@@ -53,7 +56,7 @@ export const getProRoomLifecycleState = (room) => {
   return { label: "UPCOMING", color: "purple", isLive: false, key: "upcoming" };
 };
 
-const ProRoomCard = ({ room, isRegistered, onSelect }) => {
+const ProRoomCard = ({ room, isRegistered, userRegStatus, onSelect }) => {
   const lifecycle = getProRoomLifecycleState(room);
 
   // Formatting dates
@@ -75,25 +78,40 @@ const ProRoomCard = ({ room, isRegistered, onSelect }) => {
   };
 
   const getButtonText = () => {
-    if (lifecycle.key === "draft") {
-      return "✏️ Resume Editing →";
-    }
-    // 1. Completed / Ended events (SUBMISSION CLOSED / Results Published / Evaluation)
-    if (lifecycle.key === "completed") {
-      return "View Results →";
+    if (lifecycle.key === "draft") return "✏️ Resume Editing →";
+    if (lifecycle.key === "completed") return "View Results →";
+
+    const isApproved = userRegStatus === "approved" || isRegistered === true || isRegistered === "approved";
+    const isPending = userRegStatus === "pending" || isRegistered === "pending";
+
+    // Phase 1: Before Registration Opens
+    if (lifecycle.key === "before_registration") {
+      return "Registration Not Open";
     }
 
-    // 2. Already registered candidate
-    if (isRegistered) {
-      return "Enter Room →";
+    // Phase 2: Registration Open
+    if (lifecycle.key === "registration_open") {
+      if (isApproved) return "Enter Room →";
+      if (isPending) return "Waiting for Approval";
+      return room?.require_application === true ? "Apply Now →" : "Register Now →";
     }
 
-    // 3. Live or Registration Open -> Candidate can register
-    if (lifecycle.key === "registration_open" || lifecycle.isLive) {
-      return "Register Now →";
+    // Phase 3: Registration Closed (Pre-Event)
+    if (lifecycle.key === "registration_closed") {
+      if (isApproved) return "Enter Room →";
+      if (isPending) return "Waiting for Host Approval";
+      return "Registration Closed";
     }
 
-    // 4. Upcoming / Registration Closed
+    // Phase 4: Live Event
+    if (lifecycle.isLive) {
+      if (isApproved) return "Start Assessment →";
+      if (isPending) return "Waiting for Host Approval";
+      return "Registration Closed";
+    }
+
+    if (isApproved) return "Enter Room →";
+    if (isPending) return "Waiting for Approval";
     return "View Room →";
   };
 

@@ -412,21 +412,30 @@ const ProRooms = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRooms.map((room) => {
-                const isReg = Boolean(userRegistrations && room && userRegistrations[room.id]);
+                const regStatus = userRegistrations && room ? userRegistrations[room.id] : undefined;
+                const isReg = regStatus === "approved" || regStatus === "pending" || Boolean(regStatus);
+
                 return (
                   <ProRoomCard
                     key={room.id}
                     room={room}
                     isRegistered={isReg}
+                    userRegStatus={regStatus}
                     onSelect={() => {
                       const state = getProRoomLifecycleState(room);
-                      const isClosed = room.reg_end_at && new Date() > new Date(room.reg_end_at);
+                      const now = new Date();
+                      const regStart = room.reg_start_at ? new Date(room.reg_start_at) : null;
+                      const regEnd = room.reg_end_at ? new Date(room.reg_end_at) : null;
 
                       if (room.status === "draft") {
                         navigate(`/pro-rooms/create?edit=${room.id}`);
                       } else if (isReg || state.key === "completed") {
                         navigate(`/pro-rooms/${room.id}`);
-                      } else if (isClosed) {
+                      } else if (regStart && now < regStart) {
+                        const dateStr = new Date(room.reg_start_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+                        showToast(`Registration for this room opens on ${dateStr}`);
+                        navigate(`/pro-rooms/${room.id}`);
+                      } else if ((regEnd && now > regEnd) || state.isLive) {
                         showToast("Sorry, registration for this room is closed. Please check out other rooms.");
                         navigate(`/pro-rooms/${room.id}`);
                       } else {

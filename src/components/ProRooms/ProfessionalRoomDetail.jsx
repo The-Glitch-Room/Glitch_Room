@@ -891,7 +891,30 @@ const ProfessionalRoomDetail = () => {
                   Check Status Now
                 </button>
               </>
-            ) : room?.reg_end_at && new Date() > new Date(room.reg_end_at) ? (
+            ) : room?.reg_start_at && new Date() < new Date(room.reg_start_at) ? (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center mx-auto">
+                  <Clock size={26} className="text-purple-300" />
+                </div>
+                <h2 className="text-base font-bold text-white">
+                  Registration Not Open Yet
+                </h2>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Registration for this room opens on{" "}
+                  <span className="text-[#00F0FF] font-bold">
+                    {new Date(room.reg_start_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  . Please check back when registration opens!
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate("/pro-rooms")}
+                  className="w-full px-6 py-3 rounded-xl bg-purple-500/15 border border-purple-500/40 text-purple-300 text-xs font-bold hover:bg-purple-500/25 transition cursor-pointer"
+                >
+                  Back to Pro Rooms →
+                </button>
+              </>
+            ) : (room?.reg_end_at && new Date() > new Date(room.reg_end_at)) || lifecycle.isLive ? (
               <>
                 <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
                   <Lock size={26} className="text-amber-400" />

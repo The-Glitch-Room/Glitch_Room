@@ -293,8 +293,8 @@ const ProRoomAssessment = () => {
           .eq("user_id", uid)
           .maybeSingle();
 
-        if (!regRow) {
-          setAccessState("not-registered");
+        if (!regRow || regRow.status !== "approved") {
+          setAccessState(regRow?.status === "pending" ? "pending-approval" : "not-registered");
           setLoading(false);
           return;
         }
