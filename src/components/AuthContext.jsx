@@ -94,11 +94,15 @@ export const AuthProvider = ({ children }) => {
     );
 
     const handleOpenAuth = () => setIsAuthOpen(true);
+    const handleTriggerOnboarding = () => setShowOnboarding(true);
+
     window.addEventListener("open_auth_modal", handleOpenAuth);
+    window.addEventListener("trigger_onboarding", handleTriggerOnboarding);
 
     return () => {
       listener.subscription.unsubscribe();
       window.removeEventListener("open_auth_modal", handleOpenAuth);
+      window.removeEventListener("trigger_onboarding", handleTriggerOnboarding);
     };
   }, []);
 

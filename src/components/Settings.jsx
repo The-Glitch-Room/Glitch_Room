@@ -779,6 +779,18 @@ const Settings = () => {
                 />
               </div>
             </SettingRow>
+
+            <SettingRow
+              label="Feature Catalog Tour"
+              desc="Replay the 4-step onboarding feature tour to explore Game Arena, Creator Rooms, and Pro Rooms"
+            >
+              <button
+                onClick={() => window.dispatchEvent(new Event("trigger_onboarding"))}
+                className="px-3.5 py-1.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 transition cursor-pointer"
+              >
+                Replay Tour ⚡
+              </button>
+            </SettingRow>
           </Section>
 
           {/* ── 3. PRIVACY & SECURITY ── */}
