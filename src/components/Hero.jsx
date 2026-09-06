@@ -20,14 +20,38 @@ const Hero = () => {
   });
 
   const fetchStats = async () => {
-    // 1. Unique creators (distinct created_by from rooms + host_id from pro_rooms)
-    const { data: creatorRooms } = await supabase.from("rooms").select("created_by");
-    const { data: proRooms } = await supabase.from("pro_rooms").select("host_id");
+    // 1. Total Creators. A plain `select("id", { count: "exact" })` against
+    // `profiles` only ever returns what the *current* session's RLS
+    // policies allow it to see — on this public Hero page that's usually
+    // "no rows" (logged out) or "just your own row" (logged in), never the
+    // real total across all users, which is why this showed 1 instead of
+    // 4 even though the table has 4 rows. get_total_profiles_count() is a
+    // SECURITY DEFINER RPC (see fix_12_public_profile_count.sql) that
+    // returns only a count, never any row data, so it's safe to expose
+    // publicly without loosening the profiles table's real RLS policies.
+    const { data: profileCountData, error: profileCountError } =
+      await supabase.rpc("get_total_profiles_count");
+
+    if (profileCountError) {
+      console.error("get_total_profiles_count RPC failed:", profileCountError);
+    }
+    const actualProfilesCount = profileCountError
+      ? 0
+      : Number(profileCountData) || 0;
+
+    const { data: creatorRooms } = await supabase
+      .from("rooms")
+      .select("created_by");
+    const { data: proRooms } = await supabase
+      .from("pro_rooms")
+      .select("host_id");
 
     const creatorSet = new Set([
       ...(creatorRooms || []).map((r) => r.created_by).filter(Boolean),
       ...(proRooms || []).map((r) => r.host_id).filter(Boolean),
     ]);
+
+    const totalCreators = Math.max(actualProfilesCount, creatorSet.size, 1);
 
     // 2. Dynamically calculate combined total challenges across Explore + Arena
     const totalChallenges = await fetchTotalChallengeCount();
@@ -36,7 +60,7 @@ const Hero = () => {
     const roomStats = await fetchActiveRoomsStats();
 
     setStats({
-      creators: creatorSet.size || 1,
+      creators: totalCreators,
       challenges: totalChallenges,
       roomsActive: roomStats.totalActiveRooms,
     });
@@ -50,7 +74,7 @@ const Hero = () => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rooms" },
-        () => fetchStats()
+        () => fetchStats(),
       )
       .subscribe();
 
@@ -59,13 +83,23 @@ const Hero = () => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "pro_rooms" },
-        () => fetchStats()
+        () => fetchStats(),
+      )
+      .subscribe();
+
+    const profilesChannel = supabase
+      .channel("hero-profiles")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => fetchStats(),
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(roomsChannel);
       supabase.removeChannel(proRoomsChannel);
+      supabase.removeChannel(profilesChannel);
     };
   }, []);
 
@@ -94,10 +128,6 @@ const Hero = () => {
           backgroundSize: "60px 60px",
         }}
       />
-
-      
-
-      
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-5xl mx-auto flex flex-col items-center pt-6">
