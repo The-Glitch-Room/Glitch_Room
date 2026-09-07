@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -11,6 +11,7 @@ import {
   Zap,
   Swords,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import Navbar from "./Navbar";
@@ -97,6 +98,92 @@ const emptyEventForm = {
   skills: "",
   glitch_scenario: "",
   is_live: true,
+};
+
+// ── Custom Cyberpunk Select Dropdown Component ─────────────────────────────
+const CustomSelect = ({ options, value, onChange, placeholder = "Select option" }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const selectedOption = options.find((o) => o.value === value) || options[0];
+
+  return (
+    <div ref={ref} className="relative z-30 mb-3">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a12] border border-white/10 hover:border-cyan-500/40 text-white text-sm flex items-center justify-between transition cursor-pointer select-none"
+        style={{
+          borderColor: open ? "#00F0FF" : undefined,
+          boxShadow: open ? "0 0 15px rgba(0, 240, 255, 0.2)" : "none",
+        }}
+      >
+        <span className={selectedOption?.value ? "text-white font-medium" : "text-gray-400"}>
+          {selectedOption?.label || placeholder}
+        </span>
+        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronDown size={16} className="text-cyan-400 opacity-80" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 rounded-xl bg-[#0d0d16] border border-cyan-500/30 shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_15px_rgba(0,240,255,0.1)] overflow-hidden py-1"
+          >
+            <div className="max-h-56 overflow-y-auto custom-scrollbar">
+              {options.map((opt) => {
+                const isSelected = opt.value === value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer"
+                    style={{
+                      background: isSelected ? "rgba(0, 240, 255, 0.12)" : "transparent",
+                      color: isSelected ? "#00F0FF" : "rgba(255, 255, 255, 0.8)",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <span className="font-semibold">{opt.label}</span>
+                    {isSelected && <Check size={14} className="text-[#00F0FF]" />}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 };
 
 // ── Small shared bits ──────────────────────────────────────────────────────
@@ -466,19 +553,13 @@ const ChallengesTab = () => {
                 </p>
 
                 <label className={labelClass}>Section</label>
-                <select
+                <CustomSelect
+                  options={EXPLORE_SECTIONS}
                   value={form.explore_section}
-                  onChange={(e) =>
-                    setForm({ ...form, explore_section: e.target.value })
+                  onChange={(val) =>
+                    setForm({ ...form, explore_section: val })
                   }
-                  className={`${inputClass} mb-3`}
-                >
-                  {EXPLORE_SECTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
+                />
 
                 {form.explore_section && (
                   <>
