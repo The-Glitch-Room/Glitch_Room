@@ -96,22 +96,37 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
 
     if (userId) {
       try {
+        // Use the real database id/type when available (set by mapCommon
+        // for anything sourced from the challenges table) — falls back to
+        // challenge.id/type only for the rare case neither is present.
+        const realChallengeId = String(challenge.dbId ?? challenge.id);
+        const realChallengeType = challenge.type || "explore";
+
         await supabase.from("challenge_submissions").insert([
           {
             user_id: userId,
-            challenge_id: challenge.id,
-            challenge_type: challenge.type || "explore",
+            challenge_id: realChallengeId,
+            challenge_type: realChallengeType,
             answer: answer.trim(),
             points_earned: pointsToEarn,
             time_taken_seconds: 45,
           },
         ]);
 
+        // Argument order matches updatePoints' real signature in
+        // pointsHelper.js: (delta, title, type, roomId, targetUserId).
+        // Previously this passed (userId, pointsToEarn, titleString,
+        // challengeType) — every argument one position off, so `delta`
+        // received a user ID string instead of the point amount. Since
+        // updatePoints writes `delta` straight into glitch_activity.points
+        // (which the DB trigger sums into the real total), Explore
+        // solves were never correctly reaching the total gBits at all.
         await updatePoints(
-          userId,
           pointsToEarn,
           `Solved ${challenge.title} (${challenge.category || "Explore Challenge"})`,
-          challenge.type || "explore",
+          realChallengeType,
+          null,
+          userId,
         );
       } catch (e) {
         console.error("Submission error:", e);
@@ -423,6 +438,18 @@ const Explore = () => {
           solution: x.solution,
           start_time: x.start_time,
           end_time: x.end_time,
+          // The real database id/type — separate from the `id` field set
+          // below (which is a prefixed string like "db-3", used only as a
+          // React list key so items can't collide across sections). The
+          // solver modal needs the REAL id/type for challenge_submissions,
+          // or a reused glitch/bug/ai/spark challenge solved here would
+          // get recorded under a fake "explore" type with a non-numeric
+          // id — meaning hasPriorSubmissions/checkIfSolved/
+          // hasPassedChallenge on that challenge's real page would never
+          // find it, and the same challenge could be "solved" twice for
+          // double the gBits.
+          dbId: x.id,
+          type: x.type,
         });
 
         const daily = dbItems.filter(
