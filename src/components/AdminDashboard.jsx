@@ -27,14 +27,37 @@ const CHALLENGE_TYPES = [
   { value: "bug", label: "Debug Mode", color: "#FF6B00" },
   { value: "ai", label: "AI Powered", color: "#FF00C8" },
   { value: "spark", label: "Creative Sparks", color: "#A855F7" },
-  { value: "explore_daily", label: "Explore: Daily Glitch", color: "#FF00C8" },
-  { value: "explore_weekly", label: "Explore: Weekly Challenge", color: "#00F0FF" },
-  { value: "explore_flash", label: "Explore: Flash Event", color: "#F59E0B" },
-  { value: "explore_live", label: "Explore: Live Battle", color: "#EF4444" },
-  { value: "explore_upcoming", label: "Explore: Upcoming Battle", color: "#38BDF8" },
-  { value: "explore_featured", label: "Explore: Featured Pick", color: "#A855F7" },
-  { value: "explore_archived", label: "Explore: Archived Vault", color: "#10B981" },
+  // For content that should ONLY ever exist via Explore's dynamic
+  // sections, not on any of the 4 library pages above. To instead REUSE
+  // an existing glitch/bug/ai/spark challenge in Explore, just edit that
+  // challenge directly and set its Explore Placement below — don't
+  // create a duplicate here.
+  { value: "explore_original", label: "Explore Exclusive", color: "#10B981" },
 ];
+
+const EXPLORE_SECTIONS = [
+  { value: "", label: "Not placed in Explore" },
+  { value: "daily", label: "Daily Glitches" },
+  { value: "weekly", label: "Weekly Glitches" },
+  { value: "battle", label: "Live / Upcoming Battles" },
+];
+
+// Local-only helpers for the datetime-local <input>, which needs
+// "YYYY-MM-DDTHH:mm" and can't read/write a Postgres timestamptz string
+// directly.
+const toDatetimeLocal = (isoString) => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const fromDatetimeLocal = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+};
 
 const JSON_SOURCES = {
   glitch: glitchesJson,
@@ -61,6 +84,10 @@ const emptyChallengeForm = {
   hint: "",
   solution: "",
   prompt: "",
+  explore_section: "",
+  start_time: "",
+  end_time: "",
+  is_featured: false,
 };
 
 const emptyEventForm = {
@@ -134,11 +161,23 @@ const ChallengesTab = () => {
       description: item.description || "",
       category: item.category || "",
       difficulty: item.difficulty || "Medium",
-      points: item.points || (item.difficulty === "Easy" ? 25 : item.difficulty === "Hard" ? 75 : item.difficulty === "Expert" ? 90 : 50),
+      points:
+        item.points ||
+        (item.difficulty === "Easy"
+          ? 25
+          : item.difficulty === "Hard"
+            ? 75
+            : item.difficulty === "Expert"
+              ? 90
+              : 50),
       code: item.code || "",
       hint: item.hint || "",
       solution: item.solution || "",
       prompt: item.prompt || "",
+      explore_section: item.explore_section || "",
+      start_time: toDatetimeLocal(item.start_time),
+      end_time: toDatetimeLocal(item.end_time),
+      is_featured: !!item.is_featured,
     });
     setEditingId(item.id);
   };
@@ -153,6 +192,18 @@ const ChallengesTab = () => {
       setBanner({ type: "error", message: "Title is required." });
       return;
     }
+
+    const startIso = fromDatetimeLocal(form.start_time);
+    const endIso = fromDatetimeLocal(form.end_time);
+
+    if (startIso && endIso && new Date(endIso) <= new Date(startIso)) {
+      setBanner({
+        type: "error",
+        message: "End time must be after start time.",
+      });
+      return;
+    }
+
     setSaving(true);
     setBanner({ type: "", message: "" });
 
@@ -166,6 +217,10 @@ const ChallengesTab = () => {
       hint: form.hint ? form.hint.trim() : null,
       solution: form.solution ? form.solution.trim() : null,
       prompt: form.prompt ? form.prompt.trim() : null,
+      explore_section: form.explore_section || null,
+      start_time: startIso,
+      end_time: endIso,
+      is_featured: !!form.is_featured,
     };
 
     if (editingId === "new") {
@@ -344,7 +399,14 @@ const ChallengesTab = () => {
                         setForm({
                           ...form,
                           difficulty: d,
-                          points: d === "Easy" ? 25 : d === "Hard" ? 75 : d === "Expert" ? 90 : 50,
+                          points:
+                            d === "Easy"
+                              ? 25
+                              : d === "Hard"
+                                ? 75
+                                : d === "Expert"
+                                  ? 90
+                                  : 50,
                         })
                       }
                       className="flex-1 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer"
@@ -369,7 +431,9 @@ const ChallengesTab = () => {
               </div>
 
               <div className="mb-4">
-                <label className={labelClass}>gBits Reward (10 to 100 gBits)</label>
+                <label className={labelClass}>
+                  gBits Reward (10 to 100 gBits)
+                </label>
                 <input
                   type="number"
                   min="10"
@@ -378,12 +442,105 @@ const ChallengesTab = () => {
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      points: Math.min(100, Math.max(10, parseInt(e.target.value || "0", 10))),
+                      points: Math.min(
+                        100,
+                        Math.max(10, parseInt(e.target.value || "0", 10)),
+                      ),
                     })
                   }
                   className={inputClass}
                   placeholder="Points reward (Easy: 25, Medium: 50, Hard: 75, Expert: 90)"
                 />
+              </div>
+
+              <div className="mb-4 p-4 rounded-xl bg-white/[0.03] border border-white/8">
+                <p className="text-xs font-bold text-gray-300 mb-1">
+                  Explore Placement
+                </p>
+                <p className="text-[10px] text-gray-600 mb-3">
+                  Optional — shows this exact challenge (not a copy) in one of
+                  Explore's dynamic sections too, in addition to its normal{" "}
+                  {CHALLENGE_TYPES.find((t) => t.value === type)?.label ||
+                    "page"}{" "}
+                  listing.
+                </p>
+
+                <label className={labelClass}>Section</label>
+                <select
+                  value={form.explore_section}
+                  onChange={(e) =>
+                    setForm({ ...form, explore_section: e.target.value })
+                  }
+                  className={`${inputClass} mb-3`}
+                >
+                  {EXPLORE_SECTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+
+                {form.explore_section && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className={labelClass}>Start Time</label>
+                        <input
+                          type="datetime-local"
+                          value={form.start_time}
+                          onChange={(e) =>
+                            setForm({ ...form, start_time: e.target.value })
+                          }
+                          className={inputClass}
+                        />
+                        <p className="text-[10px] text-gray-600 mt-1">
+                          {form.explore_section === "battle"
+                            ? "Before this time it shows under Upcoming."
+                            : "When this active window opens."}{" "}
+                          Leave blank to make it active immediately.
+                        </p>
+                      </div>
+                      <div>
+                        <label className={labelClass}>End Time</label>
+                        <input
+                          type="datetime-local"
+                          value={form.end_time}
+                          onChange={(e) =>
+                            setForm({ ...form, end_time: e.target.value })
+                          }
+                          className={inputClass}
+                        />
+                        <p className="text-[10px] text-gray-600 mt-1">
+                          {form.explore_section === "battle"
+                            ? "Between Start and End it shows under Live. "
+                            : ""}
+                          Once this passes, it automatically moves to Past
+                          Challenges & Vault Archive. Leave blank to never
+                          expire.
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={form.is_featured}
+                    onChange={(e) =>
+                      setForm({ ...form, is_featured: e.target.checked })
+                    }
+                    className="w-4 h-4 rounded accent-purple-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-gray-300">
+                    Mark as Featured / Editor's Choice
+                  </span>
+                </label>
+                <p className="text-[10px] text-gray-600 mt-1 ml-6">
+                  Independent of Section above — can be featured with or without
+                  also being placed in Daily/Weekly/Battle. Won't show as
+                  Featured once its End Time (if any) has passed.
+                </p>
               </div>
 
               {type !== "spark" && (
@@ -490,9 +647,54 @@ const ChallengesTab = () => {
                 #{item.id}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-semibold truncate">
-                  {item.title}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-white text-sm font-semibold truncate">
+                    {item.title}
+                  </p>
+                  {item.explore_section &&
+                    (() => {
+                      const now = new Date();
+                      const start = item.start_time
+                        ? new Date(item.start_time)
+                        : null;
+                      const end = item.end_time
+                        ? new Date(item.end_time)
+                        : null;
+                      const isPast = end && end < now;
+                      const isUpcoming = start && start > now;
+                      const label = isPast
+                        ? "Ended"
+                        : isUpcoming
+                          ? "Upcoming"
+                          : "Active";
+                      const color = isPast
+                        ? "#6b7280"
+                        : isUpcoming
+                          ? "#38BDF8"
+                          : "#22c55e";
+                      const sectionLabel = EXPLORE_SECTIONS.find(
+                        (s) => s.value === item.explore_section,
+                      )?.label;
+                      return (
+                        <span
+                          className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border shrink-0"
+                          style={{
+                            color,
+                            borderColor: `${color}40`,
+                            background: `${color}15`,
+                          }}
+                          title={sectionLabel}
+                        >
+                          {label} · {sectionLabel}
+                        </span>
+                      );
+                    })()}
+                  {item.is_featured && (
+                    <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border border-purple-500/40 bg-purple-500/15 text-purple-300 shrink-0">
+                      ★ Featured
+                    </span>
+                  )}
+                </div>
                 <p className="text-gray-600 text-xs truncate">
                   {item.category || "Uncategorized"} · {item.difficulty}
                 </p>

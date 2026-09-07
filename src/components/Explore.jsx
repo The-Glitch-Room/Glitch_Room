@@ -111,7 +111,7 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
           userId,
           pointsToEarn,
           `Solved ${challenge.title} (${challenge.category || "Explore Challenge"})`,
-          challenge.type || "explore"
+          challenge.type || "explore",
         );
       } catch (e) {
         console.error("Submission error:", e);
@@ -164,7 +164,9 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
               Challenge Completed!
             </p>
             <p className="text-gray-400 text-xs font-mono">
-              <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(challenge.points || 40, 100)} gBits added to your balance & Uptime Streak updated!
+              <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
+              {Math.min(challenge.points || 40, 100)} gBits added to your
+              balance & Uptime Streak updated!
             </p>
           </div>
         ) : (
@@ -201,7 +203,11 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-1.5 text-xs text-amber-400 font-mono">
                 <Award size={13} />
-                <span>Reward: <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(challenge.points || 40, 100)} gBits</span>
+                <span>
+                  Reward:{" "}
+                  <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
+                  +{Math.min(challenge.points || 40, 100)} gBits
+                </span>
               </div>
 
               <div className="flex gap-2">
@@ -233,15 +239,61 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
 };
 
 // ── Coming Soon Section Component ─────────────────────────────────────────────
-const ComingSoonBanner = ({ message = "No active challenges in this section right now. New challenges will be published soon from the Admin Panel!" }) => (
+const ComingSoonBanner = ({
+  message = "No active challenges in this section right now. New challenges will be published soon from the Admin Panel!",
+}) => (
   <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-8 text-center space-y-2">
     <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-gray-400">
       <Clock size={20} />
     </div>
     <h4 className="text-base font-bold text-white">Coming Soon</h4>
-    <p className="text-xs text-gray-400 max-w-md mx-auto">
-      {message}
-    </p>
+    <p className="text-xs text-gray-400 max-w-md mx-auto">{message}</p>
+  </div>
+);
+
+// ── Compact card used inside the Daily/Weekly columns (Section 1) ──────────
+const TimeBoundChallengeCard = ({ item, isCompleted, onSolve, accent }) => (
+  <div className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition">
+    <div className="min-w-0 mr-4">
+      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+        <span
+          className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md"
+          style={{
+            color: accent,
+            background: `${accent}15`,
+            border: `1px solid ${accent}30`,
+          }}
+        >
+          {item.category}
+        </span>
+        <span className="text-xs font-mono text-amber-400 font-semibold">
+          <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
+          {Math.min(item.points, 100)} gBits
+        </span>
+      </div>
+      <h4 className="text-base font-bold text-white truncate mb-1">
+        {item.title}
+      </h4>
+      <p className="text-xs text-gray-400 mb-1.5">{item.description}</p>
+      <span className="text-[11px] font-mono text-gray-500 flex items-center gap-1.5">
+        <Clock size={12} /> {item.refreshText}
+      </span>
+    </div>
+
+    {isCompleted ? (
+      <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl shrink-0">
+        <Check size={14} /> Done
+      </span>
+    ) : (
+      <button
+        type="button"
+        onClick={onSolve}
+        className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md shrink-0"
+        style={{ background: `linear-gradient(90deg, ${accent}, #a855f7)` }}
+      >
+        Solve <ChevronRight size={14} />
+      </button>
+    )}
   </div>
 );
 
@@ -256,30 +308,50 @@ const Explore = () => {
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
 
-  const [dailyWeeklyItems, setDailyWeeklyItems] = useState([]);
+  const [dailyItems, setDailyItems] = useState([]);
+  const [weeklyItems, setWeeklyItems] = useState([]);
   const [liveItems, setLiveItems] = useState([]);
   const [upcomingItems, setUpcomingItems] = useState([]);
   const [featuredItems, setFeaturedItems] = useState([]);
   const [archivedItems, setArchivedItems] = useState([]);
 
-  const [liveSeconds, setLiveSeconds] = useState(145 * 60);
-  const [upcomingSeconds, setUpcomingSeconds] = useState(210 * 60);
-
+  // Real-time tick — every section's Upcoming/Live/Active/Past state is
+  // computed fresh from each challenge's own start_time/end_time on every
+  // render, so ticking this forces those computations (and the per-card
+  // countdowns) to stay live. Replaces the old global liveSeconds/
+  // upcomingSeconds counters, which were fixed starting numbers shared by
+  // every item regardless of that item's actual dates.
+  const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
-    const timer = setInterval(() => {
-      setLiveSeconds((prev) => (prev > 0 ? prev - 1 : 0));
-      setUpcomingSeconds((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   const formatTimer = (totalSeconds) => {
-    const hours = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
+    const s = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
     return `${hours > 0 ? `${hours}h ` : ""}${mins
       .toString()
       .padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`;
+  };
+
+  // Countdown to a specific ISO timestamp, in seconds remaining (0 if
+  // already passed or not set).
+  const secondsUntil = (isoString) => {
+    if (!isoString) return 0;
+    const diff = (new Date(isoString).getTime() - nowTick) / 1000;
+    return diff > 0 ? diff : 0;
+  };
+
+  const formatArchiveDate = (isoString) => {
+    if (!isoString) return "Archived";
+    return new Date(isoString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   useEffect(() => {
@@ -306,7 +378,9 @@ const Explore = () => {
           setCompletedIds(new Set(subs.map((s) => s.challenge_id)));
         }
 
-        const savedReminders = localStorage.getItem(`glitch_reminders_${user.id}`);
+        const savedReminders = localStorage.getItem(
+          `glitch_reminders_${user.id}`,
+        );
         if (savedReminders) {
           try {
             setReminders(new Set(JSON.parse(savedReminders)));
@@ -314,99 +388,146 @@ const Explore = () => {
         }
       }
 
-      // Dynamic fetching from database challenges table
+      // Dynamic fetching — Explore placement is independent of `type` now.
+      // Any challenge (glitch/bug/ai/spark/explore_original) with
+      // explore_section set and/or is_featured=true shows up here, so an
+      // existing library challenge can be reused in Explore without being
+      // duplicated. See fix_16_explore_scheduling.sql.
       const { data: dbItems } = await supabase
         .from("challenges")
         .select("*")
-        .like("type", "explore_%");
+        .or("explore_section.not.is.null,is_featured.eq.true");
 
       if (dbItems && dbItems.length > 0) {
-        const daily = dbItems.filter((i) => i.type === "explore_daily" || i.type === "explore_weekly" || i.type === "explore_flash");
-        const live = dbItems.filter((i) => i.type === "explore_live");
-        const upcoming = dbItems.filter((i) => i.type === "explore_upcoming");
-        const featured = dbItems.filter((i) => i.type === "explore_featured");
-        const archived = dbItems.filter((i) => i.type === "explore_archived");
+        const now = new Date();
+        const isPast = (i) => !!i.end_time && new Date(i.end_time) < now;
+        const isUpcoming = (i) =>
+          !!i.start_time && new Date(i.start_time) > now;
+        // "Active" = started (or no start set) AND not yet ended (or no
+        // end set). A tagged challenge with no dates at all is always
+        // active, so tagging one in without setting dates still works.
+        const isActiveNow = (i) => !isUpcoming(i) && !isPast(i);
 
-        if (daily.length > 0) {
-          setDailyWeeklyItems(daily.map(d => ({
+        const mapCommon = (x) => ({
+          points:
+            x.points ||
+            (x.difficulty === "Easy"
+              ? 25
+              : x.difficulty === "Hard"
+                ? 75
+                : x.difficulty === "Expert"
+                  ? 90
+                  : 50),
+          description: x.description,
+          codeSnippet: x.code,
+          solution: x.solution,
+          start_time: x.start_time,
+          end_time: x.end_time,
+        });
+
+        const daily = dbItems.filter(
+          (i) => i.explore_section === "daily" && isActiveNow(i),
+        );
+        const weekly = dbItems.filter(
+          (i) => i.explore_section === "weekly" && isActiveNow(i),
+        );
+        const battles = dbItems.filter((i) => i.explore_section === "battle");
+        const live = battles.filter((i) => isActiveNow(i) && !isUpcoming(i));
+        const upcoming = battles.filter((i) => isUpcoming(i));
+        const featured = dbItems.filter((i) => i.is_featured && !isPast(i));
+        const archived = dbItems.filter((i) => isPast(i));
+
+        setDailyItems(
+          daily.map((d) => ({
             id: `db-${d.id}`,
             title: d.title,
-            category: d.category || (d.type === "explore_daily" ? "Daily Challenge" : d.type === "explore_weekly" ? "Weekly Challenge" : "Flash Glitch"),
+            category: d.category || "Daily Challenge",
             difficulty: d.difficulty || "Medium",
-            points: d.points || (d.difficulty === "Easy" ? 25 : d.difficulty === "Hard" ? 75 : d.difficulty === "Expert" ? 90 : 50),
             language: d.category || "JavaScript",
-            description: d.description,
-            refreshText: d.type === "explore_daily" ? "Refreshes at Midnight UTC" : d.type === "explore_weekly" ? "Refreshes Every Monday" : "Ends in 18 Hours",
-            badgeColor: d.type === "explore_daily" ? "#FF00C8" : d.type === "explore_weekly" ? "#00F0FF" : "#F59E0B",
-            codeSnippet: d.code,
-            solution: d.solution,
-          })));
-        }
+            refreshText: "Active Today",
+            ...mapCommon(d),
+          })),
+        );
 
-        if (live.length > 0) {
-          setLiveItems(live.map(l => ({
+        setWeeklyItems(
+          weekly.map((w) => ({
+            id: `db-${w.id}`,
+            title: w.title,
+            category: w.category || "Weekly Challenge",
+            difficulty: w.difficulty || "Medium",
+            language: w.category || "JavaScript",
+            refreshText: "Active This Week",
+            ...mapCommon(w),
+          })),
+        );
+
+        setLiveItems(
+          live.map((l) => ({
             id: `db-live-${l.id}`,
             title: l.title,
             category: "Live Challenge",
             difficulty: l.difficulty || "Medium",
-            points: l.points || (l.difficulty === "Easy" ? 25 : l.difficulty === "Hard" ? 75 : l.difficulty === "Expert" ? 90 : 50),
             language: l.category || "Code Battle",
-            description: l.description,
-            endsInMinutes: 120,
-            participants: 85,
             status: "live",
-            badgeColor: "#EF4444",
-            codeSnippet: l.code,
-            solution: l.solution,
-          })));
-        }
+            ...mapCommon(l),
+          })),
+        );
 
-        if (upcoming.length > 0) {
-          setUpcomingItems(upcoming.map(u => ({
+        setUpcomingItems(
+          upcoming.map((u) => ({
             id: `db-up-${u.id}`,
             title: u.title,
             category: "Upcoming Challenge",
             difficulty: u.difficulty || "Hard",
-            points: u.points || (u.difficulty === "Easy" ? 25 : u.difficulty === "Hard" ? 75 : u.difficulty === "Expert" ? 90 : 50),
             language: u.category || "General",
-            description: u.description,
-            startsInMinutes: 240,
-            participants: 150,
             status: "upcoming",
-            badgeColor: "#38BDF8",
-            codeSnippet: u.code,
-            solution: u.solution,
-          })));
-        }
+            ...mapCommon(u),
+          })),
+        );
 
-        if (featured.length > 0) {
-          setFeaturedItems(featured.map(f => ({
+        setFeaturedItems(
+          featured.map((f) => ({
             id: `db-feat-${f.id}`,
             title: f.title,
             category: "Featured Pick",
             difficulty: f.difficulty || "Easy",
             badge: f.category || "Featured",
-            points: f.points || (f.difficulty === "Easy" ? 25 : f.difficulty === "Hard" ? 75 : f.difficulty === "Expert" ? 90 : 50),
             language: f.category || "Fullstack",
-            description: f.description,
-            badgeColor: "#A855F7",
-            codeSnippet: f.code,
-            solution: f.solution,
-          })));
-        }
+            ...mapCommon(f),
+          })),
+        );
 
         if (archived.length > 0) {
-          setArchivedItems(archived.map(a => ({
-            id: `db-arc-${a.id}`,
-            title: a.title,
-            category: "Archived Vault",
-            difficulty: a.difficulty || "Medium",
-            points: a.points || 50,
-            date: "Aug 2026",
-            winner: "glitch_master",
-            completedBy: 110,
-            rewardClaimed: a.points || 50,
-          })));
+          // Real completedBy count instead of a fabricated number.
+          // ChallengeSolverModal writes challenge_type = the challenge's
+          // real `type` at submit time, and type never changes once
+          // created — only explore_section/dates change — so matching on
+          // (challenge_id, challenge_type) reliably ties submissions back
+          // to these rows regardless of what type they are.
+          const archivedTypes = [...new Set(archived.map((a) => a.type))];
+          const { data: subs } = await supabase
+            .from("challenge_submissions")
+            .select("challenge_id, challenge_type")
+            .in("challenge_type", archivedTypes);
+
+          const completionCounts = {};
+          (subs || []).forEach((s) => {
+            const key = `${s.challenge_type}::${s.challenge_id}`;
+            completionCounts[key] = (completionCounts[key] || 0) + 1;
+          });
+
+          setArchivedItems(
+            archived.map((a) => ({
+              id: `db-arc-${a.id}`,
+              title: a.title,
+              category: a.category || "Archived Vault",
+              difficulty: a.difficulty || "Medium",
+              completedBy: completionCounts[`${a.type}::${a.id}`] || 0,
+              ...mapCommon(a),
+            })),
+          );
+        } else {
+          setArchivedItems([]);
         }
       }
 
@@ -432,7 +553,7 @@ const Explore = () => {
     if (authUser?.id) {
       localStorage.setItem(
         `glitch_reminders_${authUser.id}`,
-        JSON.stringify(Array.from(next))
+        JSON.stringify(Array.from(next)),
       );
     }
   };
@@ -440,7 +561,9 @@ const Explore = () => {
   const handleChallengeCompleted = (id, pointsEarned) => {
     setCompletedIds((prev) => new Set(prev).add(id));
     setUserPoints((prev) => prev + pointsEarned);
-    showToast(`🎉 Challenge solved! +${pointsEarned} gBits added & Uptime updated.`);
+    showToast(
+      `🎉 Challenge solved! +${pointsEarned} gBits added & Uptime updated.`,
+    );
   };
 
   const showToast = (msg) => {
@@ -460,8 +583,10 @@ const Explore = () => {
           backgroundImage: `linear-gradient(rgba(0,240,255,0.25) 1px, transparent 1px),
                             linear-gradient(90deg, rgba(0,240,255,0.25) 1px, transparent 1px)`,
           backgroundSize: "60px 60px",
-          maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
-          WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
+          maskImage:
+            "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%)",
         }}
       />
 
@@ -544,65 +669,73 @@ const Explore = () => {
               </span>
             </div>
 
-            {dailyWeeklyItems.length === 0 ? (
-              <ComingSoonBanner message="No active Daily or Weekly Glitches right now. Add challenges from the Admin Panel to feature them here!" />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {dailyWeeklyItems.map((item) => {
-                  const isCompleted = completedIds.has(item.id);
-                  return (
-                    <motion.div
-                      key={item.id}
-                      whileHover={{ y: -5 }}
-                      transition={{ duration: 0.2 }}
-                      className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
-                            {item.category}
-                          </span>
-                          <div className="flex items-center gap-1.5 text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                            <Award size={13} />
-                            <span><GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(item.points, 100)} gBits</span>
-                          </div>
-                        </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Daily Glitches Column */}
+              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <Flame size={18} className="text-[#FF00C8]" />
+                    <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
+                      Daily Glitches
+                    </h3>
+                  </div>
+                  {dailyItems.length > 0 && (
+                    <span className="text-xs font-mono text-[#FF00C8] font-bold bg-[#FF00C8]/10 border border-[#FF00C8]/20 px-3 py-1 rounded-full">
+                      Active
+                    </span>
+                  )}
+                </div>
 
-                        <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#00F0FF] transition">
-                          {item.title}
-                        </h3>
-                        <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                          {item.description}
-                        </p>
-                      </div>
-
-                      <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                        <span className="text-xs font-mono text-gray-400 flex items-center gap-1.5">
-                          <Clock size={13} /> {item.refreshText}
-                        </span>
-
-                        {isCompleted ? (
-                          <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl">
-                            <Check size={14} /> Completed
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setActiveSolverChallenge(item)}
-                            className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md"
-                            style={{
-                              background: "linear-gradient(90deg, #00F0FF, #a855f7)",
-                            }}
-                          >
-                            Solve <ChevronRight size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                {dailyItems.length === 0 ? (
+                  <ComingSoonBanner message="No active Daily challenges right now. Tag one in from the Admin Panel to feature it here!" />
+                ) : (
+                  <div className="space-y-4">
+                    {dailyItems.map((item) => (
+                      <TimeBoundChallengeCard
+                        key={item.id}
+                        item={item}
+                        isCompleted={completedIds.has(item.id)}
+                        onSolve={() => setActiveSolverChallenge(item)}
+                        accent="#FF00C8"
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Weekly Glitches Column */}
+              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <Calendar size={18} className="text-[#00F0FF]" />
+                    <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
+                      Weekly Glitches
+                    </h3>
+                  </div>
+                  {weeklyItems.length > 0 && (
+                    <span className="text-xs font-mono text-[#00F0FF] font-bold bg-[#00F0FF]/10 border border-[#00F0FF]/20 px-3 py-1 rounded-full">
+                      Active
+                    </span>
+                  )}
+                </div>
+
+                {weeklyItems.length === 0 ? (
+                  <ComingSoonBanner message="No active Weekly challenges right now. Tag one in from the Admin Panel to feature it here!" />
+                ) : (
+                  <div className="space-y-4">
+                    {weeklyItems.map((item) => (
+                      <TimeBoundChallengeCard
+                        key={item.id}
+                        item={item}
+                        isCompleted={completedIds.has(item.id)}
+                        onSolve={() => setActiveSolverChallenge(item)}
+                        accent="#00F0FF"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </motion.section>
 
           {/* ─────────────────────────────────────────────────────────────────
@@ -644,7 +777,7 @@ const Explore = () => {
                   </div>
                   {liveItems.length > 0 && (
                     <span className="text-xs font-mono text-red-400 font-bold bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">
-                      {formatTimer(liveSeconds)}
+                      {liveItems.length} Live Now
                     </span>
                   )}
                 </div>
@@ -655,19 +788,26 @@ const Explore = () => {
                   <div className="space-y-4">
                     {liveItems.map((ch) => {
                       const isDone = completedIds.has(ch.id);
+                      const remaining = secondsUntil(ch.end_time);
                       return (
                         <div
                           key={ch.id}
                           className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
                         >
                           <div className="min-w-0 mr-4">
-                            <div className="flex items-center gap-2 mb-1.5">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                               <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md font-bold">
                                 LIVE NOW
                               </span>
                               <span className="text-xs font-mono text-amber-400 font-semibold">
-                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(ch.points, 100)} gBits
+                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
+                                +{Math.min(ch.points, 100)} gBits
                               </span>
+                              {ch.end_time && (
+                                <span className="text-[10px] font-mono text-red-300">
+                                  Ends in {formatTimer(remaining)}
+                                </span>
+                              )}
                             </div>
                             <h4 className="text-base font-bold text-white truncate mb-1">
                               {ch.title}
@@ -708,7 +848,7 @@ const Explore = () => {
                   </div>
                   {upcomingItems.length > 0 && (
                     <span className="text-xs font-mono text-[#38BDF8] font-bold bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-3 py-1 rounded-full">
-                      Opens in {formatTimer(upcomingSeconds)}
+                      {upcomingItems.length} Scheduled
                     </span>
                   )}
                 </div>
@@ -719,19 +859,26 @@ const Explore = () => {
                   <div className="space-y-4">
                     {upcomingItems.map((ch) => {
                       const isSet = reminders.has(ch.id);
+                      const untilStart = secondsUntil(ch.start_time);
                       return (
                         <div
                           key={ch.id}
                           className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
                         >
                           <div className="min-w-0 mr-4">
-                            <div className="flex items-center gap-2 mb-1.5">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                               <span className="text-[10px] font-mono text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-2.5 py-0.5 rounded-md font-bold">
                                 UPCOMING
                               </span>
                               <span className="text-xs font-mono text-amber-400 font-semibold">
-                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(ch.points, 100)} gBits
+                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
+                                +{Math.min(ch.points, 100)} gBits
                               </span>
+                              {ch.start_time && (
+                                <span className="text-[10px] font-mono text-[#38BDF8]">
+                                  Opens in {formatTimer(untilStart)}
+                                </span>
+                              )}
                             </div>
                             <h4 className="text-base font-bold text-white truncate mb-1">
                               {ch.title}
@@ -743,7 +890,9 @@ const Explore = () => {
 
                           <button
                             type="button"
-                            onClick={() => handleToggleReminder(ch.id, ch.title)}
+                            onClick={() =>
+                              handleToggleReminder(ch.id, ch.title)
+                            }
                             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
                               isSet
                                 ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
@@ -799,44 +948,55 @@ const Explore = () => {
               <ComingSoonBanner message="No featured picks currently. Add challenges in Admin to feature them here!" />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {featuredItems.map((item) => (
-                  <motion.div
-                    key={item.id}
-                    whileHover={{ y: -5 }}
-                    transition={{ duration: 0.2 }}
-                    className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
-                          {item.badge}
-                        </span>
-                        <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                          <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(item.points, 100)} gBits
-                        </span>
+                {featuredItems.map((item) => {
+                  const isCompleted = completedIds.has(item.id);
+                  return (
+                    <motion.div
+                      key={item.id}
+                      whileHover={{ y: -5 }}
+                      transition={{ duration: 0.2 }}
+                      className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
+                            {item.badge}
+                          </span>
+                          <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                            <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
+                            +{Math.min(item.points, 100)} gBits
+                          </span>
+                        </div>
+
+                        <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#A855F7] transition">
+                          {item.title}
+                        </h3>
+                        <p className="text-xs text-gray-400 mb-6 leading-relaxed">
+                          {item.description}
+                        </p>
                       </div>
 
-                      <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#A855F7] transition">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                        {item.description}
-                      </p>
-                    </div>
-
-                    <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                      <span className="text-xs font-mono text-gray-400">
-                        {item.language}
-                      </span>
-                      <Link
-                        to={item.path || "/glitches"}
-                        className="flex items-center gap-1.5 text-xs font-bold text-[#A855F7] hover:underline"
-                      >
-                        Solve <ArrowUpRight size={14} />
-                      </Link>
-                    </div>
-                  </motion.div>
-                ))}
+                      <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                        <span className="text-xs font-mono text-gray-400">
+                          {item.language}
+                        </span>
+                        {isCompleted ? (
+                          <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl">
+                            <Check size={14} /> Completed
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setActiveSolverChallenge(item)}
+                            className="flex items-center gap-1.5 text-xs font-bold text-[#A855F7] hover:underline cursor-pointer"
+                          >
+                            Solve <ArrowUpRight size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </motion.section>
@@ -870,7 +1030,11 @@ const Explore = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {CORE_CHALLENGE_TYPES.map((cat) => {
                 const Icon = cat.icon;
-                const count = categoryCounts[cat.dbKey] || categoryCounts[cat.id] || categoryCounts[cat.id.replace("-challenges", "")] || 0;
+                const count =
+                  categoryCounts[cat.dbKey] ||
+                  categoryCounts[cat.id] ||
+                  categoryCounts[cat.id.replace("-challenges", "")] ||
+                  0;
                 return (
                   <Link
                     key={cat.id}
@@ -935,7 +1099,8 @@ const Explore = () => {
                     5. Past Challenges & Vault Archive
                   </h2>
                   <p className="text-xs text-gray-400 font-mono mt-0.5">
-                    Completed historical battles & hall of fame solution references
+                    Completed historical battles & hall of fame solution
+                    references
                   </p>
                 </div>
               </div>
@@ -953,23 +1118,26 @@ const Explore = () => {
                     <div>
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-mono text-gray-400 uppercase tracking-wider bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
-                          {item.date}
+                          Ended {formatArchiveDate(item.end_time)}
                         </span>
                         <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                          <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+{Math.min(item.rewardClaimed || item.points || 50, 100)} gBits
+                          <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
+                          +{Math.min(item.points || 50, 100)} gBits
                         </span>
                       </div>
                       <h4 className="font-bold text-white text-base mb-2">
                         {item.title}
                       </h4>
                       <p className="text-xs text-gray-400">
-                        Completed by {item.completedBy || 100} developers
+                        Completed by {item.completedBy} developer
+                        {item.completedBy === 1 ? "" : "s"}
                       </p>
                     </div>
 
-                    <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-between text-xs font-mono text-gray-400">
-                      <span>Top Solver: <strong className="text-white">@{item.winner || "glitch_master"}</strong></span>
-                      <span className="text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">Archived ✓</span>
+                    <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-end text-xs font-mono text-gray-400">
+                      <span className="text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                        Archived ✓
+                      </span>
                     </div>
                   </div>
                 ))}
