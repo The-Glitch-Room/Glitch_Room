@@ -146,14 +146,14 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 py-8 sm:py-12 bg-black/80 backdrop-blur-md overflow-y-auto"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
         initial={{ opacity: 0, y: 25, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 15, scale: 0.96 }}
-        className="relative w-full max-w-xl bg-[#0d0d16] border border-white/10 rounded-2xl p-6 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-xl bg-[#0d0d16] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto my-auto custom-scrollbar"
       >
         <div className="flex items-start justify-between mb-4">
           <div>
