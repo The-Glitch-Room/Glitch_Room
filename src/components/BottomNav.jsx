@@ -208,6 +208,8 @@ const BottomNav = () => {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
 
+  if (location.pathname.startsWith("/admin")) return null;
+
   const isActive = (path) => {
     if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);

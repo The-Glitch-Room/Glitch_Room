@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 import {
   Plus,
   Pencil,
@@ -12,10 +13,10 @@ import {
   Swords,
   AlertCircle,
   ChevronDown,
+  ArrowLeft,
+  Home,
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
-import Navbar from "./Navbar";
-import Footer from "./Footer";
 
 // JSON sources used only by the one-time migration tool below
 import glitchesJson from "../data/glitches.json";
@@ -1304,9 +1305,23 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#080810] text-white flex flex-col">
-      <Navbar />
+      <main className="max-w-5xl mx-auto w-full px-6 py-8 md:py-12 flex-1">
+        {/* Navigation Header */}
+        <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/8">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-cyan-500/40 text-gray-300 hover:text-white text-sm font-semibold transition cursor-pointer group shadow-lg"
+          >
+            <ArrowLeft size={16} className="text-cyan-400 transition-transform group-hover:-translate-x-1" />
+            <span>Back to Home</span>
+          </Link>
 
-      <main className="max-w-5xl mx-auto w-full px-6 py-28 flex-1">
+          <div className="flex items-center gap-2 text-xs font-mono text-gray-500">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>ADMIN PORTAL</span>
+          </div>
+        </div>
+
         <div className="mb-8">
           <span className="inline-block px-3 py-1 mb-3 text-[10px] font-bold tracking-widest uppercase bg-purple-500/10 border border-purple-500/25 rounded-full text-purple-400">
             🔐 Admin Only
@@ -1346,8 +1361,6 @@ const AdminDashboard = () => {
         {tab === "arena" && <ArenaEventsTab />}
         {tab === "migrate" && <MigrationTab />}
       </main>
-
-      <Footer />
     </div>
   );
 };
