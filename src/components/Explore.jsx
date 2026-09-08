@@ -943,44 +943,50 @@ const Explore = () => {
                       return (
                         <div
                           key={ch.id}
-                          className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
+                          className="bg-[#07070d] border border-white/5 rounded-2xl p-6 hover:border-white/15 transition flex flex-col justify-between"
                         >
-                          <div className="min-w-0 mr-4">
-                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                              <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md font-bold">
+                          <div>
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                              <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md font-bold flex items-center gap-1.5 shrink-0">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                                </span>
                                 LIVE NOW
                               </span>
-                              <span className="text-xs font-mono text-amber-400 font-semibold">
-                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
-                                +{Math.min(ch.points, 100)} gBits
+                              <span className="text-xs font-mono text-amber-400 font-semibold shrink-0">
+                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
+                                {Math.min(ch.points, 100)} gBits
                               </span>
-                              {ch.end_time && (
-                                <span className="text-[10px] font-mono text-red-300">
-                                  Ends in {formatTimer(remaining)}
-                                </span>
-                              )}
                             </div>
-                            <h4 className="text-base font-bold text-white truncate mb-1">
-                              {ch.title}
-                            </h4>
-                            <p className="text-xs text-gray-400">
+
+                            <h4 className="text-base font-bold text-white mb-2">{ch.title}</h4>
+                            <p className="text-xs text-gray-400 leading-relaxed mb-5 line-clamp-3">
                               {ch.description}
                             </p>
                           </div>
 
-                          {isDone ? (
-                            <span className="text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-4 py-2 rounded-xl shrink-0">
-                              Done ✓
+                          <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-3">
+                            <span className="text-[11px] font-mono text-red-300 flex items-center gap-1.5 min-w-0 truncate">
+                              <Clock size={12} className="shrink-0" />
+                              {ch.end_time ? `Ends in ${formatTimer(remaining)}` : "Active Live Battle"}
                             </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setActiveSolverChallenge(ch)}
-                              className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow-lg"
-                            >
-                              Attempt
-                            </button>
-                          )}
+
+                            {isDone ? (
+                              <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl shrink-0">
+                                <Check size={14} /> Done
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setActiveSolverChallenge(ch)}
+                                className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md shrink-0"
+                                style={{ background: "linear-gradient(90deg, #ef4444, #a855f7)" }}
+                              >
+                                Solve <ChevronRight size={14} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -1014,52 +1020,53 @@ const Explore = () => {
                       return (
                         <div
                           key={ch.id}
-                          className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition"
+                          className="bg-[#07070d] border border-white/5 rounded-2xl p-6 hover:border-white/15 transition flex flex-col justify-between"
                         >
-                          <div className="min-w-0 mr-4">
-                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                              <span className="text-[10px] font-mono text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-2.5 py-0.5 rounded-md font-bold">
-                                UPCOMING
+                          <div>
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 shrink-0">
+                                UPCOMING BATTLE
                               </span>
-                              <span className="text-xs font-mono text-amber-400 font-semibold">
-                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
-                                +{Math.min(ch.points, 100)} gBits
+                              <span className="text-xs font-mono text-amber-400 font-semibold shrink-0">
+                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
+                                {Math.min(ch.points, 100)} gBits
                               </span>
-                              {ch.start_time && (
-                                <span className="text-[10px] font-mono text-[#38BDF8]">
-                                  Opens in {formatTimer(untilStart)}
-                                </span>
-                              )}
                             </div>
-                            <h4 className="text-base font-bold text-white truncate mb-1">
-                              {ch.title}
-                            </h4>
-                            <p className="text-xs text-gray-400">
+
+                            <h4 className="text-base font-bold text-white mb-2">{ch.title}</h4>
+                            <p className="text-xs text-gray-400 leading-relaxed mb-5 line-clamp-3">
                               {ch.description}
                             </p>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleToggleReminder(ch.id, ch.title)
-                            }
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
-                              isSet
-                                ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
-                                : "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
-                            }`}
-                          >
-                            {isSet ? (
-                              <>
-                                <Check size={14} /> Saved
-                              </>
-                            ) : (
-                              <>
-                                <Bell size={14} /> Remind Me
-                              </>
-                            )}
-                          </button>
+                          <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-3">
+                            <span className="text-[11px] font-mono text-[#38BDF8] flex items-center gap-1.5 min-w-0 truncate">
+                              <Clock size={12} className="shrink-0" />
+                              {ch.start_time ? `Opens in ${formatTimer(untilStart)}` : "Opening Soon"}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleToggleReminder(ch.id, ch.title)
+                              }
+                              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
+                                isSet
+                                  ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
+                                  : "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
+                              }`}
+                            >
+                              {isSet ? (
+                                <>
+                                  <Check size={14} /> Saved
+                                </>
+                              ) : (
+                                <>
+                                  <Bell size={14} /> Remind Me
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1101,47 +1108,59 @@ const Explore = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {featuredItems.map((item) => {
                   const isCompleted = completedIds.has(item.id);
+                  const isDupCategory =
+                    item.language &&
+                    item.language.toLowerCase() ===
+                      (item.badge || item.category || "").toLowerCase();
+
                   return (
                     <motion.div
                       key={item.id}
                       whileHover={{ y: -5 }}
                       transition={{ duration: 0.2 }}
-                      className="bg-[#0f0f18] border border-white/10 hover:border-white/25 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
+                      className="bg-[#07070d] border border-white/5 hover:border-white/15 rounded-2xl p-6 flex flex-col justify-between transition-all shadow-xl group"
                     >
                       <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-xs font-mono font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300">
-                            {item.badge}
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                          <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md text-[#A855F7] bg-[#A855F7]/15 border border-[#A855F7]/30 shrink-0">
+                            {item.badge || item.category || "Featured"}
                           </span>
-                          <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                            <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
-                            +{Math.min(item.points, 100)} gBits
+                          <span className="text-xs font-mono text-amber-400 font-semibold shrink-0">
+                            <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
+                            {Math.min(item.points, 100)} gBits
                           </span>
                         </div>
 
-                        <h3 className="font-bold text-white text-base mb-2 group-hover:text-[#A855F7] transition">
+                        <h4 className="text-base font-bold text-white mb-2 group-hover:text-[#A855F7] transition">
                           {item.title}
-                        </h3>
-                        <p className="text-xs text-gray-400 mb-6 leading-relaxed">
+                        </h4>
+                        <p className="text-xs text-gray-400 leading-relaxed mb-5 line-clamp-3">
                           {item.description}
                         </p>
                       </div>
 
-                      <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                        <span className="text-xs font-mono text-gray-400">
-                          {item.language}
+                      <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-mono text-gray-500 flex items-center gap-1.5 min-w-0 truncate">
+                          <Clock size={12} className="shrink-0" />
+                          {!isDupCategory && item.language
+                            ? item.language
+                            : "★ Editor's Choice"}
                         </span>
                         {isCompleted ? (
-                          <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl">
-                            <Check size={14} /> Completed
+                          <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl shrink-0">
+                            <Check size={14} /> Done
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => setActiveSolverChallenge(item)}
-                            className="flex items-center gap-1.5 text-xs font-bold text-[#A855F7] hover:underline cursor-pointer"
+                            className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md shrink-0"
+                            style={{
+                              background:
+                                "linear-gradient(90deg, #A855F7, #00F0FF)",
+                            }}
                           >
-                            Solve <ArrowUpRight size={14} />
+                            Solve <ChevronRight size={14} />
                           </button>
                         )}
                       </div>
