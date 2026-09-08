@@ -9,7 +9,17 @@ import PageHeading from "./PageHeading";
 import GlitchBackground from "./GlitchBackground";
 import { supabase } from "../supabaseClient";
 import { fetchDatabaseCategoryCounts } from "../utils/challengeCountHelper";
-import { updatePoints, hasPassedChallenge } from "../utils/pointsHelper";
+import {
+  updatePoints,
+  hasPassedChallenge,
+  saveSubmission,
+  fetchPoints,
+} from "../utils/pointsHelper";
+import {
+  getVerdict,
+  pointsForScore,
+  PASS_THRESHOLD,
+} from "../utils/feedbackVerdict";
 import {
   Zap,
   Bug,
@@ -30,6 +40,16 @@ import {
   Check,
   Activity,
   Archive,
+  Lightbulb,
+  Lock,
+  Unlock,
+  FileCode,
+  AlertTriangle,
+  Loader2,
+  HelpCircle,
+  Copy,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 // ── 4 Core Challenge Categories ───────────────────────────────────────────────
@@ -77,242 +97,639 @@ const CORE_CHALLENGE_TYPES = [
 ];
 
 // ── Interactive Challenge Solver Modal ────────────────────────────────────────
+// ── Interactive Challenge Solver Modal (2-Column Redesign) ───────────────────
 const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
   const [answer, setAnswer] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evalError, setEvalError] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const [passed, setPassed] = useState(false);
+  const [awardedPoints, setAwardedPoints] = useState(0);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+  const [userBalance, setUserBalance] = useState(0);
 
-  const handleSolve = async () => {
-    if (!answer.trim()) {
-      setError("Please enter your solution or diagnosis.");
-      return;
-    }
-    setSubmitting(true);
-    setError("");
+  // Hint & Solution unlock states
+  const [hintUnlocked, setHintUnlocked] = useState(false);
+  const [solutionUnlocked, setSolutionUnlocked] = useState(false);
+  const [unlockingHint, setUnlockingHint] = useState(false);
+  const [unlockingSolution, setUnlockingSolution] = useState(false);
+  const [unlockError, setUnlockError] = useState("");
+  const [showHintTab, setShowHintTab] = useState(false);
+  const [showSolutionTab, setShowSolutionTab] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
-    const userId = user?.id;
-    const pointsToEarn = Math.min(challenge.points || 40, 100);
+  const realChallengeId = String(challenge.dbId ?? challenge.id);
+  const realChallengeType = challenge.type || "explore";
+  const maxPoints = Math.min(challenge.points || 50, 100);
+  const userId = user?.id;
 
-    // Use the real database id/type when available (set by mapCommon for
-    // anything sourced from the challenges table) — falls back to
-    // challenge.id/type only for the rare case neither is present.
-    const realChallengeId = String(challenge.dbId ?? challenge.id);
-    const realChallengeType = challenge.type || "explore";
+  useEffect(() => {
+    const checkState = async () => {
+      if (!userId) return;
 
-    if (userId) {
+      const pts = await fetchPoints(userId);
+      setUserBalance(pts);
+
+      const hasPassed = await hasPassedChallenge(realChallengeId, realChallengeType);
+      if (hasPassed) {
+        setAlreadyCompleted(true);
+      }
+
       try {
-        // The same underlying challenge can appear under more than one
-        // Explore card (e.g. tagged into both Daily AND Featured) — each
-        // card only knows about itself, so without this check, solving
-        // it once from each card would award points twice for identical
-        // work. hasPassedChallenge is backed by challenge_completions,
-        // the same authoritative table every other challenge type
-        // (glitch/bug/ai/spark) already checks against — so this also
-        // correctly blocks re-earning points for something already
-        // solved on its real library page, not just from another
-        // Explore card.
-        const alreadyPassed = await hasPassedChallenge(
-          realChallengeId,
-          realChallengeType,
-        );
+        const { data: actData } = await supabase
+          .from("glitch_activity")
+          .select("title")
+          .eq("user_id", userId)
+          .ilike("title", `%${challenge.title}%`);
 
-        if (alreadyPassed) {
-          setAlreadyCompleted(true);
-        } else {
-          await supabase.from("challenge_submissions").insert([
-            {
-              user_id: userId,
-              challenge_id: realChallengeId,
-              challenge_type: realChallengeType,
-              answer: answer.trim(),
-              points_earned: pointsToEarn,
-              time_taken_seconds: 45,
-            },
-          ]);
-
-          // Also write challenge_completions, matching what
-          // saveSubmission() does for every other challenge type — this
-          // is the record hasPassedChallenge actually checks, so without
-          // it this same gap reopens the next time this challenge is
-          // encountered from any entry point, Explore or otherwise.
-          await supabase.from("challenge_completions").upsert(
-            {
-              user_id: userId,
-              challenge_id: realChallengeId,
-              challenge_type: realChallengeType,
-              points_earned: pointsToEarn,
-              completed_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id,challenge_id,challenge_type" },
+        if (actData && actData.length > 0) {
+          const hasUnlockedHint = actData.some(
+            (a) => a.title.includes("Hint used") || a.title.includes("Unlocked Hint")
           );
-
-          // Argument order matches updatePoints' real signature in
-          // pointsHelper.js: (delta, title, type, roomId, targetUserId).
-          // Previously this passed (userId, pointsToEarn, titleString,
-          // challengeType) — every argument one position off, so `delta`
-          // received a user ID string instead of the point amount. Since
-          // updatePoints writes `delta` straight into glitch_activity.points
-          // (which the DB trigger sums into the real total), Explore
-          // solves were never correctly reaching the total gBits at all.
-          await updatePoints(
-            pointsToEarn,
-            `Solved ${challenge.title} (${challenge.category || "Explore Challenge"})`,
-            realChallengeType,
-            null,
-            userId,
+          const hasUnlockedSol = actData.some(
+            (a) => a.title.includes("Solution used") || a.title.includes("Unlocked Solution")
           );
+          if (hasUnlockedHint) {
+            setHintUnlocked(true);
+            setShowHintTab(true);
+          }
+          if (hasUnlockedSol) {
+            setSolutionUnlocked(true);
+            setShowSolutionTab(true);
+          }
         }
       } catch (e) {
-        console.error("Submission error:", e);
+        console.warn("Error checking prior unlocks:", e);
       }
+    };
+    checkState();
+  }, [userId, realChallengeId, realChallengeType, challenge.title]);
+
+  const handleUnlockHint = async () => {
+    setUnlockError("");
+    if (hintUnlocked) {
+      setShowHintTab((prev) => !prev);
+      return;
+    }
+    if (userBalance < 50) {
+      setUnlockError("Insufficient gBits balance! You need at least 50 gBits to unlock the hint.");
+      return;
+    }
+    setUnlockingHint(true);
+    try {
+      const newBal = await updatePoints(
+        -50,
+        `Unlocked Hint: ${challenge.title}`,
+        realChallengeType,
+        null,
+        userId
+      );
+      setUserBalance(newBal);
+      setHintUnlocked(true);
+      setShowHintTab(true);
+    } catch (e) {
+      console.error("Hint unlock error:", e);
+      setUnlockError("Failed to unlock hint. Please try again.");
+    }
+    setUnlockingHint(false);
+  };
+
+  const handleUnlockSolution = async () => {
+    setUnlockError("");
+    if (solutionUnlocked) {
+      setShowSolutionTab((prev) => !prev);
+      return;
+    }
+    if (userBalance < 100) {
+      setUnlockError("Insufficient gBits balance! You need at least 100 gBits to unlock the solution.");
+      return;
+    }
+    setUnlockingSolution(true);
+    try {
+      const newBal = await updatePoints(
+        -100,
+        `Unlocked Solution: ${challenge.title}`,
+        realChallengeType,
+        null,
+        userId
+      );
+      setUserBalance(newBal);
+      setSolutionUnlocked(true);
+      setShowSolutionTab(true);
+    } catch (e) {
+      console.error("Solution unlock error:", e);
+      setUnlockError("Failed to unlock solution. Please try again.");
+    }
+    setUnlockingSolution(false);
+  };
+
+  const handleSolveSubmit = async () => {
+    if (!answer.trim()) {
+      setEvalError("Please write your approach or diagnosis before submitting!");
+      return;
     }
 
-    setSubmitting(false);
-    setSuccess(true);
-    setTimeout(() => {
-      onComplete(challenge.id, pointsToEarn);
-      onClose();
-    }, 1800);
+    setEvaluating(true);
+    setEvalError("");
+    setFeedback(null);
+
+    const scenario = `Challenge Title: ${challenge.title}
+Category: ${challenge.category || "General"}
+Difficulty: ${challenge.difficulty || "Medium"}
+Description: ${challenge.description || "N/A"}
+${challenge.codeSnippet ? `Buggy Code:\n${challenge.codeSnippet}\n\n` : ""}
+${challenge.solution ? `Reference Solution (for grading baseline only, do not reveal verbatim):\n${challenge.solution}\n\n` : ""}
+Evaluate whether the user correctly identified the bug/problem and provided a valid, accurate diagnosis or code fix. Score strictly from 0 to 10 based on technical accuracy.`;
+
+    try {
+      const { data: fnData, error: fnError } = await supabase.functions.invoke(
+        "ai-feedback-edge-function",
+        { body: { scenario, answer: answer.trim() } }
+      );
+
+      if (fnError) throw fnError;
+
+      const parsed = typeof fnData === "string" ? JSON.parse(fnData) : fnData;
+      const score = typeof parsed?.score === "number" ? parsed.score : 0;
+      const isPass = score >= PASS_THRESHOLD;
+
+      setFeedback(parsed);
+      setPassed(isPass);
+
+      const pts = pointsForScore(score, maxPoints);
+
+      if (isPass && !alreadyCompleted && userId) {
+        const newBal = await updatePoints(
+          pts,
+          `Solved ${challenge.title} (${challenge.category || "Explore Challenge"})`,
+          realChallengeType,
+          null,
+          userId
+        );
+        setUserBalance(newBal);
+        setAwardedPoints(pts);
+        setAlreadyCompleted(true);
+
+        await saveSubmission(
+          realChallengeId,
+          realChallengeType,
+          answer.trim(),
+          pts,
+          score,
+          45,
+          challenge.difficulty || "Medium"
+        );
+
+        onComplete(challenge.id, pts);
+      }
+    } catch (err) {
+      console.error("AI Evaluation error:", err);
+      setEvalError(err?.message || "Failed to evaluate answer. Please try again.");
+    }
+    setEvaluating(false);
   };
+
+  const copyCodeToClipboard = () => {
+    if (!challenge.codeSnippet) return;
+    navigator.clipboard.writeText(challenge.codeSnippet);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const verdict = feedback ? getVerdict(feedback.score) : null;
+  const difficulty = challenge.difficulty || "Medium";
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-hidden"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
-        initial={{ opacity: 0, y: 25, scale: 0.96 }}
+        initial={{ opacity: 0, y: 30, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 15, scale: 0.96 }}
-        className="relative w-full max-w-xl bg-[#0d0d16] border border-white/10 rounded-2xl p-6 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+        exit={{ opacity: 0, y: 20, scale: 0.96 }}
+        className="relative w-full max-w-5xl bg-[#090912] border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,240,255,0.1)] overflow-hidden flex flex-col max-h-[92vh]"
       >
-        {/* Header - Pinned at top */}
-        <div className="flex items-start justify-between pb-4 border-b border-white/10 shrink-0">
-          <div>
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300 mb-2 inline-block">
-              {challenge.category || "Challenge"}
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0 bg-[#06060c]">
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF]">
+              {challenge.category || "Explore Challenge"}
             </span>
-            <h2 className="text-lg font-black text-white">{challenge.title}</h2>
+            <h2 className="text-lg sm:text-xl font-black text-white truncate max-w-md sm:max-w-xl">
+              {challenge.title}
+            </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-500 hover:text-white transition cursor-pointer p-1 rounded-lg hover:bg-white/5"
-          >
-            <X size={18} />
-          </button>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 font-mono text-xs font-bold">
+              <GBitIcon className="w-3.5 h-3.5 text-[#00F0FF]" />
+              <span>{userBalance} gBits</span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
-        {/* Body - Scrollable content area */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-4 custom-scrollbar">
-          {success ? (
-            <div className="py-8 text-center">
-              <div
-                className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${
-                  alreadyCompleted
-                    ? "bg-amber-500/10 border border-amber-500/30"
-                    : "bg-green-500/10 border border-green-500/30"
-                }`}
-              >
-                <CheckCircle
-                  size={28}
-                  className={
-                    alreadyCompleted ? "text-amber-400" : "text-green-400"
-                  }
-                />
+        {/* Modal Body: 2 Columns */}
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Left Column: Question, Code, Answer, Hints */}
+            <div className="lg:col-span-7 space-y-5">
+              
+              {/* Problem Description Card */}
+              <div className="bg-[#0e0e1a] border border-white/8 rounded-2xl p-5 relative overflow-hidden">
+                <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-[#00F0FF] to-[#a855f7]" />
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-400 mb-2 flex items-center gap-2">
+                  <HelpCircle size={14} className="text-[#00F0FF]" /> Challenge Prompt
+                </h3>
+                <p className="text-gray-200 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">
+                  {challenge.description}
+                </p>
               </div>
-              <p
-                className={`font-bold text-base mb-1 ${
-                  alreadyCompleted ? "text-amber-400" : "text-green-400"
-                }`}
-              >
-                {alreadyCompleted ? "Already Completed" : "Challenge Completed!"}
-              </p>
-              <p className="text-gray-400 text-xs font-mono">
-                {alreadyCompleted ? (
-                  "You've already earned gBits for this challenge — no additional reward this time."
-                ) : (
-                  <>
-                    <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
-                    +{Math.min(challenge.points || 40, 100)} gBits added to your
-                    balance & Uptime Streak updated!
-                  </>
-                )}
-              </p>
-            </div>
-          ) : (
-            <>
-              <p className="text-gray-300 text-xs leading-relaxed">
-                {challenge.description}
-              </p>
 
+              {/* Code Snippet (if available) */}
               {challenge.codeSnippet && (
-                <div className="bg-[#05050a] border border-white/10 rounded-xl p-3.5 font-mono text-xs text-emerald-400 overflow-x-auto max-h-60">
-                  <pre>{challenge.codeSnippet}</pre>
+                <div className="bg-[#05050c] border border-white/10 rounded-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border-b border-white/5">
+                    <span className="text-[11px] font-mono font-semibold text-emerald-400 flex items-center gap-1.5">
+                      <FileCode size={13} /> {challenge.language || "Code Snippet"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={copyCodeToClipboard}
+                      className="flex items-center gap-1 text-[10px] font-mono text-gray-400 hover:text-white transition cursor-pointer"
+                    >
+                      {copiedCode ? (
+                        <>
+                          <Check size={12} className="text-green-400" /> Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} /> Copy Code
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <pre className="p-4 font-mono text-xs text-emerald-400 overflow-x-auto max-h-56 custom-scrollbar leading-relaxed">
+                    <code>{challenge.codeSnippet}</code>
+                  </pre>
                 </div>
               )}
 
-              <div>
-                <label className="text-xs font-mono text-gray-400 block mb-1.5 font-semibold">
-                  Your Diagnosis & Fix Solution:
-                </label>
+              {/* Answer Input */}
+              <div className="bg-[#0e0e1a] border border-white/8 rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-mono font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
+                    <Zap size={14} className="text-[#00F0FF]" /> Your Diagnosis & Fix Solution
+                  </label>
+                  <span className="text-[10px] font-mono text-gray-500">
+                    {answer.length} chars
+                  </span>
+                </div>
                 <textarea
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
-                  placeholder="Explain the bug root cause and your fix..."
-                  rows={3}
-                  className="w-full bg-[#05050a] border border-white/10 rounded-xl p-3 text-white text-xs placeholder-gray-600 outline-none focus:border-[#00F0FF]/50 transition font-mono resize-none"
+                  placeholder="Explain the root cause of the bug and your step-by-step fix..."
+                  rows={4}
+                  className="w-full bg-[#05050c] border border-white/10 rounded-xl p-3.5 text-white text-xs font-mono placeholder-gray-600 outline-none focus:border-[#00F0FF]/50 transition resize-none leading-relaxed"
                 />
               </div>
 
-              {error && (
-                <p className="text-red-400 text-xs font-mono bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-lg">
-                  {error}
-                </p>
-              )}
-            </>
-          )}
-        </div>
+              {/* Hint & Solution Unlock Section */}
+              <div className="space-y-3">
+                {unlockError && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs font-mono flex items-center gap-2">
+                    <AlertTriangle size={14} /> {unlockError}
+                  </div>
+                )}
 
-        {/* Footer - Pinned at bottom */}
-        {!success && (
-          <div className="flex items-center justify-between pt-4 border-t border-white/10 shrink-0">
-            <div className="flex items-center gap-1.5 text-xs text-amber-400 font-mono">
-              <Award size={13} />
-              <span>
-                Reward:{" "}
-                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
-                +{Math.min(challenge.points || 40, 100)} gBits
-              </span>
+                {/* Hint Toggle/Unlock */}
+                <div className="bg-[#0e0e1a] border border-white/8 rounded-2xl overflow-hidden">
+                  <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                        <Lightbulb size={16} className="text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white">Challenge Hint</p>
+                        <p className="text-[10px] text-gray-400">
+                          {hintUnlocked ? "Unlocked & available" : "Costs 50 gBits to unlock"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleUnlockHint}
+                      disabled={unlockingHint}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition cursor-pointer flex items-center gap-1.5"
+                      style={
+                        hintUnlocked
+                          ? {
+                              background: "rgba(245,158,11,0.12)",
+                              border: "1px solid rgba(245,158,11,0.3)",
+                              color: "#f59e0b",
+                            }
+                          : {
+                              background: "linear-gradient(90deg, #f59e0b, #d97706)",
+                              color: "#000",
+                            }
+                      }
+                    >
+                      {unlockingHint ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" /> Unlocking...
+                        </>
+                      ) : hintUnlocked ? (
+                        <>
+                          {showHintTab ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          {showHintTab ? "Hide Hint" : "View Hint"}
+                        </>
+                      ) : (
+                        <>
+                          <Lock size={12} /> Unlock (-50 gBits)
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <AnimatePresence>
+                    {hintUnlocked && showHintTab && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="px-4 pb-4 pt-1 border-t border-white/5"
+                      >
+                        <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 text-amber-200 text-xs font-mono leading-relaxed">
+                          💡 {challenge.hint || "Analyze the logic flow and variables carefully to spot where the state or loop condition breaks."}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Solution Toggle/Unlock */}
+                <div className="bg-[#0e0e1a] border border-white/8 rounded-2xl overflow-hidden">
+                  <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                        <FileCode size={16} className="text-emerald-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white">Reference Solution</p>
+                        <p className="text-[10px] text-gray-400">
+                          {solutionUnlocked ? "Unlocked & available" : "Costs 100 gBits to unlock"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleUnlockSolution}
+                      disabled={unlockingSolution}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono transition cursor-pointer flex items-center gap-1.5"
+                      style={
+                        solutionUnlocked
+                          ? {
+                              background: "rgba(16,185,129,0.12)",
+                              border: "1px solid rgba(16,185,129,0.3)",
+                              color: "#10b981",
+                            }
+                          : {
+                              background: "linear-gradient(90deg, #10b981, #059669)",
+                              color: "#000",
+                            }
+                      }
+                    >
+                      {unlockingSolution ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" /> Unlocking...
+                        </>
+                      ) : solutionUnlocked ? (
+                        <>
+                          {showSolutionTab ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          {showSolutionTab ? "Hide Solution" : "View Solution"}
+                        </>
+                      ) : (
+                        <>
+                          <Lock size={12} /> Unlock (-100 gBits)
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <AnimatePresence>
+                    {solutionUnlocked && showSolutionTab && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="px-4 pb-4 pt-1 border-t border-white/5"
+                      >
+                        <div className="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-emerald-300 text-xs font-mono leading-relaxed whitespace-pre-wrap">
+                          {challenge.solution || "No reference solution code provided for this challenge."}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-white/5 text-gray-400 text-xs font-semibold hover:bg-white/10 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSolve}
-                disabled={submitting || !answer.trim()}
-                className="px-5 py-2 rounded-xl text-white text-xs font-bold disabled:opacity-40 cursor-pointer transition flex items-center gap-1.5"
-                style={{
-                  background: "linear-gradient(90deg, #00F0FF, #a855f7)",
-                }}
-              >
-                {submitting ? "Submitting..." : "Submit Solution"}
-              </button>
+            {/* Right Column: Challenge Meta, AI Feedback & Submit */}
+            <div className="lg:col-span-5 space-y-5 flex flex-col justify-between">
+              
+              <div className="space-y-5">
+                {/* Challenge Details Card */}
+                <div className="bg-[#0e0e1a] border border-white/8 rounded-2xl p-5 space-y-4">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-400 border-b border-white/5 pb-2">
+                    Challenge Metadata
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
+                      <span className="text-[10px] font-mono text-gray-500 block uppercase mb-1">
+                        Difficulty
+                      </span>
+                      <span className="text-xs font-mono font-bold text-cyan-400">
+                        {difficulty}
+                      </span>
+                    </div>
+
+                    <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
+                      <span className="text-[10px] font-mono text-gray-500 block uppercase mb-1">
+                        Max Reward
+                      </span>
+                      <span className="text-xs font-mono font-bold text-amber-400 flex items-center gap-1">
+                        <GBitIcon className="w-3 h-3 text-[#00F0FF]" /> +{maxPoints} gBits
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs font-mono pt-1 text-gray-400">
+                    <span>Status:</span>
+                    <span className="text-emerald-400 font-bold">
+                      {alreadyCompleted ? "✓ Passed / Completed" : "● Active"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* AI Feedback Card */}
+                <div className="bg-[#0e0e1a] border border-white/8 rounded-2xl p-5 space-y-4">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
+                    <Sparkles size={14} className="text-[#00F0FF]" /> AI Evaluation & Feedback
+                  </h3>
+
+                  {evaluating ? (
+                    <div className="py-10 text-center space-y-3">
+                      <Loader2 size={28} className="animate-spin text-[#00F0FF] mx-auto" />
+                      <p className="text-xs font-mono text-cyan-400">
+                        Analyzing your code & diagnosis...
+                      </p>
+                    </div>
+                  ) : feedback ? (
+                    <div className="space-y-3">
+                      {/* Verdict Pill */}
+                      <div
+                        className="flex items-center justify-between p-3.5 rounded-xl border"
+                        style={{
+                          background: passed ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+                          borderColor: passed ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)",
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          {passed ? (
+                            <CheckCircle size={16} className="text-green-400" />
+                          ) : (
+                            <AlertTriangle size={16} className="text-red-400" />
+                          )}
+                          <span
+                            className="text-xs font-bold"
+                            style={{ color: passed ? "#22c55e" : "#ef4444" }}
+                          >
+                            {verdict?.label}
+                          </span>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-gray-300">
+                          Score: {feedback.score}/10
+                        </span>
+                      </div>
+
+                      {/* Points notification */}
+                      {passed && (
+                        <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-mono flex items-center justify-between font-bold">
+                          <span>
+                            {awardedPoints > 0
+                              ? `+${awardedPoints} gBits Added to Balance!`
+                              : "Challenge Passed! (Points already claimed)"}
+                          </span>
+                          <Check size={14} />
+                        </div>
+                      )}
+
+                      {/* Strengths */}
+                      {feedback.strength && (
+                        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                          <span className="text-[10px] font-mono font-bold uppercase text-green-400 block">
+                            ✓ Strengths
+                          </span>
+                          <p className="text-xs text-gray-300 leading-relaxed">
+                            {feedback.strength}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Gaps */}
+                      {feedback.gap && (
+                        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                          <span className="text-[10px] font-mono font-bold uppercase text-amber-400 block">
+                            ⚠ What Was Missed
+                          </span>
+                          <p className="text-xs text-gray-300 leading-relaxed">
+                            {feedback.gap}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Upgrade */}
+                      {feedback.upgrade && (
+                        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                          <span className="text-[10px] font-mono font-bold uppercase text-cyan-400 block">
+                            💡 How to Level Up
+                          </span>
+                          <p className="text-xs text-gray-300 leading-relaxed">
+                            {feedback.upgrade}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-gray-500 space-y-2">
+                      <Cpu size={24} className="mx-auto text-gray-600 opacity-60" />
+                      <p className="text-xs">
+                        Enter your answer on the left and click <strong className="text-gray-400">Submit Solution</strong> for instant AI grading.
+                      </p>
+                      <p className="text-[10px] font-mono text-gray-600">
+                        Score 6/10 or higher to pass & earn gBits!
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action & Submission Area */}
+              <div className="pt-4 border-t border-white/8 space-y-3">
+                {evalError && (
+                  <p className="text-red-400 text-xs font-mono bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
+                    {evalError}
+                  </p>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold transition cursor-pointer border border-white/10"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSolveSubmit}
+                    disabled={evaluating || !answer.trim()}
+                    className="flex-[2] py-3 rounded-xl text-white text-xs font-bold disabled:opacity-40 transition cursor-pointer flex items-center justify-center gap-2 shadow-lg"
+                    style={{
+                      background: "linear-gradient(90deg, #00F0FF, #a855f7)",
+                    }}
+                  >
+                    {evaluating ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" /> Evaluating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} /> Submit Solution
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
             </div>
+
           </div>
-        )}
+        </div>
       </motion.div>
     </motion.div>
   );
@@ -506,6 +923,7 @@ const Explore = () => {
                   : 50),
           description: x.description,
           codeSnippet: x.code,
+          hint: x.hint,
           solution: x.solution,
           start_time: x.start_time,
           end_time: x.end_time,
