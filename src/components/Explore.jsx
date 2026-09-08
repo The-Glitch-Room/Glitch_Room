@@ -9,7 +9,7 @@ import PageHeading from "./PageHeading";
 import GlitchBackground from "./GlitchBackground";
 import { supabase } from "../supabaseClient";
 import { fetchDatabaseCategoryCounts } from "../utils/challengeCountHelper";
-import { updatePoints } from "../utils/pointsHelper";
+import { updatePoints, hasPassedChallenge } from "../utils/pointsHelper";
 import {
   Zap,
   Bug,
@@ -82,6 +82,7 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
 
   const handleSolve = async () => {
     if (!answer.trim()) {
@@ -94,40 +95,75 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
     const userId = user?.id;
     const pointsToEarn = Math.min(challenge.points || 40, 100);
 
+    // Use the real database id/type when available (set by mapCommon for
+    // anything sourced from the challenges table) — falls back to
+    // challenge.id/type only for the rare case neither is present.
+    const realChallengeId = String(challenge.dbId ?? challenge.id);
+    const realChallengeType = challenge.type || "explore";
+
     if (userId) {
       try {
-        // Use the real database id/type when available (set by mapCommon
-        // for anything sourced from the challenges table) — falls back to
-        // challenge.id/type only for the rare case neither is present.
-        const realChallengeId = String(challenge.dbId ?? challenge.id);
-        const realChallengeType = challenge.type || "explore";
-
-        await supabase.from("challenge_submissions").insert([
-          {
-            user_id: userId,
-            challenge_id: realChallengeId,
-            challenge_type: realChallengeType,
-            answer: answer.trim(),
-            points_earned: pointsToEarn,
-            time_taken_seconds: 45,
-          },
-        ]);
-
-        // Argument order matches updatePoints' real signature in
-        // pointsHelper.js: (delta, title, type, roomId, targetUserId).
-        // Previously this passed (userId, pointsToEarn, titleString,
-        // challengeType) — every argument one position off, so `delta`
-        // received a user ID string instead of the point amount. Since
-        // updatePoints writes `delta` straight into glitch_activity.points
-        // (which the DB trigger sums into the real total), Explore
-        // solves were never correctly reaching the total gBits at all.
-        await updatePoints(
-          pointsToEarn,
-          `Solved ${challenge.title} (${challenge.category || "Explore Challenge"})`,
+        // The same underlying challenge can appear under more than one
+        // Explore card (e.g. tagged into both Daily AND Featured) — each
+        // card only knows about itself, so without this check, solving
+        // it once from each card would award points twice for identical
+        // work. hasPassedChallenge is backed by challenge_completions,
+        // the same authoritative table every other challenge type
+        // (glitch/bug/ai/spark) already checks against — so this also
+        // correctly blocks re-earning points for something already
+        // solved on its real library page, not just from another
+        // Explore card.
+        const alreadyPassed = await hasPassedChallenge(
+          realChallengeId,
           realChallengeType,
-          null,
-          userId,
         );
+
+        if (alreadyPassed) {
+          setAlreadyCompleted(true);
+        } else {
+          await supabase.from("challenge_submissions").insert([
+            {
+              user_id: userId,
+              challenge_id: realChallengeId,
+              challenge_type: realChallengeType,
+              answer: answer.trim(),
+              points_earned: pointsToEarn,
+              time_taken_seconds: 45,
+            },
+          ]);
+
+          // Also write challenge_completions, matching what
+          // saveSubmission() does for every other challenge type — this
+          // is the record hasPassedChallenge actually checks, so without
+          // it this same gap reopens the next time this challenge is
+          // encountered from any entry point, Explore or otherwise.
+          await supabase.from("challenge_completions").upsert(
+            {
+              user_id: userId,
+              challenge_id: realChallengeId,
+              challenge_type: realChallengeType,
+              points_earned: pointsToEarn,
+              completed_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,challenge_id,challenge_type" },
+          );
+
+          // Argument order matches updatePoints' real signature in
+          // pointsHelper.js: (delta, title, type, roomId, targetUserId).
+          // Previously this passed (userId, pointsToEarn, titleString,
+          // challengeType) — every argument one position off, so `delta`
+          // received a user ID string instead of the point amount. Since
+          // updatePoints writes `delta` straight into glitch_activity.points
+          // (which the DB trigger sums into the real total), Explore
+          // solves were never correctly reaching the total gBits at all.
+          await updatePoints(
+            pointsToEarn,
+            `Solved ${challenge.title} (${challenge.category || "Explore Challenge"})`,
+            realChallengeType,
+            null,
+            userId,
+          );
+        }
       } catch (e) {
         console.error("Submission error:", e);
       }
@@ -146,14 +182,14 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 py-8 sm:py-12 bg-black/80 backdrop-blur-md overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
         initial={{ opacity: 0, y: 25, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 15, scale: 0.96 }}
-        className="relative w-full max-w-xl bg-[#0d0d16] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto my-auto custom-scrollbar"
+        className="relative w-full max-w-xl bg-[#0d0d16] border border-white/10 rounded-2xl p-6 shadow-2xl overflow-hidden"
       >
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -172,16 +208,37 @@ const ChallengeSolverModal = ({ challenge, user, onClose, onComplete }) => {
 
         {success ? (
           <div className="py-8 text-center">
-            <div className="w-14 h-14 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto mb-3">
-              <CheckCircle size={28} className="text-green-400" />
+            <div
+              className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${
+                alreadyCompleted
+                  ? "bg-amber-500/10 border border-amber-500/30"
+                  : "bg-green-500/10 border border-green-500/30"
+              }`}
+            >
+              <CheckCircle
+                size={28}
+                className={
+                  alreadyCompleted ? "text-amber-400" : "text-green-400"
+                }
+              />
             </div>
-            <p className="text-green-400 font-bold text-base mb-1">
-              Challenge Completed!
+            <p
+              className={`font-bold text-base mb-1 ${
+                alreadyCompleted ? "text-amber-400" : "text-green-400"
+              }`}
+            >
+              {alreadyCompleted ? "Already Completed" : "Challenge Completed!"}
             </p>
             <p className="text-gray-400 text-xs font-mono">
-              <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
-              {Math.min(challenge.points || 40, 100)} gBits added to your
-              balance & Uptime Streak updated!
+              {alreadyCompleted ? (
+                "You've already earned gBits for this challenge — no additional reward this time."
+              ) : (
+                <>
+                  <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
+                  +{Math.min(challenge.points || 40, 100)} gBits added to your
+                  balance & Uptime Streak updated!
+                </>
+              )}
             </p>
           </div>
         ) : (
@@ -268,47 +325,49 @@ const ComingSoonBanner = ({
 
 // ── Compact card used inside the Daily/Weekly columns (Section 1) ──────────
 const TimeBoundChallengeCard = ({ item, isCompleted, onSolve, accent }) => (
-  <div className="bg-[#07070d] border border-white/5 rounded-xl p-5 flex items-center justify-between hover:border-white/15 transition">
-    <div className="min-w-0 mr-4">
-      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-        <span
-          className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md"
-          style={{
-            color: accent,
-            background: `${accent}15`,
-            border: `1px solid ${accent}30`,
-          }}
-        >
-          {item.category}
-        </span>
-        <span className="text-xs font-mono text-amber-400 font-semibold">
-          <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
-          {Math.min(item.points, 100)} gBits
-        </span>
-      </div>
-      <h4 className="text-base font-bold text-white truncate mb-1">
-        {item.title}
-      </h4>
-      <p className="text-xs text-gray-400 mb-1.5">{item.description}</p>
-      <span className="text-[11px] font-mono text-gray-500 flex items-center gap-1.5">
-        <Clock size={12} /> {item.refreshText}
+  <div className="bg-[#07070d] border border-white/5 rounded-2xl p-6 hover:border-white/15 transition">
+    <div className="flex items-center justify-between gap-3 mb-4">
+      <span
+        className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md shrink-0"
+        style={{
+          color: accent,
+          background: `${accent}15`,
+          border: `1px solid ${accent}30`,
+        }}
+      >
+        {item.category}
+      </span>
+      <span className="text-xs font-mono text-amber-400 font-semibold shrink-0">
+        <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
+        {Math.min(item.points, 100)} gBits
       </span>
     </div>
 
-    {isCompleted ? (
-      <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl shrink-0">
-        <Check size={14} /> Done
+    <h4 className="text-base font-bold text-white mb-2">{item.title}</h4>
+    <p className="text-xs text-gray-400 leading-relaxed mb-5 line-clamp-3">
+      {item.description}
+    </p>
+
+    <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-3">
+      <span className="text-[11px] font-mono text-gray-500 flex items-center gap-1.5 min-w-0 truncate">
+        <Clock size={12} className="shrink-0" /> {item.refreshText}
       </span>
-    ) : (
-      <button
-        type="button"
-        onClick={onSolve}
-        className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md shrink-0"
-        style={{ background: `linear-gradient(90deg, ${accent}, #a855f7)` }}
-      >
-        Solve <ChevronRight size={14} />
-      </button>
-    )}
+
+      {isCompleted ? (
+        <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl shrink-0">
+          <Check size={14} /> Done
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={onSolve}
+          className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md shrink-0"
+          style={{ background: `linear-gradient(90deg, ${accent}, #a855f7)` }}
+        >
+          Solve <ChevronRight size={14} />
+        </button>
+      )}
+    </div>
   </div>
 );
 
@@ -329,6 +388,10 @@ const Explore = () => {
   const [upcomingItems, setUpcomingItems] = useState([]);
   const [featuredItems, setFeaturedItems] = useState([]);
   const [archivedItems, setArchivedItems] = useState([]);
+  // Matches the visibleCount pattern already used on GlitchesChallenges.jsx
+  // etc. — Archive is the one Explore section that grows without bound
+  // (nothing ever leaves it), so it's the one that needs this.
+  const [visibleArchiveCount, setVisibleArchiveCount] = useState(12);
 
   // Real-time tick — every section's Upcoming/Live/Active/Past state is
   // computed fresh from each challenge's own start_time/end_time on every
@@ -555,6 +618,67 @@ const Explore = () => {
           );
         } else {
           setArchivedItems([]);
+        }
+
+        // completedIds was previously only ever populated client-side,
+        // in-session, after a successful solve — it started empty on
+        // every page load with nothing checking the database. That's
+        // why the same challenge could be solved again after a refresh,
+        // or from a second Explore card showing the same underlying
+        // challenge (e.g. tagged into both Daily and Featured). This
+        // hydrates it from challenge_completions up front, using each
+        // item's REAL id/type — the same authoritative source
+        // hasPassedChallenge checks at solve-time.
+        const { data: authData } = await supabase.auth.getUser();
+        const uid = authData?.user?.id;
+        const solvableEntries = [
+          ...daily.map((d) => ({
+            localId: `db-${d.id}`,
+            dbId: d.id,
+            type: d.type,
+          })),
+          ...weekly.map((w) => ({
+            localId: `db-${w.id}`,
+            dbId: w.id,
+            type: w.type,
+          })),
+          ...live.map((l) => ({
+            localId: `db-live-${l.id}`,
+            dbId: l.id,
+            type: l.type,
+          })),
+          ...featured.map((f) => ({
+            localId: `db-feat-${f.id}`,
+            dbId: f.id,
+            type: f.type,
+          })),
+        ];
+
+        if (uid && solvableEntries.length > 0) {
+          const relevantTypes = [
+            ...new Set(solvableEntries.map((e) => e.type)),
+          ];
+          const { data: completions } = await supabase
+            .from("challenge_completions")
+            .select("challenge_id, challenge_type")
+            .eq("user_id", uid)
+            .in("challenge_type", relevantTypes);
+
+          const completedKeys = new Set(
+            (completions || []).map(
+              (c) => `${c.challenge_type}::${c.challenge_id}`,
+            ),
+          );
+
+          const preCompletedLocalIds = solvableEntries
+            .filter((e) => completedKeys.has(`${e.type}::${String(e.dbId)}`))
+            .map((e) => e.localId);
+
+          if (preCompletedLocalIds.length > 0) {
+            setCompletedIds(
+              (prev) => new Set([...prev, ...preCompletedLocalIds]),
+            );
+          }
         }
       }
 
@@ -1136,39 +1260,61 @@ const Explore = () => {
             {archivedItems.length === 0 ? (
               <ComingSoonBanner message="No archived vault entries yet." />
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {archivedItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between opacity-85 hover:opacity-100 transition shadow-xl"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-mono text-gray-400 uppercase tracking-wider bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
-                          Ended {formatArchiveDate(item.end_time)}
-                        </span>
-                        <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                          <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
-                          +{Math.min(item.points || 50, 100)} gBits
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {archivedItems.slice(0, visibleArchiveCount).map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 flex flex-col justify-between opacity-85 hover:opacity-100 transition shadow-xl"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-mono text-gray-400 uppercase tracking-wider bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
+                            Ended {formatArchiveDate(item.end_time)}
+                          </span>
+                          <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                            <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />
+                            +{Math.min(item.points || 50, 100)} gBits
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-white text-base mb-2">
+                          {item.title}
+                        </h4>
+                        <p className="text-xs text-gray-400">
+                          Completed by {item.completedBy} developer
+                          {item.completedBy === 1 ? "" : "s"}
+                        </p>
+                      </div>
+
+                      <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-end text-xs font-mono text-gray-400">
+                        <span className="text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                          Archived ✓
                         </span>
                       </div>
-                      <h4 className="font-bold text-white text-base mb-2">
-                        {item.title}
-                      </h4>
-                      <p className="text-xs text-gray-400">
-                        Completed by {item.completedBy} developer
-                        {item.completedBy === 1 ? "" : "s"}
-                      </p>
                     </div>
+                  ))}
+                </div>
 
-                    <div className="pt-4 border-t border-white/5 mt-4 flex items-center justify-end text-xs font-mono text-gray-400">
-                      <span className="text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
-                        Archived ✓
-                      </span>
-                    </div>
+                {archivedItems.length > 12 && (
+                  <div className="flex justify-center pt-8">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (visibleArchiveCount < archivedItems.length) {
+                          setVisibleArchiveCount((prev) => prev + 12);
+                        } else {
+                          setVisibleArchiveCount(12);
+                        }
+                      }}
+                      className="px-6 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 border border-white/10 hover:border-white/20 bg-[#0f0f14] hover:bg-[#14141d] text-emerald-400"
+                    >
+                      {visibleArchiveCount < archivedItems.length
+                        ? "See More"
+                        : "See Less"}
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </motion.section>
         </main>
