@@ -7,7 +7,7 @@ export const FEATURED_ARENA_EVENTS = [
       "Inspect a complex asynchronous React state race condition where data updates out-of-order under heavy network latency.",
     glitch_scenario:
       "A high-traffic e-commerce checkout platform uses an asynchronous state handler to sync user cart quantity updates. Under heavy network latency, rapid clicks on quantity buttons trigger out-of-order state updates. Users end up paying for items that were removed from their cart or get charged incorrect totals.\n\n```javascript\n// CartManager.jsx\nconst [cart, setCart] = useState([]);\n\nconst updateQuantity = async (itemId, delta) => {\n  const res = await api.post('/cart/update', { itemId, delta });\n  // ❌ Bug: res returns stale snapshot if previous request finishes last\n  setCart(res.data.cart);\n};\n```\n\nIdentify how to prevent race conditions and ensure transactional cart consistency.",
-    hosted_by: "Glitch Room Core Team",
+    hosted_by: "Glitch Room Team",
     skills: ["React 19", "Async/Await", "State Sync"],
     reward: "100 gBits",
     reward_xp: 100,

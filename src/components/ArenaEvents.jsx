@@ -30,6 +30,25 @@ const SkillTag = ({ skill }) => (
   </span>
 );
 
+const getHostDisplayName = (rawHost) => {
+  if (!rawHost) return "Glitch Room Team";
+  const h = String(rawHost).trim();
+  const legacyMocks = [
+    "Glitch Room Core Team",
+    "Glitch Room",
+    "React Architects",
+    "AI Overlords",
+    "Frontend Guild",
+    "Performance Lab",
+    "Algo Masters",
+    "Glitch Room Team",
+  ];
+  if (legacyMocks.some((m) => m.toLowerCase() === h.toLowerCase())) {
+    return "Glitch Room Team";
+  }
+  return h;
+};
+
 const ArenaEvents = () => {
   const [dbEvents, setDbEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -282,7 +301,7 @@ const ArenaEvents = () => {
                       <span>
                         Hosted by{" "}
                         <span className="text-gray-300 font-semibold">
-                          {event.hosted_by || "Glitch Room Team"}
+                          {getHostDisplayName(event.hosted_by)}
                         </span>
                       </span>
                     </div>
