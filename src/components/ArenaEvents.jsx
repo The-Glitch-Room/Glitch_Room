@@ -99,7 +99,6 @@ const ArenaEvents = () => {
             backgroundSize: "60px 60px",
           }}
         />
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#FF00C8]/10 rounded-full blur-3xl pointer-events-none" />
 
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -229,7 +228,7 @@ const ArenaEvents = () => {
                     className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                     style={{
                       background:
-                        "linear-gradient(90deg, transparent, #00F0FF, #FF00C8, transparent)",
+                        "linear-gradient(90deg, transparent, #00F0FF, rgba(255,255,255,0.3), transparent)",
                     }}
                   />
 
@@ -242,7 +241,7 @@ const ArenaEvents = () => {
                           Live Event
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-[#FF00C8]/15 text-[#FF00C8] border border-[#FF00C8]/30">
+                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30">
                         {event.reward || "100 gBits"}
                       </span>
                     </div>
@@ -259,7 +258,7 @@ const ArenaEvents = () => {
 
                     {/* Hosted by */}
                     <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
-                      <Users size={13} className="text-[#FF00C8]" />
+                      <Users size={13} className="text-[#00F0FF]" />
                       <span>
                         Hosted by{" "}
                         <span className="text-gray-300 font-semibold">
@@ -285,7 +284,7 @@ const ArenaEvents = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => navigate(`/arena/${event.id}`)}
-                    className="w-full mt-auto py-3 rounded-xl font-bold text-xs text-white bg-[#FF00C8]/85 hover:bg-[#FF00C8] flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all"
+                    className="w-full mt-auto py-3 rounded-xl font-bold text-xs text-black bg-white hover:bg-gray-200 flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all font-sans"
                   >
                     <Swords size={14} /> Enter Arena Event →
                   </motion.button>
