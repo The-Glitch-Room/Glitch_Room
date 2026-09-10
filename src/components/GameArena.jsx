@@ -76,7 +76,7 @@ const GameArena = () => {
           initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative bg-[#0f0f14] border border-white/5 rounded-3xl p-6 sm:p-10 shadow-2xl overflow-hidden"
+          className="relative bg-[#0f0f14] border border-white/8 rounded-3xl p-6 sm:p-10 md:p-12 shadow-2xl overflow-hidden"
         >
           {/* Glowing Top Line */}
           <div
@@ -87,93 +87,123 @@ const GameArena = () => {
             }}
           />
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 border-b border-white/5 pb-6">
             <div>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 mb-2 text-[10px] font-bold font-mono tracking-widest uppercase bg-[#FF00C8]/10 border border-[#FF00C8]/30 rounded-full text-[#FF00C8]">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 mb-2.5 text-[10px] font-bold font-mono tracking-widest uppercase bg-[#FF00C8]/10 border border-[#FF00C8]/30 rounded-full text-[#FF00C8]">
                 <Flame size={12} /> Flagship Arena Mechanics
               </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-white">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white">
                 How The 3-Stage Arena Works
               </h2>
             </div>
-            <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/25 shrink-0">
-              ⚡ Earn 75 – 100 gBits Per Event
+            <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-4 py-2 rounded-xl bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30 shrink-0 shadow-lg">
+              <Zap size={14} className="text-[#00F0FF]" /> Earn 75 – 100 gBits Per Event
             </span>
           </div>
 
           {/* 3 Stages Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            {/* Stage 1 */}
             <motion.div
-              whileHover={{ y: -4 }}
-              className="bg-[#070709] border border-[#00F0FF]/20 rounded-2xl p-5 relative overflow-hidden"
+              whileHover={{ y: -5, scale: 1.01 }}
+              className="bg-[#07070d] border border-[#00F0FF]/25 hover:border-[#00F0FF]/50 rounded-2xl p-6 relative overflow-hidden transition-all duration-300 shadow-xl flex flex-col justify-between"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] font-black text-sm">
-                  1
+              <div
+                className="absolute top-0 left-0 right-0 h-[2px]"
+                style={{
+                  background: "linear-gradient(90deg, #00F0FF, transparent)",
+                }}
+              />
+              <div>
+                <div className="flex items-center gap-3.5 mb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/35 flex items-center justify-center text-[#00F0FF] font-mono font-black text-base shadow-lg shrink-0">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-white tracking-tight">
+                      Stage 1
+                    </h3>
+                    <p className="text-[11px] font-mono font-bold text-[#00F0FF] uppercase tracking-wider">
+                      Find the Glitch
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Stage 1</h3>
-                  <p className="text-[10px] font-mono text-[#00F0FF] uppercase">
-                    Find the Glitch
-                  </p>
-                </div>
+                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans">
+                  Inspect buggy code and describe the exact flaw. Graded strictly by AI up to 10 points.
+                </p>
               </div>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Inspect buggy code and describe the exact flaw. Graded strictly
-                by AI up to 10 points.
-              </p>
             </motion.div>
 
+            {/* Stage 2 */}
             <motion.div
-              whileHover={{ y: -4 }}
-              className="bg-[#070709] border border-[#D600FF]/20 rounded-2xl p-5 relative overflow-hidden"
+              whileHover={{ y: -5, scale: 1.01 }}
+              className="bg-[#07070d] border border-[#D600FF]/25 hover:border-[#D600FF]/50 rounded-2xl p-6 relative overflow-hidden transition-all duration-300 shadow-xl flex flex-col justify-between"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 rounded-xl bg-[#D600FF]/15 border border-[#D600FF]/30 flex items-center justify-center text-[#D600FF] font-black text-sm">
-                  2
+              <div
+                className="absolute top-0 left-0 right-0 h-[2px]"
+                style={{
+                  background: "linear-gradient(90deg, #D600FF, transparent)",
+                }}
+              />
+              <div>
+                <div className="flex items-center gap-3.5 mb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-[#D600FF]/15 border border-[#D600FF]/35 flex items-center justify-center text-[#D600FF] font-mono font-black text-base shadow-lg shrink-0">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-white tracking-tight">
+                      Stage 2
+                    </h3>
+                    <p className="text-[11px] font-mono font-bold text-[#D600FF] uppercase tracking-wider">
+                      Twist Card
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Stage 2</h3>
-                  <p className="text-[10px] font-mono text-[#D600FF] uppercase">
-                    Twist Card
-                  </p>
-                </div>
+                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans">
+                  Draw a random wild modifier card (e.g. &quot;Explain in 30 words&quot; or &quot;ALL CAPS&quot;).
+                </p>
               </div>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Draw a random wild modifier card (e.g. "Explain in 30 words" or
-                "ALL CAPS").
-              </p>
             </motion.div>
 
+            {/* Stage 3 */}
             <motion.div
-              whileHover={{ y: -4 }}
-              className="bg-[#070709] border border-[#FF00C8]/20 rounded-2xl p-5 relative overflow-hidden"
+              whileHover={{ y: -5, scale: 1.01 }}
+              className="bg-[#07070d] border border-[#FF00C8]/25 hover:border-[#FF00C8]/50 rounded-2xl p-6 relative overflow-hidden transition-all duration-300 shadow-xl flex flex-col justify-between"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 rounded-xl bg-[#FF00C8]/15 border border-[#FF00C8]/30 flex items-center justify-center text-[#FF00C8] font-black text-sm">
-                  3
+              <div
+                className="absolute top-0 left-0 right-0 h-[2px]"
+                style={{
+                  background: "linear-gradient(90deg, #FF00C8, transparent)",
+                }}
+              />
+              <div>
+                <div className="flex items-center gap-3.5 mb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-[#FF00C8]/15 border border-[#FF00C8]/35 flex items-center justify-center text-[#FF00C8] font-mono font-black text-base shadow-lg shrink-0">
+                    3
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-white tracking-tight">
+                      Stage 3
+                    </h3>
+                    <p className="text-[11px] font-mono font-bold text-[#FF00C8] uppercase tracking-wider">
+                      Pitch Wild
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Stage 3</h3>
-                  <p className="text-[10px] font-mono text-[#FF00C8] uppercase">
-                    Pitch Wild
-                  </p>
-                </div>
+                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans">
+                  Craft your final solution pitch abiding by the Twist Card. Graded by AI + open to community voting!
+                </p>
               </div>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Craft your final solution pitch abiding by the Twist Card.
-                Graded by AI + open to community voting!
-              </p>
             </motion.div>
           </div>
 
           {/* Rules & Rewards Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="bg-[#070709]/60 border border-white/5 p-5 rounded-2xl">
-              <p className="text-[#FFD700] font-bold text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Trophy size={14} /> Payout & Rewards
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-[#07070d]/80 border border-white/8 p-6 rounded-2xl transition hover:border-white/15">
+              <p className="text-[#FFD700] font-mono font-bold text-xs uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                <Trophy size={15} /> Payout & Rewards
               </p>
-              <p className="text-gray-400 text-xs leading-relaxed">
+              <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans">
                 Complete all 3 stages for a{" "}
                 <span className="text-white font-bold">75 gBit base</span>, plus
                 up to{" "}
@@ -184,22 +214,22 @@ const GameArena = () => {
               </p>
             </div>
 
-            <div className="bg-[#070709]/60 border border-white/5 p-5 rounded-2xl">
-              <p className="text-[#00F0FF] font-bold text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Target size={14} /> Terminal Wall Impact
+            <div className="bg-[#07070d]/80 border border-white/8 p-6 rounded-2xl transition hover:border-white/15">
+              <p className="text-[#00F0FF] font-mono font-bold text-xs uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                <Target size={15} /> Terminal Wall Impact
               </p>
-              <p className="text-gray-400 text-xs leading-relaxed">
+              <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans">
                 Arena gBits directly boost your level and weekly rank on the{" "}
                 <span className="text-[#00F0FF] font-bold">Terminal Wall</span>{" "}
                 leaderboard.
               </p>
             </div>
 
-            <div className="bg-[#070709]/60 border border-white/5 p-5 rounded-2xl">
-              <p className="text-[#22C55E] font-bold text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Users size={14} /> Community Feed
+            <div className="bg-[#07070d]/80 border border-white/8 p-6 rounded-2xl transition hover:border-white/15">
+              <p className="text-[#22C55E] font-mono font-bold text-xs uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                <Users size={15} /> Community Feed
               </p>
-              <p className="text-gray-400 text-xs leading-relaxed">
+              <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans">
                 After finishing, your pitch unlocks in the community feed where
                 fellow Glitchers react with 🔥 emojis.
               </p>
