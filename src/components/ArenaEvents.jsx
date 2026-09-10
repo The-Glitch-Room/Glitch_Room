@@ -109,7 +109,7 @@ const ArenaEvents = () => {
         <Navbar />
 
       {/* ── HEADER ── */}
-      <section className="relative text-center pt-36 pb-16 px-6 overflow-hidden">
+      <section className="relative text-center pt-48 sm:pt-52 pb-16 px-6 overflow-hidden">
         {/* Cyber Grid */}
         <div
           className="absolute inset-0 opacity-10 pointer-events-none"
@@ -127,7 +127,7 @@ const ArenaEvents = () => {
           className="relative z-10 max-w-4xl mx-auto"
         >
           {/* Live status badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold uppercase tracking-widest mb-4">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold uppercase tracking-widest mb-6">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
             Live Arena Challenges
           </div>
@@ -140,7 +140,7 @@ const ArenaEvents = () => {
           />
 
           {/* Controls Bar: Search & Difficulty Pills */}
-          <div className="mt-8 max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-3">
+          <div className="mt-14 sm:mt-16 max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-3">
             <div className="relative flex-1 w-full">
               <Search
                 size={16}
