@@ -284,7 +284,7 @@ const ArenaEvents = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => navigate(`/arena/${event.id}`)}
-                    className="w-full mt-auto py-3 rounded-xl font-bold text-xs text-black bg-white hover:bg-gray-200 flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all font-sans"
+                    className="w-full mt-auto py-3 rounded-xl font-bold text-xs text-[#00F0FF] bg-[#00F0FF]/12 border border-[#00F0FF]/30 hover:bg-[#00F0FF] hover:text-black hover:border-[#00F0FF] flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all duration-300 font-sans"
                   >
                     <Swords size={14} /> Enter Arena Event →
                   </motion.button>
