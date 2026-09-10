@@ -241,8 +241,7 @@ const ArenaEvents = () => {
                   className="relative bg-[#0f0f14] border border-white/5 rounded-3xl p-6 flex flex-col justify-between group transition-all duration-300 shadow-xl overflow-hidden"
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = "rgba(0,240,255,0.4)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 30px rgba(0,240,255,0.12)";
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor =
@@ -286,7 +285,7 @@ const ArenaEvents = () => {
                     </div>
 
                     {/* Title */}
-                    <h2 className="text-xl font-bold text-white mb-2 group-hover:text-[#00F0FF] transition-colors">
+                    <h2 className="text-xl font-bold text-white mb-2 transition-colors">
                       {event.title}
                     </h2>
 
