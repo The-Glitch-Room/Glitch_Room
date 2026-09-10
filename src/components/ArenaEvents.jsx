@@ -96,7 +96,8 @@ const ArenaEvents = () => {
       selectedDiff === "all" ||
       (selectedDiff === "easy" && diff.includes("easy")) ||
       (selectedDiff === "medium" && diff.includes("medium")) ||
-      (selectedDiff === "hard" && diff.includes("hard"));
+      (selectedDiff === "hard" && diff.includes("hard")) ||
+      (selectedDiff === "expert" && diff.includes("expert"));
 
     return matchesSearch && matchesDiff;
   });
@@ -168,6 +169,7 @@ const ArenaEvents = () => {
                 { id: "easy", label: "Easy" },
                 { id: "medium", label: "Medium" },
                 { id: "hard", label: "Hard" },
+                { id: "expert", label: "Expert" },
               ].map((d) => (
                 <button
                   key={d.id}
@@ -225,6 +227,7 @@ const ArenaEvents = () => {
               const getDiffColor = (diff) => {
                 const d = (diff || "").toLowerCase();
                 if (d.includes("easy")) return "#22c55e";
+                if (d.includes("expert")) return "#a855f7";
                 if (d.includes("hard")) return "#ef4444";
                 return "#f59e0b";
               };
