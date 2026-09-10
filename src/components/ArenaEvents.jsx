@@ -203,7 +203,15 @@ const ArenaEvents = () => {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {filteredEvents.map((event, index) => {
-              const diffColor = event.difficultyColor || "#00F0FF";
+              const getDiffColor = (diff) => {
+                const d = (diff || "").toLowerCase();
+                if (d.includes("easy")) return "#22c55e";
+                if (d.includes("hard")) return "#ef4444";
+                return "#f59e0b";
+              };
+              const diffColor =
+                event.difficultyColor || getDiffColor(event.difficulty);
+
               return (
                 <motion.div
                   key={event.id}
@@ -233,7 +241,7 @@ const ArenaEvents = () => {
                   />
 
                   <div>
-                    {/* Top Row: Live Indicator + Reward Badge */}
+                    {/* Top Row: Live Indicator + Difficulty Badge + Reward Badge */}
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -241,9 +249,21 @@ const ArenaEvents = () => {
                           Live Event
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30">
-                        {event.reward || "100 gBits"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md border capitalize"
+                          style={{
+                            color: diffColor,
+                            borderColor: `${diffColor}40`,
+                            backgroundColor: `${diffColor}18`,
+                          }}
+                        >
+                          {event.difficulty || "Medium"}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30">
+                          {event.reward || "100 gBits"}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Title */}
@@ -262,7 +282,7 @@ const ArenaEvents = () => {
                       <span>
                         Hosted by{" "}
                         <span className="text-gray-300 font-semibold">
-                          {event.hosted_by || "Glitch Room"}
+                          {event.hosted_by || "Glitch Room Team"}
                         </span>
                       </span>
                     </div>
@@ -284,7 +304,7 @@ const ArenaEvents = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => navigate(`/arena/${event.id}`)}
-                    className="w-full mt-auto py-3 rounded-xl font-bold text-xs text-[#00F0FF] bg-[#00F0FF]/12 border border-[#00F0FF]/30 hover:bg-[#00F0FF] hover:text-black hover:border-[#00F0FF] flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all duration-300 font-sans"
+                    className="w-full mt-auto py-3 rounded-xl font-bold text-xs text-[#00F0FF] bg-[#00F0FF]/10 border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 hover:border-[#00F0FF]/60 hover:text-[#00F0FF] flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all duration-300 font-sans"
                   >
                     <Swords size={14} /> Enter Arena Event →
                   </motion.button>
