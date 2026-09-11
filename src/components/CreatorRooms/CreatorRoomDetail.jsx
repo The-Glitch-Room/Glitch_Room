@@ -498,6 +498,18 @@ const CreatorRoomDetail = ({ roomId }) => {
     });
 
     setMembers(fetchedMembers);
+    const realMemberCount = fetchedMembers.length || 1;
+    if (roomData && roomData.member_count !== realMemberCount) {
+      setRoom((prev) => (prev ? { ...prev, member_count: realMemberCount } : prev));
+      supabase
+        .from("rooms")
+        .update({ member_count: realMemberCount })
+        .eq("id", id)
+        .then(({ error }) => {
+          if (error) console.warn("Failed to sync room member_count:", error);
+        });
+    }
+
     if (uid && memberUids.has(uid)) {
       setIsMember(true);
     } else {
@@ -1204,7 +1216,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const userOnTimeCount = userStandups.filter((s) => getOnTimeStatus(s)).length;
   const userStreak = getUserStreak(userId);
   const roomPoolGBits =
-    (room.entry_stake || 0) * (room.member_count || members.length || 1);
+    (room.entry_stake || 0) * (members.length || room.member_count || 1);
   const unreadNotifsCount = notifications.filter((n) => !n.is_read).length;
 
   // Real Leaderboard sorted by check-in streak — streak recomputed here
@@ -1427,7 +1439,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     </span>
                     <span className="flex items-center gap-1 text-cyan-400">
                       <Users size={13} />{" "}
-                      {room.member_count || members.length || 1} Members
+                      {members.length || room.member_count || 1} Members
                     </span>
                     <span className="flex items-center gap-1 text-gray-400">
                       <Globe size={13} /> {room.visibility || "Public"} Room
@@ -2118,7 +2130,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
                 <div className="text-sm font-black text-pink-300 font-mono">
                   {(room.entry_stake || 50) *
-                    Math.max(1, room.member_count || members.length || 1)}
+                    Math.max(1, members.length || room.member_count || 1)}
                   + gBits
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
@@ -2132,7 +2144,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           <button
             onClick={() =>
               showToast(
-                `Pool Reward: ${(room.entry_stake || 50) * Math.max(1, room.member_count || members.length || 1)} gBits for completing the sprint!`,
+                `Pool Reward: ${(room.entry_stake || 50) * Math.max(1, members.length || room.member_count || 1)} gBits for completing the sprint!`,
               )
             }
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 transition cursor-pointer shrink-0"

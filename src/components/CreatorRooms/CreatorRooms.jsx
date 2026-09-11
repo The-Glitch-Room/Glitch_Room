@@ -57,17 +57,36 @@ const CreatorRooms = () => {
     if (creatorRooms.length > 0) {
       const creatorRoomIds = creatorRooms.map((r) => r.id);
 
-      // 1. Calculate Real Committed Builders Count from Database
+      // 1. Calculate Real Committed Builders Count & Dynamic Per-Room Member Counts
       const { data: membersData } = await supabase
         .from("room_members")
-        .select("user_id")
+        .select("room_id, user_id")
         .in("room_id", creatorRoomIds);
 
       if (membersData && membersData.length > 0) {
         const uniqueUsers = new Set(membersData.map((m) => m.user_id));
         setTotalCommittedBuilders(uniqueUsers.size);
+
+        // Group members by room_id
+        const roomMembersMap = {};
+        membersData.forEach((m) => {
+          if (!roomMembersMap[m.room_id]) roomMembersMap[m.room_id] = new Set();
+          roomMembersMap[m.room_id].add(m.user_id);
+        });
+
+        const updatedRooms = creatorRooms.map((r) => {
+          const uSet = roomMembersMap[r.id] || new Set();
+          if (r.created_by && !uSet.has(r.created_by)) {
+            uSet.add(r.created_by);
+          }
+          const actualCount = Math.max(1, uSet.size || r.member_count || 1);
+          return { ...r, member_count: actualCount };
+        });
+
+        setRooms(updatedRooms);
       } else {
         setTotalCommittedBuilders(0);
+        setRooms(creatorRooms);
       }
 
       // 2. Calculate Real Consistency Rate from Database Check-ins
@@ -88,6 +107,7 @@ const CreatorRooms = () => {
     } else {
       setTotalCommittedBuilders(0);
       setConsistencyRate("—");
+      setRooms([]);
     }
 
     if (user) {
@@ -132,6 +152,12 @@ const CreatorRooms = () => {
           role: "member",
         },
       ]);
+      const newCount = (room.member_count || 1) + 1;
+      await supabase
+        .from("rooms")
+        .update({ member_count: newCount })
+        .eq("id", room.id);
+
       setMyRoomIds((prev) => new Set(prev).add(room.id));
       navigate(`/creator-rooms/${room.id}`);
     } catch (e) {
