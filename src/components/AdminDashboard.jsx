@@ -1122,6 +1122,16 @@ const ArenaEventsTab = () => {
 };
 
 // ── Migration tab ─────────────────────────────────────────────────────────
+const MIGRATION_CATEGORIES = [
+  { key: "glitch", label: "Glitches", color: "#00F0FF", table: "challenges" },
+  { key: "bug", label: "Debug Mode", color: "#FF6B00", table: "challenges" },
+  { key: "ai", label: "AI Powered", color: "#FF00C8", table: "challenges" },
+  { key: "spark", label: "Creative Sparks", color: "#A855F7", table: "challenges" },
+  { key: "explore_original", label: "Explore Exclusive", color: "#10B981", table: "challenges" },
+  { key: "arena_events", label: "Arena Events", color: "#38BDF8", table: "arena_events" },
+];
+
+// ── Migration tab ─────────────────────────────────────────────────────────
 const MigrationTab = () => {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState([]);
@@ -1129,143 +1139,198 @@ const MigrationTab = () => {
 
   const fetchCounts = async () => {
     const results = {};
-    for (const type of Object.keys(JSON_SOURCES)) {
-      const { count } = await supabase
-        .from("challenges")
-        .select("*", { count: "exact", head: true })
-        .eq("type", type);
-      results[type] = count || 0;
+    for (const cat of MIGRATION_CATEGORIES) {
+      if (cat.table === "challenges") {
+        const { count } = await supabase
+          .from("challenges")
+          .select("*", { count: "exact", head: true })
+          .eq("type", cat.key);
+        results[cat.key] = count || 0;
+      } else if (cat.table === "arena_events") {
+        const { count } = await supabase
+          .from("arena_events")
+          .select("*", { count: "exact", head: true });
+        results[cat.key] = count || 0;
+      }
     }
     setCounts(results);
   };
 
-  const [arenaSyncing, setArenaSyncing] = useState(false);
-  const [arenaCount, setArenaCount] = useState(0);
-
-  const fetchArenaCount = async () => {
-    const { count } = await supabase
-      .from("arena_events")
-      .select("*", { count: "exact", head: true });
-    setArenaCount(count || 0);
-  };
-
   useEffect(() => {
     fetchCounts();
-    fetchArenaCount();
   }, []);
-
-  const syncArenaEvents = async () => {
-    setArenaSyncing(true);
-    try {
-      // 1. Fetch existing events from database
-      const { data: existingEvents, error: fetchErr } = await supabase
-        .from("arena_events")
-        .select("id, title, hosted_by");
-
-      if (fetchErr) throw fetchErr;
-
-      const existingTitles = new Set(
-        (existingEvents || []).map((e) => (e.title || "").trim().toLowerCase())
-      );
-
-      // 2. Normalize legacy hosted_by fields in existing database rows
-      const legacyMocks = [
-        "Glitch Room Core Team",
-        "React Architects",
-        "AI Overlords",
-        "Frontend Guild",
-        "Performance Lab",
-        "Algo Masters",
-        "Glitch Room",
-      ];
-      for (const ev of existingEvents || []) {
-        if (
-          ev.hosted_by &&
-          legacyMocks.some(
-            (m) => m.toLowerCase() === ev.hosted_by.trim().toLowerCase()
-          )
-        ) {
-          await supabase
-            .from("arena_events")
-            .update({ hosted_by: "Glitch Room Team" })
-            .eq("id", ev.id);
-        }
-      }
-
-      // 3. Filter only NEW challenges that aren't in database yet
-      const newRows = FEATURED_ARENA_EVENTS.filter(
-        (ev) => !existingTitles.has((ev.title || "").trim().toLowerCase())
-      ).map((ev) => ({
-        title: ev.title,
-        description: ev.description,
-        hosted_by: "Glitch Room Team",
-        skills: ev.skills,
-        glitch_scenario: ev.glitch_scenario,
-        is_live: true,
-      }));
-
-      if (newRows.length === 0) {
-        alert(
-          "All 25 Arena Events are already present in your database! 0 duplicates created."
-        );
-      } else {
-        const { error: insertErr } = await supabase
-          .from("arena_events")
-          .insert(newRows);
-        if (insertErr) throw insertErr;
-        alert(
-          `Successfully added ${newRows.length} new Arena Events to your database!`
-        );
-      }
-    } catch (err) {
-      console.error("Sync error:", err);
-      alert("Failed to sync arena events: " + (err.message || err));
-    } finally {
-      await fetchArenaCount();
-      setArenaSyncing(false);
-    }
-  };
 
   const runMigration = async () => {
     setRunning(true);
     const entries = [];
 
-    for (const [type, items] of Object.entries(JSON_SOURCES)) {
-      const { count } = await supabase
-        .from("challenges")
-        .select("*", { count: "exact", head: true })
-        .eq("type", type);
+    try {
+      // 1. Sync Arena Events (arena_events table)
+      const { data: existingEvents, error: eventFetchErr } = await supabase
+        .from("arena_events")
+        .select("id, title, hosted_by");
 
-      if (count > 0) {
+      if (eventFetchErr) {
         entries.push({
-          type,
-          status: "skipped",
-          message: `Already has ${count} rows in the database — skipped.`,
+          category: "Arena Events",
+          status: "error",
+          message: `Failed to fetch existing arena events: ${eventFetchErr.message}`,
         });
-        continue;
+      } else {
+        const existingTitles = new Set(
+          (existingEvents || []).map((e) => (e.title || "").trim().toLowerCase())
+        );
+
+        // Normalize legacy hosted_by fields in existing database rows
+        const legacyMocks = [
+          "Glitch Room Core Team",
+          "React Architects",
+          "AI Overlords",
+          "Frontend Guild",
+          "Performance Lab",
+          "Algo Masters",
+          "Glitch Room",
+        ];
+        for (const ev of existingEvents || []) {
+          if (
+            ev.hosted_by &&
+            legacyMocks.some(
+              (m) => m.toLowerCase() === ev.hosted_by.trim().toLowerCase()
+            )
+          ) {
+            await supabase
+              .from("arena_events")
+              .update({ hosted_by: "Glitch Room Team" })
+              .eq("id", ev.id);
+          }
+        }
+
+        const newArenaRows = FEATURED_ARENA_EVENTS.filter(
+          (ev) => !existingTitles.has((ev.title || "").trim().toLowerCase())
+        ).map((ev) => ({
+          title: ev.title,
+          description: ev.description,
+          hosted_by: "Glitch Room Team",
+          skills: ev.skills,
+          glitch_scenario: ev.glitch_scenario,
+          is_live: true,
+        }));
+
+        if (newArenaRows.length > 0) {
+          const { error: insertErr } = await supabase
+            .from("arena_events")
+            .insert(newArenaRows);
+          if (insertErr) {
+            entries.push({
+              category: "Arena Events",
+              status: "error",
+              message: `Failed to insert arena events: ${insertErr.message}`,
+            });
+          } else {
+            entries.push({
+              category: "Arena Events",
+              status: "success",
+              message: `Added ${newArenaRows.length} new Arena Events (${existingTitles.size} already present).`,
+            });
+          }
+        } else {
+          entries.push({
+            category: "Arena Events",
+            status: "skipped",
+            message: `All ${existingTitles.size} Arena Events are already in database — skipped.`,
+          });
+        }
       }
 
-      const rows = items.map((item) => ({
-        id: item.id,
-        type,
-        title: item.title,
-        description: item.description || "",
-        category: item.category || "",
-        difficulty: item.difficulty || item.level || "Easy",
-        code: item.code || null,
-        hint: item.hint || null,
-        solution: item.solution || null,
-        prompt: item.prompt || null,
-      }));
+      // 2. Sync JSON Challenges (challenges table)
+      const { data: existingChallenges, error: chalFetchErr } = await supabase
+        .from("challenges")
+        .select("id, title, type");
 
-      const { error } = await supabase.from("challenges").insert(rows);
+      if (chalFetchErr) {
+        entries.push({
+          category: "Challenges",
+          status: "error",
+          message: `Failed to fetch existing challenges: ${chalFetchErr.message}`,
+        });
+      } else {
+        const existingById = new Map();
+        const existingByTitle = new Map();
 
+        (existingChallenges || []).forEach((item) => {
+          const t = item.type;
+          if (!existingById.has(t)) existingById.set(t, new Set());
+          if (!existingByTitle.has(t)) existingByTitle.set(t, new Set());
+
+          if (item.id != null) existingById.get(t).add(item.id);
+          if (item.title) existingByTitle.get(t).add(item.title.trim().toLowerCase());
+        });
+
+        for (const [type, items] of Object.entries(JSON_SOURCES)) {
+          const catLabel = MIGRATION_CATEGORIES.find((c) => c.key === type)?.label || type;
+          const typeById = existingById.get(type) || new Set();
+          const typeByTitle = existingByTitle.get(type) || new Set();
+
+          const newRows = items
+            .filter((item) => {
+              const isIdExists = item.id != null && typeById.has(item.id);
+              const isTitleExists =
+                item.title && typeByTitle.has(item.title.trim().toLowerCase());
+              return !isIdExists && !isTitleExists;
+            })
+            .map((item) => ({
+              id: item.id,
+              type,
+              title: item.title,
+              description: item.description || "",
+              category: item.category || "",
+              difficulty: item.difficulty || item.level || "Easy",
+              code: item.code || null,
+              hint: item.hint || null,
+              solution: item.solution || null,
+              prompt: item.prompt || null,
+            }));
+
+          if (newRows.length > 0) {
+            const { error: insertErr } = await supabase
+              .from("challenges")
+              .insert(newRows);
+            if (insertErr) {
+              entries.push({
+                category: catLabel,
+                status: "error",
+                message: `Failed: ${insertErr.message}`,
+              });
+            } else {
+              entries.push({
+                category: catLabel,
+                status: "success",
+                message: `Migrated ${newRows.length} new challenges (${typeByTitle.size} already present).`,
+              });
+            }
+          } else {
+            entries.push({
+              category: catLabel,
+              status: "skipped",
+              message: `All challenges present (${typeByTitle.size} in DB) — skipped.`,
+            });
+          }
+        }
+
+        // Check Explore Exclusive status
+        const exploreCount = existingByTitle.get("explore_original")?.size || 0;
+        entries.push({
+          category: "Explore Exclusive",
+          status: "skipped",
+          message: `Managed directly via Admin Editor (${exploreCount} in DB).`,
+        });
+      }
+    } catch (err) {
+      console.error("Migration error:", err);
       entries.push({
-        type,
-        status: error ? "error" : "success",
-        message: error
-          ? `Failed: ${error.message}`
-          : `Migrated ${rows.length} challenges.`,
+        category: "System",
+        status: "error",
+        message: `Unexpected error: ${err.message || err}`,
       });
     }
 
@@ -1276,107 +1341,67 @@ const MigrationTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* ── Arena Events Sync Card ── */}
-      <div className="bg-[#0f0f13] border border-cyan-500/20 rounded-2xl p-6">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center">
-            <Swords size={16} className="text-cyan-400" />
+      {/* ── Unified Migration & Sync Card ── */}
+      <div className="bg-[#0f0f13] border border-white/10 rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center">
+            <Database size={18} className="text-purple-400" />
           </div>
           <div>
-            <p className="text-white font-bold text-sm">
-              Sync 25 Arena Events to Database (`arena_events` Table)
-            </p>
-            <p className="text-gray-500 text-xs">
-              Uploads all 25 challenges directly into Supabase so database counts & hero stats track all challenges.
-            </p>
-          </div>
-        </div>
-
-        <div className="my-4 p-3 rounded-xl bg-white/[0.03] border border-white/8 inline-block">
-          <p className="text-xs text-gray-400">
-            Current DB Arena Events Count:{" "}
-            <span className="text-[#00F0FF] font-black text-sm">{arenaCount}</span>
-          </p>
-        </div>
-
-        <div>
-          <button
-            onClick={syncArenaEvents}
-            disabled={arenaSyncing}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-black disabled:opacity-60 cursor-pointer"
-            style={{ background: "linear-gradient(90deg,#00F0FF,#FF00C8)" }}
-          >
-            {arenaSyncing ? (
-              <>
-                <Loader2 size={14} className="animate-spin" /> Syncing Arena Events...
-              </>
-            ) : (
-              <>
-                <Swords size={14} /> Sync 25 Arena Events to Database
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-[#0f0f13] border border-white/8 rounded-2xl p-6">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center">
-            <Database size={16} className="text-purple-400" />
-          </div>
-          <div>
-            <p className="text-white font-bold text-sm">
-              Migrate JSON Challenges to Supabase
-            </p>
-            <p className="text-gray-500 text-xs">
-              One-time import of your existing glitches, debug, AI, and creative
-              spark challenge files into the database.
+            <h2 className="text-white font-bold text-base">
+              Migrate JSON Challenges & Arena Events to Database
+            </h2>
+            <p className="text-gray-400 text-xs mt-0.5">
+              Sync all local challenge datasets and arena events directly into Supabase.
             </p>
           </div>
         </div>
 
+        {/* Dynamic Database Counts for ALL 6 Challenge Types */}
         {counts && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-5">
-            {CHALLENGE_TYPES.map((t) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 my-6">
+            {MIGRATION_CATEGORIES.map((cat) => (
               <div
-                key={t.value}
-                className="rounded-xl p-3 text-center"
+                key={cat.key}
+                className="rounded-xl p-3 text-center transition-all hover:scale-[1.02]"
                 style={{
-                  background: `${t.color}0d`,
-                  border: `1px solid ${t.color}25`,
+                  background: `${cat.color}0d`,
+                  border: `1px solid ${cat.color}25`,
                 }}
               >
-                <p className="text-xl font-black" style={{ color: t.color }}>
-                  {counts[t.value]}
+                <p className="text-2xl font-black" style={{ color: cat.color }}>
+                  {counts[cat.key] ?? 0}
                 </p>
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">
-                  {t.label}
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1 truncate">
+                  {cat.label}
                 </p>
               </div>
             ))}
           </div>
         )}
 
-        <button
-          onClick={runMigration}
-          disabled={running}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60 cursor-pointer"
-          style={{ background: "linear-gradient(90deg,#a855f7,#FF00C8)" }}
-        >
-          {running ? (
-            <>
-              <Loader2 size={14} className="animate-spin" /> Migrating...
-            </>
-          ) : (
-            <>
-              <Database size={14} /> Run Migration
-            </>
-          )}
-        </button>
+        <div className="pt-2">
+          <button
+            onClick={runMigration}
+            disabled={running}
+            className="flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60 cursor-pointer shadow-lg transition-transform active:scale-95"
+            style={{ background: "linear-gradient(90deg,#00F0FF,#a855f7,#FF00C8)" }}
+          >
+            {running ? (
+              <>
+                <Loader2 size={16} className="animate-spin" /> Migrating & Syncing...
+              </>
+            ) : (
+              <>
+                <Database size={16} /> Run Migration
+              </>
+            )}
+          </button>
+        </div>
 
-        <p className="text-gray-600 text-[11px] mt-3">
-          Safe to click multiple times — any type that already has rows in the
-          database is automatically skipped.
+        <p className="text-gray-500 text-[11px] mt-3 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+          Safe to click multiple times — existing challenges & arena events will never be duplicated.
         </p>
       </div>
 
@@ -1409,7 +1434,7 @@ const MigrationTab = () => {
                         : "#22c55e",
                 }}
               >
-                {entry.type}
+                {entry.category}
               </span>
               <span className="text-gray-400">{entry.message}</span>
             </div>
