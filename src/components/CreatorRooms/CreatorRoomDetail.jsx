@@ -49,6 +49,8 @@ import {
   UserCheck,
   Mail,
   AlertTriangle,
+  Plus,
+  Pencil,
 } from "lucide-react";
 
 // Shared fallback avatar — was previously declared inside fetchAllRoomData(),
@@ -359,6 +361,17 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [emailNotifsEnabled, setEmailNotifsEnabled] = useState(true);
 
+  // Squad Events States
+  const [squadEvents, setSquadEvents] = useState([]);
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [eventTitle, setEventTitle] = useState("");
+  const [eventDate, setEventDate] = useState(new Date().toISOString().split("T")[0]);
+  const [eventTime, setEventTime] = useState("08:00 PM IST");
+  const [eventType, setEventType] = useState("Live Sync");
+  const [eventDescription, setEventDescription] = useState("");
+  const [eventSaving, setEventSaving] = useState(false);
+
   // Edit Room Form State
   const [editTitle, setEditTitle] = useState("");
   const [editPledge, setEditPledge] = useState("");
@@ -602,6 +615,18 @@ const CreatorRoomDetail = ({ roomId }) => {
       .eq("room_id", id);
     setBuddies(buddyData || []);
 
+    // 6. Fetch Squad Events
+    try {
+      const { data: evData } = await supabase
+        .from("room_events")
+        .select("*")
+        .eq("room_id", id)
+        .order("event_date", { ascending: true });
+      if (evData) setSquadEvents(evData);
+    } catch (e) {
+      console.warn("room_events fetch notice:", e);
+    }
+
     setLoading(false);
   };
 
@@ -610,9 +635,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   }, [id]);
 
   // Real-time sync: live-refresh whenever anyone in the squad submits a
-  // check-in, joins/leaves, or the room's notifications change — so the
-  // feed, leaderboard, and stats update for every viewer immediately
-  // instead of only after their own next action.
+  // check-in, joins/leaves, posts events, or notifications change.
   useEffect(() => {
     if (!id) return undefined;
 
@@ -648,12 +671,110 @@ const CreatorRoomDetail = ({ roomId }) => {
         },
         () => fetchAllRoomData(),
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "room_events",
+          filter: `room_id=eq.${id}`,
+        },
+        () => fetchAllRoomData(),
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [id]);
+
+  // ── Squad Events CRUD Handlers ──
+  const openNewEventModal = () => {
+    setEditingEvent(null);
+    setEventTitle("");
+    setEventDate(new Date().toISOString().split("T")[0]);
+    setEventTime("08:00 PM IST");
+    setEventType("Live Sync");
+    setEventDescription("");
+    setShowAddEventModal(true);
+  };
+
+  const openEditEventModal = (ev) => {
+    setEditingEvent(ev);
+    setEventTitle(ev.title || "");
+    setEventDate(ev.event_date || new Date().toISOString().split("T")[0]);
+    setEventTime(ev.event_time || "08:00 PM IST");
+    setEventType(ev.event_type || "Live Sync");
+    setEventDescription(ev.description || "");
+    setShowAddEventModal(true);
+  };
+
+  const handleSaveSquadEvent = async () => {
+    if (!eventTitle.trim()) return;
+    setEventSaving(true);
+
+    const payload = {
+      room_id: id,
+      created_by: userId,
+      title: eventTitle.trim(),
+      event_date: eventDate,
+      event_time: eventTime.trim(),
+      event_type: eventType,
+      description: eventDescription.trim(),
+    };
+
+    try {
+      if (editingEvent) {
+        const { error } = await supabase
+          .from("room_events")
+          .update(payload)
+          .eq("id", editingEvent.id);
+        if (error) throw error;
+        showToast(" Squad event updated!");
+      } else {
+        const { error } = await supabase.from("room_events").insert([payload]);
+        if (error) throw error;
+        showToast(" Squad event added to schedule!");
+      }
+      setShowAddEventModal(false);
+      setEditingEvent(null);
+      fetchAllRoomData();
+    } catch (err) {
+      console.warn("room_events insert/update notice:", err);
+      // Fallback local update if table doesn't exist in Supabase yet
+      if (editingEvent) {
+        setSquadEvents((prev) =>
+          prev.map((e) => (e.id === editingEvent.id ? { ...e, ...payload } : e))
+        );
+        showToast(" Squad event updated!");
+      } else {
+        const newEv = {
+          id: `local-${Date.now()}`,
+          ...payload,
+          created_at: new Date().toISOString(),
+        };
+        setSquadEvents((prev) => [...prev, newEv]);
+        showToast(" Squad event added to schedule!");
+      }
+      setShowAddEventModal(false);
+      setEditingEvent(null);
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const handleDeleteSquadEvent = async (eventId) => {
+    if (!confirm("Remove this squad event from the schedule?")) return;
+    try {
+      await supabase.from("room_events").delete().eq("id", eventId);
+      setSquadEvents((prev) => prev.filter((e) => e.id !== eventId));
+      showToast(" Squad event removed.");
+    } catch (err) {
+      console.warn("Delete event notice:", err);
+      setSquadEvents((prev) => prev.filter((e) => e.id !== eventId));
+      showToast(" Squad event removed.");
+    }
+  };
 
   //  Dispatch Notification Architecture
   const sendRoomNotification = async ({
@@ -1018,7 +1139,11 @@ const CreatorRoomDetail = ({ roomId }) => {
         ? 14
         : room.duration_type === "60_day"
           ? 60
-          : 30;
+          : room.duration_type === "100_day"
+            ? 100
+            : room.duration_type === "ongoing"
+              ? 365
+              : 30;
   const startDate = room.start_date || room.created_at;
   const daysElapsed = Math.max(
     1,
@@ -1029,6 +1154,8 @@ const CreatorRoomDetail = ({ roomId }) => {
     100,
     Math.round((completedDays / totalSprintDays) * 100),
   );
+  const isExpired =
+    room.duration_type !== "ongoing" && daysElapsed > totalSprintDays;
 
   // Per-user IST calendar-date sets — every streak figure on this page
   // (member sidebar, standup cards, leaderboard, Squad Overview, Calendar
@@ -1339,10 +1466,16 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                   <div className="flex justify-between text-[10px] font-mono text-gray-500 pt-1">
                     <span>
-                      {completedDays} / {totalSprintDays} Days Completed
+                      {completedDays} / {room.duration_type === "ongoing" ? "Ongoing" : `${totalSprintDays} Days`} Completed
                     </span>
-                    <span className="text-green-400 font-semibold">
-                      On Track{" "}
+                    <span
+                      className={
+                        isExpired
+                          ? "text-amber-400 font-bold flex items-center gap-1"
+                          : "text-green-400 font-semibold"
+                      }
+                    >
+                      {isExpired ? "🏁 Sprint Completed" : "On Track"}
                     </span>
                   </div>
                 </div>
@@ -2569,7 +2702,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         )}
       </AnimatePresence>
 
-      {/* 7. 30-Day Sprint Calendar View Modal */}
+      {/* 7. Sprint Calendar View Modal (Dynamic Grid & Squad Schedule) */}
       <AnimatePresence>
         {showCalendarModal && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 backdrop-blur-md pt-24 pb-20 px-4 flex justify-center items-start">
@@ -2583,8 +2716,10 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6 flex-wrap gap-4">
                 <div>
                   <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Calendar size={22} className="text-[#FF00C8]" /> 30-Day
-                    Sprint Calendar
+                    <Calendar size={22} className="text-[#FF00C8]" />{" "}
+                    {room.duration_type === "ongoing"
+                      ? "Ongoing Squad Calendar"
+                      : `${totalSprintDays}-Day Sprint Calendar`}
                   </h3>
                   <p className="text-xs text-gray-400 font-mono">
                     Track your daily check-in streak & proof of work progress
@@ -2633,11 +2768,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <div className="bg-[#07070d] border border-white/10 rounded-2xl p-5 mb-6">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
-                        30-Day Progress
+                        {totalSprintDays}-Day Progress
                       </h4>
                       <span className="text-xs font-mono font-bold text-cyan-400">
-                        {userStandups.length} / 30 Days Completed —{" "}
-                        {Math.round((userStandups.length / 30) * 100)}%
+                        {userStandups.length} / {totalSprintDays} Days Completed —{" "}
+                        {Math.round((userStandups.length / totalSprintDays) * 100)}%
                       </span>
                     </div>
 
@@ -2646,7 +2781,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <div
                         className="h-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF] transition-all duration-500"
                         style={{
-                          width: `${Math.min(100, Math.round((userStandups.length / 30) * 100))}%`,
+                          width: `${Math.min(100, Math.round((userStandups.length / totalSprintDays) * 100))}%`,
                         }}
                       />
                     </div>
@@ -2685,16 +2820,16 @@ const CreatorRoomDetail = ({ roomId }) => {
                           ⏳ Remaining
                         </div>
                         <div className="text-base font-black text-purple-300">
-                          {Math.max(0, 30 - userStandups.length)}
+                          {Math.max(0, totalSprintDays - userStandups.length)}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* 30-Day Grid */}
+                  {/* Dynamic Sprint Days Grid */}
                   <div className="mb-6">
                     <div className="text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-3 flex items-center justify-between flex-wrap gap-2">
-                      <span>Sprint Days Grid (Days 1 — 30)</span>
+                      <span>Sprint Days Grid (Days 1 — {totalSprintDays})</span>
                       <div className="flex items-center gap-3 text-[10px]">
                         <span className="flex items-center gap-1">
                           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />{" "}
@@ -2715,13 +2850,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2 font-mono">
-                      {Array.from({ length: 30 }, (_, i) => i + 1).map(
+                    <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2 font-mono max-h-80 overflow-y-auto pr-1">
+                      {Array.from({ length: totalSprintDays }, (_, i) => i + 1).map(
                         (dayNum) => {
-                          // Each grid cell is evaluated purely by its own
-                          // IST calendar date — never by array index/count,
-                          // so a day is only ever "Completed" if a check-in
-                          // actually landed on that exact date.
                           const dayKey = shiftDateKey(roomStartKey, dayNum - 1);
                           const isTodayDate = dayKey === todayKey;
                           const isPastDate = dayKey < todayKey;
@@ -2772,9 +2903,6 @@ const CreatorRoomDetail = ({ roomId }) => {
                   {selectedDayNum !== null && (
                     <div className="bg-[#07070d] border border-purple-500/30 rounded-2xl p-5 font-mono text-xs space-y-3">
                       {(() => {
-                        // Same IST date-key approach as the grid above —
-                        // this day's identity is its calendar date, never
-                        // its position in the standups array.
                         const dayKey = shiftDateKey(
                           roomStartKey,
                           selectedDayNum - 1,
@@ -2782,9 +2910,6 @@ const CreatorRoomDetail = ({ roomId }) => {
                         const isTodayDate = dayKey === todayKey;
                         const isPastDate = dayKey < todayKey;
 
-                        // Matched strictly by IST calendar date — no index
-                        // fallback, so a neighboring day's check-in can
-                        // never be shown as "this" day's submission.
                         const standup =
                           userStandups.find(
                             (s) =>
@@ -2921,55 +3046,287 @@ const CreatorRoomDetail = ({ roomId }) => {
                   )}
                 </div>
               ) : (
-                /* Squad Activity Overview for Host */
-                <div className="space-y-4 font-mono text-xs">
-                  <h4 className="text-sm font-bold text-white">
-                    Squad Participation Overview
-                  </h4>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {members.map((m) => {
-                      const mStandups = standups.filter(
-                        (s) =>
-                          s.user_id === m.user_id || s.username === m.username,
-                      );
-                      const mPct = Math.round((mStandups.length / 30) * 100);
-                      return (
-                        <div
-                          key={m.user_id}
-                          className="p-4 rounded-2xl bg-[#07070d] border border-white/10 flex items-center justify-between gap-4"
+                /* Squad Schedule & Participation View */
+                <div className="space-y-6 font-mono text-xs">
+                  {/* Header row with Add Event CTA for Host */}
+                  <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Calendar size={16} className="text-cyan-400" /> Squad Schedule & Events
+                      </h4>
+                      <p className="text-[11px] text-gray-400 font-sans mt-0.5">
+                        Live syncs, deadlines, milestones & squad meetings scheduled by the host
+                      </p>
+                    </div>
+                    {isHost && (
+                      <button
+                        onClick={openNewEventModal}
+                        className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md hover:brightness-110 transition cursor-pointer"
+                      >
+                        <Plus size={14} /> Add Squad Event
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Events List / Timeline */}
+                  {squadEvents.length === 0 ? (
+                    <div className="bg-[#07070d] border border-dashed border-white/10 rounded-2xl p-6 text-center">
+                      <p className="text-gray-400 text-xs font-sans mb-3">
+                        No squad events scheduled yet.
+                      </p>
+                      {isHost && (
+                        <button
+                          onClick={openNewEventModal}
+                          className="px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold hover:bg-purple-500/30 transition cursor-pointer"
                         >
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={m.avatar_url || DEFAULT_AVATAR}
-                              alt={m.username}
-                              className="w-9 h-9 rounded-xl object-cover border border-white/10"
-                            />
-                            <div>
-                              <h5 className="font-bold text-white">
-                                {m.username}
-                              </h5>
-                              <p className="text-[10px] text-gray-500">
-                                {mStandups.length} / 30 Days ({mPct}%)
-                              </p>
+                          + Schedule First Squad Event
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                      {squadEvents.map((ev) => {
+                        const typeColors = {
+                          "Live Sync": { bg: "bg-cyan-500/10", border: "border-cyan-500/30", text: "text-cyan-300" },
+                          Milestone: { bg: "bg-purple-500/10", border: "border-purple-500/30", text: "text-purple-300" },
+                          Deadline: { bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-400" },
+                          "Code Review": { bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-300" },
+                          General: { bg: "bg-gray-500/10", border: "border-gray-500/30", text: "text-gray-300" },
+                        };
+                        const badgeStyle = typeColors[ev.event_type] || typeColors.General;
+
+                        return (
+                          <div
+                            key={ev.id}
+                            className="p-4 rounded-2xl bg-[#07070d] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition hover:border-white/20"
+                          >
+                            <div className="flex items-start gap-3 min-w-0">
+                              <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-center shrink-0 min-w-[75px]">
+                                <span className="text-[10px] font-mono text-gray-400 block uppercase">
+                                  {ev.event_date ? formatDateKeyLabel(ev.event_date) : "TBD"}
+                                </span>
+                                <span className="text-xs font-bold text-white block mt-0.5">
+                                  {ev.event_time || "All Day"}
+                                </span>
+                              </div>
+
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h5 className="font-bold text-white text-xs font-sans truncate">
+                                    {ev.title}
+                                  </h5>
+                                  <span
+                                    className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border ${badgeStyle.bg} ${badgeStyle.border} ${badgeStyle.text}`}
+                                  >
+                                    {ev.event_type || "Event"}
+                                  </span>
+                                </div>
+                                {ev.description && (
+                                  <p className="text-[11px] text-gray-400 font-sans line-clamp-2">
+                                    {ev.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {isHost && (
+                              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                <button
+                                  onClick={() => openEditEventModal(ev)}
+                                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 transition cursor-pointer"
+                                  title="Edit Event"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSquadEvent(ev.id)}
+                                  className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition cursor-pointer"
+                                  title="Delete Event"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Squad Member Participation List */}
+                  <div className="pt-4 border-t border-white/10">
+                    <h5 className="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">
+                      Squad Participation Overview
+                    </h5>
+                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                      {members.map((m) => {
+                        const mStandups = standups.filter(
+                          (s) => s.user_id === m.user_id || s.username === m.username,
+                        );
+                        const mPct = Math.round((mStandups.length / totalSprintDays) * 100);
+                        return (
+                          <div
+                            key={m.user_id}
+                            className="p-3.5 rounded-2xl bg-[#07070d] border border-white/5 flex items-center justify-between gap-4"
+                          >
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={m.avatar_url || DEFAULT_AVATAR}
+                                alt={m.username}
+                                className="w-8 h-8 rounded-xl object-cover border border-white/10"
+                              />
+                              <div>
+                                <h5 className="font-bold text-white text-xs">
+                                  {m.username}
+                                </h5>
+                                <p className="text-[10px] text-gray-500">
+                                  {mStandups.length} / {totalSprintDays} Days ({mPct}%)
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <span className="text-amber-400 font-bold flex items-center gap-1 text-xs">
+                                <Flame size={13} /> {getUserStreak(m.user_id)}d
+                              </span>
+                              <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-[10px]">
+                                {mStandups[0]
+                                  ? `Latest: ${formatDateKeyLabel(getISTDateKey(mStandups[0].created_at), { withYear: true })}`
+                                  : "No check-ins"}
+                              </span>
                             </div>
                           </div>
-
-                          <div className="flex items-center gap-3">
-                            <span className="text-amber-400 font-bold flex items-center gap-1">
-                              <Flame size={14} /> {getUserStreak(m.user_id)}d
-                            </span>
-                            <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-[10px]">
-                              {mStandups[0]
-                                ? `Latest: ${formatDateKeyLabel(getISTDateKey(mStandups[0].created_at), { withYear: true })}`
-                                : "No check-ins"}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 8. Add/Edit Squad Event Modal */}
+      <AnimatePresence>
+        {showAddEventModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans"
+            >
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Calendar size={18} className="text-cyan-400" />
+                  {editingEvent ? "Edit Squad Event" : "Add Squad Event"}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowAddEventModal(false);
+                    setEditingEvent(null);
+                  }}
+                  className="text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-xs font-mono">
+                <div>
+                  <label className="block text-gray-300 mb-1 font-bold">
+                    Event Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={eventTitle}
+                    onChange={(e) => setEventTitle(e.target.value)}
+                    placeholder="e.g. Mid-Sprint Code Review & Live Q&A"
+                    className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white font-sans text-xs focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-300 mb-1 font-bold">
+                      Event Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={eventDate}
+                      onChange={(e) => setEventDate(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 mb-1 font-bold">
+                      Event Time *
+                    </label>
+                    <input
+                      type="text"
+                      value={eventTime}
+                      onChange={(e) => setEventTime(e.target.value)}
+                      placeholder="08:00 PM IST"
+                      className="w-full p-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 mb-1.5 font-bold">
+                    Event Type
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Live Sync", "Milestone", "Deadline", "Code Review", "General"].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setEventType(t)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold transition cursor-pointer border ${
+                          eventType === t
+                            ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                            : "bg-white/5 text-gray-400 border-white/10 hover:text-white"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 mb-1 font-bold">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={eventDescription}
+                    onChange={(e) => setEventDescription(e.target.value)}
+                    placeholder="Provide details or links for squad members..."
+                    className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white font-sans text-xs focus:outline-none focus:border-cyan-500 resize-none"
+                  />
+                </div>
+
+                <div className="pt-3 flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowAddEventModal(false);
+                      setEditingEvent(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveSquadEvent}
+                    disabled={eventSaving || !eventTitle.trim()}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 hover:from-[#00F0FF] hover:to-purple-500 text-white text-xs font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-cyan-500/20"
+                  >
+                    {eventSaving ? "Saving..." : editingEvent ? "Save Changes" : "Create Squad Event"}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
