@@ -455,30 +455,72 @@ const CreatorRoomDetail = ({ roomId }) => {
     setEditDescription(roomData.description || "");
     setEditDeadline(roomData.checkin_deadline || "11:59 PM IST");
 
-    // 2. Fetch Room Members
+    // 2. Fetch Room Notifications FIRST so notifList is available for standup synthesis & activity feed
+    const { data: notifList } = await supabase
+      .from("room_notifications")
+      .select("*")
+      .eq("room_id", id)
+      .order("created_at", { ascending: false });
+    setNotifications(notifList || []);
+
+    // 3. Fetch Room Members
     const { data: memData } = await supabase
       .from("room_members")
       .select("*")
       .eq("room_id", id);
 
-    let fetchedMembers = [];
-    const memberUids = new Set(memData ? memData.map((m) => m.user_id) : []);
+    // 4. Fetch Standup Check-ins from room_checkins & community_posts
+    const { data: checkinData } = await supabase
+      .from("room_checkins")
+      .select("*")
+      .eq("room_id", id)
+      .order("created_at", { ascending: false });
 
-    if (roomData?.created_by && !memberUids.has(roomData.created_by)) {
-      memberUids.add(roomData.created_by);
+    const { data: postsData } = await supabase
+      .from("community_posts")
+      .select("*")
+      .or(`category.eq.room_${id},category.eq.${id}`)
+      .order("created_at", { ascending: false });
+
+    // 5. Fetch Room Buddies
+    const { data: buddyData } = await supabase
+      .from("room_buddies")
+      .select("*")
+      .eq("room_id", id);
+    setBuddies(buddyData || []);
+
+    // Build Unified Member Set across all tables
+    const memberUids = new Set();
+    if (roomData?.created_by) memberUids.add(roomData.created_by);
+    if (memData) memData.forEach((m) => m.user_id && memberUids.add(m.user_id));
+    if (checkinData) checkinData.forEach((c) => c.user_id && memberUids.add(c.user_id));
+    if (postsData) postsData.forEach((p) => p.user_id && memberUids.add(p.user_id));
+    if (buddyData) {
+      buddyData.forEach((b) => {
+        if (b.user1_id) memberUids.add(b.user1_id);
+        if (b.user2_id) memberUids.add(b.user2_id);
+      });
     }
 
     const uIds = Array.from(memberUids);
     let profs = [];
     if (uIds.length > 0) {
-      const { data: pData } = await supabase
+      const { data: pData1 } = await supabase
         .from("profiles")
         .select("id, user_id, username, full_name, avatar_url")
         .in("id", uIds);
-      profs = pData || [];
+      const { data: pData2 } = await supabase
+        .from("profiles")
+        .select("id, user_id, username, full_name, avatar_url")
+        .in("user_id", uIds);
+
+      const pMap = new Map();
+      (pData1 || []).forEach((p) => pMap.set(p.id || p.user_id, p));
+      (pData2 || []).forEach((p) => pMap.set(p.user_id || p.id, p));
+      profs = Array.from(pMap.values());
     }
 
-    fetchedMembers = uIds.map((uId) => {
+    const fetchedMembers = uIds.map((uId) => {
       const mRecord = (memData || []).find((m) => m.user_id === uId);
       const p = profs.find((pr) => pr.id === uId || pr.user_id === uId);
       const isHostUser = uId === roomData?.created_by;
@@ -498,44 +540,12 @@ const CreatorRoomDetail = ({ roomId }) => {
     });
 
     setMembers(fetchedMembers);
-    const realMemberCount = fetchedMembers.length || 1;
-    if (roomData && roomData.member_count !== realMemberCount) {
-      setRoom((prev) => (prev ? { ...prev, member_count: realMemberCount } : prev));
-      supabase
-        .from("rooms")
-        .update({ member_count: realMemberCount })
-        .eq("id", id)
-        .then(({ error }) => {
-          if (error) console.warn("Failed to sync room member_count:", error);
-        });
-    }
 
     if (uid && memberUids.has(uid)) {
       setIsMember(true);
     } else {
       setIsMember(!!(uid && roomData && uid === roomData.created_by));
     }
-
-    // 3. Fetch Room Notifications FIRST so notifList is available for standup synthesis & activity feed
-    const { data: notifList } = await supabase
-      .from("room_notifications")
-      .select("*")
-      .eq("room_id", id)
-      .order("created_at", { ascending: false });
-    setNotifications(notifList || []);
-
-    // 4. Fetch Standup Check-ins from room_checkins & community_posts
-    const { data: checkinData } = await supabase
-      .from("room_checkins")
-      .select("*")
-      .eq("room_id", id)
-      .order("created_at", { ascending: false });
-
-    const { data: postsData } = await supabase
-      .from("community_posts")
-      .select("*")
-      .or(`category.eq.room_${id},category.eq.${id}`)
-      .order("created_at", { ascending: false });
 
     let fetchedStandups = [];
     const seenStandupKeys = new Set();
@@ -544,14 +554,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       const checkinUids = Array.from(
         new Set(checkinData.map((c) => c.user_id).filter(Boolean)),
       );
-      let cProfs = [];
-      if (checkinUids.length > 0) {
-        const { data: pData } = await supabase
-          .from("profiles")
-          .select("id, user_id, username, full_name, avatar_url")
-          .in("id", checkinUids);
-        cProfs = pData || [];
-      }
+      let cProfs = profs;
 
       checkinData.forEach((c) => {
         const p = cProfs.find(
@@ -615,28 +618,20 @@ const CreatorRoomDetail = ({ roomId }) => {
     );
     setStandups(fetchedStandups);
 
-    // Note: per-member streaks are no longer computed/stored here — they're
-    // derived at render time from IST calendar-date buckets (see
-    // `userDateKeySets` / `getUserStreak` in the component body) so every
-    // streak display always reflects the same date-based logic, live.
-
-    // 5. Fetch Room Buddies
-    const { data: buddyData } = await supabase
-      .from("room_buddies")
-      .select("*")
-      .eq("room_id", id);
-    setBuddies(buddyData || []);
-
-    // 6. Fetch Squad Events
+    // 6. Fetch Squad Events (safely)
     try {
       const { data: evData } = await supabase
         .from("room_events")
         .select("*")
-        .eq("room_id", id)
-        .order("event_date", { ascending: true });
-      if (evData) setSquadEvents(evData);
+        .eq("room_id", id);
+      if (evData && Array.isArray(evData)) {
+        const sorted = [...evData].sort(
+          (a, b) => new Date(a.event_date) - new Date(b.event_date),
+        );
+        setSquadEvents(sorted);
+      }
     } catch (e) {
-      console.warn("room_events fetch notice:", e);
+      // room_events table not present on backend yet
     }
 
     setLoading(false);
@@ -647,7 +642,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   }, [id]);
 
   // Real-time sync: live-refresh whenever anyone in the squad submits a
-  // check-in, joins/leaves, posts events, or notifications change.
+  // check-in, joins/leaves, or notifications change.
   useEffect(() => {
     if (!id) return undefined;
 
@@ -679,16 +674,6 @@ const CreatorRoomDetail = ({ roomId }) => {
           event: "*",
           schema: "public",
           table: "room_notifications",
-          filter: `room_id=eq.${id}`,
-        },
-        () => fetchAllRoomData(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "room_events",
           filter: `room_id=eq.${id}`,
         },
         () => fetchAllRoomData(),
@@ -1215,8 +1200,8 @@ const CreatorRoomDetail = ({ roomId }) => {
   const userStandups = standups.filter((s) => s.user_id === userId);
   const userOnTimeCount = userStandups.filter((s) => getOnTimeStatus(s)).length;
   const userStreak = getUserStreak(userId);
-  const roomPoolGBits =
-    (room.entry_stake || 0) * (members.length || room.member_count || 1);
+  const squadMemberCount = Math.max(members.length, room?.member_count || 1);
+  const roomPoolGBits = (room.entry_stake || 0) * squadMemberCount;
   const unreadNotifsCount = notifications.filter((n) => !n.is_read).length;
 
   // Real Leaderboard sorted by check-in streak — streak recomputed here
@@ -1326,7 +1311,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
                         <Users size={14} className="text-cyan-400" /> Manage
-                        Squad Members ({members.length})
+                        Squad Members ({squadMemberCount})
                       </button>
                       <button
                         onClick={() => {
@@ -1439,7 +1424,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     </span>
                     <span className="flex items-center gap-1 text-cyan-400">
                       <Users size={13} />{" "}
-                      {members.length || room.member_count || 1} Members
+                      {squadMemberCount} Members
                     </span>
                     <span className="flex items-center gap-1 text-gray-400">
                       <Globe size={13} /> {room.visibility || "Public"} Room
