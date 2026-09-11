@@ -39,16 +39,8 @@ export const fetchActiveRoomsStats = async () => {
           r.status !== "archived")
     );
 
-    // Filter out old deleted test titles if sitting in database without deletion permissions
-    const TEST_NAMES = new Set(["ai hackathons", "mit arena battle"]);
-    const filterOutTestNames = (list) =>
-      list.filter((r) => {
-        const name = (r.name || r.title || "").toLowerCase();
-        return !TEST_NAMES.has(name);
-      });
-
-    const cleanCreatorRooms = filterOutTestNames(validCreatorList);
-    const cleanProRooms = filterOutTestNames(validProList);
+    const cleanCreatorRooms = validCreatorList;
+    const cleanProRooms = validProList;
 
     // Dedupe by table-prefixed key (creator:id vs pro:id) to ensure raw integer ID collisions
     // across different tables never wrongly collapse unrelated rooms.

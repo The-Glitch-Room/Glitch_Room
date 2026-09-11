@@ -153,19 +153,33 @@ const JoinRoom = () => {
     if (!window.confirm(`Are you sure you want to delete "${roomItem.name}"?`)) return;
 
     try {
-      const targetTable = roomItem.room_type === "professional" ? "pro_rooms" : "rooms";
-      const { error } = await supabase.from(targetTable).delete().eq("id", roomItem.id);
-
-      if (error) {
-        console.error("Error deleting room:", error);
-        showToast("❌ Failed to delete room");
+      if (roomItem.room_type === "professional") {
+        await supabase.from("pro_room_answers").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_discussions").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_help_tickets").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_leaderboard").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_submissions").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_registrations").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_announcements").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_questions").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_sections").delete().eq("room_id", roomItem.id).catch(() => {});
+        const { error } = await supabase.from("pro_rooms").delete().eq("id", roomItem.id);
+        if (error) throw error;
       } else {
-        setAllRooms((prev) => prev.filter((r) => r.id !== roomItem.id));
-        showToast(`🗑️ Room "${roomItem.name}" deleted successfully!`);
-        fetchRooms();
+        await supabase.from("room_notifications").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("room_events").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("room_buddies").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("room_checkins").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("room_members").delete().eq("room_id", roomItem.id).catch(() => {});
+        const { error } = await supabase.from("rooms").delete().eq("id", roomItem.id);
+        if (error) throw error;
       }
+
+      setAllRooms((prev) => prev.filter((r) => r.id !== roomItem.id));
+      showToast(`🗑️ Room "${roomItem.name}" deleted successfully!`);
+      fetchRooms();
     } catch (err) {
-      console.error(err);
+      console.error("Error deleting room:", err);
       showToast("❌ Error deleting room");
     }
   };

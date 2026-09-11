@@ -38,14 +38,7 @@ const CreatorRooms = () => {
       .select("*")
       .order("created_at", { ascending: false });
 
-    const creatorRooms = (dbRooms || []).filter((r) => {
-      const title = (r.name || r.title || "").toLowerCase();
-      return (
-        r.room_type !== "professional" &&
-        !title.includes("mit arena") &&
-        !title.includes("ai hackathon")
-      );
-    });
+    const creatorRooms = (dbRooms || []).filter((r) => r.room_type !== "professional");
 
     if (error) {
       console.error("Error fetching rooms:", error);
