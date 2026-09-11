@@ -1156,25 +1156,74 @@ const MigrationTab = () => {
 
   const syncArenaEvents = async () => {
     setArenaSyncing(true);
-    const rows = FEATURED_ARENA_EVENTS.map((ev) => ({
-      title: ev.title,
-      description: ev.description,
-      hosted_by: "Glitch Room Team",
-      skills: ev.skills,
-      glitch_scenario: ev.glitch_scenario,
-      is_live: true,
-    }));
+    try {
+      // 1. Fetch existing events from database
+      const { data: existingEvents, error: fetchErr } = await supabase
+        .from("arena_events")
+        .select("id, title, hosted_by");
 
-    const { error } = await supabase
-      .from("arena_events")
-      .upsert(rows, { onConflict: "title" });
-    if (error) {
-      alert("Failed to sync arena events: " + error.message);
-    } else {
-      alert(`Successfully synced ${rows.length} Arena Events to Database!`);
+      if (fetchErr) throw fetchErr;
+
+      const existingTitles = new Set(
+        (existingEvents || []).map((e) => (e.title || "").trim().toLowerCase())
+      );
+
+      // 2. Normalize legacy hosted_by fields in existing database rows
+      const legacyMocks = [
+        "Glitch Room Core Team",
+        "React Architects",
+        "AI Overlords",
+        "Frontend Guild",
+        "Performance Lab",
+        "Algo Masters",
+        "Glitch Room",
+      ];
+      for (const ev of existingEvents || []) {
+        if (
+          ev.hosted_by &&
+          legacyMocks.some(
+            (m) => m.toLowerCase() === ev.hosted_by.trim().toLowerCase()
+          )
+        ) {
+          await supabase
+            .from("arena_events")
+            .update({ hosted_by: "Glitch Room Team" })
+            .eq("id", ev.id);
+        }
+      }
+
+      // 3. Filter only NEW challenges that aren't in database yet
+      const newRows = FEATURED_ARENA_EVENTS.filter(
+        (ev) => !existingTitles.has((ev.title || "").trim().toLowerCase())
+      ).map((ev) => ({
+        title: ev.title,
+        description: ev.description,
+        hosted_by: "Glitch Room Team",
+        skills: ev.skills,
+        glitch_scenario: ev.glitch_scenario,
+        is_live: true,
+      }));
+
+      if (newRows.length === 0) {
+        alert(
+          "All 25 Arena Events are already present in your database! 0 duplicates created."
+        );
+      } else {
+        const { error: insertErr } = await supabase
+          .from("arena_events")
+          .insert(newRows);
+        if (insertErr) throw insertErr;
+        alert(
+          `Successfully added ${newRows.length} new Arena Events to your database!`
+        );
+      }
+    } catch (err) {
+      console.error("Sync error:", err);
+      alert("Failed to sync arena events: " + (err.message || err));
+    } finally {
+      await fetchArenaCount();
+      setArenaSyncing(false);
     }
-    await fetchArenaCount();
-    setArenaSyncing(false);
   };
 
   const runMigration = async () => {
