@@ -23,6 +23,7 @@ import glitchesJson from "../data/glitches.json";
 import aiJson from "../data/ai_challenges.json";
 import debugJson from "../data/debug_mode_challenges.json";
 import sparkJson from "../data/creative_sparks_challenges.json";
+import { FEATURED_ARENA_EVENTS } from "../data/arenaEventsData";
 
 const CHALLENGE_TYPES = [
   { value: "glitch", label: "Glitches", color: "#00F0FF" },
@@ -1138,9 +1139,43 @@ const MigrationTab = () => {
     setCounts(results);
   };
 
+  const [arenaSyncing, setArenaSyncing] = useState(false);
+  const [arenaCount, setArenaCount] = useState(0);
+
+  const fetchArenaCount = async () => {
+    const { count } = await supabase
+      .from("arena_events")
+      .select("*", { count: "exact", head: true });
+    setArenaCount(count || 0);
+  };
+
   useEffect(() => {
     fetchCounts();
+    fetchArenaCount();
   }, []);
+
+  const syncArenaEvents = async () => {
+    setArenaSyncing(true);
+    const rows = FEATURED_ARENA_EVENTS.map((ev) => ({
+      title: ev.title,
+      description: ev.description,
+      hosted_by: "Glitch Room Team",
+      skills: ev.skills,
+      glitch_scenario: ev.glitch_scenario,
+      is_live: true,
+    }));
+
+    const { error } = await supabase
+      .from("arena_events")
+      .upsert(rows, { onConflict: "title" });
+    if (error) {
+      alert("Failed to sync arena events: " + error.message);
+    } else {
+      alert(`Successfully synced ${rows.length} Arena Events to Database!`);
+    }
+    await fetchArenaCount();
+    setArenaSyncing(false);
+  };
 
   const runMigration = async () => {
     setRunning(true);
@@ -1191,8 +1226,51 @@ const MigrationTab = () => {
   };
 
   return (
-    <div>
-      <div className="bg-[#0f0f13] border border-white/8 rounded-2xl p-6 mb-6">
+    <div className="space-y-6">
+      {/* ── Arena Events Sync Card ── */}
+      <div className="bg-[#0f0f13] border border-cyan-500/20 rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center">
+            <Swords size={16} className="text-cyan-400" />
+          </div>
+          <div>
+            <p className="text-white font-bold text-sm">
+              Sync 25 Arena Events to Database (`arena_events` Table)
+            </p>
+            <p className="text-gray-500 text-xs">
+              Uploads all 25 challenges directly into Supabase so database counts & hero stats track all challenges.
+            </p>
+          </div>
+        </div>
+
+        <div className="my-4 p-3 rounded-xl bg-white/[0.03] border border-white/8 inline-block">
+          <p className="text-xs text-gray-400">
+            Current DB Arena Events Count:{" "}
+            <span className="text-[#00F0FF] font-black text-sm">{arenaCount}</span>
+          </p>
+        </div>
+
+        <div>
+          <button
+            onClick={syncArenaEvents}
+            disabled={arenaSyncing}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-black disabled:opacity-60 cursor-pointer"
+            style={{ background: "linear-gradient(90deg,#00F0FF,#FF00C8)" }}
+          >
+            {arenaSyncing ? (
+              <>
+                <Loader2 size={14} className="animate-spin" /> Syncing Arena Events...
+              </>
+            ) : (
+              <>
+                <Swords size={14} /> Sync 25 Arena Events to Database
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-[#0f0f13] border border-white/8 rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center">
             <Database size={16} className="text-purple-400" />
