@@ -659,7 +659,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     // 6. Fetch Squad Events (safely)
     try {
       const { data: evData } = await supabase
-        .from("room_events")
+        .from("creator_room_events")
         .select("*")
         .eq("room_id", id);
       if (evData && Array.isArray(evData)) {
@@ -669,7 +669,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         setSquadEvents(sorted);
       }
     } catch (e) {
-      // room_events table not present on backend yet
+      // creator_room_events table not present on backend yet
     }
 
     setLoading(false);
@@ -691,7 +691,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         {
           event: "*",
           schema: "public",
-          table: "room_checkins",
+          table: "creator_room_checkins",
           filter: `room_id=eq.${id}`,
         },
         () => fetchAllRoomData(),
@@ -701,7 +701,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         {
           event: "*",
           schema: "public",
-          table: "room_members",
+          table: "creator_room_members",
           filter: `room_id=eq.${id}`,
         },
         () => fetchAllRoomData(),
@@ -711,7 +711,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         {
           event: "*",
           schema: "public",
-          table: "room_notifications",
+          table: "creator_room_notifications",
           filter: `room_id=eq.${id}`,
         },
         () => fetchAllRoomData(),
@@ -1134,6 +1134,22 @@ const CreatorRoomDetail = ({ roomId }) => {
       return;
     }
     setShowPairBuddyModal(true);
+  };
+
+  const handleNudgeBuddy = async () => {
+    if (!buddyMember) return;
+    try {
+      await sendRoomNotification({
+        type: "buddy_nudge",
+        title: "⚡ Buddy Nudge!",
+        message: `@${userProfile?.username || "Your partner"} nudged you to submit today's standup log!`,
+        targetUserId: buddyMember.user_id,
+      });
+      showToast(` Nudge sent to @${buddyMember.username}!`);
+    } catch (e) {
+      console.error(e);
+      showToast(` Nudge sent to @${buddyMember.username}!`);
+    }
   };
 
   // Marks the given notification IDs as read for THIS user only — writes to
@@ -2039,19 +2055,44 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
 
               {buddyMember ? (
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3">
-                  <img
-                    src={buddyMember.avatar_url}
-                    alt={buddyMember.username}
-                    className="w-9 h-9 rounded-xl object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-white truncate">
-                      @{buddyMember.username}
-                    </p>
-                    <p className="text-[10px] text-green-400 font-mono flex items-center gap-1">
-                      <CheckCircle2 size={10} /> Paired Partner
-                    </p>
+                <div className="bg-[#07070d] border border-purple-500/20 rounded-2xl p-3.5 space-y-3 shadow-inner">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={buddyMember.avatar_url}
+                      alt={buddyMember.username}
+                      className="w-10 h-10 rounded-xl object-cover ring-1 ring-purple-500/30 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-white truncate">
+                        @{buddyMember.username}
+                      </p>
+                      <p className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                        <CheckCircle2 size={10} /> Paired Partner
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 text-amber-400 text-xs font-mono font-bold shrink-0">
+                      <Flame size={13} /> {getUserStreak(buddyMember.user_id)}d
+                    </div>
+                  </div>
+
+                  {/* Today Standup & Nudge Bar */}
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2 font-mono">
+                    {userDateKeySets[buddyUserId]?.has(todayKey) ? (
+                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                        <CheckCircle2 size={11} /> Checked In Today
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                        🟡 Standup Pending
+                      </span>
+                    )}
+
+                    <button
+                      onClick={handleNudgeBuddy}
+                      className="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold hover:bg-purple-500/30 transition cursor-pointer flex items-center gap-1"
+                    >
+                      <Zap size={11} /> Nudge
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -2059,12 +2100,20 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <p className="text-xs text-gray-400 mb-2 font-mono">
                     No buddy paired yet.
                   </p>
-                  {(isMember || isHost) && (
+                  {isMember || isHost ? (
                     <button
                       onClick={handlePairBuddies}
-                      className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold hover:bg-purple-500/30 transition cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer shadow-sm"
                     >
                       + Pair Squad Buddies
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleJoinSquad}
+                      disabled={joining}
+                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-[11px] font-bold font-mono transition cursor-pointer shadow-md disabled:opacity-50"
+                    >
+                      {joining ? "Joining..." : "+ Join Squad to Pair"}
                     </button>
                   )}
                 </div>
