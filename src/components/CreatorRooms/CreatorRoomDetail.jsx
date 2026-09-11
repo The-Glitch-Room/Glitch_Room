@@ -825,16 +825,20 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
     setJoining(true);
     try {
-      await supabase.from("room_members").insert([
+      const { error: insertErr } = await supabase.from("room_members").insert([
         {
           room_id: id,
           user_id: userId,
           role: "member",
         },
       ]);
+      if (insertErr && !insertErr.message?.includes("duplicate")) {
+        console.warn("Notice inserting room_members:", insertErr);
+      }
+
       await supabase
         .from("rooms")
-        .update({ member_count: (room?.member_count || 0) + 1 })
+        .update({ member_count: Math.max(members.length + 1, (room?.member_count || 0) + 1) })
         .eq("id", id);
 
       sendRoomNotification({
@@ -845,7 +849,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       setIsMember(true);
       showToast(" Successfully committed & joined squad!");
-      fetchAllRoomData();
+      await fetchAllRoomData();
     } catch (e) {
       console.error("Error joining squad:", e);
     } finally {
@@ -1457,6 +1461,15 @@ const CreatorRoomDetail = ({ roomId }) => {
                     <span className="flex items-center gap-1 text-gray-400">
                       <Globe size={13} /> {room.visibility || "Public"} Room
                     </span>
+                    {!isMember && !isHost && (
+                      <button
+                        onClick={handleJoinSquad}
+                        disabled={joining}
+                        className="ml-auto px-4 py-1 rounded-xl text-white text-xs font-bold font-sans bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:brightness-110 transition shadow-lg shadow-[#FF00C8]/20 cursor-pointer disabled:opacity-50"
+                      >
+                        {joining ? "Joining..." : "+ Join Squad"}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1970,12 +1983,20 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <p className="text-xs text-gray-400 mb-2 font-mono">
                     No buddy paired yet.
                   </p>
-                  {(isMember || isHost) && (
+                  {isMember || isHost ? (
                     <button
                       onClick={handlePairBuddies}
-                      className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold hover:bg-purple-500/30 transition cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer shadow-sm"
                     >
                       + Pair Squad Buddies
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleJoinSquad}
+                      disabled={joining}
+                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-[11px] font-bold font-mono transition cursor-pointer shadow-md disabled:opacity-50"
+                    >
+                      {joining ? "Joining..." : "+ Join Squad to Pair"}
                     </button>
                   )}
                 </div>
@@ -3396,8 +3417,16 @@ const CreatorRoomDetail = ({ roomId }) => {
 
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {members.filter((m) => m.user_id !== userId).length === 0 ? (
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center text-xs text-gray-400 font-mono">
-                    No other members in this room yet. Share the room link to invite teammates!
+                  <div className="p-5 rounded-2xl bg-white/5 border border-white/10 text-center space-y-3 font-sans">
+                    <p className="text-xs text-gray-300">
+                      No other squad members have joined this room yet. Share the room link to invite teammates to join your squad!
+                    </p>
+                    <button
+                      onClick={handleCopyLink}
+                      className="px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer"
+                    >
+                      🔗 Copy Room Invite Link
+                    </button>
                   </div>
                 ) : (
                   members
