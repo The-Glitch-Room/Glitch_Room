@@ -361,6 +361,10 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [emailNotifsEnabled, setEmailNotifsEnabled] = useState(true);
 
+  // Accountability Buddy Pair Modal State
+  const [showPairBuddyModal, setShowPairBuddyModal] = useState(false);
+  const [pairingBuddy, setPairingBuddy] = useState(false);
+
   // Squad Events States
   const [squadEvents, setSquadEvents] = useState([]);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
@@ -1049,6 +1053,45 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
   };
 
+  const handlePairBuddyWithUser = async (targetUserId) => {
+    if (!userId || !targetUserId || userId === targetUserId) return;
+    setPairingBuddy(true);
+    try {
+      if (myBuddy) {
+        await supabase.from("room_buddies").delete().eq("id", myBuddy.id);
+      }
+      const { error } = await supabase.from("room_buddies").insert([
+        {
+          room_id: id,
+          user1_id: userId,
+          user2_id: targetUserId,
+        },
+      ]);
+      if (error) throw error;
+
+      const partner = members.find((m) => m.user_id === targetUserId);
+      showToast(` Accountability buddy paired with @${partner?.username || "partner"}!`);
+      setShowPairBuddyModal(false);
+      fetchAllRoomData();
+    } catch (e) {
+      console.error("Error pairing buddy:", e);
+      showToast(" Failed to pair buddy. Please try again.");
+    } finally {
+      setPairingBuddy(false);
+    }
+  };
+
+  const handleUnpairBuddy = async () => {
+    if (!myBuddy) return;
+    try {
+      await supabase.from("room_buddies").delete().eq("id", myBuddy.id);
+      showToast(" Accountability buddy unpaired.");
+      fetchAllRoomData();
+    } catch (e) {
+      console.error("Error unpairing buddy:", e);
+    }
+  };
+
   const handlePairBuddies = async () => {
     if (members.length < 2) {
       showToast(
@@ -1056,22 +1099,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       );
       return;
     }
-
-    try {
-      const u1 = members[0].user_id;
-      const u2 = members[1].user_id;
-      await supabase.from("room_buddies").insert([
-        {
-          room_id: id,
-          user1_id: u1,
-          user2_id: u2,
-        },
-      ]);
-      showToast(" Accountability buddies successfully paired!");
-      fetchAllRoomData();
-    } catch (e) {
-      console.warn("Buddy pairing notice:", e);
-    }
+    setShowPairBuddyModal(true);
   };
 
   const handleMarkNotifsRead = async () => {
@@ -1906,9 +1934,19 @@ const CreatorRoomDetail = ({ roomId }) => {
 
             {/* Accountability Buddy Card */}
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
-              <div className="flex items-center gap-2 text-xs font-bold text-white mb-3">
-                <Handshake size={15} className="text-purple-400" />{" "}
-                Accountability Buddy
+              <div className="flex items-center justify-between text-xs font-bold text-white mb-3">
+                <div className="flex items-center gap-2">
+                  <Handshake size={15} className="text-purple-400" />{" "}
+                  Accountability Buddy
+                </div>
+                {buddyMember && (
+                  <button
+                    onClick={handleUnpairBuddy}
+                    className="text-[10px] text-gray-500 hover:text-red-400 font-mono transition cursor-pointer"
+                  >
+                    Unpair
+                  </button>
+                )}
               </div>
 
               {buddyMember ? (
@@ -1920,10 +1958,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-white truncate">
-                      {buddyMember.username}
+                      @{buddyMember.username}
                     </p>
-                    <p className="text-[10px] text-green-400 font-mono">
-                      Paired Partner{" "}
+                    <p className="text-[10px] text-green-400 font-mono flex items-center gap-1">
+                      <CheckCircle2 size={10} /> Paired Partner
                     </p>
                   </div>
                 </div>
@@ -1932,7 +1970,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <p className="text-xs text-gray-400 mb-2 font-mono">
                     No buddy paired yet.
                   </p>
-                  {isHost && (
+                  {(isMember || isHost) && (
                     <button
                       onClick={handlePairBuddies}
                       className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold hover:bg-purple-500/30 transition cursor-pointer"
@@ -3323,6 +3361,100 @@ const CreatorRoomDetail = ({ roomId }) => {
                     {eventSaving ? "Saving..." : editingEvent ? "Save Changes" : "Create Squad Event"}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 9. Pair Accountability Buddy Modal */}
+      <AnimatePresence>
+        {showPairBuddyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans"
+            >
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Handshake size={18} className="text-purple-400" />
+                  Pair Accountability Buddy
+                </h3>
+                <button
+                  onClick={() => setShowPairBuddyModal(false)}
+                  className="text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-400 font-sans mb-4">
+                Choose a squad member from <strong className="text-white">{room?.title || room?.name}</strong> to pair up with. You will track each other&apos;s daily standups and hold each other accountable.
+              </p>
+
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {members.filter((m) => m.user_id !== userId).length === 0 ? (
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center text-xs text-gray-400 font-mono">
+                    No other members in this room yet. Share the room link to invite teammates!
+                  </div>
+                ) : (
+                  members
+                    .filter((m) => m.user_id !== userId)
+                    .map((m) => {
+                      const isCurrentBuddy = myBuddyPartner?.user_id === m.user_id;
+                      return (
+                        <div
+                          key={m.user_id}
+                          className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                            isCurrentBuddy
+                              ? "bg-purple-500/10 border-purple-500/40"
+                              : "bg-[#07070d] border-white/10"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={m.avatar_url || DEFAULT_AVATAR}
+                              alt={m.username}
+                              className="w-9 h-9 rounded-xl object-cover border border-white/10 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <h5 className="font-bold text-white text-xs truncate">
+                                {m.username}
+                              </h5>
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                {m.role === "host" ? "👑 Room Host" : "Squad Member"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {isCurrentBuddy ? (
+                            <span className="px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 text-xs font-bold font-mono border border-purple-500/30">
+                              Currently Paired
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handlePairBuddyWithUser(m.user_id)}
+                              disabled={pairingBuddy}
+                              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF00C8] hover:from-purple-500 hover:to-[#FF00C8] text-white text-xs font-bold font-mono transition cursor-pointer shadow-md shrink-0 disabled:opacity-50"
+                            >
+                              {pairingBuddy ? "Pairing..." : "Pair Buddy"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+
+              <div className="pt-4 mt-2 border-t border-white/10 flex justify-end">
+                <button
+                  onClick={() => setShowPairBuddyModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
+                >
+                  Close
+                </button>
               </div>
             </motion.div>
           </div>
