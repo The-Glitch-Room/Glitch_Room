@@ -259,7 +259,6 @@ const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
   );
 };
 
-
 // ── Helper to cleanly parse and extract standup content sections ─────────────
 const parseStandupContent = (standup) => {
   let text = (standup?.accomplishment || "").trim();
@@ -274,14 +273,20 @@ const parseStandupContent = (standup) => {
   // Extract embedded "Blockers:" or "Blocker:"
   const blockerIdx = text.search(/Blockers?:/i);
   if (blockerIdx !== -1) {
-    blockersFromText = text.substring(blockerIdx).replace(/^Blockers?:s*/i, "").trim();
+    blockersFromText = text
+      .substring(blockerIdx)
+      .replace(/^Blockers?:s*/i, "")
+      .trim();
     text = text.substring(0, blockerIdx).trim();
   }
 
   // Extract embedded "Proof of Work:"
   const proofIdx = text.search(/Proof of Work:/i);
   if (proofIdx !== -1) {
-    proofFromText = text.substring(proofIdx).replace(/^Proof of Work:s*/i, "").trim();
+    proofFromText = text
+      .substring(proofIdx)
+      .replace(/^Proof of Work:s*/i, "")
+      .trim();
     text = text.substring(0, proofIdx).trim();
   }
 
@@ -308,7 +313,11 @@ const parseStandupContent = (standup) => {
   // Determine final blockers
   let rawBlockers = (standup?.blockers || "").trim();
   let finalBlockers = rawBlockers;
-  if (!finalBlockers || finalBlockers.toLowerCase() === "none" || finalBlockers.toLowerCase() === "n/a") {
+  if (
+    !finalBlockers ||
+    finalBlockers.toLowerCase() === "none" ||
+    finalBlockers.toLowerCase() === "n/a"
+  ) {
     if (blockersFromText) {
       finalBlockers = blockersFromText;
     }
@@ -320,7 +329,7 @@ const parseStandupContent = (standup) => {
   return {
     accomplishment: accomplishment || "Completed daily tasks",
     proofUrl: isValidProofLink ? finalProofUrl : null,
-    blockers: finalBlockers
+    blockers: finalBlockers,
   };
 };
 
@@ -337,6 +346,11 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [standups, setStandups] = useState([]);
   const [buddies, setBuddies] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  // Per-user read state for room_notifications — the notification rows
+  // themselves are shared/room-wide, so "read" can't live on that row
+  // without being global to everyone. This tracks which notification IDs
+  // *this* viewer has read, sourced from creator_room_notification_reads.
+  const [readNotifIds, setReadNotifIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
@@ -370,7 +384,9 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [eventTitle, setEventTitle] = useState("");
-  const [eventDate, setEventDate] = useState(new Date().toISOString().split("T")[0]);
+  const [eventDate, setEventDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
   const [eventTime, setEventTime] = useState("08:00 PM IST");
   const [eventType, setEventType] = useState("Live Sync");
   const [eventDescription, setEventDescription] = useState("");
@@ -442,7 +458,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
     // 1. Fetch Room Record
     const { data: roomData, error: roomErr } = await supabase
-      .from("rooms")
+      .from("creator_rooms")
       .select("*")
       .eq("id", id)
       .maybeSingle();
@@ -461,21 +477,37 @@ const CreatorRoomDetail = ({ roomId }) => {
 
     // 2. Fetch Room Notifications FIRST so notifList is available for standup synthesis & activity feed
     const { data: notifList } = await supabase
-      .from("room_notifications")
+      .from("creator_room_notifications")
       .select("*")
       .eq("room_id", id)
       .order("created_at", { ascending: false });
     setNotifications(notifList || []);
 
+    // 2b. Fetch THIS user's own read-state for those notifications — read
+    // status is per-viewer, never shared, so it must be scoped to `uid`.
+    if (uid && notifList && notifList.length > 0) {
+      const { data: readRows } = await supabase
+        .from("creator_room_notification_reads")
+        .select("notification_id")
+        .eq("user_id", uid)
+        .in(
+          "notification_id",
+          notifList.map((n) => n.id),
+        );
+      setReadNotifIds(new Set((readRows || []).map((r) => r.notification_id)));
+    } else {
+      setReadNotifIds(new Set());
+    }
+
     // 3. Fetch Room Members
     const { data: memData } = await supabase
-      .from("room_members")
+      .from("creator_room_members")
       .select("*")
       .eq("room_id", id);
 
-    // 4. Fetch Standup Check-ins from room_checkins & community_posts
+    // 4. Fetch Standup Check-ins from creator_room_checkins & community_posts
     const { data: checkinData } = await supabase
-      .from("room_checkins")
+      .from("creator_room_checkins")
       .select("*")
       .eq("room_id", id)
       .order("created_at", { ascending: false });
@@ -488,7 +520,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
     // 5. Fetch Room Buddies
     const { data: buddyData } = await supabase
-      .from("room_buddies")
+      .from("creator_room_buddies")
       .select("*")
       .eq("room_id", id);
     setBuddies(buddyData || []);
@@ -497,8 +529,10 @@ const CreatorRoomDetail = ({ roomId }) => {
     const memberUids = new Set();
     if (roomData?.created_by) memberUids.add(roomData.created_by);
     if (memData) memData.forEach((m) => m.user_id && memberUids.add(m.user_id));
-    if (checkinData) checkinData.forEach((c) => c.user_id && memberUids.add(c.user_id));
-    if (postsData) postsData.forEach((p) => p.user_id && memberUids.add(p.user_id));
+    if (checkinData)
+      checkinData.forEach((c) => c.user_id && memberUids.add(c.user_id));
+    if (postsData)
+      postsData.forEach((p) => p.user_id && memberUids.add(p.user_id));
     if (buddyData) {
       buddyData.forEach((b) => {
         if (b.user1_id) memberUids.add(b.user1_id);
@@ -727,13 +761,15 @@ const CreatorRoomDetail = ({ roomId }) => {
     try {
       if (editingEvent) {
         const { error } = await supabase
-          .from("room_events")
+          .from("creator_room_events")
           .update(payload)
           .eq("id", editingEvent.id);
         if (error) throw error;
         showToast(" Squad event updated!");
       } else {
-        const { error } = await supabase.from("room_events").insert([payload]);
+        const { error } = await supabase
+          .from("creator_room_events")
+          .insert([payload]);
         if (error) throw error;
         showToast(" Squad event added to schedule!");
       }
@@ -741,11 +777,13 @@ const CreatorRoomDetail = ({ roomId }) => {
       setEditingEvent(null);
       fetchAllRoomData();
     } catch (err) {
-      console.warn("room_events insert/update notice:", err);
+      console.warn("creator_room_events insert/update notice:", err);
       // Fallback local update if table doesn't exist in Supabase yet
       if (editingEvent) {
         setSquadEvents((prev) =>
-          prev.map((e) => (e.id === editingEvent.id ? { ...e, ...payload } : e))
+          prev.map((e) =>
+            e.id === editingEvent.id ? { ...e, ...payload } : e,
+          ),
         );
         showToast(" Squad event updated!");
       } else {
@@ -767,7 +805,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const handleDeleteSquadEvent = async (eventId) => {
     if (!confirm("Remove this squad event from the schedule?")) return;
     try {
-      await supabase.from("room_events").delete().eq("id", eventId);
+      await supabase.from("creator_room_events").delete().eq("id", eventId);
       setSquadEvents((prev) => prev.filter((e) => e.id !== eventId));
       showToast(" Squad event removed.");
     } catch (err) {
@@ -786,7 +824,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   }) => {
     try {
       // 1. Insert In-App Notification
-      await supabase.from("room_notifications").insert([
+      await supabase.from("creator_room_notifications").insert([
         {
           room_id: id,
           user_id: targetUserId || null,
@@ -803,7 +841,6 @@ const CreatorRoomDetail = ({ roomId }) => {
         console.log(
           `[Email Notification Dispatch] Target: ${targetUserId || "All Members"} | Subject: ${title} | ${message}`,
         );
-        // Note: Production ready for Resend / SendGrid API integration via Supabase Edge Functions.
       }
     } catch (e) {
       console.warn("Notification dispatch notice:", e);
@@ -825,21 +862,22 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
     setJoining(true);
     try {
-      const { error: insertErr } = await supabase.from("room_members").insert([
-        {
-          room_id: id,
-          user_id: userId,
-          role: "member",
-        },
-      ]);
-      if (insertErr && !insertErr.message?.includes("duplicate")) {
-        console.warn("Notice inserting room_members:", insertErr);
-      }
+      const { error: joinError } = await supabase
+        .from("creator_room_members")
+        .insert([
+          {
+            room_id: id,
+            user_id: userId,
+            role: "member",
+          },
+        ]);
 
-      await supabase
-        .from("rooms")
-        .update({ member_count: Math.max(members.length + 1, (room?.member_count || 0) + 1) })
-        .eq("id", id);
+      if (joinError) {
+        console.error("Error joining squad:", joinError);
+        showToast("Couldn't join the room — please try again.");
+        setJoining(false);
+        return;
+      }
 
       sendRoomNotification({
         type: "member_joined",
@@ -849,7 +887,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       setIsMember(true);
       showToast(" Successfully committed & joined squad!");
-      await fetchAllRoomData();
+      fetchAllRoomData();
     } catch (e) {
       console.error("Error joining squad:", e);
     } finally {
@@ -859,16 +897,17 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const handleLeaveSquad = async () => {
     try {
-      await supabase
-        .from("room_members")
+      const { error: leaveError } = await supabase
+        .from("creator_room_members")
         .delete()
         .eq("room_id", id)
         .eq("user_id", userId);
 
-      await supabase
-        .from("rooms")
-        .update({ member_count: Math.max(0, (room?.member_count || 1) - 1) })
-        .eq("id", id);
+      if (leaveError) {
+        console.error("Error leaving room:", leaveError);
+        showToast("Couldn't leave the room — please try again.");
+        return;
+      }
 
       setIsMember(false);
       setShowLeaveModal(false);
@@ -893,22 +932,17 @@ const CreatorRoomDetail = ({ roomId }) => {
         return;
       }
 
-      // Every submitted check-in is On Time for the IST calendar date it's
-      // submitted on (12:00 AM – 11:59 PM IST) — no rolling-hours math, no
-      // comparison against a previous check-in's timestamp.
       const computedIsOnTime = true;
 
-      // 1. Insert into room_checkins
+      // 1. Insert into creator_room_checkins
       let checkinInsertError = null;
       {
-        const { error } = await supabase.from("room_checkins").insert([
+        const { error } = await supabase.from("creator_room_checkins").insert([
           {
             room_id: id,
             user_id: activeUid,
             accomplishment: accomplishment.trim(),
             proof_type: proofType || null,
-            // Never fabricate/insert a default proof link — an empty field
-            // stays null, both in the DB and everywhere it's displayed.
             proof_url: proofUrl.trim() || null,
             blockers: blockers.trim() || null,
             is_on_time: computedIsOnTime,
@@ -918,18 +952,14 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
 
       if (checkinInsertError) {
-        console.warn("room_checkins insert notice:", checkinInsertError);
-        // If the failure is specifically because a `proof_type` column
-        // doesn't exist yet on room_checkins, retry once without it so the
-        // rest of the standup (accomplishment/proof/blockers/on-time status)
-        // still saves correctly instead of silently losing the whole row.
+        console.warn("creator_room_checkins insert notice:", checkinInsertError);
         if (
           String(checkinInsertError.message || "")
             .toLowerCase()
             .includes("proof_type")
         ) {
           const { error: retryError } = await supabase
-            .from("room_checkins")
+            .from("creator_room_checkins")
             .insert([
               {
                 room_id: id,
@@ -941,11 +971,9 @@ const CreatorRoomDetail = ({ roomId }) => {
               },
             ]);
           if (retryError)
-            console.warn("room_checkins retry insert notice:", retryError);
+            console.warn("creator_room_checkins retry insert notice:", retryError);
         }
       }
-
-      // Daily standups belong exclusively in room_checkins (not cross-posted to Community)
 
       // 3. Award +35 gBits
       if (userId) {
@@ -997,7 +1025,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     setEditSaving(true);
     try {
       await supabase
-        .from("rooms")
+        .from("creator_rooms")
         .update({
           name: editTitle.trim(),
           title: editTitle.trim(),
@@ -1027,7 +1055,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
 
     try {
-      await supabase.from("rooms").delete().eq("id", id);
+      await supabase.from("creator_rooms").delete().eq("id", id);
       showToast(" Room permanently deleted.");
       navigate("/creator-rooms");
     } catch (e) {
@@ -1037,23 +1065,23 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const handleRemoveMember = async (targetUserId) => {
     try {
-      await supabase
-        .from("room_members")
+      const { error: removeError } = await supabase
+        .from("creator_room_members")
         .delete()
         .eq("room_id", id)
         .eq("user_id", targetUserId);
 
-      await supabase
-        .from("rooms")
-        .update({ member_count: Math.max(1, (room?.member_count || 1) - 1) })
-        .eq("id", id);
+      if (removeError) {
+        console.error("Error removing member:", removeError);
+        showToast("Couldn't remove that member — please try again.");
+        return;
+      }
 
       showToast("Squad member removed.");
       fetchAllRoomData();
     } catch (e) {
       console.error("Error removing member:", e);
-      showToast("Member updated.");
-      fetchAllRoomData();
+      showToast("Couldn't remove that member — please try again.");
     }
   };
 
@@ -1062,9 +1090,9 @@ const CreatorRoomDetail = ({ roomId }) => {
     setPairingBuddy(true);
     try {
       if (myBuddy) {
-        await supabase.from("room_buddies").delete().eq("id", myBuddy.id);
+        await supabase.from("creator_room_buddies").delete().eq("id", myBuddy.id);
       }
-      const { error } = await supabase.from("room_buddies").insert([
+      const { error } = await supabase.from("creator_room_buddies").insert([
         {
           room_id: id,
           user1_id: userId,
@@ -1074,7 +1102,9 @@ const CreatorRoomDetail = ({ roomId }) => {
       if (error) throw error;
 
       const partner = members.find((m) => m.user_id === targetUserId);
-      showToast(` Accountability buddy paired with @${partner?.username || "partner"}!`);
+      showToast(
+        ` Accountability buddy paired with @${partner?.username || "partner"}!`,
+      );
       setShowPairBuddyModal(false);
       fetchAllRoomData();
     } catch (e) {
@@ -1088,7 +1118,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const handleUnpairBuddy = async () => {
     if (!myBuddy) return;
     try {
-      await supabase.from("room_buddies").delete().eq("id", myBuddy.id);
+      await supabase.from("creator_room_buddies").delete().eq("id", myBuddy.id);
       showToast(" Accountability buddy unpaired.");
       fetchAllRoomData();
     } catch (e) {
@@ -1106,18 +1136,59 @@ const CreatorRoomDetail = ({ roomId }) => {
     setShowPairBuddyModal(true);
   };
 
+  // Marks the given notification IDs as read for THIS user only — writes to
+  // creator_room_notification_reads (a per-user join table), never to the shared
+  // room_notifications.is_read column, so other members' unread state is
+  // never touched.
+  const markNotificationsReadForMe = async (notificationIds) => {
+    if (!userId || !notificationIds || notificationIds.length === 0) return;
+    const rows = notificationIds.map((notification_id) => ({
+      notification_id,
+      user_id: userId,
+    }));
+    const { error } = await supabase
+      .from("creator_room_notification_reads")
+      .upsert(rows, {
+        onConflict: "notification_id,user_id",
+        ignoreDuplicates: true,
+      });
+    if (error) {
+      console.error("Error marking notifications read:", error);
+      return false;
+    }
+    setReadNotifIds((prev) => new Set([...prev, ...notificationIds]));
+    return true;
+  };
+
   const handleMarkNotifsRead = async () => {
-    try {
-      await supabase
-        .from("room_notifications")
-        .update({ is_read: true })
-        .eq("room_id", id);
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    const unreadIds = notifications
+      .filter((n) => !readNotifIds.has(n.id))
+      .map((n) => n.id);
+    if (unreadIds.length === 0) {
       showToast(" All notifications marked as read.");
-    } catch (e) {
-      console.error(e);
+      return;
+    }
+    const ok = await markNotificationsReadForMe(unreadIds);
+    if (ok) {
+      showToast(" All notifications marked as read.");
+    } else {
+      showToast("Couldn't update notifications — please try again.");
     }
   };
+
+  // Opening the notifications drawer counts as "viewing" them — mark
+  // whatever is currently unread for this user as read, for this user only.
+  useEffect(() => {
+    if (showNotifDrawer) {
+      const unreadIds = notifications
+        .filter((n) => !readNotifIds.has(n.id))
+        .map((n) => n.id);
+      if (unreadIds.length > 0) {
+        markNotificationsReadForMe(unreadIds);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNotifDrawer]);
 
   //  Calculated Real Statistics
   if (loading) {
@@ -1232,9 +1303,14 @@ const CreatorRoomDetail = ({ roomId }) => {
   const userStandups = standups.filter((s) => s.user_id === userId);
   const userOnTimeCount = userStandups.filter((s) => getOnTimeStatus(s)).length;
   const userStreak = getUserStreak(userId);
-  const squadMemberCount = Math.max(members.length, room?.member_count || 1);
+  // `room.member_count` is not a real column — the true count always comes
+  // from the live members list. Math.max(..., 1) just covers the instant
+  // before fetchAllRoomData resolves, so the badge never flashes "0".
+  const squadMemberCount = Math.max(members.length, 1);
   const roomPoolGBits = (room.entry_stake || 0) * squadMemberCount;
-  const unreadNotifsCount = notifications.filter((n) => !n.is_read).length;
+  const unreadNotifsCount = notifications.filter(
+    (n) => !readNotifIds.has(n.id),
+  ).length;
 
   // Real Leaderboard sorted by check-in streak — streak recomputed here
   // (date-based, not the stale count set during fetch) so sort order always
@@ -1455,21 +1531,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <Clock size={13} /> {room.checkin_frequency || "Daily"}
                     </span>
                     <span className="flex items-center gap-1 text-cyan-400">
-                      <Users size={13} />{" "}
-                      {squadMemberCount} Members
+                      <Users size={13} /> {squadMemberCount} Members
                     </span>
                     <span className="flex items-center gap-1 text-gray-400">
                       <Globe size={13} /> {room.visibility || "Public"} Room
                     </span>
-                    {!isMember && !isHost && (
-                      <button
-                        onClick={handleJoinSquad}
-                        disabled={joining}
-                        className="ml-auto px-4 py-1 rounded-xl text-white text-xs font-bold font-sans bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:brightness-110 transition shadow-lg shadow-[#FF00C8]/20 cursor-pointer disabled:opacity-50"
-                      >
-                        {joining ? "Joining..." : "+ Join Squad"}
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1504,7 +1570,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                   <div className="flex justify-between text-[10px] font-mono text-gray-500 pt-1">
                     <span>
-                      {completedDays} / {room.duration_type === "ongoing" ? "Ongoing" : `${totalSprintDays} Days`} Completed
+                      {completedDays} /{" "}
+                      {room.duration_type === "ongoing"
+                        ? "Ongoing"
+                        : `${totalSprintDays} Days`}{" "}
+                      Completed
                     </span>
                     <span
                       className={
@@ -1836,7 +1906,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-full"
                                     >
-                                      <Share2 size={10} className="text-purple-400 shrink-0" />
+                                      <Share2
+                                        size={10}
+                                        className="text-purple-400 shrink-0"
+                                      />
                                       {standup.proof_type && (
                                         <span className="text-purple-300/80">
                                           {standup.proof_type}:
@@ -1845,7 +1918,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                                       <span className="underline group-hover:text-white truncate max-w-[220px]">
                                         {parsed.proofUrl}
                                       </span>
-                                      <ExternalLink size={9} className="text-gray-400 shrink-0" />
+                                      <ExternalLink
+                                        size={9}
+                                        className="text-gray-400 shrink-0"
+                                      />
                                     </a>
                                   ) : (
                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.02] border border-dashed border-white/10 text-gray-500 text-[10px] font-mono">
@@ -1983,20 +2059,12 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <p className="text-xs text-gray-400 mb-2 font-mono">
                     No buddy paired yet.
                   </p>
-                  {isMember || isHost ? (
+                  {(isMember || isHost) && (
                     <button
                       onClick={handlePairBuddies}
-                      className="px-3.5 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer shadow-sm"
+                      className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold hover:bg-purple-500/30 transition cursor-pointer"
                     >
                       + Pair Squad Buddies
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleJoinSquad}
-                      disabled={joining}
-                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-[11px] font-bold font-mono transition cursor-pointer shadow-md disabled:opacity-50"
-                    >
-                      {joining ? "Joining..." : "+ Join Squad to Pair"}
                     </button>
                   )}
                 </div>
@@ -2173,9 +2241,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                   Potential Reward
                 </div>
                 <div className="text-sm font-black text-pink-300 font-mono">
-                  {(room.entry_stake || 50) *
-                    Math.max(1, members.length || room.member_count || 1)}
-                  + gBits
+                  {(room.entry_stake || 50) * Math.max(1, members.length)}+
+                  gBits
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
                   If you complete
@@ -2188,7 +2255,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           <button
             onClick={() =>
               showToast(
-                `Pool Reward: ${(room.entry_stake || 50) * Math.max(1, members.length || room.member_count || 1)} gBits for completing the sprint!`,
+                `Pool Reward: ${(room.entry_stake || 50) * Math.max(1, members.length)} gBits for completing the sprint!`,
               )
             }
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 transition cursor-pointer shrink-0"
@@ -2379,7 +2446,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <div
                         key={n.id}
                         className={`p-3 rounded-xl border text-xs font-mono transition ${
-                          n.is_read
+                          readNotifIds.has(n.id)
                             ? "bg-white/5 border-white/5 text-gray-400"
                             : "bg-purple-500/10 border-purple-500/30 text-white"
                         }`}
@@ -2827,8 +2894,12 @@ const CreatorRoomDetail = ({ roomId }) => {
                         {totalSprintDays}-Day Progress
                       </h4>
                       <span className="text-xs font-mono font-bold text-cyan-400">
-                        {userStandups.length} / {totalSprintDays} Days Completed —{" "}
-                        {Math.round((userStandups.length / totalSprintDays) * 100)}%
+                        {userStandups.length} / {totalSprintDays} Days Completed
+                        —{" "}
+                        {Math.round(
+                          (userStandups.length / totalSprintDays) * 100,
+                        )}
+                        %
                       </span>
                     </div>
 
@@ -2907,51 +2978,52 @@ const CreatorRoomDetail = ({ roomId }) => {
                     </div>
 
                     <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2 font-mono max-h-80 overflow-y-auto pr-1">
-                      {Array.from({ length: totalSprintDays }, (_, i) => i + 1).map(
-                        (dayNum) => {
-                          const dayKey = shiftDateKey(roomStartKey, dayNum - 1);
-                          const isTodayDate = dayKey === todayKey;
-                          const isPastDate = dayKey < todayKey;
-                          const hasStandup = userDateKeySet.has(dayKey);
+                      {Array.from(
+                        { length: totalSprintDays },
+                        (_, i) => i + 1,
+                      ).map((dayNum) => {
+                        const dayKey = shiftDateKey(roomStartKey, dayNum - 1);
+                        const isTodayDate = dayKey === todayKey;
+                        const isPastDate = dayKey < todayKey;
+                        const hasStandup = userDateKeySet.has(dayKey);
 
-                          let statusSymbol = "⚪";
-                          let bgClass =
-                            "bg-white/5 border-white/10 text-gray-400";
+                        let statusSymbol = "⚪";
+                        let bgClass =
+                          "bg-white/5 border-white/10 text-gray-400";
 
-                          if (hasStandup) {
-                            statusSymbol = "🟢";
-                            bgClass =
-                              "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 font-bold";
-                          } else if (isTodayDate) {
-                            statusSymbol = "🟡";
-                            bgClass =
-                              "bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold animate-pulse";
-                          } else if (isPastDate) {
-                            statusSymbol = "🔴";
-                            bgClass =
-                              "bg-red-500/10 border-red-500/30 text-red-400";
-                          }
+                        if (hasStandup) {
+                          statusSymbol = "🟢";
+                          bgClass =
+                            "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 font-bold";
+                        } else if (isTodayDate) {
+                          statusSymbol = "🟡";
+                          bgClass =
+                            "bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold animate-pulse";
+                        } else if (isPastDate) {
+                          statusSymbol = "🔴";
+                          bgClass =
+                            "bg-red-500/10 border-red-500/30 text-red-400";
+                        }
 
-                          const isSelected = selectedDayNum === dayNum;
+                        const isSelected = selectedDayNum === dayNum;
 
-                          return (
-                            <button
-                              key={dayNum}
-                              onClick={() => setSelectedDayNum(dayNum)}
-                              className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${bgClass} ${
-                                isSelected
-                                  ? "ring-2 ring-[#FF00C8] shadow-lg shadow-[#FF00C8]/30 scale-105"
-                                  : "hover:border-white/30"
-                              }`}
-                            >
-                              <span className="text-[10px] text-gray-400">
-                                Day {dayNum}
-                              </span>
-                              <span className="text-base">{statusSymbol}</span>
-                            </button>
-                          );
-                        },
-                      )}
+                        return (
+                          <button
+                            key={dayNum}
+                            onClick={() => setSelectedDayNum(dayNum)}
+                            className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${bgClass} ${
+                              isSelected
+                                ? "ring-2 ring-[#FF00C8] shadow-lg shadow-[#FF00C8]/30 scale-105"
+                                : "hover:border-white/30"
+                            }`}
+                          >
+                            <span className="text-[10px] text-gray-400">
+                              Day {dayNum}
+                            </span>
+                            <span className="text-base">{statusSymbol}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -3108,10 +3180,12 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2">
                     <div>
                       <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Calendar size={16} className="text-cyan-400" /> Squad Schedule & Events
+                        <Calendar size={16} className="text-cyan-400" /> Squad
+                        Schedule & Events
                       </h4>
                       <p className="text-[11px] text-gray-400 font-sans mt-0.5">
-                        Live syncs, deadlines, milestones & squad meetings scheduled by the host
+                        Live syncs, deadlines, milestones & squad meetings
+                        scheduled by the host
                       </p>
                     </div>
                     {isHost && (
@@ -3143,13 +3217,34 @@ const CreatorRoomDetail = ({ roomId }) => {
                     <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                       {squadEvents.map((ev) => {
                         const typeColors = {
-                          "Live Sync": { bg: "bg-cyan-500/10", border: "border-cyan-500/30", text: "text-cyan-300" },
-                          Milestone: { bg: "bg-purple-500/10", border: "border-purple-500/30", text: "text-purple-300" },
-                          Deadline: { bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-400" },
-                          "Code Review": { bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-300" },
-                          General: { bg: "bg-gray-500/10", border: "border-gray-500/30", text: "text-gray-300" },
+                          "Live Sync": {
+                            bg: "bg-cyan-500/10",
+                            border: "border-cyan-500/30",
+                            text: "text-cyan-300",
+                          },
+                          Milestone: {
+                            bg: "bg-purple-500/10",
+                            border: "border-purple-500/30",
+                            text: "text-purple-300",
+                          },
+                          Deadline: {
+                            bg: "bg-red-500/10",
+                            border: "border-red-500/30",
+                            text: "text-red-400",
+                          },
+                          "Code Review": {
+                            bg: "bg-amber-500/10",
+                            border: "border-amber-500/30",
+                            text: "text-amber-300",
+                          },
+                          General: {
+                            bg: "bg-gray-500/10",
+                            border: "border-gray-500/30",
+                            text: "text-gray-300",
+                          },
                         };
-                        const badgeStyle = typeColors[ev.event_type] || typeColors.General;
+                        const badgeStyle =
+                          typeColors[ev.event_type] || typeColors.General;
 
                         return (
                           <div
@@ -3159,7 +3254,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                             <div className="flex items-start gap-3 min-w-0">
                               <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-center shrink-0 min-w-[75px]">
                                 <span className="text-[10px] font-mono text-gray-400 block uppercase">
-                                  {ev.event_date ? formatDateKeyLabel(ev.event_date) : "TBD"}
+                                  {ev.event_date
+                                    ? formatDateKeyLabel(ev.event_date)
+                                    : "TBD"}
                                 </span>
                                 <span className="text-xs font-bold text-white block mt-0.5">
                                   {ev.event_time || "All Day"}
@@ -3217,9 +3314,13 @@ const CreatorRoomDetail = ({ roomId }) => {
                     <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                       {members.map((m) => {
                         const mStandups = standups.filter(
-                          (s) => s.user_id === m.user_id || s.username === m.username,
+                          (s) =>
+                            s.user_id === m.user_id ||
+                            s.username === m.username,
                         );
-                        const mPct = Math.round((mStandups.length / totalSprintDays) * 100);
+                        const mPct = Math.round(
+                          (mStandups.length / totalSprintDays) * 100,
+                        );
                         return (
                           <div
                             key={m.user_id}
@@ -3236,7 +3337,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                                   {m.username}
                                 </h5>
                                 <p className="text-[10px] text-gray-500">
-                                  {mStandups.length} / {totalSprintDays} Days ({mPct}%)
+                                  {mStandups.length} / {totalSprintDays} Days (
+                                  {mPct}%)
                                 </p>
                               </div>
                             </div>
@@ -3334,7 +3436,13 @@ const CreatorRoomDetail = ({ roomId }) => {
                     Event Type
                   </label>
                   <div className="flex flex-wrap gap-1.5">
-                    {["Live Sync", "Milestone", "Deadline", "Code Review", "General"].map((t) => (
+                    {[
+                      "Live Sync",
+                      "Milestone",
+                      "Deadline",
+                      "Code Review",
+                      "General",
+                    ].map((t) => (
                       <button
                         key={t}
                         type="button"
@@ -3379,7 +3487,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                     disabled={eventSaving || !eventTitle.trim()}
                     className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 hover:from-[#00F0FF] hover:to-purple-500 text-white text-xs font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-cyan-500/20"
                   >
-                    {eventSaving ? "Saving..." : editingEvent ? "Save Changes" : "Create Squad Event"}
+                    {eventSaving
+                      ? "Saving..."
+                      : editingEvent
+                        ? "Save Changes"
+                        : "Create Squad Event"}
                   </button>
                 </div>
               </div>
@@ -3412,27 +3524,25 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
 
               <p className="text-xs text-gray-400 font-sans mb-4">
-                Choose a squad member from <strong className="text-white">{room?.title || room?.name}</strong> to pair up with. You will track each other&apos;s daily standups and hold each other accountable.
+                Choose a squad member from{" "}
+                <strong className="text-white">
+                  {room?.title || room?.name}
+                </strong>{" "}
+                to pair up with. You will track each other&apos;s daily standups
+                and hold each other accountable.
               </p>
 
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {members.filter((m) => m.user_id !== userId).length === 0 ? (
-                  <div className="p-5 rounded-2xl bg-white/5 border border-white/10 text-center space-y-3 font-sans">
-                    <p className="text-xs text-gray-300">
-                      No other squad members have joined this room yet. Share the room link to invite teammates to join your squad!
-                    </p>
-                    <button
-                      onClick={handleCopyLink}
-                      className="px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer"
-                    >
-                      🔗 Copy Room Invite Link
-                    </button>
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center text-xs text-gray-400 font-mono">
+                    No other members in this room yet. Share the room link to
+                    invite teammates!
                   </div>
                 ) : (
                   members
                     .filter((m) => m.user_id !== userId)
                     .map((m) => {
-                      const isCurrentBuddy = myBuddyPartner?.user_id === m.user_id;
+                      const isCurrentBuddy = buddyMember?.user_id === m.user_id;
                       return (
                         <div
                           key={m.user_id}
@@ -3453,7 +3563,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 {m.username}
                               </h5>
                               <span className="text-[10px] text-gray-400 font-mono">
-                                {m.role === "host" ? "👑 Room Host" : "Squad Member"}
+                                {m.role === "host"
+                                  ? "👑 Room Host"
+                                  : "Squad Member"}
                               </span>
                             </div>
                           </div>

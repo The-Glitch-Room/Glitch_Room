@@ -34,14 +34,14 @@ const CreatorRooms = () => {
     const user = userRes?.user;
 
     const { data: dbRooms, error } = await supabase
-      .from("rooms")
+      .from("creator_rooms")
       .select("*")
       .order("created_at", { ascending: false });
 
-    const creatorRooms = (dbRooms || []).filter((r) => r.room_type !== "professional");
+    const creatorRooms = dbRooms || [];
 
     if (error) {
-      console.error("Error fetching rooms:", error);
+      console.error("Error fetching creator rooms:", error);
       setRooms([]);
     } else {
       setRooms(creatorRooms);
@@ -52,7 +52,7 @@ const CreatorRooms = () => {
 
       // 1. Calculate Real Committed Builders Count & Dynamic Per-Room Member Counts
       const { data: membersData } = await supabase
-        .from("room_members")
+        .from("creator_room_members")
         .select("room_id, user_id")
         .in("room_id", creatorRoomIds);
 
@@ -84,7 +84,7 @@ const CreatorRooms = () => {
 
       // 2. Calculate Real Consistency Rate from Database Check-ins
       const { data: checkinData } = await supabase
-        .from("room_checkins")
+        .from("creator_room_checkins")
         .select("is_on_time")
         .in("room_id", creatorRoomIds);
 
@@ -105,7 +105,7 @@ const CreatorRooms = () => {
 
     if (user) {
       const { data: myMemberships } = await supabase
-        .from("room_members")
+        .from("creator_room_members")
         .select("room_id")
         .eq("user_id", user.id);
 
@@ -138,20 +138,24 @@ const CreatorRooms = () => {
 
     setJoining(room.id);
     try {
-      await supabase.from("room_members").insert([
-        {
-          room_id: room.id,
-          user_id: user.id,
-          role: "member",
-        },
-      ]);
-      const newCount = (room.member_count || 1) + 1;
-      await supabase
-        .from("rooms")
-        .update({ member_count: newCount })
-        .eq("id", room.id);
+      const { error: joinError } = await supabase
+        .from("creator_room_members")
+        .insert([
+          {
+            room_id: room.id,
+            user_id: user.id,
+            role: "member",
+          },
+        ]);
+
+      if (joinError) {
+        console.error("Error joining creator room:", joinError);
+        setJoining(null);
+        return;
+      }
 
       setMyRoomIds((prev) => new Set(prev).add(room.id));
+      await fetchRooms();
       navigate(`/creator-rooms/${room.id}`);
     } catch (e) {
       console.error("Error joining room:", e);
@@ -181,7 +185,6 @@ const CreatorRooms = () => {
           user.user_metadata?.full_name ||
           user.email?.split("@")[0] ||
           "Creator",
-        member_count: 1,
         goal_pledge: roomData.goal_pledge,
         duration_type: roomData.duration_type,
         checkin_frequency: roomData.checkin_frequency,
@@ -189,15 +192,18 @@ const CreatorRooms = () => {
       };
 
       const { data: newRoom, error } = await supabase
-        .from("rooms")
+        .from("creator_rooms")
         .insert([roomPayload])
         .select()
         .single();
 
       if (error) {
-        console.warn("Retrying insert payload...", error);
-        const { data: fallbackRoom } = await supabase
-          .from("rooms")
+        console.error(
+          "Primary creator_rooms insert failed, falling back to reduced payload:",
+          error,
+        );
+        const { data: fallbackRoom, error: fallbackError } = await supabase
+          .from("creator_rooms")
           .insert([
             {
               name: roomData.title,
@@ -215,12 +221,20 @@ const CreatorRooms = () => {
           .select()
           .single();
 
+        if (fallbackError) {
+          console.error("Fallback creator_rooms insert also failed:", fallbackError);
+          return;
+        }
+
         if (fallbackRoom) {
-          await supabase
-            .from("room_members")
+          const { error: memberError } = await supabase
+            .from("creator_room_members")
             .insert([
               { room_id: fallbackRoom.id, user_id: user.id, role: "host" },
             ]);
+          if (memberError) {
+            console.error("Failed to add host as member:", memberError);
+          }
           setOpenModal(false);
           await fetchRooms();
           navigate(`/creator-rooms/${fallbackRoom.id}`);
@@ -229,9 +243,12 @@ const CreatorRooms = () => {
       }
 
       if (newRoom) {
-        await supabase
-          .from("room_members")
+        const { error: memberError } = await supabase
+          .from("creator_room_members")
           .insert([{ room_id: newRoom.id, user_id: user.id, role: "host" }]);
+        if (memberError) {
+          console.error("Failed to add host as member:", memberError);
+        }
         setOpenModal(false);
         await fetchRooms();
         navigate(`/creator-rooms/${newRoom.id}`);

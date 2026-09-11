@@ -19,8 +19,8 @@ const RoomDetail = () => {
       setError(false);
       try {
         const { data } = await supabase
-          .from("rooms")
-          .select("id, room_type")
+          .from("creator_rooms")
+          .select("id")
           .eq("id", id)
           .maybeSingle();
 

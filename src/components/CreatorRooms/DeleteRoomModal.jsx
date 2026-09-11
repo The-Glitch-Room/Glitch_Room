@@ -20,13 +20,13 @@ const DeleteRoomModal = ({ isOpen, onClose, room, onDeleted }) => {
 
     try {
       // Delete child records: notifications, events, buddies, checkins, members, and room
-      await supabase.from("room_notifications").delete().eq("room_id", room.id).catch(() => {});
-      await supabase.from("room_events").delete().eq("room_id", room.id).catch(() => {});
-      await supabase.from("room_buddies").delete().eq("room_id", room.id).catch(() => {});
-      await supabase.from("room_checkins").delete().eq("room_id", room.id).catch(() => {});
-      await supabase.from("room_members").delete().eq("room_id", room.id).catch(() => {});
+      await supabase.from("creator_room_notifications").delete().eq("room_id", room.id).catch(() => {});
+      await supabase.from("creator_room_events").delete().eq("room_id", room.id).catch(() => {});
+      await supabase.from("creator_room_buddies").delete().eq("room_id", room.id).catch(() => {});
+      await supabase.from("creator_room_checkins").delete().eq("room_id", room.id).catch(() => {});
+      await supabase.from("creator_room_members").delete().eq("room_id", room.id).catch(() => {});
       
-      const { error } = await supabase.from("rooms").delete().eq("id", room.id);
+      const { error } = await supabase.from("creator_rooms").delete().eq("id", room.id);
 
       if (error) {
         throw error;
