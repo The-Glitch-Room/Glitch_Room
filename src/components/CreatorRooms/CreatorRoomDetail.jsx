@@ -774,6 +774,26 @@ const CreatorRoomDetail = ({ roomId }) => {
         },
         () => fetchAllRoomData(),
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "creator_room_checkin_likes",
+          filter: `room_id=eq.${id}`,
+        },
+        () => fetchAllRoomData(),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "creator_room_buddies",
+          filter: `room_id=eq.${id}`,
+        },
+        () => fetchAllRoomData(),
+      )
       .subscribe();
 
     return () => {
@@ -2022,21 +2042,16 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                     const hasLinkProof =
                       standup.proof_url && standup.proof_url.trim().length > 0;
-                    const proofHref = hasLinkProof
-                      ? standup.proof_url.startsWith("http")
-                        ? standup.proof_url
-                        : `https://${standup.proof_url}`
-                      : null;
 
                     return (
                       <motion.div
                         key={standup.id}
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-[#0d0d16] border border-white/10 hover:border-purple-500/30 rounded-xl p-3 shadow-lg transition relative overflow-hidden"
+                        className="bg-[#0d0d16] border border-white/10 hover:border-purple-500/30 rounded-xl p-3 shadow-lg transition relative overflow-hidden space-y-2"
                       >
                         {/* Top Header Row */}
-                        <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-white/10 flex-wrap">
+                        <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/10 flex-wrap">
                           <div className="flex items-center gap-2">
                             <img
                               src={
@@ -2047,93 +2062,20 @@ const CreatorRoomDetail = ({ roomId }) => {
                               alt={standup.username}
                               className="w-6 h-6 rounded-lg object-cover border border-white/15 shadow-sm shrink-0"
                             />
-                            <div>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs font-bold text-white">
-                                  {standup.username}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-white">
+                                {standup.username}
+                              </span>
+                              {isHostAuthor && (
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-0.5">
+                                  👑 Host
                                 </span>
-                                {isHostAuthor && (
-                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-0.5">
-                                    👑 Host
-                                  </span>
-                                )}
-                                {userId && standup.user_id === userId && (
-                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                    You
-                                  </span>
-                                )}
-
-                                {/* Pair Buddy Shortcut Flow for Standup Cards */}
-                                {(() => {
-                                  const isSelf = standup.user_id === userId || standup.isUser;
-                                  if (isSelf || !userId) return null;
-
-                                  const outgoingToAuthor = buddies.find(
-                                    (b) =>
-                                      b.user1_id === userId &&
-                                      b.user2_id === standup.user_id &&
-                                      b.status === "pending",
-                                  );
-
-                                  const incomingFromAuthor = buddies.find(
-                                    (b) =>
-                                      b.user1_id === standup.user_id &&
-                                      b.user2_id === userId &&
-                                      b.status === "pending",
-                                  );
-
-                                  const authorActivePair = buddies.find(
-                                    (b) =>
-                                      (b.user1_id === standup.user_id || b.user2_id === standup.user_id) &&
-                                      (b.status === "active" || !b.status || b.status === "approved"),
-                                  );
-
-                                  if (isBuddyAuthor) {
-                                    return (
-                                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-500/40 flex items-center gap-1">
-                                        ✓ Your Buddy
-                                      </span>
-                                    );
-                                  }
-
-                                  if (outgoingToAuthor) {
-                                    return (
-                                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                                        ⏳ Request Sent
-                                      </span>
-                                    );
-                                  }
-
-                                  if (incomingFromAuthor) {
-                                    return (
-                                      <button
-                                        onClick={() => handleAcceptPairRequest(incomingFromAuthor)}
-                                        className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1"
-                                      >
-                                        Accept Request
-                                      </button>
-                                    );
-                                  }
-
-                                  if (authorActivePair) {
-                                    return (
-                                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/5 text-gray-500 border border-white/10 flex items-center gap-1">
-                                        🔒 Already Paired
-                                      </span>
-                                    );
-                                  }
-
-                                  return (
-                                    <button
-                                      onClick={() => handleSendPairRequest(standup.user_id)}
-                                      disabled={pairingBuddyId === standup.user_id || !!myActivePair}
-                                      className="text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-[#FF00C8] hover:from-purple-500 hover:to-[#FF00C8] text-white transition cursor-pointer shadow flex items-center gap-1 disabled:opacity-50"
-                                    >
-                                      {pairingBuddyId === standup.user_id ? "Sending..." : "🤝 Pair with me"}
-                                    </button>
-                                  );
-                                })()}
-                              </div>
+                              )}
+                              {userId && standup.user_id === userId && (
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                  You
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -2155,7 +2097,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                           </div>
                         </div>
 
-                        {/* Main Content & Side Widget Grid */}
+                        {/* Body Content Section */}
                         {(() => {
                           const parsed = parseStandupContent(standup);
                           const proofHref = parsed.proofUrl
@@ -2169,42 +2111,37 @@ const CreatorRoomDetail = ({ roomId }) => {
                           const hasUserLiked = userId && likesList.includes(userId);
 
                           return (
-                            <div className="space-y-2.5">
-                              <div className="flex items-start justify-between gap-3">
-                                {/* Left Side: 3 Separate Sections (Accomplishment, Proof, Blockers) */}
-                                <div className="flex-1 space-y-2.5 min-w-0 font-sans text-xs">
-                                  {/* Section 1: Accomplishment */}
-                                  <div>
-                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
-                                      WHAT I ACCOMPLISHED TODAY
-                                    </span>
-                                    <p className="text-xs text-gray-200 font-sans leading-snug">
-                                      {parsed.accomplishment}
-                                    </p>
-                                  </div>
+                            <div className="space-y-2">
+                              {/* Section 1: Accomplishment */}
+                              <div>
+                                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
+                                  WHAT I ACCOMPLISHED TODAY
+                                </span>
+                                <p className="text-xs text-gray-200 font-sans leading-snug">
+                                  {parsed.accomplishment}
+                                </p>
+                              </div>
 
-                                  {/* Section 2: Proof of Work */}
-                                  <div>
-                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-1">
-                                      PROOF OF WORK
+                              {/* Section 2: Proof + Blockers + Streak (horizontal flex) */}
+                              <div className="flex items-center justify-between gap-3 pt-0.5 flex-wrap">
+                                <div className="flex items-center gap-4 flex-wrap text-xs">
+                                  {/* Proof of Work */}
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500">
+                                      PROOF:
                                     </span>
                                     {proofHref ? (
                                       <a
                                         href={proofHref}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-full"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-[200px] truncate"
                                       >
                                         <Share2
                                           size={10}
                                           className="text-purple-400 shrink-0"
                                         />
-                                        {standup.proof_type && (
-                                          <span className="text-purple-300/80">
-                                            {standup.proof_type}:
-                                          </span>
-                                        )}
-                                        <span className="underline group-hover:text-white truncate max-w-[220px]">
+                                        <span className="truncate">
                                           {parsed.proofUrl}
                                         </span>
                                         <ExternalLink
@@ -2213,43 +2150,41 @@ const CreatorRoomDetail = ({ roomId }) => {
                                         />
                                       </a>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.02] border border-dashed border-white/10 text-gray-500 text-[10px] font-mono">
+                                      <span className="text-[10px] font-mono text-gray-500 italic">
                                         No proof submitted
                                       </span>
                                     )}
                                   </div>
 
-                                  {/* Section 3: Blockers */}
-                                  <div>
-                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
-                                      BLOCKERS
+                                  {/* Blockers */}
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500">
+                                      BLOCKERS:
                                     </span>
-                                    <p className="text-xs text-gray-300 font-mono">
+                                    <span className="text-xs text-gray-300 font-mono">
                                       {parsed.blockers}
-                                    </p>
+                                    </span>
                                   </div>
                                 </div>
 
-                                {/* Right Side: Compact Streak Count */}
-                                <div className="bg-[#07070d] border border-white/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 shrink-0 self-start">
+                                {/* Compact Streak Badge */}
+                                <div className="bg-[#07070d] border border-white/10 rounded-md px-2 py-0.5 flex items-center gap-1 shrink-0">
                                   <Flame
-                                    size={13}
+                                    size={12}
                                     className="text-amber-400 fill-amber-400/20"
                                   />
-                                  <span className="text-sm font-black text-cyan-400 font-mono leading-none">
-                                    {standupStreak}
-                                  </span>
-                                  <span className="text-[8px] font-mono text-cyan-300/70 uppercase leading-none">
-                                    day
+                                  <span className="text-xs font-black text-cyan-400 font-mono">
+                                    {standupStreak}d
                                   </span>
                                 </div>
                               </div>
 
-                              {/* Bottom Footer: Like ❤️ System */}
-                              <div className="flex items-center justify-between pt-2 border-t border-white/5 font-mono">
+                              {/* Bottom Action Bar: Like ❤️ + Pair with me 🤝 */}
+                              <div className="flex items-center justify-between pt-2 border-t border-white/10 font-mono">
+                                {/* Like Button */}
                                 <button
                                   onClick={() => handleToggleLikeStandup(standup.id)}
-                                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
                                     hasUserLiked
                                       ? "bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20"
                                       : "bg-white/5 text-gray-400 border-white/10 hover:text-white hover:bg-white/10"
@@ -2269,6 +2204,93 @@ const CreatorRoomDetail = ({ roomId }) => {
                                       : "Like"}
                                   </span>
                                 </button>
+
+                                {/* Pair Buddy Action Button / Status Badge */}
+                                {(() => {
+                                  const isSelf =
+                                    standup.user_id === userId ||
+                                    standup.isUser;
+                                  if (isSelf || !userId) return null;
+
+                                  const outgoingToAuthor = buddies.find(
+                                    (b) =>
+                                      b.user1_id === userId &&
+                                      b.user2_id === standup.user_id &&
+                                      b.status === "pending",
+                                  );
+
+                                  const incomingFromAuthor = buddies.find(
+                                    (b) =>
+                                      b.user1_id === standup.user_id &&
+                                      b.user2_id === userId &&
+                                      b.status === "pending",
+                                  );
+
+                                  const authorActivePair = buddies.find(
+                                    (b) =>
+                                      (b.user1_id === standup.user_id ||
+                                        b.user2_id === standup.user_id) &&
+                                      (b.status === "active" ||
+                                        !b.status ||
+                                        b.status === "approved"),
+                                  );
+
+                                  if (isBuddyAuthor) {
+                                    return (
+                                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+                                        ✓ Your Buddy
+                                      </span>
+                                    );
+                                  }
+
+                                  if (outgoingToAuthor) {
+                                    return (
+                                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                                        ⏳ Request Sent
+                                      </span>
+                                    );
+                                  }
+
+                                  if (incomingFromAuthor) {
+                                    return (
+                                      <button
+                                        onClick={() =>
+                                          handleAcceptPairRequest(
+                                            incomingFromAuthor,
+                                          )
+                                        }
+                                        className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1"
+                                      >
+                                        Accept Request
+                                      </button>
+                                    );
+                                  }
+
+                                  if (authorActivePair) {
+                                    return (
+                                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/5 text-gray-500 border border-white/10 flex items-center gap-1">
+                                        🔒 Already Paired
+                                      </span>
+                                    );
+                                  }
+
+                                  return (
+                                    <button
+                                      onClick={() =>
+                                        handleSendPairRequest(standup.user_id)
+                                      }
+                                      disabled={
+                                        pairingBuddyId === standup.user_id ||
+                                        !!myActivePair
+                                      }
+                                      className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-[#FF00C8] hover:from-purple-500 hover:to-[#FF00C8] text-white transition cursor-pointer shadow flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      {pairingBuddyId === standup.user_id
+                                        ? "Sending..."
+                                        : "🤝 Pair with me"}
+                                    </button>
+                                  );
+                                })()}
                               </div>
                             </div>
                           );
