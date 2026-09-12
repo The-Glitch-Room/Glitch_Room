@@ -562,8 +562,6 @@ const CreatorRoomDetail = ({ roomId }) => {
     if (memData) memData.forEach((m) => m.user_id && memberUids.add(m.user_id));
     if (checkinData)
       checkinData.forEach((c) => c.user_id && memberUids.add(c.user_id));
-    if (postsData)
-      postsData.forEach((p) => p.user_id && memberUids.add(p.user_id));
     if (buddyData) {
       buddyData.forEach((b) => {
         if (b.user1_id) memberUids.add(b.user1_id);
