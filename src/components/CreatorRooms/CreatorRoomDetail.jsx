@@ -375,8 +375,10 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [emailNotifsEnabled, setEmailNotifsEnabled] = useState(true);
 
-  // Accountability Buddy Pair Modal State
+  // Pair Buddy Modals & State
   const [showPairBuddyModal, setShowPairBuddyModal] = useState(false);
+  const [showBuddyProgressModal, setShowBuddyProgressModal] = useState(false);
+  const [showBuddyWorkModal, setShowBuddyWorkModal] = useState(false);
   const [pairingBuddy, setPairingBuddy] = useState(false);
 
   // Squad Events States
@@ -1085,55 +1087,141 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
   };
 
-  const handlePairBuddyWithUser = async (targetUserId) => {
+  const handleSendPairRequest = async (targetUserId) => {
     if (!userId || !targetUserId || userId === targetUserId) return;
     setPairingBuddy(true);
     try {
-      if (myBuddy) {
-        await supabase.from("creator_room_buddies").delete().eq("id", myBuddy.id);
+      if (myActivePair) {
+        showToast(" You already have an active Pair Buddy in this room.");
+        setPairingBuddy(false);
+        return;
       }
+
+      const targetActive = buddies.find(
+        (b) =>
+          (b.user1_id === targetUserId || b.user2_id === targetUserId) &&
+          (b.status === "active" || !b.status),
+      );
+      if (targetActive) {
+        const tMem = members.find((m) => m.user_id === targetUserId);
+        showToast(` @${tMem?.username || "Member"} is already paired with someone else.`);
+        setPairingBuddy(false);
+        return;
+      }
+
+      const existingPending = buddies.find(
+        (b) =>
+          ((b.user1_id === userId && b.user2_id === targetUserId) ||
+            (b.user1_id === targetUserId && b.user2_id === userId)) &&
+          b.status === "pending",
+      );
+      if (existingPending) {
+        showToast(" A Pair Buddy request is already pending with this member.");
+        setPairingBuddy(false);
+        return;
+      }
+
       const { error } = await supabase.from("creator_room_buddies").insert([
         {
           room_id: id,
           user1_id: userId,
           user2_id: targetUserId,
+          status: "pending",
         },
       ]);
-      if (error) throw error;
+
+      if (error) {
+        console.warn("Insert pair request notice:", error);
+      }
 
       const partner = members.find((m) => m.user_id === targetUserId);
-      showToast(
-        ` Accountability buddy paired with @${partner?.username || "partner"}!`,
-      );
+
+      await sendRoomNotification({
+        type: "pair_request",
+        title: "🤝 Pair Buddy Request",
+        message: `@${userProfile?.username || "A builder"} sent you a Pair Buddy request to learn & build together!`,
+        targetUserId: targetUserId,
+      });
+
+      showToast(` Pair Buddy request sent to @${partner?.username || "member"}!`);
       setShowPairBuddyModal(false);
       fetchAllRoomData();
     } catch (e) {
-      console.error("Error pairing buddy:", e);
-      showToast(" Failed to pair buddy. Please try again.");
+      console.error("Error sending pair request:", e);
+      showToast(" Failed to send pair request. Please try again.");
     } finally {
       setPairingBuddy(false);
     }
   };
 
-  const handleUnpairBuddy = async () => {
-    if (!myBuddy) return;
+  const handleAcceptPairRequest = async (reqObj) => {
+    if (!reqObj) return;
     try {
-      await supabase.from("creator_room_buddies").delete().eq("id", myBuddy.id);
-      showToast(" Accountability buddy unpaired.");
+      if (myActivePair) {
+        showToast(" You already have an active Pair Buddy in this room.");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("creator_room_buddies")
+        .update({ status: "active" })
+        .eq("id", reqObj.id);
+
+      if (error) {
+        console.warn("Update pair status notice:", error);
+      }
+
+      const requester = members.find((m) => m.user_id === reqObj.user1_id);
+
+      await sendRoomNotification({
+        type: "pair_accepted",
+        title: "🎉 Pair Request Accepted!",
+        message: `@${userProfile?.username || "A member"} accepted your Pair Buddy request! You are now paired!`,
+        targetUserId: reqObj.user1_id,
+      });
+
+      showToast(` You are now paired with @${requester?.username || "your buddy"}!`);
+      fetchAllRoomData();
+    } catch (e) {
+      console.error("Error accepting pair request:", e);
+    }
+  };
+
+  const handleDeclinePairRequest = async (reqObj) => {
+    if (!reqObj) return;
+    try {
+      await supabase
+        .from("creator_room_buddies")
+        .delete()
+        .eq("id", reqObj.id);
+
+      showToast("Pair Buddy request updated.");
+      fetchAllRoomData();
+    } catch (e) {
+      console.error("Error declining pair request:", e);
+    }
+  };
+
+  const handleUnpairBuddy = async () => {
+    if (!myActivePair) return;
+    if (!confirm(`Unpair from @${buddyMember?.username || "your buddy"}?`)) return;
+    try {
+      await supabase
+        .from("creator_room_buddies")
+        .delete()
+        .eq("id", myActivePair.id);
+
+      showToast(" Pair Buddy unpaired.");
       fetchAllRoomData();
     } catch (e) {
       console.error("Error unpairing buddy:", e);
     }
   };
 
-  const handlePairBuddies = async () => {
-    if (members.length < 2) {
-      showToast(
-        " Need at least 2 squad members to pair accountability buddies.",
-      );
-      return;
-    }
-    setShowPairBuddyModal(true);
+  const handleMessageBuddy = () => {
+    if (!buddyMember) return;
+    navigator.clipboard.writeText(`@${buddyMember.username}`);
+    showToast(` Copied handle @${buddyMember.username}! Use Community tab to mention or message.`);
   };
 
   const handleNudgeBuddy = async () => {
@@ -1335,16 +1423,32 @@ const CreatorRoomDetail = ({ roomId }) => {
     .map((m) => ({ ...m, streak: getUserStreak(m.user_id) }))
     .sort((a, b) => (b.streak || 0) - (a.streak || 0));
 
-  // Buddy profile
-  const myBuddy = buddies.find(
-    (b) => b.user1_id === userId || b.user2_id === userId,
+  // Pair Buddy profile & request states
+  const myActivePair = buddies.find(
+    (b) =>
+      (b.user1_id === userId || b.user2_id === userId) &&
+      (b.status === "active" || !b.status || b.status === "approved"),
   );
-  const buddyUserId = myBuddy
-    ? myBuddy.user1_id === userId
-      ? myBuddy.user2_id
-      : myBuddy.user1_id
+  const buddyUserId = myActivePair
+    ? myActivePair.user1_id === userId
+      ? myActivePair.user2_id
+      : myActivePair.user1_id
     : null;
   const buddyMember = members.find((m) => m.user_id === buddyUserId);
+
+  const incomingPairRequest = buddies.find(
+    (b) => b.user2_id === userId && b.status === "pending",
+  );
+  const incomingRequester = incomingPairRequest
+    ? members.find((m) => m.user_id === incomingPairRequest.user1_id)
+    : null;
+
+  const outgoingPairRequest = buddies.find(
+    (b) => b.user1_id === userId && b.status === "pending",
+  );
+  const outgoingRecipient = outgoingPairRequest
+    ? members.find((m) => m.user_id === outgoingPairRequest.user2_id)
+    : null;
 
   const displayStandups =
     activeTab === "today"
@@ -1862,8 +1966,17 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 )}
                                 {isBuddyAuthor && (
                                   <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-900/40 text-purple-300 border border-purple-500/30">
-                                    Accountability Buddy
+                                    🟢 Pair Buddy
                                   </span>
+                                )}
+                                {!standup.isUser && userId && !isBuddyAuthor && !myActivePair && (
+                                  <button
+                                    onClick={() => handleSendPairRequest(standup.user_id)}
+                                    disabled={pairingBuddy}
+                                    className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 transition cursor-pointer flex items-center gap-1"
+                                  >
+                                    🤝 Pair Buddy
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -2037,12 +2150,12 @@ const CreatorRoomDetail = ({ roomId }) => {
               )}
             </div>
 
-            {/* Accountability Buddy Card */}
+            {/* Pair Buddy Card */}
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center justify-between text-xs font-bold text-white mb-3">
                 <div className="flex items-center gap-2">
                   <Handshake size={15} className="text-purple-400" />{" "}
-                  Accountability Buddy
+                  Pair Buddy
                 </div>
                 {buddyMember && (
                   <button
@@ -2054,13 +2167,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                 )}
               </div>
 
+              {/* State 1: Active Paired Partner */}
               {buddyMember ? (
-                <div className="bg-[#07070d] border border-purple-500/20 rounded-2xl p-3.5 space-y-3 shadow-inner">
+                <div className="bg-[#07070d] border border-purple-500/30 rounded-2xl p-3.5 space-y-3 shadow-inner">
                   <div className="flex items-center gap-3">
                     <img
                       src={buddyMember.avatar_url}
                       alt={buddyMember.username}
-                      className="w-10 h-10 rounded-xl object-cover ring-1 ring-purple-500/30 shrink-0"
+                      className="w-10 h-10 rounded-xl object-cover ring-2 ring-purple-500/40 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-white truncate">
@@ -2075,37 +2189,92 @@ const CreatorRoomDetail = ({ roomId }) => {
                     </div>
                   </div>
 
-                  {/* Today Standup & Nudge Bar */}
-                  <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2 font-mono">
-                    {userDateKeySets[buddyUserId]?.has(todayKey) ? (
-                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1">
-                        <CheckCircle2 size={11} /> Checked In Today
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                        🟡 Standup Pending
-                      </span>
-                    )}
-
+                  {/* 4 Action Buttons Grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 text-[11px] font-mono">
+                    <button
+                      onClick={() => setShowBuddyProgressModal(true)}
+                      className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold hover:bg-cyan-500/25 transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Activity size={12} /> Progress
+                    </button>
+                    <button
+                      onClick={() => setShowBuddyWorkModal(true)}
+                      className="px-2.5 py-1.5 rounded-xl bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold hover:bg-purple-500/25 transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Sparkles size={12} /> Latest Work
+                    </button>
+                    <button
+                      onClick={handleMessageBuddy}
+                      className="px-2.5 py-1.5 rounded-xl bg-white/5 text-gray-300 border border-white/10 font-bold hover:bg-white/10 transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <MessageSquare size={12} /> Message
+                    </button>
                     <button
                       onClick={handleNudgeBuddy}
-                      className="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold hover:bg-purple-500/30 transition cursor-pointer flex items-center gap-1"
+                      className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold hover:bg-amber-500/25 transition cursor-pointer flex items-center justify-center gap-1"
                     >
-                      <Zap size={11} /> Nudge
+                      <Zap size={12} /> Nudge
                     </button>
                   </div>
                 </div>
+              ) : incomingPairRequest && incomingRequester ? (
+                /* State 2: Incoming Pair Request */
+                <div className="bg-[#0f0b1e] border border-purple-500/40 rounded-2xl p-3.5 space-y-3 shadow-xl">
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      src={incomingRequester.avatar_url}
+                      alt={incomingRequester.username}
+                      className="w-9 h-9 rounded-xl object-cover border border-purple-500/30 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate">
+                        @{incomingRequester.username}
+                      </p>
+                      <p className="text-[10px] text-purple-300 font-mono">
+                        Sent Pair Buddy request
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 font-mono">
+                    <button
+                      onClick={() => handleAcceptPairRequest(incomingPairRequest)}
+                      className="flex-1 py-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold hover:bg-emerald-500/30 transition cursor-pointer"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleDeclinePairRequest(incomingPairRequest)}
+                      className="flex-1 py-1.5 bg-white/5 text-gray-400 border border-white/10 rounded-xl text-xs font-bold hover:bg-white/10 transition cursor-pointer"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              ) : outgoingPairRequest && outgoingRecipient ? (
+                /* State 3: Outgoing Pair Request */
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center space-y-2 font-mono">
+                  <p className="text-xs text-gray-300 font-bold">
+                    ⏳ Pair Request Sent to @{outgoingRecipient.username}
+                  </p>
+                  <button
+                    onClick={() => handleDeclinePairRequest(outgoingPairRequest)}
+                    className="text-[11px] text-gray-400 underline hover:text-red-400 transition cursor-pointer"
+                  >
+                    Cancel Request
+                  </button>
+                </div>
               ) : (
+                /* State 4: Not Paired */
                 <div className="text-center py-4 border border-dashed border-white/10 rounded-xl p-3">
                   <p className="text-xs text-gray-400 mb-2 font-mono">
-                    No buddy paired yet.
+                    No Pair Buddy paired yet.
                   </p>
                   {isMember || isHost ? (
                     <button
-                      onClick={handlePairBuddies}
+                      onClick={() => setShowPairBuddyModal(true)}
                       className="px-3.5 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer shadow-sm"
                     >
-                      + Pair Squad Buddies
+                      + Pair Squad Buddy
                     </button>
                   ) : (
                     <button
@@ -3549,7 +3718,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         )}
       </AnimatePresence>
 
-      {/* 9. Pair Accountability Buddy Modal */}
+      {/* 9. Pair Buddy Selection Modal */}
       <AnimatePresence>
         {showPairBuddyModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -3562,7 +3731,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Handshake size={18} className="text-purple-400" />
-                  Pair Accountability Buddy
+                  Pair Buddy Selection
                 </h3>
                 <button
                   onClick={() => setShowPairBuddyModal(false)}
@@ -3577,26 +3746,39 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <strong className="text-white">
                   {room?.title || room?.name}
                 </strong>{" "}
-                to pair up with. You will track each other&apos;s daily standups
-                and hold each other accountable.
+                to pair up with. Learn together, review each other&apos;s daily progress, and keep each other consistent!
               </p>
 
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {members.filter((m) => m.user_id !== userId).length === 0 ? (
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center text-xs text-gray-400 font-mono">
-                    No other members in this room yet. Share the room link to
-                    invite teammates!
+                  <div className="p-5 rounded-2xl bg-white/5 border border-white/10 text-center space-y-3 font-sans">
+                    <p className="text-xs text-gray-300">
+                      No other squad members have joined this room yet. Share the room link to invite teammates to join your squad!
+                    </p>
+                    <button
+                      onClick={handleCopyLink}
+                      className="px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer"
+                    >
+                      🔗 Copy Room Invite Link
+                    </button>
                   </div>
                 ) : (
                   members
                     .filter((m) => m.user_id !== userId)
                     .map((m) => {
-                      const isCurrentBuddy = buddyMember?.user_id === m.user_id;
+                      const isPairedWithMe = buddyMember?.user_id === m.user_id;
+                      const outgoingToM = buddies.find(
+                        (b) => b.user1_id === userId && b.user2_id === m.user_id && b.status === "pending",
+                      );
+                      const incomingFromM = buddies.find(
+                        (b) => b.user1_id === m.user_id && b.user2_id === userId && b.status === "pending",
+                      );
+
                       return (
                         <div
                           key={m.user_id}
                           className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
-                            isCurrentBuddy
+                            isPairedWithMe
                               ? "bg-purple-500/10 border-purple-500/40"
                               : "bg-[#07070d] border-white/10"
                           }`}
@@ -3609,27 +3791,44 @@ const CreatorRoomDetail = ({ roomId }) => {
                             />
                             <div className="min-w-0">
                               <h5 className="font-bold text-white text-xs truncate">
-                                {m.username}
+                                @{m.username}
                               </h5>
                               <span className="text-[10px] text-gray-400 font-mono">
-                                {m.role === "host"
-                                  ? "👑 Room Host"
-                                  : "Squad Member"}
+                                🔥 {getUserStreak(m.user_id)}d streak
                               </span>
                             </div>
                           </div>
 
-                          {isCurrentBuddy ? (
+                          {isPairedWithMe ? (
                             <span className="px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 text-xs font-bold font-mono border border-purple-500/30">
-                              Currently Paired
+                              🟢 Paired Partner
                             </span>
+                          ) : outgoingToM ? (
+                            <span className="px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-300 text-xs font-bold font-mono border border-amber-500/30">
+                              ⏳ Request Sent
+                            </span>
+                          ) : incomingFromM ? (
+                            <div className="flex gap-1.5 font-mono">
+                              <button
+                                onClick={() => handleAcceptPairRequest(incomingFromM)}
+                                className="px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 text-[11px] font-bold border border-emerald-500/30 hover:bg-emerald-500/30 cursor-pointer"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => handleDeclinePairRequest(incomingFromM)}
+                                className="px-2.5 py-1 rounded-xl bg-white/5 text-gray-400 text-[11px] font-bold border border-white/10 hover:bg-white/10 cursor-pointer"
+                              >
+                                Decline
+                              </button>
+                            </div>
                           ) : (
                             <button
-                              onClick={() => handlePairBuddyWithUser(m.user_id)}
-                              disabled={pairingBuddy}
+                              onClick={() => handleSendPairRequest(m.user_id)}
+                              disabled={pairingBuddy || !!myActivePair}
                               className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF00C8] hover:from-purple-500 hover:to-[#FF00C8] text-white text-xs font-bold font-mono transition cursor-pointer shadow-md shrink-0 disabled:opacity-50"
                             >
-                              {pairingBuddy ? "Pairing..." : "Pair Buddy"}
+                              {pairingBuddy ? "Sending..." : "🤝 Pair Buddy"}
                             </button>
                           )}
                         </div>
@@ -3641,6 +3840,252 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="pt-4 mt-2 border-t border-white/10 flex justify-end">
                 <button
                   onClick={() => setShowPairBuddyModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 10. Buddy Progress Modal */}
+      <AnimatePresence>
+        {showBuddyProgressModal && buddyMember && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-cyan-500/30 rounded-3xl p-6 max-w-lg w-full shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={buddyMember.avatar_url}
+                    alt={buddyMember.username}
+                    className="w-9 h-9 rounded-xl object-cover ring-1 ring-cyan-500/40"
+                  />
+                  <div>
+                    <h3 className="text-base font-bold text-white">
+                      @{buddyMember.username}&apos;s Room Progress
+                    </h3>
+                    <p className="text-[10px] text-cyan-400 font-mono">
+                      🟢 Pair Buddy in {room?.title || room?.name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBuddyProgressModal(false)}
+                  className="text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {(() => {
+                const bStandups = standups.filter((s) => s.user_id === buddyUserId);
+                const bStreak = getUserStreak(buddyUserId);
+                return (
+                  <div className="space-y-4 font-mono text-xs">
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase">
+                          Current Streak
+                        </div>
+                        <div className="text-sm font-black text-amber-400">
+                          🔥 {bStreak} Days
+                        </div>
+                      </div>
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase">
+                          Check-ins
+                        </div>
+                        <div className="text-sm font-black text-emerald-400">
+                          {bStandups.length}
+                        </div>
+                      </div>
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <div className="text-[10px] text-gray-400 uppercase">
+                          On-Time Rate
+                        </div>
+                        <div className="text-sm font-black text-purple-300">
+                          {bStandups.length > 0
+                            ? `${Math.round((bStandups.filter((s) => getOnTimeStatus(s)).length / bStandups.length) * 100)}%`
+                            : "100%"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">
+                      Submitted Standup Logs ({bStandups.length})
+                    </h4>
+                    <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                      {bStandups.length === 0 ? (
+                        <p className="text-xs text-gray-500 py-4 text-center">
+                          No standup logs submitted yet.
+                        </p>
+                      ) : (
+                        bStandups.map((st) => (
+                          <div
+                            key={st.id}
+                            className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-1"
+                          >
+                            <div className="flex justify-between items-center text-[10px] text-gray-400">
+                              <span>
+                                {formatStandupTimestamp(st.created_at)}
+                              </span>
+                              <span className="text-emerald-400 font-bold">
+                                On Time
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-200 font-sans leading-relaxed">
+                              {st.accomplishment}
+                            </p>
+                            {st.proof_url && (
+                              <a
+                                href={
+                                  st.proof_url.startsWith("http")
+                                    ? st.proof_url
+                                    : `https://${st.proof_url}`
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-cyan-400 underline block truncate mt-1"
+                              >
+                                🔗 {st.proof_url}
+                              </a>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="pt-4 mt-3 border-t border-white/10 flex justify-end">
+                <button
+                  onClick={() => setShowBuddyProgressModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 11. Buddy Latest Work Modal */}
+      <AnimatePresence>
+        {showBuddyWorkModal && buddyMember && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-purple-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={buddyMember.avatar_url}
+                    alt={buddyMember.username}
+                    className="w-9 h-9 rounded-xl object-cover ring-1 ring-purple-500/40"
+                  />
+                  <div>
+                    <h3 className="text-base font-bold text-white">
+                      Latest Work by @{buddyMember.username}
+                    </h3>
+                    <p className="text-[10px] text-purple-300 font-mono">
+                      Proof of Work Snapshot
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBuddyWorkModal(false)}
+                  className="text-gray-400 hover:text-white cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {(() => {
+                const bStandups = standups.filter((s) => s.user_id === buddyUserId);
+                const latest = bStandups[0];
+                if (!latest) {
+                  return (
+                    <p className="text-xs text-gray-400 py-6 text-center">
+                      No submitted work found yet.
+                    </p>
+                  );
+                }
+                const parsed = parseStandupContent(latest);
+                const proofHref = parsed.proofUrl
+                  ? parsed.proofUrl.startsWith("http")
+                    ? parsed.proofUrl
+                    : `https://${parsed.proofUrl}`
+                  : null;
+
+                return (
+                  <div className="space-y-4 font-sans text-xs">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between text-[10px] font-mono text-gray-400 pb-2 border-b border-white/5">
+                        <span>
+                          Logged: {formatStandupTimestamp(latest.created_at)}
+                        </span>
+                        <span className="text-emerald-400 font-bold">
+                          🔥 {getUserStreak(buddyUserId)}d Streak
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                          Accomplishment
+                        </span>
+                        <p className="text-xs text-white leading-relaxed">
+                          {parsed.accomplishment}
+                        </p>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                          Proof of Work
+                        </span>
+                        {proofHref ? (
+                          <a
+                            href={proofHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-mono font-bold hover:bg-purple-500/30 transition truncate max-w-full"
+                          >
+                            🔗 {parsed.proofUrl} <ExternalLink size={11} />
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-500 italic">
+                            No proof link attached
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                          Blockers
+                        </span>
+                        <p className="text-xs text-gray-300 font-mono">
+                          {parsed.blockers || "None"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="pt-4 mt-3 border-t border-white/10 flex justify-end">
+                <button
+                  onClick={() => setShowBuddyWorkModal(false)}
                   className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
                 >
                   Close
