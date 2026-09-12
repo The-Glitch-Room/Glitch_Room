@@ -2207,10 +2207,33 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                                 {/* Pair Buddy Action Button / Status Badge */}
                                 {(() => {
+                                  if (!userId) return null;
                                   const isSelf =
                                     standup.user_id === userId ||
                                     standup.isUser;
-                                  if (isSelf || !userId) return null;
+
+                                  if (isSelf) {
+                                    if (myActivePair) {
+                                      const partnerId =
+                                        myActivePair.user1_id === userId
+                                          ? myActivePair.user2_id
+                                          : myActivePair.user1_id;
+                                      const partnerUser = members.find(
+                                        (m) => m.user_id === partnerId,
+                                      );
+                                      return (
+                                        <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-purple-900/50 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+                                          ✓ Paired with @
+                                          {partnerUser?.username || "Buddy"}
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span className="text-xs font-mono text-gray-500 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 flex items-center gap-1">
+                                        (Your Standup)
+                                      </span>
+                                    );
+                                  }
 
                                   const outgoingToAuthor = buddies.find(
                                     (b) =>
@@ -2237,7 +2260,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                                   if (isBuddyAuthor) {
                                     return (
-                                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+                                      <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-purple-900/50 text-purple-300 border border-purple-500/40 flex items-center gap-1">
                                         ✓ Your Buddy
                                       </span>
                                     );
@@ -2245,7 +2268,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                                   if (outgoingToAuthor) {
                                     return (
-                                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                                      <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
                                         ⏳ Request Sent
                                       </span>
                                     );
@@ -2259,7 +2282,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                                             incomingFromAuthor,
                                           )
                                         }
-                                        className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1"
+                                        className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1"
                                       >
                                         Accept Request
                                       </button>
@@ -2268,7 +2291,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                                   if (authorActivePair) {
                                     return (
-                                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/5 text-gray-500 border border-white/10 flex items-center gap-1">
+                                      <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-white/5 text-gray-500 border border-white/10 flex items-center gap-1">
                                         🔒 Already Paired
                                       </span>
                                     );
@@ -2283,7 +2306,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                                         pairingBuddyId === standup.user_id ||
                                         !!myActivePair
                                       }
-                                      className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-[#FF00C8] hover:from-purple-500 hover:to-[#FF00C8] text-white transition cursor-pointer shadow flex items-center gap-1 disabled:opacity-50"
+                                      className="px-2.5 py-1 rounded-lg text-xs font-bold font-mono flex items-center gap-1.5 transition cursor-pointer border bg-purple-500/20 text-purple-300 border-purple-500/40 hover:bg-purple-500/30 hover:text-white disabled:opacity-50 shadow-sm"
                                     >
                                       {pairingBuddyId === standup.user_id
                                         ? "Sending..."
