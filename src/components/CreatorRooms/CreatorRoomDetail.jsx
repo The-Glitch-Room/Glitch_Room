@@ -2436,8 +2436,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <Sparkles size={12} /> Latest Work
                     </button>
                     <button
-                      onClick={handleMessageBuddy}
-                      className="px-2.5 py-1.5 rounded-xl bg-white/5 text-gray-300 border border-white/10 font-bold hover:bg-white/10 transition cursor-pointer flex items-center justify-center gap-1"
+                      disabled
+                      title="Messaging coming soon"
+                      className="px-2.5 py-1.5 rounded-xl bg-white/5 text-gray-500 border border-white/10 font-bold flex items-center justify-center gap-1 opacity-50 cursor-not-allowed"
                     >
                       <MessageSquare size={12} /> Message
                     </button>
