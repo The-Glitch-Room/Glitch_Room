@@ -508,26 +508,16 @@ const CreatorRoomDetail = ({ roomId }) => {
       .select("*")
       .eq("room_id", id);
 
-    // 4. Fetch Standup Check-ins from creator_room_checkins, room_checkins & community_posts
-    const { data: checkinData1 } = await supabase
+    // 4. Fetch Standup Check-ins strictly from creator_room_checkins database table
+    const { data: checkinData, error: checkinFetchErr } = await supabase
       .from("creator_room_checkins")
       .select("*")
       .eq("room_id", id)
       .order("created_at", { ascending: false });
 
-    const { data: checkinData2 } = await supabase
-      .from("room_checkins")
-      .select("*")
-      .eq("room_id", id)
-      .order("created_at", { ascending: false });
-
-    const checkinData = [...(checkinData1 || []), ...(checkinData2 || [])];
-
-    const { data: postsData } = await supabase
-      .from("community_posts")
-      .select("*")
-      .or(`category.eq.room_${id},category.eq.${id}`)
-      .order("created_at", { ascending: false });
+    if (checkinFetchErr) {
+      console.error("Error fetching creator_room_checkins:", checkinFetchErr);
+    }
 
     // 5. Fetch Room Buddies
     const { data: buddyData } = await supabase
@@ -651,158 +641,20 @@ const CreatorRoomDetail = ({ roomId }) => {
           (c.user_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
           DEFAULT_AVATAR;
 
-        const accText = (c.accomplishment || "").trim().toLowerCase();
-        const key = `${c.user_id}_${accText}`;
-        if (!seenStandupKeys.has(key)) {
-          seenStandupKeys.add(key);
-
-          fetchedStandups.push({
-            id: c.id,
-            user_id: c.user_id,
-            username: authorUsername,
-            avatar: authorAvatar,
-            accomplishment: c.accomplishment,
-            proof_type: c.proof_type || null,
-            proof_url: c.proof_url,
-            blockers: c.blockers,
-            streak_count: c.streak_count || 1,
-            is_on_time: c.is_on_time !== false,
-            created_at: c.created_at,
-            isUser: c.user_id === uid,
-          });
-        }
-      });
-    }
-
-    if (postsData && postsData.length > 0) {
-      postsData.forEach((p) => {
-        const bodyText = (p.body || p.title || "").trim().toLowerCase();
-        const key = `${p.user_id}_${bodyText}`;
-        if (!seenStandupKeys.has(key)) {
-          seenStandupKeys.add(key);
-
-          const pProf = cProfs.find(
-            (pr) => pr.id === p.user_id || pr.user_id === p.user_id,
-          );
-          const m = fetchedMembers.find((mem) => mem.user_id === p.user_id);
-          const isHost = p.user_id === roomData?.created_by;
-
-          const authorUsername =
-            pProf?.username ||
-            pProf?.full_name ||
-            p.author_username ||
-            m?.username ||
-            (p.user_id === uid && userProfile?.username ? userProfile.username : null) ||
-            (isHost ? roomData?.host || "Host" : "Builder");
-
-          const authorAvatar =
-            pProf?.avatar_url ||
-            p.author_avatar ||
-            m?.avatar_url ||
-            (p.user_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
-            DEFAULT_AVATAR;
-
-          fetchedStandups.push({
-            id: p.id,
-            user_id: p.user_id,
-            username: authorUsername,
-            avatar: authorAvatar,
-            accomplishment: p.body || p.title,
-            proof_url: p.body?.includes("http")
-              ? p.body.match(/https?:\/\/[^\s\)]+/)?.[0]
-              : null,
-            blockers: "None",
-            streak_count: 1,
-            is_on_time: true,
-            created_at: p.created_at,
-            isUser: p.user_id === uid,
-          });
-        }
-      });
-    }
-
-    // 4b. LocalStorage Checkins Fallback
-    try {
-      const localCheckins = JSON.parse(
-        localStorage.getItem(`glitch_room_local_checkins_${id}`) || "[]",
-      );
-      if (Array.isArray(localCheckins)) {
-        localCheckins.forEach((lc) => {
-          const accText = (lc.accomplishment || lc.title || "").trim().toLowerCase();
-          const key = `${lc.user_id}_${accText}`;
-          if (!seenStandupKeys.has(key)) {
-            seenStandupKeys.add(key);
-            fetchedStandups.push({
-              ...lc,
-              isUser: lc.user_id === uid,
-            });
-          }
+        fetchedStandups.push({
+          id: c.id,
+          user_id: c.user_id,
+          username: authorUsername,
+          avatar: authorAvatar,
+          accomplishment: c.accomplishment,
+          proof_type: c.proof_type || null,
+          proof_url: c.proof_url || null,
+          blockers: c.blockers || "None",
+          streak_count: c.streak_count || 1,
+          is_on_time: c.is_on_time !== false,
+          created_at: c.created_at,
+          isUser: c.user_id === uid,
         });
-      }
-    } catch (e) {}
-
-    // 4c. Notification Standups Fallback (Guaranteed cross-account sync)
-    if (notifList && Array.isArray(notifList)) {
-      notifList.forEach((n) => {
-        if (n.type === "standup_posted" && n.sender_id) {
-          let parsedData = {};
-          if (n.message && typeof n.message === "string" && n.message.startsWith("{")) {
-            try {
-              parsedData = JSON.parse(n.message);
-            } catch (e) {}
-          }
-
-          const pProf = cProfs.find(
-            (pr) => pr.id === n.sender_id || pr.user_id === n.sender_id,
-          );
-          const m = fetchedMembers.find((mem) => mem.user_id === n.sender_id);
-          const isHost = n.sender_id === roomData?.created_by;
-
-          const authorUsername =
-            parsedData.username ||
-            pProf?.username ||
-            pProf?.full_name ||
-            m?.username ||
-            (n.sender_id === uid && userProfile?.username ? userProfile.username : null) ||
-            (isHost ? roomData?.host || "Host" : "Builder");
-
-          const authorAvatar =
-            parsedData.avatar ||
-            pProf?.avatar_url ||
-            m?.avatar_url ||
-            (n.sender_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
-            DEFAULT_AVATAR;
-
-          const accomplishment =
-            parsedData.accomplishment ||
-            (n.title && n.title !== "Daily Standup Logged" ? n.title : "Submitted daily standup & proof of work!");
-
-          const accText = accomplishment.trim().toLowerCase();
-          const key = `${n.sender_id}_${accText}`;
-
-          const notifDateKey = getISTDateKey(n.created_at);
-          const userAlreadyHasStandupOnDate = fetchedStandups.some(
-            (fs) => fs.user_id === n.sender_id && getISTDateKey(fs.created_at) === notifDateKey,
-          );
-
-          if (!seenStandupKeys.has(key) && !userAlreadyHasStandupOnDate) {
-            seenStandupKeys.add(key);
-            fetchedStandups.push({
-              id: n.id,
-              user_id: n.sender_id,
-              username: authorUsername,
-              avatar: authorAvatar,
-              accomplishment,
-              proof_type: parsedData.proof_type || null,
-              proof_url: parsedData.proof_url || null,
-              blockers: parsedData.blockers || "None",
-              streak_count: 1,
-              is_on_time: true,
-              created_at: n.created_at,
-              isUser: n.sender_id === uid,
-            });
-          }
-        }
       });
     }
 
@@ -1109,25 +961,10 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       const computedIsOnTime = true;
 
-      const newCheckinObj = {
-        id: `checkin_${Date.now()}`,
-        room_id: id,
-        user_id: activeUid,
-        username: userProfile?.username || "Builder",
-        avatar: userProfile?.avatar_url || DEFAULT_AVATAR,
-        accomplishment: accomplishment.trim(),
-        proof_type: proofType || null,
-        proof_url: proofUrl.trim() || null,
-        blockers: blockers.trim() || "None",
-        is_on_time: computedIsOnTime,
-        created_at: new Date().toISOString(),
-        isUser: true,
-      };
-
-      // 1. Primary insert into creator_room_checkins
-      let checkinInsertError = null;
-      try {
-        const { error } = await supabase.from("creator_room_checkins").insert([
+      // 1. Insert into creator_room_checkins
+      const { error: checkinErr } = await supabase
+        .from("creator_room_checkins")
+        .insert([
           {
             room_id: id,
             user_id: activeUid,
@@ -1138,71 +975,13 @@ const CreatorRoomDetail = ({ roomId }) => {
             is_on_time: computedIsOnTime,
           },
         ]);
-        checkinInsertError = error;
-      } catch (e) {
-        checkinInsertError = e;
-      }
 
-      if (checkinInsertError) {
-        console.warn("creator_room_checkins insert notice:", checkinInsertError);
-        try {
-          await supabase.from("creator_room_checkins").insert([
-            {
-              room_id: id,
-              user_id: activeUid,
-              accomplishment: accomplishment.trim(),
-              proof_url: proofUrl.trim() || null,
-              blockers: blockers.trim() || null,
-              is_on_time: computedIsOnTime,
-            },
-          ]);
-        } catch (e) {}
+      if (checkinErr) {
+        console.error("Error inserting into creator_room_checkins:", checkinErr);
+        showToast(`Database Error: ${checkinErr.message || "Failed to log checkin"}`);
+        setSubmitting(false);
+        return;
       }
-
-      // 1b. Also insert into room_checkins table
-      try {
-        await supabase.from("room_checkins").insert([
-          {
-            room_id: id,
-            user_id: activeUid,
-            accomplishment: accomplishment.trim(),
-            proof_type: proofType || null,
-            proof_url: proofUrl.trim() || null,
-            blockers: blockers.trim() || null,
-            is_on_time: computedIsOnTime,
-          },
-        ]);
-      } catch (e) {
-        console.warn("room_checkins insert notice:", e);
-      }
-
-      // 2. Dual-write to community_posts as fallback feed store
-      try {
-        await supabase.from("community_posts").insert([
-          {
-            user_id: activeUid,
-            category: `room_${id}`,
-            title: accomplishment.trim(),
-            body: accomplishment.trim(),
-            author_username: userProfile?.username || "Builder",
-            author_avatar: userProfile?.avatar_url || DEFAULT_AVATAR,
-          },
-        ]);
-      } catch (e) {
-        console.warn("Notice dual-writing to community_posts:", e);
-      }
-
-      // 3. Save to LocalStorage as instant backup
-      try {
-        const localCheckins = JSON.parse(
-          localStorage.getItem(`glitch_room_local_checkins_${id}`) || "[]",
-        );
-        localCheckins.unshift(newCheckinObj);
-        localStorage.setItem(
-          `glitch_room_local_checkins_${id}`,
-          JSON.stringify(localCheckins),
-        );
-      } catch (e) {}
 
       // 4. Award +35 gBits
       if (userId) {
