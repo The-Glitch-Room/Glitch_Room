@@ -53,6 +53,8 @@ import {
   Pencil,
 } from "lucide-react";
 
+const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+
 // Reusable User Avatar Component — renders custom uploaded image if present,
 // otherwise displays a stylish gradient initials badge matching Navbar style.
 const UserAvatar = ({
@@ -634,7 +636,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           p?.username ||
           p?.full_name ||
           (isHostUser ? roomData?.host || "Host" : "Squad Member"),
-        avatar_url: p?.avatar_url || DEFAULT_AVATAR,
+        avatar_url: p?.avatar_url || null,
         streak: 0,
       };
     });
@@ -670,7 +672,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           p?.avatar_url ||
           m?.avatar_url ||
           (c.user_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
-          DEFAULT_AVATAR;
+          null;
 
         fetchedStandups.push({
           id: c.id,
