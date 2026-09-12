@@ -180,7 +180,19 @@ export const updatePoints = async (
     return await fetchPoints(userId);
   }
 
-  const newTotal = await fetchPoints(userId);
+  let newTotal = await fetchPoints(userId);
+
+  // Failsafe: if DB trigger is absent, ensure user_points & profiles are incremented
+  if (newTotal === 0 || delta !== 0) {
+    const fallbackTarget = newTotal + delta;
+    try {
+      await supabase.from("user_points").upsert({ user_id: userId, points: fallbackTarget }, { onConflict: "user_id" });
+    } catch (e) {}
+    try {
+      await supabase.from("profiles").update({ points: fallbackTarget }).eq("id", userId);
+    } catch (e) {}
+    newTotal = await fetchPoints(userId);
+  }
 
   if (delta > 0 && type !== "bonus") {
     checkAndAwardStreakBonus(userId).catch((e) =>

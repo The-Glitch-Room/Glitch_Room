@@ -982,7 +982,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
 
       // 4. Award +35 gBits
-      if (userId) {
+      if (activeUid) {
         await updatePoints(
           35,
           "Daily Room Standup Check-in",
@@ -992,19 +992,16 @@ const CreatorRoomDetail = ({ roomId }) => {
         );
       }
 
-      // 5. Send Notification with JSON payload for failsafe cross-account sync
+      // 5. Send Notification matching clean Image 3 format
+      const notifAuthor = userProfile?.username || userProfile?.full_name || "A member";
       sendRoomNotification({
         type: "standup_posted",
-        title: accomplishment.trim(),
-        message: JSON.stringify({
-          accomplishment: accomplishment.trim(),
-          proof_type: proofType || null,
-          proof_url: proofUrl.trim() || null,
-          blockers: blockers.trim() || "None",
-          username: userProfile?.username || "Builder",
-          avatar: userProfile?.avatar_url || DEFAULT_AVATAR,
-        }),
+        title: "Daily Standup Logged",
+        message: `${notifAuthor} submitted today's standup & proof of work!`,
       });
+
+      // Real-time local refresh
+      fetchAllRoomData();
 
       // Trigger Resend Email Dispatch
       const { data: auUser } = await supabase.auth.getUser();
@@ -2829,27 +2826,43 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                 ) : (
                   <div className="space-y-3 overflow-y-auto max-h-[70vh] pr-1">
-                    {notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        className={`p-3 rounded-xl border text-xs font-mono transition ${
-                          readNotifIds.has(n.id)
-                            ? "bg-white/5 border-white/5 text-gray-400"
-                            : "bg-purple-500/10 border-purple-500/30 text-white"
-                        }`}
-                      >
-                        <p className="font-bold text-purple-300">{n.title}</p>
-                        <p className="text-[11px] text-gray-300 mt-1 font-sans">
-                          {n.message}
-                        </p>
-                        <span className="text-[9px] text-gray-500 block mt-2">
-                          {new Date(n.created_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                    ))}
+                    {notifications.map((n) => {
+                      let titleText = n.title;
+                      let msgText = n.message;
+
+                      // Format legacy/JSON notifications into clean Image 3 format
+                      if (msgText && typeof msgText === "string" && msgText.trim().startsWith("{")) {
+                        try {
+                          const parsed = JSON.parse(msgText);
+                          titleText = "Daily Standup Logged";
+                          msgText = `${parsed.username || "A member"} submitted today's standup & proof of work!`;
+                        } catch (e) {}
+                      } else if (!titleText || titleText.length > 40) {
+                        titleText = "Daily Standup Logged";
+                      }
+
+                      return (
+                        <div
+                          key={n.id}
+                          className={`p-3 rounded-xl border text-xs font-mono transition ${
+                            readNotifIds.has(n.id)
+                              ? "bg-white/5 border-white/5 text-gray-400"
+                              : "bg-purple-500/10 border-purple-500/30 text-white"
+                          }`}
+                        >
+                          <p className="font-bold text-purple-300">{titleText}</p>
+                          <p className="text-[11px] text-gray-300 mt-1 font-sans">
+                            {msgText}
+                          </p>
+                          <span className="text-[9px] text-gray-500 block mt-2">
+                            {new Date(n.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
