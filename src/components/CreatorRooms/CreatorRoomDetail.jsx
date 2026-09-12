@@ -631,19 +631,30 @@ const CreatorRoomDetail = ({ roomId }) => {
         const p = cProfs.find(
           (pr) => pr.id === c.user_id || pr.user_id === c.user_id,
         );
+        const m = fetchedMembers.find((mem) => mem.user_id === c.user_id);
+        const isHost = c.user_id === roomData?.created_by;
+
+        const authorUsername =
+          p?.username ||
+          p?.full_name ||
+          m?.username ||
+          (c.user_id === uid && userProfile?.username ? userProfile.username : null) ||
+          (isHost ? roomData?.host || "Host" : "Builder");
+
+        const authorAvatar =
+          p?.avatar_url ||
+          m?.avatar_url ||
+          (c.user_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
+          DEFAULT_AVATAR;
+
         const key = `${c.user_id}_${c.accomplishment}`;
         seenStandupKeys.add(key);
 
         fetchedStandups.push({
           id: c.id,
           user_id: c.user_id,
-          username:
-            p?.username ||
-            p?.full_name ||
-            (c.user_id === uid ? userProfile?.username : "Builder"),
-          avatar:
-            p?.avatar_url ||
-            (c.user_id === uid ? userProfile?.avatar_url : DEFAULT_AVATAR),
+          username: authorUsername,
+          avatar: authorAvatar,
           accomplishment: c.accomplishment,
           proof_type: c.proof_type || null,
           proof_url: c.proof_url,
@@ -661,15 +672,33 @@ const CreatorRoomDetail = ({ roomId }) => {
         const key = `${p.user_id}_${p.body || p.title}`;
         if (!seenStandupKeys.has(key)) {
           seenStandupKeys.add(key);
+
+          const pProf = cProfs.find(
+            (pr) => pr.id === p.user_id || pr.user_id === p.user_id,
+          );
+          const m = fetchedMembers.find((mem) => mem.user_id === p.user_id);
+          const isHost = p.user_id === roomData?.created_by;
+
+          const authorUsername =
+            pProf?.username ||
+            pProf?.full_name ||
+            p.author_username ||
+            m?.username ||
+            (p.user_id === uid && userProfile?.username ? userProfile.username : null) ||
+            (isHost ? roomData?.host || "Host" : "Builder");
+
+          const authorAvatar =
+            pProf?.avatar_url ||
+            p.author_avatar ||
+            m?.avatar_url ||
+            (p.user_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
+            DEFAULT_AVATAR;
+
           fetchedStandups.push({
             id: p.id,
             user_id: p.user_id,
-            username:
-              p.author_username ||
-              (p.user_id === uid ? userProfile?.username : "Builder"),
-            avatar:
-              p.author_avatar ||
-              (p.user_id === uid ? userProfile?.avatar_url : DEFAULT_AVATAR),
+            username: authorUsername,
+            avatar: authorAvatar,
             accomplishment: p.body || p.title,
             proof_url: p.body?.includes("http")
               ? p.body.match(/https?:\/\/[^\s\)]+/)?.[0]
@@ -2015,11 +2044,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                           <div className="flex items-center gap-2">
                             <img
                               src={
-                                standup.isUser ||
-                                standup.user_id === userId ||
-                                standup.username === userProfile?.username
+                                (standup.user_id === userId
                                   ? userProfile?.avatar_url || standup.avatar
-                                  : standup.avatar || DEFAULT_AVATAR
+                                  : standup.avatar) || DEFAULT_AVATAR
                               }
                               alt={standup.username}
                               className="w-6 h-6 rounded-lg object-cover border border-white/15 shadow-sm shrink-0"
@@ -2034,7 +2061,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                                     👑 Host
                                   </span>
                                 )}
-                                {standup.isUser && (
+                                {userId && standup.user_id === userId && (
                                   <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
                                     You
                                   </span>
