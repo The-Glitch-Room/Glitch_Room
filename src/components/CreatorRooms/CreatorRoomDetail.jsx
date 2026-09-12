@@ -709,6 +709,25 @@ const CreatorRoomDetail = ({ roomId }) => {
       });
     }
 
+    // 4b. LocalStorage Checkins Fallback
+    try {
+      const localCheckins = JSON.parse(
+        localStorage.getItem(`glitch_room_local_checkins_${id}`) || "[]",
+      );
+      if (Array.isArray(localCheckins)) {
+        localCheckins.forEach((lc) => {
+          const key = `${lc.user_id}_${(lc.accomplishment || lc.title || "").trim()}`;
+          if (!seenStandupKeys.has(key)) {
+            seenStandupKeys.add(key);
+            fetchedStandups.push({
+              ...lc,
+              isUser: lc.user_id === uid,
+            });
+          }
+        });
+      }
+    } catch (e) {}
+
     fetchedStandups.sort(
       (a, b) => new Date(b.created_at) - new Date(a.created_at),
     );
@@ -1012,9 +1031,24 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       const computedIsOnTime = true;
 
-      // 1. Insert into creator_room_checkins
+      const newCheckinObj = {
+        id: `checkin_${Date.now()}`,
+        room_id: id,
+        user_id: activeUid,
+        username: userProfile?.username || "Builder",
+        avatar: userProfile?.avatar_url || DEFAULT_AVATAR,
+        accomplishment: accomplishment.trim(),
+        proof_type: proofType || null,
+        proof_url: proofUrl.trim() || null,
+        blockers: blockers.trim() || "None",
+        is_on_time: computedIsOnTime,
+        created_at: new Date().toISOString(),
+        isUser: true,
+      };
+
+      // 1. Primary insert into creator_room_checkins
       let checkinInsertError = null;
-      {
+      try {
         const { error } = await supabase.from("creator_room_checkins").insert([
           {
             room_id: id,
@@ -1027,33 +1061,55 @@ const CreatorRoomDetail = ({ roomId }) => {
           },
         ]);
         checkinInsertError = error;
+      } catch (e) {
+        checkinInsertError = e;
       }
 
       if (checkinInsertError) {
         console.warn("creator_room_checkins insert notice:", checkinInsertError);
-        if (
-          String(checkinInsertError.message || "")
-            .toLowerCase()
-            .includes("proof_type")
-        ) {
-          const { error: retryError } = await supabase
-            .from("creator_room_checkins")
-            .insert([
-              {
-                room_id: id,
-                user_id: activeUid,
-                accomplishment: accomplishment.trim(),
-                proof_url: proofUrl.trim() || null,
-                blockers: blockers.trim() || null,
-                is_on_time: computedIsOnTime,
-              },
-            ]);
-          if (retryError)
-            console.warn("creator_room_checkins retry insert notice:", retryError);
-        }
+        try {
+          await supabase.from("creator_room_checkins").insert([
+            {
+              room_id: id,
+              user_id: activeUid,
+              accomplishment: accomplishment.trim(),
+              proof_url: proofUrl.trim() || null,
+              blockers: blockers.trim() || null,
+              is_on_time: computedIsOnTime,
+            },
+          ]);
+        } catch (e) {}
       }
 
-      // 3. Award +35 gBits
+      // 2. Dual-write to community_posts as fallback feed store
+      try {
+        await supabase.from("community_posts").insert([
+          {
+            user_id: activeUid,
+            category: `room_${id}`,
+            title: accomplishment.trim(),
+            body: accomplishment.trim(),
+            author_username: userProfile?.username || "Builder",
+            author_avatar: userProfile?.avatar_url || DEFAULT_AVATAR,
+          },
+        ]);
+      } catch (e) {
+        console.warn("Notice dual-writing to community_posts:", e);
+      }
+
+      // 3. Save to LocalStorage as instant backup
+      try {
+        const localCheckins = JSON.parse(
+          localStorage.getItem(`glitch_room_local_checkins_${id}`) || "[]",
+        );
+        localCheckins.unshift(newCheckinObj);
+        localStorage.setItem(
+          `glitch_room_local_checkins_${id}`,
+          JSON.stringify(localCheckins),
+        );
+      } catch (e) {}
+
+      // 4. Award +35 gBits
       if (userId) {
         await updatePoints(
           35,
@@ -1064,7 +1120,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         );
       }
 
-      // 4. Send Notification
+      // 5. Send Notification
       sendRoomNotification({
         type: "standup_posted",
         title: "Daily Standup Logged",
@@ -1089,6 +1145,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       setProofUrl("");
       setBlockers("");
       setShowCheckinModal(false);
+      setActiveTab("all");
       fetchAllRoomData();
     } catch (e) {
       console.error("Checkin submission error:", e);
