@@ -508,12 +508,20 @@ const CreatorRoomDetail = ({ roomId }) => {
       .select("*")
       .eq("room_id", id);
 
-    // 4. Fetch Standup Check-ins from creator_room_checkins & community_posts
-    const { data: checkinData } = await supabase
+    // 4. Fetch Standup Check-ins from creator_room_checkins, room_checkins & community_posts
+    const { data: checkinData1 } = await supabase
       .from("creator_room_checkins")
       .select("*")
       .eq("room_id", id)
       .order("created_at", { ascending: false });
+
+    const { data: checkinData2 } = await supabase
+      .from("room_checkins")
+      .select("*")
+      .eq("room_id", id)
+      .order("created_at", { ascending: false });
+
+    const checkinData = [...(checkinData1 || []), ...(checkinData2 || [])];
 
     const { data: postsData } = await supabase
       .from("community_posts")
@@ -643,29 +651,33 @@ const CreatorRoomDetail = ({ roomId }) => {
           (c.user_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
           DEFAULT_AVATAR;
 
-        const key = `${c.user_id}_${c.accomplishment}`;
-        seenStandupKeys.add(key);
+        const accText = (c.accomplishment || "").trim().toLowerCase();
+        const key = `${c.user_id}_${accText}`;
+        if (!seenStandupKeys.has(key)) {
+          seenStandupKeys.add(key);
 
-        fetchedStandups.push({
-          id: c.id,
-          user_id: c.user_id,
-          username: authorUsername,
-          avatar: authorAvatar,
-          accomplishment: c.accomplishment,
-          proof_type: c.proof_type || null,
-          proof_url: c.proof_url,
-          blockers: c.blockers,
-          streak_count: c.streak_count || 1,
-          is_on_time: c.is_on_time !== false,
-          created_at: c.created_at,
-          isUser: c.user_id === uid,
-        });
+          fetchedStandups.push({
+            id: c.id,
+            user_id: c.user_id,
+            username: authorUsername,
+            avatar: authorAvatar,
+            accomplishment: c.accomplishment,
+            proof_type: c.proof_type || null,
+            proof_url: c.proof_url,
+            blockers: c.blockers,
+            streak_count: c.streak_count || 1,
+            is_on_time: c.is_on_time !== false,
+            created_at: c.created_at,
+            isUser: c.user_id === uid,
+          });
+        }
       });
     }
 
     if (postsData && postsData.length > 0) {
       postsData.forEach((p) => {
-        const key = `${p.user_id}_${p.body || p.title}`;
+        const bodyText = (p.body || p.title || "").trim().toLowerCase();
+        const key = `${p.user_id}_${bodyText}`;
         if (!seenStandupKeys.has(key)) {
           seenStandupKeys.add(key);
 
@@ -716,7 +728,8 @@ const CreatorRoomDetail = ({ roomId }) => {
       );
       if (Array.isArray(localCheckins)) {
         localCheckins.forEach((lc) => {
-          const key = `${lc.user_id}_${(lc.accomplishment || lc.title || "").trim()}`;
+          const accText = (lc.accomplishment || lc.title || "").trim().toLowerCase();
+          const key = `${lc.user_id}_${accText}`;
           if (!seenStandupKeys.has(key)) {
             seenStandupKeys.add(key);
             fetchedStandups.push({
@@ -1079,6 +1092,23 @@ const CreatorRoomDetail = ({ roomId }) => {
             },
           ]);
         } catch (e) {}
+      }
+
+      // 1b. Also insert into room_checkins table
+      try {
+        await supabase.from("room_checkins").insert([
+          {
+            room_id: id,
+            user_id: activeUid,
+            accomplishment: accomplishment.trim(),
+            proof_type: proofType || null,
+            proof_url: proofUrl.trim() || null,
+            blockers: blockers.trim() || null,
+            is_on_time: computedIsOnTime,
+          },
+        ]);
+      } catch (e) {
+        console.warn("room_checkins insert notice:", e);
       }
 
       // 2. Dual-write to community_posts as fallback feed store
