@@ -620,13 +620,9 @@ const CreatorRoomDetail = ({ roomId }) => {
 
     let fetchedStandups = [];
     const seenStandupKeys = new Set();
+    const cProfs = profs || [];
 
     if (checkinData && checkinData.length > 0) {
-      const checkinUids = Array.from(
-        new Set(checkinData.map((c) => c.user_id).filter(Boolean)),
-      );
-      let cProfs = profs;
-
       checkinData.forEach((c) => {
         const p = cProfs.find(
           (pr) => pr.id === c.user_id || pr.user_id === c.user_id,
