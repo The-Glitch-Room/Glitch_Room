@@ -741,6 +741,71 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
     } catch (e) {}
 
+    // 4c. Notification Standups Fallback (Guaranteed cross-account sync)
+    if (notifList && Array.isArray(notifList)) {
+      notifList.forEach((n) => {
+        if (n.type === "standup_posted" && n.sender_id) {
+          let parsedData = {};
+          if (n.message && typeof n.message === "string" && n.message.startsWith("{")) {
+            try {
+              parsedData = JSON.parse(n.message);
+            } catch (e) {}
+          }
+
+          const pProf = cProfs.find(
+            (pr) => pr.id === n.sender_id || pr.user_id === n.sender_id,
+          );
+          const m = fetchedMembers.find((mem) => mem.user_id === n.sender_id);
+          const isHost = n.sender_id === roomData?.created_by;
+
+          const authorUsername =
+            parsedData.username ||
+            pProf?.username ||
+            pProf?.full_name ||
+            m?.username ||
+            (n.sender_id === uid && userProfile?.username ? userProfile.username : null) ||
+            (isHost ? roomData?.host || "Host" : "Builder");
+
+          const authorAvatar =
+            parsedData.avatar ||
+            pProf?.avatar_url ||
+            m?.avatar_url ||
+            (n.sender_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
+            DEFAULT_AVATAR;
+
+          const accomplishment =
+            parsedData.accomplishment ||
+            (n.title && n.title !== "Daily Standup Logged" ? n.title : "Submitted daily standup & proof of work!");
+
+          const accText = accomplishment.trim().toLowerCase();
+          const key = `${n.sender_id}_${accText}`;
+
+          const notifDateKey = getISTDateKey(n.created_at);
+          const userAlreadyHasStandupOnDate = fetchedStandups.some(
+            (fs) => fs.user_id === n.sender_id && getISTDateKey(fs.created_at) === notifDateKey,
+          );
+
+          if (!seenStandupKeys.has(key) && !userAlreadyHasStandupOnDate) {
+            seenStandupKeys.add(key);
+            fetchedStandups.push({
+              id: n.id,
+              user_id: n.sender_id,
+              username: authorUsername,
+              avatar: authorAvatar,
+              accomplishment,
+              proof_type: parsedData.proof_type || null,
+              proof_url: parsedData.proof_url || null,
+              blockers: parsedData.blockers || "None",
+              streak_count: 1,
+              is_on_time: true,
+              created_at: n.created_at,
+              isUser: n.sender_id === uid,
+            });
+          }
+        }
+      });
+    }
+
     fetchedStandups.sort(
       (a, b) => new Date(b.created_at) - new Date(a.created_at),
     );
@@ -1150,11 +1215,18 @@ const CreatorRoomDetail = ({ roomId }) => {
         );
       }
 
-      // 5. Send Notification
+      // 5. Send Notification with JSON payload for failsafe cross-account sync
       sendRoomNotification({
         type: "standup_posted",
-        title: "Daily Standup Logged",
-        message: `${userProfile?.username || "A builder"} submitted today's standup & proof of work!`,
+        title: accomplishment.trim(),
+        message: JSON.stringify({
+          accomplishment: accomplishment.trim(),
+          proof_type: proofType || null,
+          proof_url: proofUrl.trim() || null,
+          blockers: blockers.trim() || "None",
+          username: userProfile?.username || "Builder",
+          avatar: userProfile?.avatar_url || DEFAULT_AVATAR,
+        }),
       });
 
       // Trigger Resend Email Dispatch
