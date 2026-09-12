@@ -53,10 +53,43 @@ import {
   Pencil,
 } from "lucide-react";
 
-// Shared fallback avatar — was previously declared inside fetchAllRoomData(),
-// which made it undefined (ReferenceError) anywhere else it was used in the JSX.
-const DEFAULT_AVATAR =
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";
+// Reusable User Avatar Component — renders custom uploaded image if present,
+// otherwise displays a stylish gradient initials badge matching Navbar style.
+const UserAvatar = ({
+  url,
+  name = "User",
+  className = "w-8 h-8",
+  textClassName = "text-xs font-black",
+}) => {
+  const cleanName = (name || "User").trim().replace(/^@/, "");
+  const initials = cleanName.slice(0, 2).toUpperCase() || "U";
+  const isValidUrl =
+    url &&
+    typeof url === "string" &&
+    url.trim() !== "" &&
+    !url.includes("unsplash.com/photo-1534528741775");
+
+  if (isValidUrl) {
+    return (
+      <img
+        src={url}
+        alt={cleanName}
+        className={`${className} rounded-full object-cover shrink-0`}
+        onError={(e) => {
+          e.currentTarget.style.display = "none";
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${className} rounded-full bg-gradient-to-br from-purple-600/60 to-[#00F0FF]/60 flex items-center justify-center ${textClassName} text-white shadow-md select-none shrink-0 border border-white/20`}
+    >
+      {initials}
+    </div>
+  );
+};
 
 // Fallback proof-of-work types for rooms created before the multi-select
 // "Accepted Proof of Work Types" field existed on CreateRoomModal (so
@@ -1879,13 +1912,10 @@ const CreatorRoomDetail = ({ roomId }) => {
             {isMember && (
               <div className="bg-gradient-to-r from-purple-900/30 via-[#0d0d18] to-cyan-900/30 border border-purple-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xl">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={
-                      userProfile?.avatar_url ||
-                      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
-                    }
-                    alt="User"
-                    className="w-10 h-10 rounded-xl border border-white/20 object-cover"
+                  <UserAvatar
+                    url={userProfile?.avatar_url}
+                    name={userProfile?.username || userProfile?.full_name || "User"}
+                    className="w-10 h-10 rounded-xl"
                   />
                   <div>
                     <h4 className="text-xs font-bold text-white">
@@ -1986,14 +2016,15 @@ const CreatorRoomDetail = ({ roomId }) => {
                         {/* Top Header Row */}
                         <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/10 flex-wrap">
                           <div className="flex items-center gap-2">
-                            <img
-                              src={
-                                (standup.user_id === userId
+                            <UserAvatar
+                              url={
+                                standup.user_id === userId
                                   ? userProfile?.avatar_url || standup.avatar
-                                  : standup.avatar) || DEFAULT_AVATAR
+                                  : standup.avatar
                               }
-                              alt={standup.username}
-                              className="w-6 h-6 rounded-lg object-cover border border-white/15 shadow-sm shrink-0"
+                              name={standup.username}
+                              className="w-6 h-6 rounded-lg"
+                              textClassName="text-[9px] font-black"
                             />
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-xs font-bold text-white">
@@ -2297,10 +2328,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                         <span className="text-xs font-bold font-mono text-gray-400 w-4">
                           {idx + 1}
                         </span>
-                        <img
-                          src={mem.avatar_url}
-                          alt={mem.username}
-                          className="w-7 h-7 rounded-lg object-cover"
+                        <UserAvatar
+                          url={mem.avatar_url}
+                          name={mem.username}
+                          className="w-7 h-7 rounded-lg"
+                          textClassName="text-[10px] font-black"
                         />
                         <span className="text-xs font-bold text-gray-200 line-clamp-1">
                           {mem.username}
@@ -2322,10 +2354,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <Handshake size={15} className="text-purple-400" />{" "}
                   Pair Buddy
                 </div>
-                {buddyMember && (
+                {(isHost || isMember) && myActivePair && (
                   <button
                     onClick={handleUnpairBuddy}
-                    className="text-[10px] text-gray-500 hover:text-red-400 font-mono transition cursor-pointer"
+                    className="text-[11px] font-mono text-rose-400 hover:text-rose-300 font-bold hover:underline transition cursor-pointer"
                   >
                     Unpair
                   </button>
@@ -2336,10 +2368,10 @@ const CreatorRoomDetail = ({ roomId }) => {
               {buddyMember ? (
                 <div className="bg-[#07070d] border border-purple-500/30 rounded-2xl p-3.5 space-y-3 shadow-inner">
                   <div className="flex items-center gap-3">
-                    <img
-                      src={buddyMember.avatar_url}
-                      alt={buddyMember.username}
-                      className="w-10 h-10 rounded-xl object-cover ring-2 ring-purple-500/40 shrink-0"
+                    <UserAvatar
+                      url={buddyMember.avatar_url}
+                      name={buddyMember.username}
+                      className="w-10 h-10 rounded-xl ring-2 ring-purple-500/40"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-white truncate">
@@ -2387,10 +2419,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                 /* State 2: Incoming Pair Request */
                 <div className="bg-[#0f0b1e] border border-purple-500/40 rounded-2xl p-3.5 space-y-3 shadow-xl">
                   <div className="flex items-center gap-2.5">
-                    <img
-                      src={incomingRequester.avatar_url}
-                      alt={incomingRequester.username}
-                      className="w-9 h-9 rounded-xl object-cover border border-purple-500/30 shrink-0"
+                    <UserAvatar
+                      url={incomingRequester.avatar_url}
+                      name={incomingRequester.username}
+                      className="w-9 h-9 rounded-xl border border-purple-500/30"
                     />
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-white truncate">
@@ -3063,10 +3095,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                       className="flex items-center justify-between p-3 rounded-2xl bg-[#07070d] border border-white/5"
                     >
                       <div className="flex items-center gap-3">
-                        <img
-                          src={m.avatar_url}
-                          alt={m.username}
-                          className="w-9 h-9 rounded-xl object-cover border border-white/10"
+                        <UserAvatar
+                          url={m.avatar_url}
+                          name={m.username}
+                          className="w-9 h-9 rounded-xl"
                         />
                         <div>
                           <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -3727,10 +3759,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                             className="p-3.5 rounded-2xl bg-[#07070d] border border-white/5 flex items-center justify-between gap-4"
                           >
                             <div className="flex items-center gap-3">
-                              <img
-                                src={m.avatar_url || DEFAULT_AVATAR}
-                                alt={m.username}
-                                className="w-8 h-8 rounded-xl object-cover border border-white/10"
+                              <UserAvatar
+                                url={m.avatar_url}
+                                name={m.username}
+                                className="w-8 h-8 rounded-xl"
                               />
                               <div>
                                 <h5 className="font-bold text-white text-xs">
@@ -3971,10 +4003,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <img
-                              src={m.avatar_url || DEFAULT_AVATAR}
-                              alt={m.username}
-                              className="w-9 h-9 rounded-xl object-cover border border-white/10 shrink-0"
+                            <UserAvatar
+                              url={m.avatar_url}
+                              name={m.username}
+                              className="w-9 h-9 rounded-xl"
                             />
                             <div className="min-w-0">
                               <h5 className="font-bold text-white text-xs truncate">
@@ -4053,10 +4085,10 @@ const CreatorRoomDetail = ({ roomId }) => {
             >
               <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={buddyMember.avatar_url}
-                    alt={buddyMember.username}
-                    className="w-9 h-9 rounded-xl object-cover ring-1 ring-cyan-500/40"
+                  <UserAvatar
+                    url={buddyMember.avatar_url}
+                    name={buddyMember.username}
+                    className="w-9 h-9 rounded-xl ring-1 ring-cyan-500/40"
                   />
                   <div>
                     <h3 className="text-base font-bold text-white">
@@ -4181,10 +4213,10 @@ const CreatorRoomDetail = ({ roomId }) => {
             >
               <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={buddyMember.avatar_url}
-                    alt={buddyMember.username}
-                    className="w-9 h-9 rounded-xl object-cover ring-1 ring-purple-500/40"
+                  <UserAvatar
+                    url={buddyMember.avatar_url}
+                    name={buddyMember.username}
+                    className="w-9 h-9 rounded-xl ring-1 ring-purple-500/40"
                   />
                   <div>
                     <h3 className="text-base font-bold text-white">
