@@ -968,10 +968,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           {
             room_id: id,
             user_id: activeUid,
-            week_label: "Week 1",
-            message: accomplishment.trim(),
             accomplishment: accomplishment.trim(),
-            did_complete: true,
             proof_type: proofType || null,
             proof_url: proofUrl.trim() || null,
             blockers: blockers.trim() || null,
