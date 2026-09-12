@@ -379,7 +379,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showPairBuddyModal, setShowPairBuddyModal] = useState(false);
   const [showBuddyProgressModal, setShowBuddyProgressModal] = useState(false);
   const [showBuddyWorkModal, setShowBuddyWorkModal] = useState(false);
-  const [pairingBuddy, setPairingBuddy] = useState(false);
+  const [pairingBuddyId, setPairingBuddyId] = useState(null);
 
   // Squad Events States
   const [squadEvents, setSquadEvents] = useState([]);
@@ -1089,11 +1089,11 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const handleSendPairRequest = async (targetUserId) => {
     if (!userId || !targetUserId || userId === targetUserId) return;
-    setPairingBuddy(true);
+    setPairingBuddyId(targetUserId);
     try {
       if (myActivePair) {
         showToast(" You already have an active Pair Buddy in this room.");
-        setPairingBuddy(false);
+        setPairingBuddyId(null);
         return;
       }
 
@@ -1105,7 +1105,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       if (targetActive) {
         const tMem = members.find((m) => m.user_id === targetUserId);
         showToast(` @${tMem?.username || "Member"} is already paired with someone else.`);
-        setPairingBuddy(false);
+        setPairingBuddyId(null);
         return;
       }
 
@@ -1117,7 +1117,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       );
       if (existingPending) {
         showToast(" A Pair Buddy request is already pending with this member.");
-        setPairingBuddy(false);
+        setPairingBuddyId(null);
         return;
       }
 
@@ -1150,7 +1150,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       console.error("Error sending pair request:", e);
       showToast(" Failed to send pair request. Please try again.");
     } finally {
-      setPairingBuddy(false);
+      setPairingBuddyId(null);
     }
   };
 
@@ -1972,10 +1972,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 {!standup.isUser && userId && !isBuddyAuthor && !myActivePair && (
                                   <button
                                     onClick={() => handleSendPairRequest(standup.user_id)}
-                                    disabled={pairingBuddy}
+                                    disabled={pairingBuddyId === standup.user_id}
                                     className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 transition cursor-pointer flex items-center gap-1"
                                   >
-                                    🤝 Pair Buddy
+                                    {pairingBuddyId === standup.user_id ? "Sending..." : "🤝 Pair Buddy"}
                                   </button>
                                 )}
                               </div>
@@ -3773,6 +3773,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                       const incomingFromM = buddies.find(
                         (b) => b.user1_id === m.user_id && b.user2_id === userId && b.status === "pending",
                       );
+                      const mActivePair = buddies.find(
+                        (b) =>
+                          (b.user1_id === m.user_id || b.user2_id === m.user_id) &&
+                          (b.status === "active" || !b.status || b.status === "approved"),
+                      );
 
                       return (
                         <div
@@ -3822,13 +3827,17 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 Decline
                               </button>
                             </div>
+                          ) : mActivePair ? (
+                            <span className="px-3 py-1.5 rounded-xl bg-white/5 text-gray-500 text-xs font-bold font-mono border border-white/10">
+                              Already Paired
+                            </span>
                           ) : (
                             <button
                               onClick={() => handleSendPairRequest(m.user_id)}
-                              disabled={pairingBuddy || !!myActivePair}
+                              disabled={pairingBuddyId === m.user_id || !!myActivePair}
                               className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF00C8] hover:from-purple-500 hover:to-[#FF00C8] text-white text-xs font-bold font-mono transition cursor-pointer shadow-md shrink-0 disabled:opacity-50"
                             >
-                              {pairingBuddy ? "Sending..." : "🤝 Pair Buddy"}
+                              {pairingBuddyId === m.user_id ? "Sending..." : "🤝 Pair Buddy"}
                             </button>
                           )}
                         </div>
@@ -3852,7 +3861,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       {/* 10. Buddy Progress Modal */}
       <AnimatePresence>
-        {showBuddyProgressModal && buddyMember && (
+        {showBuddyProgressModal && buddyMember && myActivePair && (myActivePair.user1_id === userId || myActivePair.user2_id === userId) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -3980,7 +3989,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       {/* 11. Buddy Latest Work Modal */}
       <AnimatePresence>
-        {showBuddyWorkModal && buddyMember && (
+        {showBuddyWorkModal && buddyMember && myActivePair && (myActivePair.user1_id === userId || myActivePair.user2_id === userId) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
