@@ -380,6 +380,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showBuddyProgressModal, setShowBuddyProgressModal] = useState(false);
   const [showBuddyWorkModal, setShowBuddyWorkModal] = useState(false);
   const [pairingBuddyId, setPairingBuddyId] = useState(null);
+  const [standupLikes, setStandupLikes] = useState({});
 
   // Squad Events States
   const [squadEvents, setSquadEvents] = useState([]);
@@ -526,6 +527,36 @@ const CreatorRoomDetail = ({ roomId }) => {
       .select("*")
       .eq("room_id", id);
     setBuddies(buddyData || []);
+
+    // 6. Fetch Checkin Likes
+    try {
+      const { data: likesData } = await supabase
+        .from("creator_room_checkin_likes")
+        .select("*")
+        .eq("room_id", id);
+
+      const likesMap = {};
+      if (likesData) {
+        likesData.forEach((l) => {
+          if (!likesMap[l.checkin_id]) likesMap[l.checkin_id] = [];
+          likesMap[l.checkin_id].push(l.user_id);
+        });
+      }
+      try {
+        const localLikes = JSON.parse(
+          localStorage.getItem(`glitch_room_likes_${id}`) || "{}",
+        );
+        Object.keys(localLikes).forEach((ckId) => {
+          if (!likesMap[ckId]) likesMap[ckId] = [];
+          localLikes[ckId].forEach((uId) => {
+            if (!likesMap[ckId].includes(uId)) likesMap[ckId].push(uId);
+          });
+        });
+      } catch (e) {}
+      setStandupLikes(likesMap);
+    } catch (e) {
+      console.warn("Notice fetching likes:", e);
+    }
 
     // Build Unified Member Set across all tables
     const memberUids = new Set();
@@ -1215,6 +1246,50 @@ const CreatorRoomDetail = ({ roomId }) => {
       fetchAllRoomData();
     } catch (e) {
       console.error("Error unpairing buddy:", e);
+    }
+  };
+
+  const handleToggleLikeStandup = async (checkinId) => {
+    if (!userId || !checkinId) return;
+
+    const currentLikes = standupLikes[checkinId] || [];
+    const hasLiked = currentLikes.includes(userId);
+
+    const updatedLikes = hasLiked
+      ? currentLikes.filter((uid) => uid !== userId)
+      : [...currentLikes, userId];
+
+    setStandupLikes((prev) => ({
+      ...prev,
+      [checkinId]: updatedLikes,
+    }));
+
+    try {
+      const localLikes = JSON.parse(
+        localStorage.getItem(`glitch_room_likes_${id}`) || "{}",
+      );
+      localLikes[checkinId] = updatedLikes;
+      localStorage.setItem(`glitch_room_likes_${id}`, JSON.stringify(localLikes));
+    } catch (e) {}
+
+    try {
+      if (hasLiked) {
+        await supabase
+          .from("creator_room_checkin_likes")
+          .delete()
+          .eq("checkin_id", checkinId)
+          .eq("user_id", userId);
+      } else {
+        await supabase.from("creator_room_checkin_likes").insert([
+          {
+            checkin_id: checkinId,
+            user_id: userId,
+            room_id: id,
+          },
+        ]);
+      }
+    } catch (e) {
+      console.warn("Notice updating standup like:", e);
     }
   };
 
@@ -1964,20 +2039,77 @@ const CreatorRoomDetail = ({ roomId }) => {
                                     You
                                   </span>
                                 )}
-                                {isBuddyAuthor && (
-                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-purple-900/40 text-purple-300 border border-purple-500/30">
-                                    🟢 Pair Buddy
-                                  </span>
-                                )}
-                                {!standup.isUser && userId && !isBuddyAuthor && !myActivePair && (
-                                  <button
-                                    onClick={() => handleSendPairRequest(standup.user_id)}
-                                    disabled={pairingBuddyId === standup.user_id}
-                                    className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 transition cursor-pointer flex items-center gap-1"
-                                  >
-                                    {pairingBuddyId === standup.user_id ? "Sending..." : "🤝 Pair Buddy"}
-                                  </button>
-                                )}
+
+                                {/* Pair Buddy Shortcut Flow for Standup Cards */}
+                                {(() => {
+                                  const isSelf = standup.user_id === userId || standup.isUser;
+                                  if (isSelf || !userId) return null;
+
+                                  const outgoingToAuthor = buddies.find(
+                                    (b) =>
+                                      b.user1_id === userId &&
+                                      b.user2_id === standup.user_id &&
+                                      b.status === "pending",
+                                  );
+
+                                  const incomingFromAuthor = buddies.find(
+                                    (b) =>
+                                      b.user1_id === standup.user_id &&
+                                      b.user2_id === userId &&
+                                      b.status === "pending",
+                                  );
+
+                                  const authorActivePair = buddies.find(
+                                    (b) =>
+                                      (b.user1_id === standup.user_id || b.user2_id === standup.user_id) &&
+                                      (b.status === "active" || !b.status || b.status === "approved"),
+                                  );
+
+                                  if (isBuddyAuthor) {
+                                    return (
+                                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+                                        ✓ Your Buddy
+                                      </span>
+                                    );
+                                  }
+
+                                  if (outgoingToAuthor) {
+                                    return (
+                                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                                        ⏳ Request Sent
+                                      </span>
+                                    );
+                                  }
+
+                                  if (incomingFromAuthor) {
+                                    return (
+                                      <button
+                                        onClick={() => handleAcceptPairRequest(incomingFromAuthor)}
+                                        className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1"
+                                      >
+                                        Accept Request
+                                      </button>
+                                    );
+                                  }
+
+                                  if (authorActivePair) {
+                                    return (
+                                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/5 text-gray-500 border border-white/10 flex items-center gap-1">
+                                        🔒 Already Paired
+                                      </span>
+                                    );
+                                  }
+
+                                  return (
+                                    <button
+                                      onClick={() => handleSendPairRequest(standup.user_id)}
+                                      disabled={pairingBuddyId === standup.user_id || !!myActivePair}
+                                      className="text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-[#FF00C8] hover:from-purple-500 hover:to-[#FF00C8] text-white transition cursor-pointer shadow flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      {pairingBuddyId === standup.user_id ? "Sending..." : "🤝 Pair with me"}
+                                    </button>
+                                  );
+                                })()}
                               </div>
                             </div>
                           </div>
@@ -2009,79 +2141,111 @@ const CreatorRoomDetail = ({ roomId }) => {
                               : `https://${parsed.proofUrl}`
                             : null;
 
+                          const likesList = standupLikes[standup.id] || [];
+                          const likeCount = likesList.length;
+                          const hasUserLiked = userId && likesList.includes(userId);
+
                           return (
-                            <div className="flex items-start justify-between gap-3">
-                              {/* Left Side: 3 Separate Sections (Accomplishment, Proof, Blockers) */}
-                              <div className="flex-1 space-y-2.5 min-w-0 font-sans text-xs">
-                                {/* Section 1: Accomplishment */}
-                                <div>
-                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
-                                    WHAT I ACCOMPLISHED TODAY
-                                  </span>
-                                  <p className="text-xs text-gray-200 font-sans leading-snug">
-                                    {parsed.accomplishment}
-                                  </p>
-                                </div>
-
-                                {/* Section 2: Proof of Work */}
-                                <div>
-                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-1">
-                                    PROOF OF WORK
-                                  </span>
-                                  {proofHref ? (
-                                    <a
-                                      href={proofHref}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-full"
-                                    >
-                                      <Share2
-                                        size={10}
-                                        className="text-purple-400 shrink-0"
-                                      />
-                                      {standup.proof_type && (
-                                        <span className="text-purple-300/80">
-                                          {standup.proof_type}:
-                                        </span>
-                                      )}
-                                      <span className="underline group-hover:text-white truncate max-w-[220px]">
-                                        {parsed.proofUrl}
-                                      </span>
-                                      <ExternalLink
-                                        size={9}
-                                        className="text-gray-400 shrink-0"
-                                      />
-                                    </a>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.02] border border-dashed border-white/10 text-gray-500 text-[10px] font-mono">
-                                      No proof submitted
+                            <div className="space-y-2.5">
+                              <div className="flex items-start justify-between gap-3">
+                                {/* Left Side: 3 Separate Sections (Accomplishment, Proof, Blockers) */}
+                                <div className="flex-1 space-y-2.5 min-w-0 font-sans text-xs">
+                                  {/* Section 1: Accomplishment */}
+                                  <div>
+                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
+                                      WHAT I ACCOMPLISHED TODAY
                                     </span>
-                                  )}
+                                    <p className="text-xs text-gray-200 font-sans leading-snug">
+                                      {parsed.accomplishment}
+                                    </p>
+                                  </div>
+
+                                  {/* Section 2: Proof of Work */}
+                                  <div>
+                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-1">
+                                      PROOF OF WORK
+                                    </span>
+                                    {proofHref ? (
+                                      <a
+                                        href={proofHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-full"
+                                      >
+                                        <Share2
+                                          size={10}
+                                          className="text-purple-400 shrink-0"
+                                        />
+                                        {standup.proof_type && (
+                                          <span className="text-purple-300/80">
+                                            {standup.proof_type}:
+                                          </span>
+                                        )}
+                                        <span className="underline group-hover:text-white truncate max-w-[220px]">
+                                          {parsed.proofUrl}
+                                        </span>
+                                        <ExternalLink
+                                          size={9}
+                                          className="text-gray-400 shrink-0"
+                                        />
+                                      </a>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.02] border border-dashed border-white/10 text-gray-500 text-[10px] font-mono">
+                                        No proof submitted
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Section 3: Blockers */}
+                                  <div>
+                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
+                                      BLOCKERS
+                                    </span>
+                                    <p className="text-xs text-gray-300 font-mono">
+                                      {parsed.blockers}
+                                    </p>
+                                  </div>
                                 </div>
 
-                                {/* Section 3: Blockers */}
-                                <div>
-                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 block mb-0.5">
-                                    BLOCKERS
+                                {/* Right Side: Compact Streak Count */}
+                                <div className="bg-[#07070d] border border-white/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 shrink-0 self-start">
+                                  <Flame
+                                    size={13}
+                                    className="text-amber-400 fill-amber-400/20"
+                                  />
+                                  <span className="text-sm font-black text-cyan-400 font-mono leading-none">
+                                    {standupStreak}
                                   </span>
-                                  <p className="text-xs text-gray-300 font-mono">
-                                    {parsed.blockers}
-                                  </p>
+                                  <span className="text-[8px] font-mono text-cyan-300/70 uppercase leading-none">
+                                    day
+                                  </span>
                                 </div>
                               </div>
 
-                              {/* Right Side: Compact Streak Count */}
-                              <div className="bg-[#07070d] border border-white/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 shrink-0 self-start">
-                                <Flame
-                                  size={13}
-                                  className="text-amber-400 fill-amber-400/20"
-                                />
-                                <span className="text-sm font-black text-cyan-400 font-mono leading-none">
-                                  {standupStreak}
-                                </span>
-                                <span className="text-[8px] font-mono text-cyan-300/70 uppercase leading-none">
-                                  day
-                                </span>
+                              {/* Bottom Footer: Like ❤️ System */}
+                              <div className="flex items-center justify-between pt-2 border-t border-white/5 font-mono">
+                                <button
+                                  onClick={() => handleToggleLikeStandup(standup.id)}
+                                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+                                    hasUserLiked
+                                      ? "bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20"
+                                      : "bg-white/5 text-gray-400 border-white/10 hover:text-white hover:bg-white/10"
+                                  }`}
+                                >
+                                  <Heart
+                                    size={12}
+                                    className={
+                                      hasUserLiked
+                                        ? "text-rose-400 fill-rose-400"
+                                        : "text-gray-400"
+                                    }
+                                  />
+                                  <span>
+                                    {likeCount > 0
+                                      ? `${likeCount} ${likeCount === 1 ? "Like" : "Likes"}`
+                                      : "Like"}
+                                  </span>
+                                </button>
                               </div>
                             </div>
                           );
