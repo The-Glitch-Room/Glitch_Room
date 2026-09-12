@@ -40,7 +40,7 @@ const Hero = () => {
       : Number(profileCountData) || 0;
 
     const { data: creatorRooms } = await supabase
-      .from("rooms")
+      .from("creator_rooms")
       .select("created_by");
     const { data: proRooms } = await supabase
       .from("pro_rooms")
@@ -73,7 +73,7 @@ const Hero = () => {
       .channel("hero-rooms")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "rooms" },
+        { event: "*", schema: "public", table: "creator_rooms" },
         () => fetchStats(),
       )
       .subscribe();

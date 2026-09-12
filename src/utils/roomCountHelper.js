@@ -8,20 +8,20 @@ import { supabase } from "../supabaseClient";
  */
 export const fetchActiveRoomsStats = async () => {
   try {
-    // 1. Query Creator Rooms (public.rooms) with expanded range
+    // 1. Query Creator Rooms (public.creator_rooms) with expanded range
     const { data: creatorRooms, error: cErr } = await supabase
-      .from("rooms")
-      .select("id, name, title, created_at")
+      .from("creator_rooms")
+      .select("*")
       .range(0, 4999);
 
     if (cErr) {
-      console.error("fetchActiveRoomsStats: rooms query failed:", cErr);
+      console.error("fetchActiveRoomsStats: creator_rooms query failed:", cErr);
     }
 
     // 2. Query Pro Rooms (public.pro_rooms) with expanded range
     const { data: proRooms, error: pErr } = await supabase
       .from("pro_rooms")
-      .select("id, name, title, status, created_at")
+      .select("*")
       .range(0, 4999);
 
     if (pErr) {

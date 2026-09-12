@@ -104,7 +104,7 @@ const JoinRoom = () => {
     // Subscribe to realtime database changes
     const roomsSub = supabase
       .channel("join-rooms-sub")
-      .on("postgres_changes", { event: "*", schema: "public", table: "rooms" }, () => fetchRooms())
+      .on("postgres_changes", { event: "*", schema: "public", table: "creator_rooms" }, () => fetchRooms())
       .on("postgres_changes", { event: "*", schema: "public", table: "pro_rooms" }, () => fetchRooms())
       .subscribe();
 
@@ -120,7 +120,7 @@ const JoinRoom = () => {
       const uid = au?.user?.id;
       if (uid && room.room_type === "creator") {
         await supabase
-          .from("room_members")
+          .from("creator_room_members")
           .upsert(
             { room_id: room.id, user_id: uid },
             { onConflict: "room_id,user_id", ignoreDuplicates: true }
