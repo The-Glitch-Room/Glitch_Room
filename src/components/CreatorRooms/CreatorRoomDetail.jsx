@@ -922,6 +922,27 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
     setJoining(true);
     try {
+      const roomEntryStake = Number(
+        room?.entry_stake || room?.gbits_stake?.entry_stake || 0,
+      );
+      if (roomEntryStake > 0) {
+        const userPts = await fetchPoints(userId);
+        if (userPts < roomEntryStake) {
+          showToast(
+            ` Insufficient gBits balance! You need ${roomEntryStake} gBits to stake & join this squad (Current: ${userPts} gBits).`,
+          );
+          setJoining(false);
+          return;
+        }
+        await updatePoints(
+          -roomEntryStake,
+          `Staked ${roomEntryStake} gBits to join ${room?.title || "Creator Room"}`,
+          "room_stake",
+          id,
+          userId,
+        );
+      }
+
       const { error: joinError } = await supabase
         .from("creator_room_members")
         .insert([
@@ -929,11 +950,21 @@ const CreatorRoomDetail = ({ roomId }) => {
             room_id: id,
             user_id: userId,
             role: "member",
+            staked_amount: roomEntryStake,
           },
         ]);
 
       if (joinError) {
         console.error("Error joining squad:", joinError);
+        if (roomEntryStake > 0) {
+          await updatePoints(
+            roomEntryStake,
+            `Refund stake for failed room join`,
+            "refund",
+            id,
+            userId,
+          );
+        }
         showToast("Couldn't join the room — please try again.");
         setJoining(false);
         return;
@@ -946,7 +977,11 @@ const CreatorRoomDetail = ({ roomId }) => {
       });
 
       setIsMember(true);
-      showToast(" Successfully committed & joined squad!");
+      showToast(
+        roomEntryStake > 0
+          ? ` Successfully staked ${roomEntryStake} gBits & joined squad!`
+          : " Successfully committed & joined squad!",
+      );
       fetchAllRoomData();
     } catch (e) {
       console.error("Error joining squad:", e);
@@ -1016,10 +1051,10 @@ const CreatorRoomDetail = ({ roomId }) => {
         return;
       }
 
-      // 4. Award +35 gBits
+      // 4. Award +10 gBits
       if (activeUid) {
         await updatePoints(
-          35,
+          10,
           "Daily Room Standup Check-in",
           "bonus",
           id,
@@ -1050,7 +1085,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         });
       }
 
-      showToast(" Daily Standup logged! +35 gBits awarded!");
+      showToast(" Daily Standup logged! +10 gBits awarded!");
       setAccomplishment("");
       setProofType("");
       setProofUrl("");
@@ -2639,7 +2674,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                   gBits at Stake
                 </div>
                 <div className="text-sm font-black text-amber-300 font-mono">
-                  {room.entry_stake || 50} gBits
+                  {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0
+                    ? `${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0)} gBits`
+                    : "0 gBits (Free)"}
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
                   Your Stake
@@ -2659,11 +2696,12 @@ const CreatorRoomDetail = ({ roomId }) => {
                   Potential Reward
                 </div>
                 <div className="text-sm font-black text-pink-300 font-mono">
-                  {(room.entry_stake || 50) * Math.max(1, members.length)}+
-                  gBits
+                  {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0
+                    ? `${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} gBits`
+                    : "+10 gBits / Check-in"}
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
-                  If you complete
+                  If you complete (≥80%)
                 </div>
               </div>
             </div>
@@ -2673,7 +2711,9 @@ const CreatorRoomDetail = ({ roomId }) => {
           <button
             onClick={() =>
               showToast(
-                `Pool Reward: ${(room.entry_stake || 50) * Math.max(1, members.length)} gBits for completing the sprint!`,
+                Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0
+                  ? `Pool Reward: ${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} gBits pool distributed to members with ≥80% consistency!`
+                  : "Earn +10 gBits for every daily standup check-in!",
               )
             }
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 transition cursor-pointer shrink-0"
@@ -2818,7 +2858,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   >
                     {submitting
                       ? "Submitting..."
-                      : "Submit Standup & Claim +35 gBits "}
+                      : "Submit Standup & Claim +10 gBits "}
                   </button>
                 </div>
               </div>

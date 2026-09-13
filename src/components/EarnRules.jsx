@@ -60,9 +60,9 @@ const BONUS_RULES = [
   {
     icon: CheckCircle2,
     color: "#3b82f6",
-    title: "Weekly Room Check-in",
+    title: "Daily Room Standup Check-in",
     reward: "+10 gBits",
-    desc: "Submit your weekly progress check-in inside any Creator Room to earn +10 gBits for your weekly check-in!",
+    desc: "Submit your daily progress standup check-in inside any Creator Room to earn +10 gBits for every check-in!",
   },
   {
     icon: Target,

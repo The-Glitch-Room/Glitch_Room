@@ -22,6 +22,7 @@ import Button from "./Button";
 import PageHeading from "./PageHeading";
 import GlitchBackground from "./GlitchBackground";
 import { fetchActiveRoomsStats } from "../utils/roomCountHelper";
+import { fetchPoints, updatePoints } from "../utils/pointsHelper";
 
 const JoinRoom = () => {
   const navigate = useNavigate();
@@ -119,15 +120,37 @@ const JoinRoom = () => {
       const { data: au } = await supabase.auth.getUser();
       const uid = au?.user?.id;
       if (uid && room.room_type === "creator") {
+        const roomEntryStake = Number(
+          room.entry_stake || room.gbits_stake?.entry_stake || 0,
+        );
+        if (roomEntryStake > 0) {
+          const userPts = await fetchPoints(uid);
+          if (userPts < roomEntryStake) {
+            alert(
+              `Insufficient gBits balance! You need at least ${roomEntryStake} gBits to stake & join this room (Current: ${userPts} gBits).`,
+            );
+            setJoining(false);
+            return false;
+          }
+          await updatePoints(
+            -roomEntryStake,
+            `Staked ${roomEntryStake} gBits to join ${room.title || "Creator Room"}`,
+            "room_stake",
+            room.id,
+            uid,
+          );
+        }
         await supabase
           .from("creator_room_members")
           .upsert(
-            { room_id: room.id, user_id: uid },
-            { onConflict: "room_id,user_id", ignoreDuplicates: true }
+            { room_id: room.id, user_id: uid, staked_amount: roomEntryStake },
+            { onConflict: "room_id,user_id", ignoreDuplicates: true },
           );
       }
+      return true;
     } catch (err) {
       console.error("Error joining room:", err);
+      return false;
     } finally {
       setJoining(false);
     }
@@ -135,7 +158,8 @@ const JoinRoom = () => {
 
   const handleJoinRoom = async (room) => {
     if (room.access === "public") {
-      await persistJoin(room);
+      const ok = await persistJoin(room);
+      if (!ok) return;
       if (room.room_type === "professional") {
         navigate(`/pro-rooms/${room.id}`);
       } else {
