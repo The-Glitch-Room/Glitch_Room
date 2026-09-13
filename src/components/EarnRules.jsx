@@ -15,6 +15,8 @@ import {
   Zap,
   Users,
   CheckCircle2,
+  Award,
+  Trophy,
 } from "lucide-react";
 import ReferralSection from "./ReferralSection";
 
