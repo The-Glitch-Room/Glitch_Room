@@ -65,6 +65,13 @@ const BONUS_RULES = [
     desc: "Submit your daily progress standup check-in inside any Creator Room to earn +10 gBits for every check-in!",
   },
   {
+    icon: Award,
+    color: "#ec4899",
+    title: "Creator Room Sprint Completion",
+    reward: "+150 gBits",
+    desc: "Complete a Creator Room sprint with at least 80% check-in consistency to earn +150 gBits bonus!",
+  },
+  {
     icon: Target,
     color: "#22c55e",
     title: "First-Try Clearance",

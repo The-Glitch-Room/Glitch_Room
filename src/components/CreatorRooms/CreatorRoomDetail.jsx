@@ -404,6 +404,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showEmailPrefsModal, setShowEmailPrefsModal] = useState(false);
+  const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [calendarViewMode, setCalendarViewMode] = useState("personal");
   const [selectedDayNum, setSelectedDayNum] = useState(null);
@@ -2697,8 +2698,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
                 <div className="text-sm font-black text-pink-300 font-mono">
                   {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0
-                    ? `${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} gBits`
-                    : "+10 gBits / Check-in"}
+                    ? `${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} Pool + 150 Bonus`
+                    : "+10/day + 150 Bonus"}
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
                   If you complete (≥80%)
@@ -2709,13 +2710,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
           {/* CTA Button */}
           <button
-            onClick={() =>
-              showToast(
-                Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0
-                  ? `Pool Reward: ${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} gBits pool distributed to members with ≥80% consistency!`
-                  : "Earn +10 gBits for every daily standup check-in!",
-              )
-            }
+            onClick={() => setShowRewardsModal(true)}
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/25 transition cursor-pointer shrink-0"
           >
             View Rewards
@@ -3011,6 +3006,87 @@ const CreatorRoomDetail = ({ roomId }) => {
                   className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-red-600/30"
                 >
                   Confirm Delete Room
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 3b. View Rewards Modal */}
+      <AnimatePresence>
+        {showRewardsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-pink-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans relative overflow-hidden"
+            >
+              {/* Background Glow */}
+              <div className="absolute -top-16 -right-16 w-36 h-36 bg-pink-500/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="flex justify-between items-center mb-5 relative z-10">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Gift size={20} className="text-pink-400" /> Room Rewards & Earnings
+                </h3>
+                <button
+                  onClick={() => setShowRewardsModal(false)}
+                  className="text-gray-400 hover:text-white cursor-pointer p-1 rounded-lg hover:bg-white/5 transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4 relative z-10">
+                {/* Reward 1: Daily Standup Check-in */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0 mt-0.5">
+                    <Coins size={22} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-white">1. Daily Standup Check-in</span>
+                      <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 font-mono text-[11px] font-bold">+10 gBits</span>
+                    </div>
+                    <p className="text-xs text-gray-300 leading-relaxed font-sans">
+                      Earn <strong className="text-blue-300">+10 gBits</strong> for every daily standup check-in & proof of work submitted on time.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Reward 2: Sprint Completion Bonus */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20 flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-pink-500/20 border border-pink-400/30 flex items-center justify-center text-pink-400 shrink-0 mt-0.5">
+                    <Trophy size={22} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-white">2. Sprint Completion Reward</span>
+                      <span className="px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-mono text-[11px] font-bold">+150 gBits</span>
+                    </div>
+                    <p className="text-xs text-gray-300 leading-relaxed font-sans">
+                      Earn an extra <strong className="text-pink-300">+150 gBits completion bonus</strong> {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0 ? `+ your equal share of the ${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} gBits staked pool` : ""} when you complete the sprint with ≥80% consistency!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Summary Stake Note */}
+                {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0 && (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200 font-mono flex items-center gap-2">
+                    <Award size={16} className="text-amber-400 shrink-0" />
+                    <span>Staked Pool Total: <strong>{Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} gBits</strong></span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-end relative z-10">
+                <button
+                  onClick={() => setShowRewardsModal(false)}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/20 transition cursor-pointer"
+                >
+                  Got It!
                 </button>
               </div>
             </motion.div>
