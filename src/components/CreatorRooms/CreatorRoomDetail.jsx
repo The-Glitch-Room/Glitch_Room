@@ -826,7 +826,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       event_date: eventDate,
       event_time: eventTime.trim(),
       event_type: eventType,
-      description: eventDescription.trim(),
+      description: eventDescription.trim() || null,
     };
 
     try {
