@@ -1940,13 +1940,15 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                 </div>
 
-                {/* Add Event CTA Button for Host or Members */}
-                <button
-                  onClick={openNewEventModal}
-                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition cursor-pointer shrink-0"
-                >
-                  <Plus size={14} /> Schedule Event
-                </button>
+                {/* Add Event CTA Button for Host Only */}
+                {isHost && (
+                  <button
+                    onClick={openNewEventModal}
+                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition cursor-pointer shrink-0"
+                  >
+                    <Plus size={14} /> Schedule Event
+                  </button>
+                )}
               </div>
 
               {/* Events List */}
@@ -1955,12 +1957,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                   <p className="text-xs text-gray-400 font-mono mb-2">
                     No squad events scheduled yet for this room.
                   </p>
-                  <button
-                    onClick={openNewEventModal}
-                    className="px-3 py-1 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer"
-                  >
-                    + Schedule First Squad Event
-                  </button>
+                  {isHost && (
+                    <button
+                      onClick={openNewEventModal}
+                      className="px-3 py-1 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer"
+                    >
+                      + Schedule First Squad Event
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
