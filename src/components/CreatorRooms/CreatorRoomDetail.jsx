@@ -777,6 +777,16 @@ const CreatorRoomDetail = ({ roomId }) => {
         },
         () => fetchAllRoomData(),
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "creator_room_events",
+          filter: `room_id=eq.${id}`,
+        },
+        () => fetchAllRoomData(),
+      )
       .subscribe();
 
     return () => {
@@ -832,6 +842,11 @@ const CreatorRoomDetail = ({ roomId }) => {
           .from("creator_room_events")
           .insert([payload]);
         if (error) throw error;
+        await sendRoomNotification({
+          type: "event",
+          title: "New Squad Event Scheduled!",
+          message: `👑 Host scheduled: "${eventTitle.trim()}" on ${eventDate} at ${eventTime.trim()}`,
+        });
         showToast(" Squad event added to schedule!");
       }
       setShowAddEventModal(false);
@@ -1901,8 +1916,125 @@ const CreatorRoomDetail = ({ roomId }) => {
             )}
           </div>
 
-          {/* CENTER COLUMN: Daily Standups (6 Cols - Primary Content Area) */}
+          {/* CENTER COLUMN: Events & Daily Standups (6 Cols - Primary Content Area) */}
           <div className="col-span-1 md:col-span-8 lg:col-span-6 space-y-4">
+            {/* Scheduled Squad Events Card */}
+            <div className="bg-[#0d0d16] border border-white/10 hover:border-cyan-500/30 rounded-2xl p-4 sm:p-5 shadow-xl transition space-y-3 font-sans">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                    <Calendar size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      Scheduled Squad Events
+                      {squadEvents.length > 0 && (
+                        <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono text-[10px]">
+                          {squadEvents.length} {squadEvents.length === 1 ? "Event" : "Events"}
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-gray-400 font-mono">
+                      Live syncs, deadlines, code reviews & meetings scheduled for squad
+                    </p>
+                  </div>
+                </div>
+
+                {/* Add Event CTA Button for Host or Members */}
+                <button
+                  onClick={openNewEventModal}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition cursor-pointer shrink-0"
+                >
+                  <Plus size={14} /> Schedule Event
+                </button>
+              </div>
+
+              {/* Events List */}
+              {squadEvents.length === 0 ? (
+                <div className="bg-[#07070d] border border-dashed border-white/10 rounded-xl p-4 text-center">
+                  <p className="text-xs text-gray-400 font-mono mb-2">
+                    No squad events scheduled yet for this room.
+                  </p>
+                  <button
+                    onClick={openNewEventModal}
+                    className="px-3 py-1 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer"
+                  >
+                    + Schedule First Squad Event
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                  {squadEvents.map((ev) => {
+                    const typeColors = {
+                      "Live Sync": { bg: "bg-cyan-500/15", border: "border-cyan-500/30", text: "text-cyan-300" },
+                      Milestone: { bg: "bg-purple-500/15", border: "border-purple-500/30", text: "text-purple-300" },
+                      Deadline: { bg: "bg-rose-500/15", border: "border-rose-500/30", text: "text-rose-300" },
+                      "Code Review": { bg: "bg-amber-500/15", border: "border-amber-500/30", text: "text-amber-300" },
+                      General: { bg: "bg-blue-500/15", border: "border-blue-500/30", text: "text-blue-300" },
+                    };
+                    const badge = typeColors[ev.event_type] || typeColors.General;
+                    const isEvHost = ev.created_by === userId || isHost;
+
+                    return (
+                      <div
+                        key={ev.id}
+                        className="p-3.5 rounded-xl bg-[#07070d] border border-white/10 hover:border-cyan-500/40 flex items-start justify-between gap-3 transition"
+                      >
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          {/* Date Badge */}
+                          <div className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-center shrink-0 min-w-[75px]">
+                            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-mono">
+                              {new Date(ev.event_date || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </div>
+                            <div className="text-[11px] font-bold text-cyan-300 font-mono">
+                              {ev.event_time || "TBD"}
+                            </div>
+                          </div>
+
+                          {/* Event Details */}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h4 className="text-xs font-bold text-white font-sans truncate">
+                                {ev.title}
+                              </h4>
+                              <span className={`px-2 py-0.5 rounded-md ${badge.bg} ${badge.text} border ${badge.border} text-[10px] font-mono font-bold`}>
+                                {ev.event_type || "Event"}
+                              </span>
+                            </div>
+                            {ev.description && (
+                              <p className="text-xs text-gray-400 line-clamp-2 font-mono">
+                                {ev.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions (Edit / Delete for Host/Creator) */}
+                        {isEvHost && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => handleEditSquadEvent(ev)}
+                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
+                              title="Edit Event"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSquadEvent(ev.id)}
+                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition cursor-pointer"
+                              title="Delete Event"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Header Tabs */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
