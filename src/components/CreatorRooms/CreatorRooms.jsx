@@ -22,7 +22,7 @@ const CreatorRooms = () => {
   const [rooms, setRooms] = useState([]);
   const [myRoomIds, setMyRoomIds] = useState(new Set());
   const [totalCommittedBuilders, setTotalCommittedBuilders] = useState(0);
-  const [consistencyRate, setConsistencyRate] = useState("—");
+  const [totalStandups, setTotalStandups] = useState("0");
   const [openModal, setOpenModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(null);
@@ -82,24 +82,20 @@ const CreatorRooms = () => {
         setRooms(creatorRooms);
       }
 
-      // 2. Calculate Real Consistency Rate from Database Check-ins
+      // 2. Calculate Total Standups Shipped from Database Check-ins
       const { data: checkinData } = await supabase
         .from("creator_room_checkins")
-        .select("is_on_time")
+        .select("id")
         .in("room_id", creatorRoomIds);
 
       if (checkinData && checkinData.length > 0) {
-        const onTimeCount = checkinData.filter(
-          (c) => c.is_on_time !== false,
-        ).length;
-        const ratePct = Math.round((onTimeCount / checkinData.length) * 100);
-        setConsistencyRate(`${ratePct}%`);
+        setTotalStandups(checkinData.length);
       } else {
-        setConsistencyRate("—");
+        setTotalStandups(0);
       }
     } else {
       setTotalCommittedBuilders(0);
-      setConsistencyRate("—");
+      setTotalStandups(0);
       setRooms([]);
     }
 
@@ -282,9 +278,9 @@ const CreatorRooms = () => {
       sublabel: "Daily check-ins",
     },
     {
-      value: consistencyRate,
-      label: "CONSISTENCY RATE",
-      sublabel: "Streak completions",
+      value: totalStandups > 0 ? formatNumber(totalStandups) : "0",
+      label: "STANDUPS SHIPPED",
+      sublabel: "Proof of Work submitted",
     },
   ];
 
