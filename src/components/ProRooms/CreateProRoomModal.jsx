@@ -17,6 +17,7 @@ import {
 import { Building2, Sparkles, Trophy, Zap, ShieldCheck } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { useNavigate } from "react-router-dom";
+import CustomSelect from "../CustomSelect";
 
 const EVENT_TYPES = [
   "Hackathon",
@@ -480,20 +481,12 @@ const CreateProRoomModal = ({ onClose, onRoomCreated }) => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-300 block mb-1">
-                    Event Type *
-                  </label>
-                  <select
+                  <CustomSelect
+                    label="Event Type *"
                     value={basicInfo.event_type}
-                    onChange={(e) => setBasicInfo({ ...basicInfo, event_type: e.target.value })}
-                    className="w-full bg-[#07070e] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-                  >
-                    {EVENT_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setBasicInfo({ ...basicInfo, event_type: val })}
+                    options={EVENT_TYPES}
+                  />
                 </div>
               </div>
 
@@ -639,17 +632,15 @@ const CreateProRoomModal = ({ onClose, onRoomCreated }) => {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-gray-300 block mb-1">
-                    Access Permission
-                  </label>
-                  <select
+                  <CustomSelect
+                    label="Access Permission"
                     value={eligibility.access_type}
-                    onChange={(e) => setEligibility({ ...eligibility, access_type: e.target.value })}
-                    className="w-full bg-[#07070e] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-                  >
-                    <option value="public">Public (Open to All)</option>
-                    <option value="private">Private / Invite Only</option>
-                  </select>
+                    onChange={(val) => setEligibility({ ...eligibility, access_type: val })}
+                    options={[
+                      { value: "public", label: "Public (Open to All)" },
+                      { value: "private", label: "Private / Invite Only" },
+                    ]}
+                  />
                 </div>
 
                 <div>

@@ -32,7 +32,9 @@ import {
   Handshake,
   Heart,
   Save,
+  Gift,
 } from "lucide-react";
+import CustomSelect from "../CustomSelect";
 
 const CATEGORIES = [
   "Coding & DSA",
@@ -108,6 +110,7 @@ const CreateRoomModal = ({ close, create }) => {
   const [roomStreakEnabled, setRoomStreakEnabled] = useState(true);
 
   // ── Step 4: Stakes, Rules & Membership ──
+  const [completionReward, setCompletionReward] = useState(150);
   const [enableGbitsStake, setEnableGbitsStake] = useState(false);
   const [entryStake, setEntryStake] = useState(50);
   const [rewardPoolRules, setRewardPoolRules] = useState("Return stake on successful completion");
@@ -181,9 +184,12 @@ const CreateRoomModal = ({ close, create }) => {
         contributes_to_uptime: contributesToUptime,
         room_streak_enabled: roomStreakEnabled,
       },
+      completion_reward: Number(completionReward) || 150,
+      reward_gbits: Number(completionReward) || 150,
       gbits_stake: {
         enabled: enableGbitsStake,
         entry_stake: enableGbitsStake ? entryStake : 0,
+        completion_reward: Number(completionReward) || 150,
         reward_rules: rewardPoolRules,
         missed_policy: missedCheckinPolicy,
         freezes: freezeAllowance,
@@ -303,21 +309,19 @@ const CreateRoomModal = ({ close, create }) => {
                 </div>
 
                 <div className="sm:col-span-3">
-                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
-                    Icon / Emoji
-                  </label>
-                  <select
+                  <CustomSelect
+                    label="Icon / Emoji"
                     value={coverIcon}
-                    onChange={(e) => setCoverIcon(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none focus:border-[#00F0FF]/50 transition cursor-pointer"
-                  >
-                    <option value="⚡">⚡ Lightning</option>
-                    <option value="🔥">🔥 Fire Streak</option>
-                    <option value="🎯">🎯 Target Goal</option>
-                    <option value="🚀">🚀 Rocket Sprint</option>
-                    <option value="💻">💻 Code Builder</option>
-                    <option value="🧠">🧠 Learning Mind</option>
-                  </select>
+                    onChange={setCoverIcon}
+                    options={[
+                      { value: "⚡", label: "⚡ Lightning" },
+                      { value: "🔥", label: "🔥 Fire Streak" },
+                      { value: "🎯", label: "🎯 Target Goal" },
+                      { value: "🚀", label: "🚀 Rocket Sprint" },
+                      { value: "💻", label: "💻 Code Builder" },
+                      { value: "🧠", label: "🧠 Learning Mind" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -353,35 +357,25 @@ const CreateRoomModal = ({ close, create }) => {
               {/* Category & Visibility */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
-                    Category *
-                  </label>
-                  <select
+                  <CustomSelect
+                    label="Category *"
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none focus:border-[#00F0FF]/50 transition cursor-pointer"
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setCategory}
+                    options={CATEGORIES}
+                  />
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
-                    Room Visibility *
-                  </label>
-                  <select
+                  <CustomSelect
+                    label="Room Visibility *"
                     value={visibility}
-                    onChange={(e) => setVisibility(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none focus:border-[#00F0FF]/50 transition cursor-pointer"
-                  >
-                    <option value="Public">Public (Anyone can discover & join)</option>
-                    <option value="Private">Private (Requires password / link)</option>
-                    <option value="Invite Only">Invite Only (Host approval needed)</option>
-                  </select>
+                    onChange={setVisibility}
+                    options={[
+                      { value: "Public", label: "Public (Anyone can discover & join)" },
+                      { value: "Private", label: "Private (Requires password / link)" },
+                      { value: "Invite Only", label: "Invite Only (Host approval needed)" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -432,36 +426,32 @@ const CreateRoomModal = ({ close, create }) => {
               {/* Schedule Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
-                    Sprint Duration *
-                  </label>
-                  <select
+                  <CustomSelect
+                    label="Sprint Duration *"
                     value={durationType}
-                    onChange={(e) => setDurationType(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none focus:border-[#00F0FF]/50 transition cursor-pointer"
-                  >
-                    <option value="7_day">7 Days Sprint</option>
-                    <option value="14_day">14 Days Sprint</option>
-                    <option value="30_day">30 Days Bootcamp</option>
-                    <option value="60_day">60 Days Challenge</option>
-                    <option value="100_day">100 Days Challenge</option>
-                    <option value="ongoing">Ongoing Consistency</option>
-                  </select>
+                    onChange={setDurationType}
+                    options={[
+                      { value: "7_day", label: "7 Days Sprint" },
+                      { value: "14_day", label: "14 Days Sprint" },
+                      { value: "30_day", label: "30 Days Bootcamp" },
+                      { value: "60_day", label: "60 Days Challenge" },
+                      { value: "100_day", label: "100 Days Challenge" },
+                      { value: "ongoing", label: "Ongoing Consistency" },
+                    ]}
+                  />
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
-                    Check-in Frequency *
-                  </label>
-                  <select
+                  <CustomSelect
+                    label="Check-in Frequency *"
                     value={checkinFrequency}
-                    onChange={(e) => setCheckinFrequency(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none focus:border-[#00F0FF]/50 transition cursor-pointer"
-                  >
-                    <option value="daily">Daily Check-ins</option>
-                    <option value="thrice_weekly">3× per Week</option>
-                    <option value="weekly">Weekly Check-in</option>
-                  </select>
+                    onChange={setCheckinFrequency}
+                    options={[
+                      { value: "daily", label: "Daily Check-ins" },
+                      { value: "thrice_weekly", label: "3× per Week" },
+                      { value: "weekly", label: "Weekly Check-in" },
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -625,43 +615,43 @@ const CreateRoomModal = ({ close, create }) => {
                 {verificationRequired && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                     <div>
-                      <label className="text-[10px] text-gray-400 font-mono block mb-1">Who Can Verify?</label>
-                      <select
+                      <CustomSelect
+                        label="Who Can Verify?"
                         value={whoCanVerify}
-                        onChange={(e) => setWhoCanVerify(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#0d0d16] border border-white/10 text-white text-xs focus:outline-none"
-                      >
-                        <option value="Any Room Member">Any Room Member</option>
-                        <option value="Accountability Buddy">Accountability Buddy</option>
-                        <option value="Room Host">Room Host</option>
-                        <option value="Host + Members">Host + Members</option>
-                      </select>
+                        onChange={setWhoCanVerify}
+                        options={[
+                          "Any Room Member",
+                          "Accountability Buddy",
+                          "Room Host",
+                          "Host + Members",
+                        ]}
+                      />
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-gray-400 font-mono block mb-1">Min Verifications</label>
-                      <select
+                      <CustomSelect
+                        label="Min Verifications"
                         value={minVerifications}
-                        onChange={(e) => setMinVerifications(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#0d0d16] border border-white/10 text-white text-xs focus:outline-none"
-                      >
-                        <option value="1">1 Vouch</option>
-                        <option value="2">2 Vouches</option>
-                        <option value="3">3 Vouches</option>
-                      </select>
+                        onChange={setMinVerifications}
+                        options={[
+                          { value: "1", label: "1 Vouch" },
+                          { value: "2", label: "2 Vouches" },
+                          { value: "3", label: "3 Vouches" },
+                        ]}
+                      />
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-gray-400 font-mono block mb-1">Verification Reward</label>
-                      <select
+                      <CustomSelect
+                        label="Verification Reward"
                         value={verificationReward}
-                        onChange={(e) => setVerificationReward(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#0d0d16] border border-white/10 text-white text-xs focus:outline-none"
-                      >
-                        <option value="gBits amount">+35 gBits Reward</option>
-                        <option value="Uptime contribution">Uptime Streak Boost</option>
-                        <option value="No additional reward">Standard Verification</option>
-                      </select>
+                        onChange={setVerificationReward}
+                        options={[
+                          { value: "gBits amount", label: "+35 gBits Reward" },
+                          { value: "Uptime contribution", label: "Uptime Streak Boost" },
+                          { value: "No additional reward", label: "Standard Verification" },
+                        ]}
+                      />
                     </div>
                   </div>
                 )}
@@ -692,15 +682,15 @@ const CreateRoomModal = ({ close, create }) => {
                 {enableBuddy && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     <div>
-                      <label className="text-[10px] text-gray-400 font-mono block mb-1">Pairing Method</label>
-                      <select
+                      <CustomSelect
+                        label="Pairing Method"
                         value={buddyPairing}
-                        onChange={(e) => setBuddyPairing(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#0d0d16] border border-white/10 text-white text-xs focus:outline-none"
-                      >
-                        <option value="Automatic">Automatic Pair-up on Join</option>
-                        <option value="Manual">Manual Selection by Members</option>
-                      </select>
+                        onChange={setBuddyPairing}
+                        options={[
+                          { value: "Automatic", label: "Automatic Pair-up on Join" },
+                          { value: "Manual", label: "Manual Selection by Members" },
+                        ]}
+                      />
                     </div>
 
                     <div>
@@ -748,6 +738,55 @@ const CreateRoomModal = ({ close, create }) => {
                 </p>
               </div>
 
+              {/* Host-Configured Sprint Completion Reward */}
+              <div className="space-y-3 bg-[#07070d] border border-pink-500/30 rounded-2xl p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-pink-300 font-mono flex items-center gap-1.5">
+                    <Gift size={16} className="text-pink-400" />
+                    <span>Sprint Completion Reward (gBits / Member)</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-pink-400 bg-pink-500/10 border border-pink-500/20 px-2.5 py-0.5 rounded-full font-bold">
+                    Host Reward Selection
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-400 font-sans leading-relaxed">
+                  Set the exact amount of gBits that every room member will earn upon completing this sprint with ≥80% on-time daily check-ins.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-mono block mb-1 font-bold">Completion Reward (gBits)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10000"
+                      value={completionReward}
+                      onChange={(e) => setCompletionReward(Math.max(0, parseInt(e.target.value) || 0))}
+                      placeholder="e.g. 150"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d0d16] border border-pink-500/40 text-white font-mono text-xs focus:outline-none focus:border-pink-500 shadow-inner"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-mono block mb-1 font-bold">Quick Presets</label>
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      {[50, 100, 150, 200, 300, 500].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setCompletionReward(preset)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition cursor-pointer border ${
+                            Number(completionReward) === preset
+                              ? "bg-pink-500/30 text-pink-300 border-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.3)]"
+                              : "bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          {preset} gBits
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* gBits Commitment Stakes (Optional) */}
               <div className="space-y-3 bg-[#07070d] border border-amber-500/30 rounded-2xl p-4">
                 <div className="flex items-center justify-between">
@@ -783,27 +822,27 @@ const CreateRoomModal = ({ close, create }) => {
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-gray-400 font-mono block mb-1">Reward Pool Rules</label>
-                      <select
+                      <CustomSelect
+                        label="Reward Pool Rules"
                         value={rewardPoolRules}
-                        onChange={(e) => setRewardPoolRules(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#0d0d16] border border-white/10 text-white text-xs focus:outline-none"
-                      >
-                        <option value="Return stake on successful completion">Return stake on completion</option>
-                        <option value="Share bonus pool">Share bonus pool</option>
-                      </select>
+                        onChange={setRewardPoolRules}
+                        options={[
+                          { value: "Return stake on successful completion", label: "Return stake on completion" },
+                          { value: "Share bonus pool", label: "Share bonus pool" },
+                        ]}
+                      />
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-gray-400 font-mono block mb-1">Missed Policy</label>
-                      <select
+                      <CustomSelect
+                        label="Missed Policy"
                         value={missedCheckinPolicy}
-                        onChange={(e) => setMissedCheckinPolicy(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#0d0d16] border border-white/10 text-white text-xs focus:outline-none"
-                      >
-                        <option value="Lose stake after 3 missed check-ins">Lose stake after 3 misses</option>
-                        <option value="No penalty">No penalty</option>
-                      </select>
+                        onChange={setMissedCheckinPolicy}
+                        options={[
+                          { value: "Lose stake after 3 missed check-ins", label: "Lose stake after 3 misses" },
+                          { value: "No penalty", label: "No penalty" },
+                        ]}
+                      />
                     </div>
                   </div>
                 )}
