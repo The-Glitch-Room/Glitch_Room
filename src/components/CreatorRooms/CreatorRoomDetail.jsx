@@ -245,12 +245,12 @@ const getCurrentStreak = (dateKeySet) => {
   return getStreakEndingAt(dateKeySet, anchor);
 };
 
-// ── Auto-Scrolling Ticker Wrapper for Standup Logs ───────────────────────────
-const StandupTickerWrapper = ({ children, itemCount }) => {
+// ── Auto-Scrolling Ticker Wrapper for Today's Standup Logs ───────────────────
+const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
   const [isPaused, setIsPaused] = useState(false);
 
-  // Auto-scroll animation runs whenever there are multiple standup cards
-  if (itemCount <= 1) {
+  // Auto-scroll animation is ONLY applied when "Today" tab is active and there are multiple cards
+  if (activeTab !== "today" || itemCount <= 1) {
     return <div className="space-y-3">{children}</div>;
   }
 
@@ -403,6 +403,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leavingRoom, setLeavingRoom] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showEmailPrefsModal, setShowEmailPrefsModal] = useState(false);
   const [showRewardsModal, setShowRewardsModal] = useState(false);
@@ -647,6 +648,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         // breaks the moment entry_stake changes after members already
         // joined, or a member is present without ever having staked.
         staked_amount: Number(mRecord?.staked_amount) || 0,
+        left_at: mRecord?.left_at || null,
       };
     });
 
@@ -951,47 +953,35 @@ const CreatorRoomDetail = ({ roomId }) => {
     setJoining(true);
     try {
       const roomEntryStake = Number(room?.entry_stake || 0);
-      if (roomEntryStake > 0) {
-        const userPts = await fetchPoints(userId);
-        if (userPts < roomEntryStake) {
-          showToast(
-            ` Insufficient gBits balance! You need ${roomEntryStake} gBits to stake & join this squad (Current: ${userPts} gBits).`,
-          );
-          setJoining(false);
-          return;
-        }
-        await updatePoints(
-          -roomEntryStake,
-          `Staked ${roomEntryStake} gBits to join ${room?.title || "Creator Room"}`,
-          "room_stake",
-          id,
-          userId,
-        );
-      }
 
-      const { error: joinError } = await supabase
-        .from("creator_room_members")
-        .insert([
-          {
-            room_id: id,
-            user_id: userId,
-            role: "member",
-            staked_amount: roomEntryStake,
-          },
-        ]);
+      // Single atomic RPC: balance check, deduction, and member-row
+      // creation all happen inside one Postgres transaction (see
+      // join_creator_room_with_stake in the migration) — either all of
+      // it lands or none of it does. No client-side "deduct, then
+      // insert, then refund-on-failure" sequence, which had a real
+      // window where a crash could leave someone charged with no
+      // membership row.
+      const { error: joinError } = await supabase.rpc(
+        "join_creator_room_with_stake",
+        { p_room_id: id, p_stake: roomEntryStake },
+      );
 
       if (joinError) {
         console.error("Error joining squad:", joinError);
-        if (roomEntryStake > 0) {
-          await updatePoints(
-            roomEntryStake,
-            `Refund stake for failed room join`,
-            "refund",
-            id,
-            userId,
+        const msg = joinError.message || "";
+        if (msg.includes("INSUFFICIENT_GBITS")) {
+          // Pull the real current balance from the DB for the message
+          // rather than assuming/hardcoding a number.
+          const userPts = await fetchPoints(userId);
+          showToast(
+            ` Insufficient gBits balance! You need ${roomEntryStake} gBits to stake & join this squad (Current: ${userPts} gBits).`,
           );
+        } else if (msg.includes("ALREADY_MEMBER")) {
+          showToast("You're already a member of this squad.");
+          setIsMember(true);
+        } else {
+          showToast("Couldn't join the room — please try again.");
         }
-        showToast("Couldn't join the room — please try again.");
         setJoining(false);
         return;
       }
@@ -1008,6 +998,8 @@ const CreatorRoomDetail = ({ roomId }) => {
           ? ` Successfully staked ${roomEntryStake} gBits & joined squad!`
           : " Successfully committed & joined squad!",
       );
+      // Re-fetch from the DB — pool, member list, and balance all come
+      // from this, never from local arithmetic.
       fetchAllRoomData();
     } catch (e) {
       console.error("Error joining squad:", e);
@@ -1017,10 +1009,29 @@ const CreatorRoomDetail = ({ roomId }) => {
   };
 
   const handleLeaveSquad = async () => {
+    setLeavingRoom(true);
     try {
+      const myRow = members.find((m) => m.user_id === userId);
+      const myStake = Number(myRow?.staked_amount) || 0;
+
+      // Chosen policy: leaving early forfeits the stake into the pool,
+      // same as falling below 80% completion at settlement — it is NOT
+      // refunded. We do NOT delete the row: roomPoolGBits sums
+      // staked_amount across creator_room_members, so deleting it would
+      // delete the forfeited stake right along with it instead of
+      // leaving it in the pool for eventual winners.
       const { error: leaveError } = await supabase
         .from("creator_room_members")
-        .delete()
+        .update({
+          left_at: new Date().toISOString(),
+          ...(myStake > 0
+            ? {
+                payout_status: "forfeited",
+                payout_amount: 0,
+                settled_at: new Date().toISOString(),
+              }
+            : {}),
+        })
         .eq("room_id", id)
         .eq("user_id", userId);
 
@@ -1032,10 +1043,16 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       setIsMember(false);
       setShowLeaveModal(false);
-      showToast("Left room squad.");
+      showToast(
+        myStake > 0
+          ? `Left the squad. Your ${myStake} gBits stake was forfeited into the room pool.`
+          : "Left room squad.",
+      );
       fetchAllRoomData();
     } catch (e) {
       console.error("Error leaving room:", e);
+    } finally {
+      setLeavingRoom(false);
     }
   };
 
@@ -1168,19 +1185,49 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
 
     try {
-      await supabase.from("creator_rooms").delete().eq("id", id);
-      showToast(" Room permanently deleted.");
+      // Refunding every member's unsettled stake and deleting the room
+      // happen in one DB transaction (see refund_and_delete_creator_room
+      // in the migration) — chosen policy is "no one loses gBits to a
+      // deletion", so this must not be able to partially fail (some
+      // refunded, room not actually deleted, etc).
+      const { error } = await supabase.rpc("refund_and_delete_creator_room", {
+        p_room_id: id,
+      });
+      if (error) {
+        console.error("Error deleting room:", error);
+        showToast("Couldn't delete the room — please try again.");
+        return;
+      }
+      showToast(
+        " Room permanently deleted. Any staked gBits were refunded in full.",
+      );
       navigate("/creator-rooms");
     } catch (e) {
       console.error("Error deleting room:", e);
+      showToast("Couldn't delete the room — please try again.");
     }
   };
 
   const handleRemoveMember = async (targetUserId) => {
     try {
+      const targetRow = members.find((m) => m.user_id === targetUserId);
+      const targetStake = Number(targetRow?.staked_amount) || 0;
+
+      // Same policy as a member leaving voluntarily: forfeit the stake
+      // into the pool rather than deleting the row (which would delete
+      // the forfeited stake out of the pool too — see handleLeaveSquad).
       const { error: removeError } = await supabase
         .from("creator_room_members")
-        .delete()
+        .update({
+          left_at: new Date().toISOString(),
+          ...(targetStake > 0
+            ? {
+                payout_status: "forfeited",
+                payout_amount: 0,
+                settled_at: new Date().toISOString(),
+              }
+            : {}),
+        })
         .eq("room_id", id)
         .eq("user_id", targetUserId);
 
@@ -1574,8 +1621,13 @@ const CreatorRoomDetail = ({ roomId }) => {
   // `room.member_count` is not a real column — the true count always comes
   // from the live members list. Math.max(..., 1) just covers the instant
   // before fetchAllRoomData resolves, so the badge never flashes "0".
-  const squadMemberCount = Math.max(members.length, 1);
+  const activeMembers = members.filter((m) => !m.left_at);
+  const squadMemberCount = Math.max(activeMembers.length, 1);
   // Real pool = sum of what members actually staked, not an assumption.
+  // Includes members who left (their stake was forfeited into the pool,
+  // not refunded) — only excludes anyone already refunded via a room
+  // deletion, which happens naturally since that path deletes the room
+  // (and cascades the member rows) rather than leaving them around.
   const roomPoolGBits = members.reduce(
     (sum, m) => sum + (Number(m.staked_amount) || 0),
     0,
@@ -2206,6 +2258,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
             ) : (
               <StandupTickerWrapper
+                activeTab={activeTab}
                 itemCount={Math.min(
                   displayStandups.length,
                   standupVisibleCount,
@@ -3223,59 +3276,57 @@ const CreatorRoomDetail = ({ roomId }) => {
         )}
       </AnimatePresence>
 
-      {/* 3a. Leave Squad Confirmation Modal */}
       <AnimatePresence>
         {showLeaveModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md font-sans">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#12080d] border border-red-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
+              className="bg-[#0f0f1d] border border-amber-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans"
             >
-              <div className="flex items-center gap-3 text-red-400 mb-3">
-                <UserX size={24} />
-                <h3 className="text-lg font-bold text-white">
-                  Leave Squad Confirmation
-                </h3>
+              <div className="flex items-center gap-3 text-amber-400 mb-3">
+                <AlertTriangle size={24} />
+                <h3 className="text-lg font-bold text-white">Leave Squad?</h3>
               </div>
 
-              {Number(room?.entry_stake || 0) > 0 ? (
-                <div className="space-y-3 mb-5 font-mono text-xs">
-                  <div className="p-3.5 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-200 space-y-1.5">
-                    <div className="font-bold flex items-center gap-1.5 text-red-300">
-                      ⚠️ Early Leave Stake Penalty Notice
-                    </div>
-                    <p className="text-[11px] leading-relaxed">
-                      Leaving this staked room early before the sprint ends will{" "}
-                      <strong className="text-red-400 underline">
-                        forfeit your entry stake of {room?.entry_stake || 0} gBits
-                      </strong>.
-                    </p>
-                  </div>
-
-                  <p className="text-gray-400 text-[11px] leading-relaxed">
-                    Your forfeited stake will remain in the squad&apos;s Room Pool to reward consistent members who complete the sprint.
+              {(() => {
+                const myRow = members.find((m) => m.user_id === userId);
+                const myStake = Number(myRow?.staked_amount) || 0;
+                return myStake > 0 ? (
+                  <p className="text-xs text-gray-300 mb-5 leading-relaxed font-mono">
+                    You staked{" "}
+                    <strong className="text-amber-300">{myStake} gBits</strong>{" "}
+                    to join this squad. Leaving now{" "}
+                    <strong className="text-red-400">
+                      forfeits your stake
+                    </strong>{" "}
+                    — it will be added to the pool shared among members who
+                    complete the sprint. It will not be refunded.
                   </p>
-                </div>
-              ) : (
-                <p className="text-xs text-gray-300 mb-5 leading-relaxed font-mono">
-                  Are you sure you want to leave <strong className="text-white">&quot;{room?.title || room?.name}&quot;</strong>? You will no longer be tracked on the squad leaderboard or receive room check-in notifications.
-                </p>
-              )}
+                ) : (
+                  <p className="text-xs text-gray-300 mb-5 leading-relaxed font-mono">
+                    You'll lose access to this room's check-ins, buddy pairing,
+                    and standings. You can rejoin later if the room still allows
+                    it.
+                  </p>
+                );
+              })()}
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setShowLeaveModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 cursor-pointer"
+                  disabled={leavingRoom}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 cursor-pointer disabled:opacity-40"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleLeaveSquad}
-                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-red-600/30"
+                  disabled={leavingRoom}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-amber-600/30 flex items-center gap-2"
                 >
-                  Confirm & Leave Squad
+                  {leavingRoom ? "Leaving..." : "Confirm Leave"}
                 </button>
               </div>
             </motion.div>
@@ -3484,7 +3535,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     Members
                   </h3>
                   <p className="text-xs text-gray-400">
-                    Total {members.length} committed builder(s)
+                    Total {activeMembers.length} committed builder(s)
                   </p>
                 </div>
                 <button
@@ -3496,7 +3547,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
 
               <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                {members.map((m) => {
+                {activeMembers.map((m) => {
                   const isHostMember =
                     m.role === "host" || m.user_id === room?.created_by;
                   return (
@@ -4154,7 +4205,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       Squad Participation Overview
                     </h5>
                     <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                      {members.map((m) => {
+                      {activeMembers.map((m) => {
                         const mStandups = standups.filter(
                           (s) =>
                             s.user_id === m.user_id ||
@@ -4375,7 +4426,8 @@ const CreatorRoomDetail = ({ roomId }) => {
               </p>
 
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                {members.filter((m) => m.user_id !== userId).length === 0 ? (
+                {activeMembers.filter((m) => m.user_id !== userId).length ===
+                0 ? (
                   <div className="p-5 rounded-2xl bg-white/5 border border-white/10 text-center space-y-3 font-sans">
                     <p className="text-xs text-gray-300">
                       No other squad members have joined this room yet. Share
@@ -4389,7 +4441,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     </button>
                   </div>
                 ) : (
-                  members
+                  activeMembers
                     .filter((m) => m.user_id !== userId)
                     .map((m) => {
                       const isPairedWithMe = buddyMember?.user_id === m.user_id;

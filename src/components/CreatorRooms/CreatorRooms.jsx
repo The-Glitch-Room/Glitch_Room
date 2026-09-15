@@ -134,18 +134,27 @@ const CreatorRooms = () => {
 
     setJoining(room.id);
     try {
-      const { error: joinError } = await supabase
-        .from("creator_room_members")
-        .insert([
-          {
-            room_id: room.id,
-            user_id: user.id,
-            role: "member",
-          },
-        ]);
+      // Route through the SAME atomic RPC the room-detail page uses
+      // (join_creator_room_with_stake) instead of inserting a bare
+      // member row here. The old direct insert never checked
+      // room.entry_stake and never deducted anything — so joining a
+      // staked room from this list page silently skipped staking
+      // entirely: 0 gBits deducted, 0 added to staked_amount, room pool
+      // stuck at 0 regardless of what the room actually required.
+      const roomEntryStake = Number(room?.entry_stake || 0);
+      const { error: joinError } = await supabase.rpc(
+        "join_creator_room_with_stake",
+        { p_room_id: room.id, p_stake: roomEntryStake },
+      );
 
       if (joinError) {
         console.error("Error joining creator room:", joinError);
+        const msg = joinError.message || "";
+        if (msg.includes("INSUFFICIENT_GBITS")) {
+          alert(`You need ${roomEntryStake} gBits to stake & join this room.`);
+        } else if (!msg.includes("ALREADY_MEMBER")) {
+          alert("Couldn't join the room — please try again.");
+        }
         setJoining(null);
         return;
       }

@@ -11,7 +11,8 @@ const DeleteRoomModal = ({ isOpen, onClose, room, onDeleted }) => {
   if (!isOpen || !room) return null;
 
   const roomName = room.name || "this room";
-  const isMatch = confirmName.trim().toLowerCase() === roomName.trim().toLowerCase();
+  const isMatch =
+    confirmName.trim().toLowerCase() === roomName.trim().toLowerCase();
 
   const handleDelete = async () => {
     if (!isMatch) return;
@@ -19,14 +20,15 @@ const DeleteRoomModal = ({ isOpen, onClose, room, onDeleted }) => {
     setErrorMsg("");
 
     try {
-      // Delete child records: notifications, events, buddies, checkins, members, and room
-      await supabase.from("creator_room_notifications").delete().eq("room_id", room.id).catch(() => {});
-      await supabase.from("creator_room_events").delete().eq("room_id", room.id).catch(() => {});
-      await supabase.from("creator_room_buddies").delete().eq("room_id", room.id).catch(() => {});
-      await supabase.from("creator_room_checkins").delete().eq("room_id", room.id).catch(() => {});
-      await supabase.from("creator_room_members").delete().eq("room_id", room.id).catch(() => {});
-      
-      const { error } = await supabase.from("creator_rooms").delete().eq("id", room.id);
+      // Refunding every member's unsettled stake and deleting the room
+      // (plus all its child rows) happen in one DB transaction — see
+      // refund_and_delete_creator_room. Previously this component
+      // manually deleted child tables one at a time with no stake
+      // handling at all: a host deleting a staked room silently erased
+      // every staked member's gBits with no refund and no record.
+      const { error } = await supabase.rpc("refund_and_delete_creator_room", {
+        p_room_id: room.id,
+      });
 
       if (error) {
         throw error;
@@ -63,13 +65,19 @@ const DeleteRoomModal = ({ isOpen, onClose, room, onDeleted }) => {
 
           <h3 className="text-xl font-black text-white mb-2">Delete Room?</h3>
           <p className="text-xs text-gray-300 leading-relaxed mb-4">
-            This action cannot be undone. All questions, check-ins, members, and rankings for{" "}
-            <span className="font-bold text-white">"{roomName}"</span> will be permanently deleted.
+            This action cannot be undone. All questions, check-ins, members, and
+            rankings for{" "}
+            <span className="font-bold text-white">"{roomName}"</span> will be
+            permanently deleted.
           </p>
 
           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-3.5 mb-4">
             <p className="text-[11px] text-red-300 font-medium leading-normal">
-              Type <span className="font-mono font-bold text-white">"{roomName}"</span> below to confirm deletion:
+              Type{" "}
+              <span className="font-mono font-bold text-white">
+                "{roomName}"
+              </span>{" "}
+              below to confirm deletion:
             </p>
           </div>
 
@@ -82,7 +90,9 @@ const DeleteRoomModal = ({ isOpen, onClose, room, onDeleted }) => {
           />
 
           {errorMsg && (
-            <p className="text-xs text-red-400 font-semibold mb-3">{errorMsg}</p>
+            <p className="text-xs text-red-400 font-semibold mb-3">
+              {errorMsg}
+            </p>
           )}
 
           <div className="flex gap-3 justify-end">

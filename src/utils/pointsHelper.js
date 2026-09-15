@@ -542,40 +542,72 @@ export const saveSubmission = async (
 };
 
 // ── Ensure Signup Bonus Helper ─────────────────────────────────────────────
-// ── Ensure Signup Bonus Helper ─────────────────────────────────────────────
+//
+// Previously this checked `currentPts < 100` (i.e. "is their CURRENT
+// balance under 100") as a proxy for "have they ever received the
+// signup bonus", guarded only by a localStorage flag. Both were wrong:
+//   - Any user who spends gBits below 100 (e.g. staking to join a
+//     Creator Room) would trip `currentPts < 100` again and get another
+//     100 gBits — this wasn't a rare edge case, it was the normal
+//     result of using the app.
+//   - localStorage is per-browser. Clearing storage, switching
+//     browsers/devices, or incognito mode resets the "already granted"
+//     flag, so the above could be triggered repeatedly and
+//     indefinitely — a real farming exploit, not just a bug.
+//   - It also wrote straight to `profiles.points`, bypassing
+//     glitch_activity/user_points entirely (see the big comment above
+//     updatePoints() about why this codebase deliberately has exactly
+//     one write path for points).
+//
+// Fixed by mirroring the daily_fact_claims pattern already used
+// elsewhere in this file: a real table with a unique constraint on
+// user_id, so "already claimed" is enforced by Postgres, not the
+// browser, and the actual award goes through updatePoints() like
+// everything else.
 export const ensureSignupBonus = async (userId) => {
   if (!userId) return;
+
+  // Cheap same-session optimization only — NOT the source of truth.
+  // Skips a redundant network round trip if we already confirmed this
+  // in the current tab; the DB unique constraint below is what actually
+  // guarantees the bonus is only ever granted once, ever, per user.
   const storageKey = `signup_bonus_granted_${userId}`;
   if (typeof window !== "undefined" && localStorage.getItem(storageKey)) {
-    return; // Already granted in this browser session
+    return;
   }
 
   try {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("points")
-      .eq("id", userId)
-      .maybeSingle();
+    const { error: claimErr } = await supabase
+      .from("signup_bonus_claims")
+      .insert({ user_id: userId });
 
-    const currentPts = prof?.points ?? 0;
-
-    // Mark as checked to prevent loop
-    if (typeof window !== "undefined") {
-      localStorage.setItem(storageKey, "true");
+    if (claimErr) {
+      if (claimErr.code === "23505" || claimErr.message?.includes("unique")) {
+        // Already claimed (on this device or any other) — nothing to do.
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, "true");
+        }
+        return;
+      }
+      console.error("signup_bonus_claims insert failed:", claimErr);
+      return;
     }
 
-    if (currentPts < 100) {
-      console.log("Awarding missing 100 gBits signup bonus to user:", userId);
-      const newTotal = currentPts + 100;
-      await supabase
-        .from("profiles")
-        .update({ points: newTotal })
-        .eq("id", userId);
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("points_updated", { detail: { points: newTotal } }),
-        );
-      }
+    // Claim row landed — this is genuinely the first time. Award via
+    // the real ledger, not a direct profiles write.
+    const newTotal = await updatePoints(
+      100,
+      "🎉 Welcome Bonus",
+      "bonus",
+      null,
+      userId,
+    );
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(storageKey, "true");
+      window.dispatchEvent(
+        new CustomEvent("points_updated", { detail: { points: newTotal } }),
+      );
     }
   } catch (err) {
     console.error("Error ensuring signup bonus:", err);
