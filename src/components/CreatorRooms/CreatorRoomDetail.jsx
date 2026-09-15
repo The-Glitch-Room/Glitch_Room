@@ -53,7 +53,8 @@ import {
   Pencil,
 } from "lucide-react";
 
-const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+const DEFAULT_AVATAR =
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
 
 // Reusable User Avatar Component — renders custom uploaded image if present,
 // otherwise displays a stylish gradient initials badge matching Navbar style.
@@ -639,6 +640,13 @@ const CreatorRoomDetail = ({ roomId }) => {
           (isHostUser ? roomData?.host || "Host" : "Squad Member"),
         avatar_url: p?.avatar_url || null,
         streak: 0,
+        // The room pool is the SUM of what members actually staked when
+        // they joined (creator_room_members.staked_amount), not
+        // entry_stake × member count — that assumed every member,
+        // including the host, paid the room's current entry_stake, which
+        // breaks the moment entry_stake changes after members already
+        // joined, or a member is present without ever having staked.
+        staked_amount: Number(mRecord?.staked_amount) || 0,
       };
     });
 
@@ -666,13 +674,17 @@ const CreatorRoomDetail = ({ roomId }) => {
           p?.username ||
           p?.full_name ||
           m?.username ||
-          (c.user_id === uid && userProfile?.username ? userProfile.username : null) ||
+          (c.user_id === uid && userProfile?.username
+            ? userProfile.username
+            : null) ||
           (isHost ? roomData?.host || "Host" : "Builder");
 
         const authorAvatar =
           p?.avatar_url ||
           m?.avatar_url ||
-          (c.user_id === uid && userProfile?.avatar_url ? userProfile.avatar_url : null) ||
+          (c.user_id === uid && userProfile?.avatar_url
+            ? userProfile.avatar_url
+            : null) ||
           null;
 
         fetchedStandups.push({
@@ -938,9 +950,7 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
     setJoining(true);
     try {
-      const roomEntryStake = Number(
-        room?.entry_stake || room?.gbits_stake?.entry_stake || 0,
-      );
+      const roomEntryStake = Number(room?.entry_stake || 0);
       if (roomEntryStake > 0) {
         const userPts = await fetchPoints(userId);
         if (userPts < roomEntryStake) {
@@ -1061,8 +1071,13 @@ const CreatorRoomDetail = ({ roomId }) => {
         ]);
 
       if (checkinErr) {
-        console.error("Error inserting into creator_room_checkins:", checkinErr);
-        showToast(`Database Error: ${checkinErr.message || "Failed to log checkin"}`);
+        console.error(
+          "Error inserting into creator_room_checkins:",
+          checkinErr,
+        );
+        showToast(
+          `Database Error: ${checkinErr.message || "Failed to log checkin"}`,
+        );
         setSubmitting(false);
         return;
       }
@@ -1079,7 +1094,8 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
 
       // 5. Send Notification matching clean Image 3 format
-      const notifAuthor = userProfile?.username || userProfile?.full_name || "A member";
+      const notifAuthor =
+        userProfile?.username || userProfile?.full_name || "A member";
       sendRoomNotification({
         type: "standup_posted",
         title: "Daily Standup Logged",
@@ -1199,7 +1215,9 @@ const CreatorRoomDetail = ({ roomId }) => {
       );
       if (targetActive) {
         const tMem = members.find((m) => m.user_id === targetUserId);
-        showToast(` @${tMem?.username || "Member"} is already paired with someone else.`);
+        showToast(
+          ` @${tMem?.username || "Member"} is already paired with someone else.`,
+        );
         setPairingBuddyId(null);
         return;
       }
@@ -1238,7 +1256,9 @@ const CreatorRoomDetail = ({ roomId }) => {
         targetUserId: targetUserId,
       });
 
-      showToast(` Pair Buddy request sent to @${partner?.username || "member"}!`);
+      showToast(
+        ` Pair Buddy request sent to @${partner?.username || "member"}!`,
+      );
       setShowPairBuddyModal(false);
       fetchAllRoomData();
     } catch (e) {
@@ -1275,7 +1295,9 @@ const CreatorRoomDetail = ({ roomId }) => {
         targetUserId: reqObj.user1_id,
       });
 
-      showToast(` You are now paired with @${requester?.username || "your buddy"}!`);
+      showToast(
+        ` You are now paired with @${requester?.username || "your buddy"}!`,
+      );
       fetchAllRoomData();
     } catch (e) {
       console.error("Error accepting pair request:", e);
@@ -1285,10 +1307,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const handleDeclinePairRequest = async (reqObj) => {
     if (!reqObj) return;
     try {
-      await supabase
-        .from("creator_room_buddies")
-        .delete()
-        .eq("id", reqObj.id);
+      await supabase.from("creator_room_buddies").delete().eq("id", reqObj.id);
 
       showToast("Pair Buddy request updated.");
       fetchAllRoomData();
@@ -1299,7 +1318,8 @@ const CreatorRoomDetail = ({ roomId }) => {
 
   const handleUnpairBuddy = async () => {
     if (!myActivePair) return;
-    if (!confirm(`Unpair from @${buddyMember?.username || "your buddy"}?`)) return;
+    if (!confirm(`Unpair from @${buddyMember?.username || "your buddy"}?`))
+      return;
     try {
       await supabase
         .from("creator_room_buddies")
@@ -1333,7 +1353,10 @@ const CreatorRoomDetail = ({ roomId }) => {
         localStorage.getItem(`glitch_room_likes_${id}`) || "{}",
       );
       localLikes[checkinId] = updatedLikes;
-      localStorage.setItem(`glitch_room_likes_${id}`, JSON.stringify(localLikes));
+      localStorage.setItem(
+        `glitch_room_likes_${id}`,
+        JSON.stringify(localLikes),
+      );
     } catch (e) {}
 
     try {
@@ -1360,7 +1383,9 @@ const CreatorRoomDetail = ({ roomId }) => {
   const handleMessageBuddy = () => {
     if (!buddyMember) return;
     navigator.clipboard.writeText(`@${buddyMember.username}`);
-    showToast(` Copied handle @${buddyMember.username}! Use Community tab to mention or message.`);
+    showToast(
+      ` Copied handle @${buddyMember.username}! Use Community tab to mention or message.`,
+    );
   };
 
   const handleNudgeBuddy = async () => {
@@ -1550,7 +1575,11 @@ const CreatorRoomDetail = ({ roomId }) => {
   // from the live members list. Math.max(..., 1) just covers the instant
   // before fetchAllRoomData resolves, so the badge never flashes "0".
   const squadMemberCount = Math.max(members.length, 1);
-  const roomPoolGBits = (room.entry_stake || 0) * squadMemberCount;
+  // Real pool = sum of what members actually staked, not an assumption.
+  const roomPoolGBits = members.reduce(
+    (sum, m) => sum + (Number(m.staked_amount) || 0),
+    0,
+  );
   const unreadNotifsCount = notifications.filter(
     (n) => !readNotifIds.has(n.id),
   ).length;
@@ -1930,12 +1959,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                       Scheduled Squad Events
                       {squadEvents.length > 0 && (
                         <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono text-[10px]">
-                          {squadEvents.length} {squadEvents.length === 1 ? "Event" : "Events"}
+                          {squadEvents.length}{" "}
+                          {squadEvents.length === 1 ? "Event" : "Events"}
                         </span>
                       )}
                     </h3>
                     <p className="text-[11px] text-gray-400 font-mono">
-                      Live syncs, deadlines, code reviews & meetings scheduled for squad
+                      Live syncs, deadlines, code reviews & meetings scheduled
+                      for squad
                     </p>
                   </div>
                 </div>
@@ -1970,13 +2001,34 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
                   {squadEvents.map((ev) => {
                     const typeColors = {
-                      "Live Sync": { bg: "bg-cyan-500/15", border: "border-cyan-500/30", text: "text-cyan-300" },
-                      Milestone: { bg: "bg-purple-500/15", border: "border-purple-500/30", text: "text-purple-300" },
-                      Deadline: { bg: "bg-rose-500/15", border: "border-rose-500/30", text: "text-rose-300" },
-                      "Code Review": { bg: "bg-amber-500/15", border: "border-amber-500/30", text: "text-amber-300" },
-                      General: { bg: "bg-blue-500/15", border: "border-blue-500/30", text: "text-blue-300" },
+                      "Live Sync": {
+                        bg: "bg-cyan-500/15",
+                        border: "border-cyan-500/30",
+                        text: "text-cyan-300",
+                      },
+                      Milestone: {
+                        bg: "bg-purple-500/15",
+                        border: "border-purple-500/30",
+                        text: "text-purple-300",
+                      },
+                      Deadline: {
+                        bg: "bg-rose-500/15",
+                        border: "border-rose-500/30",
+                        text: "text-rose-300",
+                      },
+                      "Code Review": {
+                        bg: "bg-amber-500/15",
+                        border: "border-amber-500/30",
+                        text: "text-amber-300",
+                      },
+                      General: {
+                        bg: "bg-blue-500/15",
+                        border: "border-blue-500/30",
+                        text: "text-blue-300",
+                      },
                     };
-                    const badge = typeColors[ev.event_type] || typeColors.General;
+                    const badge =
+                      typeColors[ev.event_type] || typeColors.General;
                     const isEvHost = ev.created_by === userId || isHost;
 
                     return (
@@ -1988,7 +2040,12 @@ const CreatorRoomDetail = ({ roomId }) => {
                           {/* Date Badge */}
                           <div className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-center shrink-0 min-w-[75px]">
                             <div className="text-[10px] uppercase tracking-wider text-gray-400 font-mono">
-                              {new Date(ev.event_date || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              {new Date(
+                                ev.event_date || Date.now(),
+                              ).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}
                             </div>
                             <div className="text-[11px] font-bold text-cyan-300 font-mono">
                               {ev.event_time || "TBD"}
@@ -2001,7 +2058,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                               <h4 className="text-xs font-bold text-white font-sans truncate">
                                 {ev.title}
                               </h4>
-                              <span className={`px-2 py-0.5 rounded-md ${badge.bg} ${badge.text} border ${badge.border} text-[10px] font-mono font-bold`}>
+                              <span
+                                className={`px-2 py-0.5 rounded-md ${badge.bg} ${badge.text} border ${badge.border} text-[10px] font-mono font-bold`}
+                              >
                                 {ev.event_type || "Event"}
                               </span>
                             </div>
@@ -2088,7 +2147,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <div className="flex items-center gap-3">
                   <UserAvatar
                     url={userProfile?.avatar_url}
-                    name={userProfile?.username || userProfile?.full_name || "User"}
+                    name={
+                      userProfile?.username || userProfile?.full_name || "User"
+                    }
                     className="w-10 h-10 rounded-xl"
                   />
                   <div>
@@ -2246,7 +2307,8 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                           const likesList = standupLikes[standup.id] || [];
                           const likeCount = likesList.length;
-                          const hasUserLiked = userId && likesList.includes(userId);
+                          const hasUserLiked =
+                            userId && likesList.includes(userId);
 
                           return (
                             <div className="space-y-2">
@@ -2321,7 +2383,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                               <div className="flex items-center justify-between pt-2 border-t border-white/10 font-mono">
                                 {/* Like Button */}
                                 <button
-                                  onClick={() => handleToggleLikeStandup(standup.id)}
+                                  onClick={() =>
+                                    handleToggleLikeStandup(standup.id)
+                                  }
                                   className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
                                     hasUserLiked
                                       ? "bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20"
@@ -2525,8 +2589,7 @@ const CreatorRoomDetail = ({ roomId }) => {
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center justify-between text-xs font-bold text-white mb-3">
                 <div className="flex items-center gap-2">
-                  <Handshake size={15} className="text-purple-400" />{" "}
-                  Pair Buddy
+                  <Handshake size={15} className="text-purple-400" /> Pair Buddy
                 </div>
                 {(isHost || isMember) && myActivePair && (
                   <button
@@ -2609,13 +2672,17 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                   <div className="flex gap-2 font-mono">
                     <button
-                      onClick={() => handleAcceptPairRequest(incomingPairRequest)}
+                      onClick={() =>
+                        handleAcceptPairRequest(incomingPairRequest)
+                      }
                       className="flex-1 py-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold hover:bg-emerald-500/30 transition cursor-pointer"
                     >
                       Accept
                     </button>
                     <button
-                      onClick={() => handleDeclinePairRequest(incomingPairRequest)}
+                      onClick={() =>
+                        handleDeclinePairRequest(incomingPairRequest)
+                      }
                       className="flex-1 py-1.5 bg-white/5 text-gray-400 border border-white/10 rounded-xl text-xs font-bold hover:bg-white/10 transition cursor-pointer"
                     >
                       Decline
@@ -2629,7 +2696,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                     ⏳ Pair Request Sent to @{outgoingRecipient.username}
                   </p>
                   <button
-                    onClick={() => handleDeclinePairRequest(outgoingPairRequest)}
+                    onClick={() =>
+                      handleDeclinePairRequest(outgoingPairRequest)
+                    }
                     className="text-[11px] text-gray-400 underline hover:text-red-400 transition cursor-pointer"
                   >
                     Cancel Request
@@ -2811,8 +2880,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                   gBits at Stake
                 </div>
                 <div className="text-sm font-black text-amber-300 font-mono">
-                  {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0
-                    ? `${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0)} gBits`
+                  {Number(room?.entry_stake || 0) > 0
+                    ? `${Number(room?.entry_stake || 0)} gBits`
                     : "0 gBits (Free)"}
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
@@ -2833,8 +2902,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                   Potential Reward
                 </div>
                 <div className="text-sm font-black text-pink-300 font-mono">
-                  {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0
-                    ? `${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} Pool + 150 Bonus`
+                  {Number(room?.entry_stake || 0) > 0
+                    ? `${roomPoolGBits} Pool + 150 Bonus`
                     : "+10/day + 150 Bonus"}
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
@@ -3036,7 +3105,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                       let msgText = n.message;
 
                       // Format legacy/JSON notifications into clean Image 3 format
-                      if (msgText && typeof msgText === "string" && msgText.trim().startsWith("{")) {
+                      if (
+                        msgText &&
+                        typeof msgText === "string" &&
+                        msgText.trim().startsWith("{")
+                      ) {
                         try {
                           const parsed = JSON.parse(msgText);
                           titleText = "Daily Standup Logged";
@@ -3055,7 +3128,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                               : "bg-purple-500/10 border-purple-500/30 text-white"
                           }`}
                         >
-                          <p className="font-bold text-purple-300">{titleText}</p>
+                          <p className="font-bold text-purple-300">
+                            {titleText}
+                          </p>
                           <p className="text-[11px] text-gray-300 mt-1 font-sans">
                             {msgText}
                           </p>
@@ -3165,7 +3240,8 @@ const CreatorRoomDetail = ({ roomId }) => {
 
               <div className="flex justify-between items-center mb-5 relative z-10">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Gift size={20} className="text-pink-400" /> Room Rewards & Earnings
+                  <Gift size={20} className="text-pink-400" /> Room Rewards &
+                  Earnings
                 </h3>
                 <button
                   onClick={() => setShowRewardsModal(false)}
@@ -3183,11 +3259,17 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-white">1. Daily Standup Check-in</span>
-                      <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 font-mono text-[11px] font-bold">+10 gBits</span>
+                      <span className="text-xs font-bold text-white">
+                        1. Daily Standup Check-in
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 font-mono text-[11px] font-bold">
+                        +10 gBits
+                      </span>
                     </div>
                     <p className="text-xs text-gray-300 leading-relaxed font-sans">
-                      Earn <strong className="text-blue-300">+10 gBits</strong> for every daily standup check-in & proof of work submitted on time.
+                      Earn <strong className="text-blue-300">+10 gBits</strong>{" "}
+                      for every daily standup check-in & proof of work submitted
+                      on time.
                     </p>
                   </div>
                 </div>
@@ -3199,20 +3281,35 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-white">2. Sprint Completion Reward</span>
-                      <span className="px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-mono text-[11px] font-bold">+150 gBits</span>
+                      <span className="text-xs font-bold text-white">
+                        2. Sprint Completion Reward
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-mono text-[11px] font-bold">
+                        +150 gBits
+                      </span>
                     </div>
                     <p className="text-xs text-gray-300 leading-relaxed font-sans">
-                      Earn an extra <strong className="text-pink-300">+150 gBits completion bonus</strong> {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0 ? `+ your equal share of the ${Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} gBits staked pool` : ""} when you complete the sprint with ≥80% consistency!
+                      Earn an extra{" "}
+                      <strong className="text-pink-300">
+                        +150 gBits completion bonus
+                      </strong>{" "}
+                      {Number(room?.entry_stake || 0) > 0
+                        ? `+ your equal share of the ${roomPoolGBits} gBits staked pool (redistributed from members who don't hit 80%)`
+                        : ""}{" "}
+                      when you complete the sprint with ≥80% consistency!
                     </p>
                   </div>
                 </div>
 
                 {/* Summary Stake Note */}
-                {Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) > 0 && (
+                {Number(room?.entry_stake || 0) > 0 && (
                   <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200 font-mono flex items-center gap-2">
                     <Award size={16} className="text-amber-400 shrink-0" />
-                    <span>Staked Pool Total: <strong>{Number(room?.entry_stake || room?.gbits_stake?.entry_stake || 0) * Math.max(1, members.length)} gBits</strong></span>
+                    <span>
+                      Staked Pool Total: <strong>{roomPoolGBits} gBits</strong>{" "}
+                      from {squadMemberCount} member
+                      {squadMemberCount === 1 ? "" : "s"}
+                    </span>
                   </div>
                 )}
               </div>
@@ -4214,14 +4311,16 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <strong className="text-white">
                   {room?.title || room?.name}
                 </strong>{" "}
-                to pair up with. Learn together, review each other&apos;s daily progress, and keep each other consistent!
+                to pair up with. Learn together, review each other&apos;s daily
+                progress, and keep each other consistent!
               </p>
 
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {members.filter((m) => m.user_id !== userId).length === 0 ? (
                   <div className="p-5 rounded-2xl bg-white/5 border border-white/10 text-center space-y-3 font-sans">
                     <p className="text-xs text-gray-300">
-                      No other squad members have joined this room yet. Share the room link to invite teammates to join your squad!
+                      No other squad members have joined this room yet. Share
+                      the room link to invite teammates to join your squad!
                     </p>
                     <button
                       onClick={handleCopyLink}
@@ -4236,15 +4335,24 @@ const CreatorRoomDetail = ({ roomId }) => {
                     .map((m) => {
                       const isPairedWithMe = buddyMember?.user_id === m.user_id;
                       const outgoingToM = buddies.find(
-                        (b) => b.user1_id === userId && b.user2_id === m.user_id && b.status === "pending",
+                        (b) =>
+                          b.user1_id === userId &&
+                          b.user2_id === m.user_id &&
+                          b.status === "pending",
                       );
                       const incomingFromM = buddies.find(
-                        (b) => b.user1_id === m.user_id && b.user2_id === userId && b.status === "pending",
+                        (b) =>
+                          b.user1_id === m.user_id &&
+                          b.user2_id === userId &&
+                          b.status === "pending",
                       );
                       const mActivePair = buddies.find(
                         (b) =>
-                          (b.user1_id === m.user_id || b.user2_id === m.user_id) &&
-                          (b.status === "active" || !b.status || b.status === "approved"),
+                          (b.user1_id === m.user_id ||
+                            b.user2_id === m.user_id) &&
+                          (b.status === "active" ||
+                            !b.status ||
+                            b.status === "approved"),
                       );
 
                       return (
@@ -4283,13 +4391,17 @@ const CreatorRoomDetail = ({ roomId }) => {
                           ) : incomingFromM ? (
                             <div className="flex gap-1.5 font-mono">
                               <button
-                                onClick={() => handleAcceptPairRequest(incomingFromM)}
+                                onClick={() =>
+                                  handleAcceptPairRequest(incomingFromM)
+                                }
                                 className="px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 text-[11px] font-bold border border-emerald-500/30 hover:bg-emerald-500/30 cursor-pointer"
                               >
                                 Accept
                               </button>
                               <button
-                                onClick={() => handleDeclinePairRequest(incomingFromM)}
+                                onClick={() =>
+                                  handleDeclinePairRequest(incomingFromM)
+                                }
                                 className="px-2.5 py-1 rounded-xl bg-white/5 text-gray-400 text-[11px] font-bold border border-white/10 hover:bg-white/10 cursor-pointer"
                               >
                                 Decline
@@ -4302,10 +4414,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                           ) : (
                             <button
                               onClick={() => handleSendPairRequest(m.user_id)}
-                              disabled={pairingBuddyId === m.user_id || !!myActivePair}
+                              disabled={
+                                pairingBuddyId === m.user_id || !!myActivePair
+                              }
                               className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF00C8] hover:from-purple-500 hover:to-[#FF00C8] text-white text-xs font-bold font-mono transition cursor-pointer shadow-md shrink-0 disabled:opacity-50"
                             >
-                              {pairingBuddyId === m.user_id ? "Sending..." : "🤝 Pair Buddy"}
+                              {pairingBuddyId === m.user_id
+                                ? "Sending..."
+                                : "🤝 Pair Buddy"}
                             </button>
                           )}
                         </div>
@@ -4329,248 +4445,260 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       {/* 10. Buddy Progress Modal */}
       <AnimatePresence>
-        {showBuddyProgressModal && buddyMember && myActivePair && (myActivePair.user1_id === userId || myActivePair.user2_id === userId) && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0f0f1d] border border-cyan-500/30 rounded-3xl p-6 max-w-lg w-full shadow-2xl"
-            >
-              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <UserAvatar
-                    url={buddyMember.avatar_url}
-                    name={buddyMember.username}
-                    className="w-9 h-9 rounded-xl ring-1 ring-cyan-500/40"
-                  />
-                  <div>
-                    <h3 className="text-base font-bold text-white">
-                      @{buddyMember.username}&apos;s Room Progress
-                    </h3>
-                    <p className="text-[10px] text-cyan-400 font-mono">
-                      🟢 Pair Buddy in {room?.title || room?.name}
-                    </p>
+        {showBuddyProgressModal &&
+          buddyMember &&
+          myActivePair &&
+          (myActivePair.user1_id === userId ||
+            myActivePair.user2_id === userId) && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-[#0f0f1d] border border-cyan-500/30 rounded-3xl p-6 max-w-lg w-full shadow-2xl"
+              >
+                <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar
+                      url={buddyMember.avatar_url}
+                      name={buddyMember.username}
+                      className="w-9 h-9 rounded-xl ring-1 ring-cyan-500/40"
+                    />
+                    <div>
+                      <h3 className="text-base font-bold text-white">
+                        @{buddyMember.username}&apos;s Room Progress
+                      </h3>
+                      <p className="text-[10px] text-cyan-400 font-mono">
+                        🟢 Pair Buddy in {room?.title || room?.name}
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setShowBuddyProgressModal(false)}
+                    className="text-gray-400 hover:text-white cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowBuddyProgressModal(false)}
-                  className="text-gray-400 hover:text-white cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-              </div>
 
-              {(() => {
-                const bStandups = standups.filter((s) => s.user_id === buddyUserId);
-                const bStreak = getUserStreak(buddyUserId);
-                return (
-                  <div className="space-y-4 font-mono text-xs">
-                    <div className="grid grid-cols-3 gap-2.5">
-                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-                        <div className="text-[10px] text-gray-400 uppercase">
-                          Current Streak
-                        </div>
-                        <div className="text-sm font-black text-amber-400">
-                          🔥 {bStreak} Days
-                        </div>
-                      </div>
-                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-                        <div className="text-[10px] text-gray-400 uppercase">
-                          Check-ins
-                        </div>
-                        <div className="text-sm font-black text-emerald-400">
-                          {bStandups.length}
-                        </div>
-                      </div>
-                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-                        <div className="text-[10px] text-gray-400 uppercase">
-                          On-Time Rate
-                        </div>
-                        <div className="text-sm font-black text-purple-300">
-                          {bStandups.length > 0
-                            ? `${Math.round((bStandups.filter((s) => getOnTimeStatus(s)).length / bStandups.length) * 100)}%`
-                            : "100%"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">
-                      Submitted Standup Logs ({bStandups.length})
-                    </h4>
-                    <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                      {bStandups.length === 0 ? (
-                        <p className="text-xs text-gray-500 py-4 text-center">
-                          No standup logs submitted yet.
-                        </p>
-                      ) : (
-                        bStandups.map((st) => (
-                          <div
-                            key={st.id}
-                            className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-1"
-                          >
-                            <div className="flex justify-between items-center text-[10px] text-gray-400">
-                              <span>
-                                {formatStandupTimestamp(st.created_at)}
-                              </span>
-                              <span className="text-emerald-400 font-bold">
-                                On Time
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-200 font-sans leading-relaxed">
-                              {st.accomplishment}
-                            </p>
-                            {st.proof_url && (
-                              <a
-                                href={
-                                  st.proof_url.startsWith("http")
-                                    ? st.proof_url
-                                    : `https://${st.proof_url}`
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[10px] text-cyan-400 underline block truncate mt-1"
-                              >
-                                🔗 {st.proof_url}
-                              </a>
-                            )}
+                {(() => {
+                  const bStandups = standups.filter(
+                    (s) => s.user_id === buddyUserId,
+                  );
+                  const bStreak = getUserStreak(buddyUserId);
+                  return (
+                    <div className="space-y-4 font-mono text-xs">
+                      <div className="grid grid-cols-3 gap-2.5">
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                          <div className="text-[10px] text-gray-400 uppercase">
+                            Current Streak
                           </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
+                          <div className="text-sm font-black text-amber-400">
+                            🔥 {bStreak} Days
+                          </div>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                          <div className="text-[10px] text-gray-400 uppercase">
+                            Check-ins
+                          </div>
+                          <div className="text-sm font-black text-emerald-400">
+                            {bStandups.length}
+                          </div>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                          <div className="text-[10px] text-gray-400 uppercase">
+                            On-Time Rate
+                          </div>
+                          <div className="text-sm font-black text-purple-300">
+                            {bStandups.length > 0
+                              ? `${Math.round((bStandups.filter((s) => getOnTimeStatus(s)).length / bStandups.length) * 100)}%`
+                              : "100%"}
+                          </div>
+                        </div>
+                      </div>
 
-              <div className="pt-4 mt-3 border-t border-white/10 flex justify-end">
-                <button
-                  onClick={() => setShowBuddyProgressModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+                      <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">
+                        Submitted Standup Logs ({bStandups.length})
+                      </h4>
+                      <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                        {bStandups.length === 0 ? (
+                          <p className="text-xs text-gray-500 py-4 text-center">
+                            No standup logs submitted yet.
+                          </p>
+                        ) : (
+                          bStandups.map((st) => (
+                            <div
+                              key={st.id}
+                              className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-1"
+                            >
+                              <div className="flex justify-between items-center text-[10px] text-gray-400">
+                                <span>
+                                  {formatStandupTimestamp(st.created_at)}
+                                </span>
+                                <span className="text-emerald-400 font-bold">
+                                  On Time
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-200 font-sans leading-relaxed">
+                                {st.accomplishment}
+                              </p>
+                              {st.proof_url && (
+                                <a
+                                  href={
+                                    st.proof_url.startsWith("http")
+                                      ? st.proof_url
+                                      : `https://${st.proof_url}`
+                                  }
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] text-cyan-400 underline block truncate mt-1"
+                                >
+                                  🔗 {st.proof_url}
+                                </a>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="pt-4 mt-3 border-t border-white/10 flex justify-end">
+                  <button
+                    onClick={() => setShowBuddyProgressModal(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
       </AnimatePresence>
 
       {/* 11. Buddy Latest Work Modal */}
       <AnimatePresence>
-        {showBuddyWorkModal && buddyMember && myActivePair && (myActivePair.user1_id === userId || myActivePair.user2_id === userId) && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0f0f1d] border border-purple-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl"
-            >
-              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <UserAvatar
-                    url={buddyMember.avatar_url}
-                    name={buddyMember.username}
-                    className="w-9 h-9 rounded-xl ring-1 ring-purple-500/40"
-                  />
-                  <div>
-                    <h3 className="text-base font-bold text-white">
-                      Latest Work by @{buddyMember.username}
-                    </h3>
-                    <p className="text-[10px] text-purple-300 font-mono">
-                      Proof of Work Snapshot
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowBuddyWorkModal(false)}
-                  className="text-gray-400 hover:text-white cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {(() => {
-                const bStandups = standups.filter((s) => s.user_id === buddyUserId);
-                const latest = bStandups[0];
-                if (!latest) {
-                  return (
-                    <p className="text-xs text-gray-400 py-6 text-center">
-                      No submitted work found yet.
-                    </p>
-                  );
-                }
-                const parsed = parseStandupContent(latest);
-                const proofHref = parsed.proofUrl
-                  ? parsed.proofUrl.startsWith("http")
-                    ? parsed.proofUrl
-                    : `https://${parsed.proofUrl}`
-                  : null;
-
-                return (
-                  <div className="space-y-4 font-sans text-xs">
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
-                      <div className="flex justify-between text-[10px] font-mono text-gray-400 pb-2 border-b border-white/5">
-                        <span>
-                          Logged: {formatStandupTimestamp(latest.created_at)}
-                        </span>
-                        <span className="text-emerald-400 font-bold">
-                          🔥 {getUserStreak(buddyUserId)}d Streak
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                          Accomplishment
-                        </span>
-                        <p className="text-xs text-white leading-relaxed">
-                          {parsed.accomplishment}
-                        </p>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                          Proof of Work
-                        </span>
-                        {proofHref ? (
-                          <a
-                            href={proofHref}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-mono font-bold hover:bg-purple-500/30 transition truncate max-w-full"
-                          >
-                            🔗 {parsed.proofUrl} <ExternalLink size={11} />
-                          </a>
-                        ) : (
-                          <span className="text-xs text-gray-500 italic">
-                            No proof link attached
-                          </span>
-                        )}
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                          Blockers
-                        </span>
-                        <p className="text-xs text-gray-300 font-mono">
-                          {parsed.blockers || "None"}
-                        </p>
-                      </div>
+        {showBuddyWorkModal &&
+          buddyMember &&
+          myActivePair &&
+          (myActivePair.user1_id === userId ||
+            myActivePair.user2_id === userId) && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md font-sans">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-[#0f0f1d] border border-purple-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl"
+              >
+                <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar
+                      url={buddyMember.avatar_url}
+                      name={buddyMember.username}
+                      className="w-9 h-9 rounded-xl ring-1 ring-purple-500/40"
+                    />
+                    <div>
+                      <h3 className="text-base font-bold text-white">
+                        Latest Work by @{buddyMember.username}
+                      </h3>
+                      <p className="text-[10px] text-purple-300 font-mono">
+                        Proof of Work Snapshot
+                      </p>
                     </div>
                   </div>
-                );
-              })()}
+                  <button
+                    onClick={() => setShowBuddyWorkModal(false)}
+                    className="text-gray-400 hover:text-white cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
 
-              <div className="pt-4 mt-3 border-t border-white/10 flex justify-end">
-                <button
-                  onClick={() => setShowBuddyWorkModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+                {(() => {
+                  const bStandups = standups.filter(
+                    (s) => s.user_id === buddyUserId,
+                  );
+                  const latest = bStandups[0];
+                  if (!latest) {
+                    return (
+                      <p className="text-xs text-gray-400 py-6 text-center">
+                        No submitted work found yet.
+                      </p>
+                    );
+                  }
+                  const parsed = parseStandupContent(latest);
+                  const proofHref = parsed.proofUrl
+                    ? parsed.proofUrl.startsWith("http")
+                      ? parsed.proofUrl
+                      : `https://${parsed.proofUrl}`
+                    : null;
+
+                  return (
+                    <div className="space-y-4 font-sans text-xs">
+                      <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                        <div className="flex justify-between text-[10px] font-mono text-gray-400 pb-2 border-b border-white/5">
+                          <span>
+                            Logged: {formatStandupTimestamp(latest.created_at)}
+                          </span>
+                          <span className="text-emerald-400 font-bold">
+                            🔥 {getUserStreak(buddyUserId)}d Streak
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                            Accomplishment
+                          </span>
+                          <p className="text-xs text-white leading-relaxed">
+                            {parsed.accomplishment}
+                          </p>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                            Proof of Work
+                          </span>
+                          {proofHref ? (
+                            <a
+                              href={proofHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-mono font-bold hover:bg-purple-500/30 transition truncate max-w-full"
+                            >
+                              🔗 {parsed.proofUrl} <ExternalLink size={11} />
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-500 italic">
+                              No proof link attached
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                            Blockers
+                          </span>
+                          <p className="text-xs text-gray-300 font-mono">
+                            {parsed.blockers || "None"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="pt-4 mt-3 border-t border-white/10 flex justify-end">
+                  <button
+                    onClick={() => setShowBuddyWorkModal(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
       </AnimatePresence>
 
       {/* Toast Notification */}

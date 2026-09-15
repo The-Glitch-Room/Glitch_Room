@@ -112,7 +112,11 @@ export const fetchPoints = async (userId) => {
 
   try {
     const [ptsRes, profRes] = await Promise.all([
-      supabase.from("user_points").select("points").eq("user_id", userId).maybeSingle(),
+      supabase
+        .from("user_points")
+        .select("points")
+        .eq("user_id", userId)
+        .maybeSingle(),
       supabase.from("profiles").select("points").eq("id", userId).maybeSingle(),
     ]);
 
@@ -157,6 +161,19 @@ export const updatePoints = async (
   }
   if (!userId) return 0;
 
+  // Fetch the pre-award total so we can later verify the DB trigger
+  // actually applied `delta` — comparing against a known baseline instead
+  // of guessing from the post-award total alone.
+  const prevTotal = await fetchPoints(userId);
+
+  // NOTE: glitch_activity has NO room_id column (id, user_id, title,
+  // points, type, created_at only). Previously this payload added
+  // `room_id` whenever one was passed in, which made every room-scoped
+  // award (e.g. Creator Room standup check-ins) fail on insert with a
+  // Postgres "column room_id does not exist" error. That error was
+  // swallowed below, so the UI still showed a success toast while zero
+  // points were actually awarded. Don't add room_id back here unless a
+  // migration adds that column to glitch_activity first.
   const activityPayload = {
     user_id: userId,
     title,
@@ -164,7 +181,6 @@ export const updatePoints = async (
     type,
     created_at: new Date().toISOString(),
   };
-  if (roomId) activityPayload.room_id = roomId;
 
   // Insert into glitch_activity. By the time this resolves successfully,
   // the trigger has already run (same transaction) and user_points is
@@ -177,19 +193,31 @@ export const updatePoints = async (
     console.error("glitch_activity insert warning:", actErr);
     // The insert (and therefore the trigger's increment) never happened —
     // return the real, unchanged total instead of pretending it worked.
-    return await fetchPoints(userId);
+    return prevTotal;
   }
 
   let newTotal = await fetchPoints(userId);
 
-  // Failsafe: if DB trigger is absent, ensure user_points & profiles are incremented
-  if (newTotal === 0 || delta !== 0) {
-    const fallbackTarget = newTotal + delta;
+  // Failsafe: only step in if the trigger visibly did NOT apply the
+  // expected delta (newTotal doesn't equal prevTotal + delta). Previously
+  // this ran on virtually every award (`newTotal === 0 || delta !== 0` is
+  // true whenever delta is nonzero, i.e. always), which would silently
+  // double-count on top of a trigger that's actually working fine.
+  if (newTotal - prevTotal !== delta) {
+    const fallbackTarget = prevTotal + delta;
     try {
-      await supabase.from("user_points").upsert({ user_id: userId, points: fallbackTarget }, { onConflict: "user_id" });
+      await supabase
+        .from("user_points")
+        .upsert(
+          { user_id: userId, points: fallbackTarget },
+          { onConflict: "user_id" },
+        );
     } catch (e) {}
     try {
-      await supabase.from("profiles").update({ points: fallbackTarget }).eq("id", userId);
+      await supabase
+        .from("profiles")
+        .update({ points: fallbackTarget })
+        .eq("id", userId);
     } catch (e) {}
     newTotal = await fetchPoints(userId);
   }
@@ -513,7 +541,6 @@ export const saveSubmission = async (
   return { speedBonusAwarded };
 };
 
-
 // ── Ensure Signup Bonus Helper ─────────────────────────────────────────────
 // ── Ensure Signup Bonus Helper ─────────────────────────────────────────────
 export const ensureSignupBonus = async (userId) => {
@@ -540,9 +567,14 @@ export const ensureSignupBonus = async (userId) => {
     if (currentPts < 100) {
       console.log("Awarding missing 100 gBits signup bonus to user:", userId);
       const newTotal = currentPts + 100;
-      await supabase.from("profiles").update({ points: newTotal }).eq("id", userId);
+      await supabase
+        .from("profiles")
+        .update({ points: newTotal })
+        .eq("id", userId);
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("points_updated", { detail: { points: newTotal } }));
+        window.dispatchEvent(
+          new CustomEvent("points_updated", { detail: { points: newTotal } }),
+        );
       }
     }
   } catch (err) {
