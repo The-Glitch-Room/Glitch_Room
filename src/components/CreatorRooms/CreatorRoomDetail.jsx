@@ -3224,6 +3224,66 @@ const CreatorRoomDetail = ({ roomId }) => {
         )}
       </AnimatePresence>
 
+      {/* 3a. Leave Squad Confirmation Modal */}
+      <AnimatePresence>
+        {showLeaveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md font-sans">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#12080d] border border-red-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
+            >
+              <div className="flex items-center gap-3 text-red-400 mb-3">
+                <UserX size={24} />
+                <h3 className="text-lg font-bold text-white">
+                  Leave Squad Confirmation
+                </h3>
+              </div>
+
+              {Number(room?.entry_stake || 0) > 0 ? (
+                <div className="space-y-3 mb-5 font-mono text-xs">
+                  <div className="p-3.5 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-200 space-y-1.5">
+                    <div className="font-bold flex items-center gap-1.5 text-red-300">
+                      ⚠️ Early Leave Stake Penalty Notice
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      Leaving this staked room early before the sprint ends will{" "}
+                      <strong className="text-red-400 underline">
+                        forfeit your entry stake of {room?.entry_stake || 0} gBits
+                      </strong>.
+                    </p>
+                  </div>
+
+                  <p className="text-gray-400 text-[11px] leading-relaxed">
+                    Your forfeited stake will remain in the squad&apos;s Room Pool to reward consistent members who complete the sprint.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-300 mb-5 leading-relaxed font-mono">
+                  Are you sure you want to leave <strong className="text-white">&quot;{room?.title || room?.name}&quot;</strong>? You will no longer be tracked on the squad leaderboard or receive room check-in notifications.
+                </p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={() => setShowLeaveModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLeaveSquad}
+                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-red-600/30"
+                >
+                  Confirm & Leave Squad
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* 3b. View Rewards Modal */}
       <AnimatePresence>
         {showRewardsModal && (
