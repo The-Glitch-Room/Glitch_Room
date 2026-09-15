@@ -245,12 +245,12 @@ const getCurrentStreak = (dateKeySet) => {
   return getStreakEndingAt(dateKeySet, anchor);
 };
 
-// ── Auto-Scrolling Ticker Wrapper for Today's Standup Logs ───────────────────
-const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
+// ── Auto-Scrolling Ticker Wrapper for Standup Logs ───────────────────────────
+const StandupTickerWrapper = ({ children, itemCount }) => {
   const [isPaused, setIsPaused] = useState(false);
 
-  // Auto-scroll animation is ONLY applied when "Today" tab is active and there are multiple cards
-  if (activeTab !== "today" || itemCount <= 1) {
+  // Auto-scroll animation runs whenever there are multiple standup cards
+  if (itemCount <= 1) {
     return <div className="space-y-3">{children}</div>;
   }
 
@@ -2206,7 +2206,6 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
             ) : (
               <StandupTickerWrapper
-                activeTab={activeTab}
                 itemCount={Math.min(
                   displayStandups.length,
                   standupVisibleCount,
