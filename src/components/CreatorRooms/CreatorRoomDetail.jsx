@@ -33,6 +33,7 @@ import {
   ArrowRight,
   User,
   ShieldCheck,
+  Shield,
   Check,
   X,
   Heart,
@@ -648,13 +649,24 @@ const CreatorRoomDetail = ({ roomId }) => {
         // breaks the moment entry_stake changes after members already
         // joined, or a member is present without ever having staked.
         staked_amount: Number(mRecord?.staked_amount) || 0,
+        forfeited_carryover: Number(mRecord?.forfeited_carryover) || 0,
         left_at: mRecord?.left_at || null,
       };
     });
 
     setMembers(fetchedMembers);
 
-    if (uid && memberUids.has(uid)) {
+    // isMember must reflect ACTIVE membership only — a row existing in
+    // creator_room_members is not enough, since leaving now updates the
+    // row in place (left_at set) rather than deleting it, to keep the
+    // forfeited stake in the pool. Using memberUids here (which also
+    // folds in checkin/buddy history for display purposes) would make
+    // a member who left look permanently "still joined."
+    const activeMemberIds = new Set(
+      (memData || []).filter((m) => !m.left_at).map((m) => m.user_id),
+    );
+
+    if (uid && activeMemberIds.has(uid)) {
       setIsMember(true);
     } else {
       setIsMember(!!(uid && roomData && uid === roomData.created_by));
@@ -979,6 +991,10 @@ const CreatorRoomDetail = ({ roomId }) => {
         } else if (msg.includes("ALREADY_MEMBER")) {
           showToast("You're already a member of this squad.");
           setIsMember(true);
+        } else if (msg.includes("ROOM_ALREADY_SETTLED")) {
+          showToast(
+            "This room's sprint has already ended and been settled — it's no longer accepting new members.",
+          );
         } else {
           showToast("Couldn't join the room — please try again.");
         }
@@ -1013,19 +1029,26 @@ const CreatorRoomDetail = ({ roomId }) => {
     try {
       const myRow = members.find((m) => m.user_id === userId);
       const myStake = Number(myRow?.staked_amount) || 0;
+      const myCarryover = Number(myRow?.forfeited_carryover) || 0;
 
       // Chosen policy: leaving early forfeits the stake into the pool,
       // same as falling below 80% completion at settlement — it is NOT
       // refunded. We do NOT delete the row: roomPoolGBits sums
       // staked_amount across creator_room_members, so deleting it would
       // delete the forfeited stake right along with it instead of
-      // leaving it in the pool for eventual winners.
+      // leaving it in the pool for eventual winners. The forfeited
+      // amount moves into forfeited_carryover (not left in
+      // staked_amount) so that if this user rejoins later, their new
+      // stake starts clean and this forfeiture can never be
+      // accidentally refunded to them or double-counted.
       const { error: leaveError } = await supabase
         .from("creator_room_members")
         .update({
           left_at: new Date().toISOString(),
           ...(myStake > 0
             ? {
+                staked_amount: 0,
+                forfeited_carryover: myCarryover + myStake,
                 payout_status: "forfeited",
                 payout_amount: 0,
                 settled_at: new Date().toISOString(),
@@ -1212,16 +1235,21 @@ const CreatorRoomDetail = ({ roomId }) => {
     try {
       const targetRow = members.find((m) => m.user_id === targetUserId);
       const targetStake = Number(targetRow?.staked_amount) || 0;
+      const targetCarryover = Number(targetRow?.forfeited_carryover) || 0;
 
       // Same policy as a member leaving voluntarily: forfeit the stake
       // into the pool rather than deleting the row (which would delete
-      // the forfeited stake out of the pool too — see handleLeaveSquad).
+      // the forfeited stake out of the pool too — see handleLeaveSquad),
+      // moved into forfeited_carryover so a later rejoin can't
+      // accidentally re-refund or lose track of it.
       const { error: removeError } = await supabase
         .from("creator_room_members")
         .update({
           left_at: new Date().toISOString(),
           ...(targetStake > 0
             ? {
+                staked_amount: 0,
+                forfeited_carryover: targetCarryover + targetStake,
                 payout_status: "forfeited",
                 payout_amount: 0,
                 settled_at: new Date().toISOString(),
@@ -1624,12 +1652,18 @@ const CreatorRoomDetail = ({ roomId }) => {
   const activeMembers = members.filter((m) => !m.left_at);
   const squadMemberCount = Math.max(activeMembers.length, 1);
   // Real pool = sum of what members actually staked, not an assumption.
-  // Includes members who left (their stake was forfeited into the pool,
-  // not refunded) — only excludes anyone already refunded via a room
-  // deletion, which happens naturally since that path deletes the room
-  // (and cascades the member rows) rather than leaving them around.
+  // Includes forfeited_carryover: gBits permanently forfeited by an
+  // earlier leave/removal, kept separate from staked_amount (the
+  // CURRENT active stake) specifically so that if someone leaves and
+  // later rejoins, their earlier forfeiture stays counted in the pool
+  // forever — it must never become refundable again just because a
+  // later attempt succeeds, and must never silently vanish from the
+  // pool total either.
   const roomPoolGBits = members.reduce(
-    (sum, m) => sum + (Number(m.staked_amount) || 0),
+    (sum, m) =>
+      sum +
+      (Number(m.staked_amount) || 0) +
+      (Number(m.forfeited_carryover) || 0),
     0,
   );
   const unreadNotifsCount = notifications.filter(
@@ -1764,7 +1798,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <button
                         onClick={() => {
                           setShowMenu(false);
-                          handlePairBuddies();
+                          setShowPairBuddyModal(true);
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
@@ -1774,12 +1808,22 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <button
                         onClick={() => {
                           setShowMenu(false);
-                          setShowEmailPrefsModal(true);
+                          setShowRulesModal(true);
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
-                        <Mail size={14} className="text-pink-400" /> Email
-                        Notifications Setup
+                        <Target size={14} className="text-amber-400" /> Room
+                        Rules & Pledge
+                      </button>
+                      <button
+                        disabled
+                        title="Coming soon"
+                        className="w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 text-gray-500 cursor-not-allowed opacity-50"
+                      >
+                        <Mail size={14} /> Email Preferences
+                        <span className="ml-auto text-[9px] font-mono uppercase tracking-wide bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                          Coming Soon
+                        </span>
                       </button>
                       <div className="border-t border-white/10 my-1" />
                       <button
@@ -1805,14 +1849,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                         Rules & Pledge
                       </button>
                       <button
-                        onClick={() => {
-                          setShowMenu(false);
-                          setShowEmailPrefsModal(true);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
+                        disabled
+                        title="Coming soon"
+                        className="w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 text-gray-500 cursor-not-allowed opacity-50"
                       >
-                        <Mail size={14} className="text-purple-400" /> Email
-                        Preferences
+                        <Mail size={14} /> Email Preferences
+                        <span className="ml-auto text-[9px] font-mono uppercase tracking-wide bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                          Coming Soon
+                        </span>
                       </button>
                       {isMember && (
                         <button
@@ -3430,6 +3474,341 @@ const CreatorRoomDetail = ({ roomId }) => {
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#FF00C8]/20 transition cursor-pointer"
                 >
                   Got It!
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Pair Squad Buddy Modal */}
+      <AnimatePresence>
+        {showPairBuddyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Users size={20} className="text-purple-400" />
+                  Select Squad Buddy
+                </h3>
+                <button
+                  onClick={() => setShowPairBuddyModal(false)}
+                  className="text-white/40 hover:text-white transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className="text-xs text-white/60 mb-4">
+                Choose a squad member to pair with for mutual accountability,
+                daily check-ins, and buddy streak tracking.
+              </p>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {members.filter((m) => m.user_id !== userId).length === 0 ? (
+                  <div className="p-4 text-center text-xs text-white/40 border border-white/10 rounded-xl bg-white/5">
+                    No other members have joined this squad yet. Invite members
+                    to pair!
+                  </div>
+                ) : (
+                  members
+                    .filter((m) => m.user_id !== userId)
+                    .map((m) => {
+                      const mName =
+                        m.profiles?.full_name || m.user_name || "Squad Member";
+                      const mAvatar =
+                        m.profiles?.avatar_url ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.user_id}`;
+                      const isPairedWithThisUser =
+                        myBuddyInfo?.buddy_id === m.user_id;
+
+                      return (
+                        <div
+                          key={m.user_id}
+                          className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:border-purple-500/40 transition"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={mAvatar}
+                              alt={mName}
+                              className="w-9 h-9 rounded-full border border-purple-500/30 object-cover"
+                            />
+                            <div>
+                              <p className="text-xs font-semibold text-white">
+                                {mName}
+                              </p>
+                              <p className="text-[10px] text-white/40 capitalize">
+                                {m.role || "member"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {isPairedWithThisUser ? (
+                            <span className="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                              Current Buddy
+                            </span>
+                          ) : (
+                            <button
+                              disabled={pairingBuddy}
+                              onClick={() => handlePairBuddyWithUser(m.user_id)}
+                              className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-[11px] font-bold transition cursor-pointer"
+                            >
+                              {pairingBuddy ? "Pairing..." : "Pair Buddy"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  onClick={() => setShowPairBuddyModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/70 text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Squad Rules Modal */}
+      <AnimatePresence>
+        {showRulesModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-lg w-full shadow-2xl font-sans"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Shield size={20} className="text-purple-400" />
+                  Room Rules & Pledge
+                </h3>
+                <button
+                  onClick={() => setShowRulesModal(false)}
+                  className="text-white/40 hover:text-white transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="text-xs text-white/80 space-y-5 max-h-[28rem] overflow-y-auto pr-1">
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-purple-300 mb-2 flex items-center gap-1.5">
+                    <Target size={12} /> Group Commitment Pledge
+                  </h4>
+                  <p className="text-white/90 bg-white/5 border border-white/10 rounded-xl p-3 leading-relaxed">
+                    {room?.goal_pledge ||
+                      "No pledge has been set for this room yet."}
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-purple-300 mb-2 flex items-center gap-1.5">
+                    <Shield size={12} /> Squad Rules & Guidelines
+                  </h4>
+                  {room?.rules ? (
+                    <p className="whitespace-pre-wrap leading-relaxed text-white/70">
+                      {room.rules}
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5 text-white/60">
+                      <p>
+                        1. Complete your daily standup check-in before
+                        end-of-day.
+                      </p>
+                      <p>
+                        2. Keep check-in descriptions clear, honest, and
+                        helpful.
+                      </p>
+                      <p>
+                        3. Support your accountability buddy and cheer on squad
+                        members.
+                      </p>
+                      <p>
+                        4. Maintain a respectful and constructive atmosphere.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-purple-300 mb-2">
+                    How Creator Room Features Work
+                  </h4>
+                  <div className="space-y-3 text-white/70">
+                    <div className="flex gap-2.5">
+                      <Send
+                        size={13}
+                        className="text-cyan-400 shrink-0 mt-0.5"
+                      />
+                      <p>
+                        <strong className="text-white/90">
+                          Daily Standups
+                        </strong>{" "}
+                        — log what you accomplished each day, with optional
+                        proof of work (a commit, PR, or demo link). This is how
+                        your consistency and completion % are tracked.
+                      </p>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <Flame
+                        size={13}
+                        className="text-amber-400 shrink-0 mt-0.5"
+                      />
+                      <p>
+                        <strong className="text-white/90">Streaks</strong> —
+                        submitting a standup on consecutive days builds your
+                        streak. Missing a day resets it.
+                      </p>
+                    </div>
+                    {Number(room?.entry_stake || 0) > 0 && (
+                      <div className="flex gap-2.5">
+                        <Coins
+                          size={13}
+                          className="text-yellow-400 shrink-0 mt-0.5"
+                        />
+                        <p>
+                          <strong className="text-white/90">
+                            gBits Staking & Room Pool
+                          </strong>{" "}
+                          — you staked {room.entry_stake} gBits to join. The
+                          room pool is the sum of every member's stake. At the
+                          end of the sprint, members with ≥80% standup
+                          completion get their stake back, plus a share of the
+                          pool forfeited by members who fell short or left
+                          early, plus a 150 gBits completion bonus.
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex gap-2.5">
+                      <Handshake
+                        size={13}
+                        className="text-pink-400 shrink-0 mt-0.5"
+                      />
+                      <p>
+                        <strong className="text-white/90">Buddy Pairing</strong>{" "}
+                        — get paired with another squad member to check in on
+                        each other's progress and stay accountable one-on-one.
+                      </p>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <Trophy
+                        size={13}
+                        className="text-purple-400 shrink-0 mt-0.5"
+                      />
+                      <p>
+                        <strong className="text-white/90">
+                          Squad Leaderboard
+                        </strong>{" "}
+                        — ranks members by standups submitted and streak, so you
+                        can see how you stack up against the rest of the squad.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowRulesModal(false)}
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  Got It!
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Email Notifications Modal */}
+      <AnimatePresence>
+        {showEmailPrefsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Mail size={20} className="text-purple-400" />
+                  Email Reminder Preferences
+                </h3>
+                <button
+                  onClick={() => setShowEmailPrefsModal(false)}
+                  className="text-white/40 hover:text-white transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className="text-xs text-white/60 mb-4">
+                Configure when you receive email notifications for check-in
+                reminders, buddy updates, and squad announcements.
+              </p>
+
+              <div className="space-y-3">
+                <label className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer">
+                  <span className="text-xs text-white font-medium">
+                    Daily Check-in Reminder
+                  </span>
+                  <input
+                    type="checkbox"
+                    defaultChecked
+                    className="accent-purple-500 w-4 h-4"
+                  />
+                </label>
+                <label className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer">
+                  <span className="text-xs text-white font-medium">
+                    Buddy Activity Nudges
+                  </span>
+                  <input
+                    type="checkbox"
+                    defaultChecked
+                    className="accent-purple-500 w-4 h-4"
+                  />
+                </label>
+                <label className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer">
+                  <span className="text-xs text-white font-medium">
+                    Weekly Squad Summary
+                  </span>
+                  <input
+                    type="checkbox"
+                    defaultChecked
+                    className="accent-purple-500 w-4 h-4"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  onClick={() => setShowEmailPrefsModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/70 text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    toast.success("Notification preferences saved");
+                    setShowEmailPrefsModal(false);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  Save Preferences
                 </button>
               </div>
             </motion.div>

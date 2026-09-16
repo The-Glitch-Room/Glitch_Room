@@ -53,16 +53,22 @@ const CreatorRooms = () => {
       // 1. Calculate Real Committed Builders Count & Dynamic Per-Room Member Counts
       const { data: membersData } = await supabase
         .from("creator_room_members")
-        .select("room_id, user_id")
+        .select("room_id, user_id, left_at")
         .in("room_id", creatorRoomIds);
 
-      if (membersData && membersData.length > 0) {
-        const uniqueUsers = new Set(membersData.map((m) => m.user_id));
+      // Members who left or were removed keep their row (left_at set) so
+      // their forfeited stake stays in the room pool — but they're no
+      // longer an active squad member, so exclude them here the same way
+      // CreatorRoomDetail.jsx's activeMembers does.
+      const activeMembersData = (membersData || []).filter((m) => !m.left_at);
+
+      if (activeMembersData.length > 0) {
+        const uniqueUsers = new Set(activeMembersData.map((m) => m.user_id));
         setTotalCommittedBuilders(uniqueUsers.size);
 
         // Group members by room_id
         const roomMembersMap = {};
-        membersData.forEach((m) => {
+        activeMembersData.forEach((m) => {
           if (!roomMembersMap[m.room_id]) roomMembersMap[m.room_id] = new Set();
           roomMembersMap[m.room_id].add(m.user_id);
         });
@@ -152,6 +158,10 @@ const CreatorRooms = () => {
         const msg = joinError.message || "";
         if (msg.includes("INSUFFICIENT_GBITS")) {
           alert(`You need ${roomEntryStake} gBits to stake & join this room.`);
+        } else if (msg.includes("ROOM_ALREADY_SETTLED")) {
+          alert(
+            "This room's sprint has already ended and been settled — it's no longer accepting new members.",
+          );
         } else if (!msg.includes("ALREADY_MEMBER")) {
           alert("Couldn't join the room — please try again.");
         }
