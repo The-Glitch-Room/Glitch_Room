@@ -1088,6 +1088,18 @@ const CreatorRoomDetail = ({ roomId }) => {
         return;
       }
 
+      // Broadcast leave event → appears in Room Activity feed + Notifications bell.
+      // Message is built from live DB values (username, stake amount) — no hardcoding.
+      const leaverName = userProfile?.username || "A builder";
+      await sendRoomNotification({
+        type: "member_left",
+        title: "Squad Member Left",
+        message:
+          myStake > 0
+            ? `${leaverName} left the squad. ${myStake} gBits forfeited into the room pool.`
+            : `${leaverName} left the room squad.`,
+      });
+
       setIsMember(false);
       setShowLeaveModal(false);
       showToast(
