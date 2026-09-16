@@ -3041,11 +3041,18 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <div className="text-sm font-black text-pink-300 font-mono">
                   {(() => {
                     const isStakedRoom = room?.enable_gbits_stake && Number(room?.entry_stake || 0) > 0;
+                    const myStake = Number(
+                      members.find((m) => m.user_id === userId)?.staked_amount || 0,
+                    ) || Number(room?.entry_stake || 0);
                     const bonus = Number(room?.completion_reward || 0);
+                    // Potential reward = stake RETURNED to the member + bonus
+                    // The full pool is shown as context in the Rewards modal,
+                    // not as the individual reward (each person gets their own
+                    // stake back, not the whole pool).
                     if (isStakedRoom && bonus > 0)
-                      return `${roomPoolGBits} Pool + ${bonus} Bonus`;
+                      return `${myStake} Back + ${bonus} Bonus`;
                     if (isStakedRoom)
-                      return `Share of ${roomPoolGBits} Pool`;
+                      return `${myStake} gBits Back`;
                     if (bonus > 0)
                       return `+${bonus} gBits Bonus`;
                     return "Completion Bonus";
@@ -3572,20 +3579,35 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <span className="text-xs font-bold text-white">
                         2. Sprint Completion Reward
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-mono text-[11px] font-bold">
-                        +150 gBits
-                      </span>
+                      {Number(room?.completion_reward || 0) > 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-mono text-[11px] font-bold">
+                          +{room.completion_reward} gBits
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-300 leading-relaxed font-sans">
-                      Earn an extra{" "}
-                      <strong className="text-pink-300">
-                        +150 gBits completion bonus
-                      </strong>{" "}
-                      {Number(room?.entry_stake || 0) > 0
-                        ? `+ your equal share of the ${roomPoolGBits} gBits staked pool (redistributed from members who don't hit 80%)`
-                        : ""}{" "}
-                      when you complete the sprint with ≥80% consistency!
-                    </p>
+                    {room?.enable_gbits_stake && Number(room?.entry_stake || 0) > 0 ? (
+                      <p className="text-xs text-gray-300 leading-relaxed font-sans">
+                        <strong className="text-green-300">≥80% consistency</strong>: get your{" "}
+                        <strong className="text-amber-300">{(() => {
+                          const myStake = Number(
+                            members.find((m) => m.user_id === userId)?.staked_amount || 0,
+                          ) || Number(room?.entry_stake || 0);
+                          return myStake;
+                        })()} gBits stake returned</strong>
+                        {Number(room?.completion_reward || 0) > 0 && (
+                          <> + <strong className="text-pink-300">+{room.completion_reward} gBits bonus</strong></>
+                        )}.
+                        {" "}<strong className="text-red-400">&lt;80%</strong>: stake is forfeited into the pool and redistributed to members who completed.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-300 leading-relaxed font-sans">
+                        {Number(room?.completion_reward || 0) > 0 ? (
+                          <>Earn <strong className="text-pink-300">+{room.completion_reward} gBits</strong> when you complete the sprint with ≥80% consistency!</>
+                        ) : (
+                          <>Complete the sprint with ≥80% consistency to earn your completion reward!</>
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
 
