@@ -214,11 +214,9 @@ const CreatorRooms = () => {
       // modal. Map every nested field onto its real flat column here.
       const roomPayload = {
         name: roomData.title || roomData.name,
-        title: roomData.title || roomData.name,
         description: roomData.description,
         category: roomData.category || "General",
         cover_icon: roomData.cover_icon || "⚡",
-        access: roomData.visibility === "Public" ? "public" : "private",
         visibility: roomData.visibility || "Public",
         created_by: user.id,
         host:
@@ -226,58 +224,30 @@ const CreatorRooms = () => {
           user.email?.split("@")[0] ||
           "Creator",
         goal_pledge: roomData.goal_pledge,
-        expected_outcome: roomData.expected_outcome || null,
-        success_criteria: roomData.success_criteria || null,
         duration_type: roomData.duration_type,
         start_date: roomData.start_date || null,
         end_date: roomData.end_date || null,
-        checkin_frequency: roomData.checkin_frequency,
         checkin_deadline: roomData.checkin_deadline || "11:59 PM IST",
-        grace_period: roomData.grace_period || "2 Hours",
         proof_types: roomData.proof_types || undefined,
-        min_proof_req: roomData.min_proof_req ?? 1,
-        is_proof_mandatory: roomData.is_proof_mandatory ?? true,
-        allow_multiple_proofs: roomData.allow_multiple_proofs ?? true,
 
-        // Verification system (flat columns — verification_system.required
-        // has no column on this table, so it's intentionally not sent)
         who_can_verify: roomData.verification_system?.who_can_verify,
-        min_verifications: roomData.verification_system?.min_verifications,
-        verification_reward: roomData.verification_system?.reward,
 
-        // Buddy system (flat columns — allow_change/allow_nudges have no
-        // column on this table, so they're intentionally not sent)
         enable_buddy: roomData.buddy_system?.enabled,
-        buddy_pairing: roomData.buddy_system?.pairing,
-        buddy_reminder_time: roomData.buddy_system?.reminder_time,
 
-        // Uptime integration
-        contributes_to_uptime:
-          roomData.uptime_integration?.contributes_to_uptime,
-        room_streak_enabled: roomData.uptime_integration?.room_streak_enabled,
-
-        // gBits stake — this is the block that was being dropped entirely
         enable_gbits_stake: !!roomData.gbits_stake?.enabled,
         entry_stake: roomData.gbits_stake?.enabled
           ? Number(roomData.gbits_stake?.entry_stake || 0)
           : 0,
         reward_pool_rules: roomData.gbits_stake?.reward_rules || null,
         missed_checkin_policy: roomData.gbits_stake?.missed_policy || null,
-        freeze_allowance: roomData.gbits_stake?.freezes ?? 2,
 
-        // Room rules
         room_rules: roomData.rules?.room_rules || null,
         code_of_conduct: roomData.rules?.code_of_conduct || null,
 
-        // Membership
         max_members: roomData.membership?.max_members ?? 25,
         approval_required: !!roomData.membership?.approval_required,
-        allow_invites: roomData.membership?.allow_invites ?? true,
-        require_pledge_to_join:
-          roomData.membership?.require_pledge_to_join ?? true,
 
         is_draft: !!roomData.is_draft,
-        room_type: "creator",
       };
 
       // Strip undefined keys so we don't overwrite a column's DB default
