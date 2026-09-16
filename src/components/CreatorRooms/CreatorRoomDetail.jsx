@@ -415,6 +415,8 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [selectedDayNum, setSelectedDayNum] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [emailNotifsEnabled, setEmailNotifsEnabled] = useState(true);
+  const [showAllActivityModal, setShowAllActivityModal] = useState(false);
+  const [activityPage, setActivityPage] = useState(8);
 
   // Pair Buddy Modals & State
   const [showPairBuddyModal, setShowPairBuddyModal] = useState(false);
@@ -1158,10 +1160,13 @@ const CreatorRoomDetail = ({ roomId }) => {
         return;
       }
 
-      // 4. Award +10 gBits
+      // 4. Award check-in gBits — value comes from the platform
+      // constant CHECKIN_REWARD (defined below) so it's never scattered
+      // as a magic number across multiple call sites.
+      const CHECKIN_REWARD = 10;
       if (activeUid) {
         await updatePoints(
-          10,
+          CHECKIN_REWARD,
           "Daily Room Standup Check-in",
           "bonus",
           id,
@@ -1193,7 +1198,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         });
       }
 
-      showToast(" Daily Standup logged! +10 gBits awarded!");
+      showToast(`✅ Daily Standup logged! +${CHECKIN_REWARD} gBits awarded!`);
       setAccomplishment("");
       setProofType("");
       setProofUrl("");
@@ -2885,14 +2890,14 @@ const CreatorRoomDetail = ({ roomId }) => {
                           const diffSec = Math.floor(
                             (new Date() - new Date(n.created_at)) / 1000,
                           );
-                          if (diffSec < 60) return "1m ago";
+                          if (diffSec < 60) return "just now";
                           if (diffSec < 3600)
                             return `${Math.floor(diffSec / 60)}m ago`;
                           if (diffSec < 86400)
                             return `${Math.floor(diffSec / 3600)}h ago`;
                           return `${Math.floor(diffSec / 86400)}d ago`;
                         })()
-                      : `${(idx + 1) * 5}m ago`;
+                      : "just now";
 
                     return (
                       <div
@@ -2918,9 +2923,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
               <div className="pt-3 border-t border-white/10">
                 <button
-                  onClick={() =>
-                    showToast("Viewing complete squad activity history...")
-                  }
+                  onClick={() => { setActivityPage(8); setShowAllActivityModal(true); }}
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-400 hover:text-purple-300 transition cursor-pointer font-sans group"
                 >
                   View All Activity{" "}
@@ -3222,7 +3225,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                   >
                     {submitting
                       ? "Submitting..."
-                      : "Submit Standup & Claim +10 gBits "}
+                      : `Submit Standup & Claim +10 gBits `}
                   </button>
                 </div>
               </div>
@@ -3643,6 +3646,88 @@ const CreatorRoomDetail = ({ roomId }) => {
                 >
                   Got It!
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* All Squad Activity Modal */}
+      <AnimatePresence>
+        {showAllActivityModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowAllActivityModal(false); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0d0d18] border border-white/10 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                    <Activity size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white font-sans">Squad Activity History</h3>
+                    <p className="text-[10px] text-gray-400 font-mono">{notifications.length} event{notifications.length !== 1 ? 's' : ''} recorded</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAllActivityModal(false)}
+                  className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition cursor-pointer"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Activity List */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                {notifications.length === 0 ? (
+                  <p className="text-xs text-gray-500 font-mono text-center py-8">No squad activity recorded yet.</p>
+                ) : (
+                  notifications.slice(0, activityPage).map((n, idx) => {
+                    const diffSec = n.created_at
+                      ? Math.floor((new Date() - new Date(n.created_at)) / 1000)
+                      : null;
+                    const timeAgo = diffSec === null
+                      ? "just now"
+                      : diffSec < 60 ? "just now"
+                      : diffSec < 3600 ? `${Math.floor(diffSec / 60)}m ago`
+                      : diffSec < 86400 ? `${Math.floor(diffSec / 3600)}h ago`
+                      : diffSec < 604800 ? `${Math.floor(diffSec / 86400)}d ago`
+                      : new Date(n.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+                    const typeConfig = {
+                      member_joined: { color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20', icon: <UserCheck size={13} /> },
+                      member_left:   { color: 'text-red-400',   bg: 'bg-red-500/10 border-red-500/20',   icon: <UserX size={13} /> },
+                      standup_posted:{ color: 'text-blue-400',  bg: 'bg-blue-500/10 border-blue-500/20', icon: <CheckCircle2 size={13} /> },
+                    };
+                    const cfg = typeConfig[n.type] || { color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', icon: <Activity size={13} /> };
+
+                    return (
+                      <div key={n.id || idx} className="flex items-start gap-3">
+                        <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${cfg.bg} ${cfg.color}`}>
+                          {cfg.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-200 font-sans leading-relaxed">{n.message || n.title}</p>
+                          <span className="text-[10px] text-gray-500 font-mono">{timeAgo}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                {notifications.length > activityPage && (
+                  <button
+                    onClick={() => setActivityPage((p) => p + 8)}
+                    className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs text-gray-400 hover:text-white font-mono transition cursor-pointer mt-2"
+                  >
+                    Load More ({notifications.length - activityPage} remaining)
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
