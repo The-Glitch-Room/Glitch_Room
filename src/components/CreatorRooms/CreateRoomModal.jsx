@@ -172,7 +172,7 @@ const CreateRoomModal = ({ close, create }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/85 backdrop-blur-md flex justify-center items-center z-50 px-4 py-8"
+      className="fixed inset-0 bg-black/85 backdrop-blur-md flex justify-center items-center z-50 px-4 py-14"
       onClick={(e) => e.target === e.currentTarget && close()}
     >
       <motion.div
@@ -180,7 +180,7 @@ const CreateRoomModal = ({ close, create }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 25 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
-        className="relative bg-[#0d0d16] border border-purple-500/25 rounded-3xl w-full max-w-4xl shadow-[0_0_80px_rgba(168,85,247,0.2)] font-sans flex flex-col max-h-[92vh]"
+        className="relative bg-[#0d0d16] border border-purple-500/25 rounded-3xl w-full max-w-4xl shadow-[0_0_80px_rgba(168,85,247,0.2)] font-sans flex flex-col max-h-[80vh]"
       >
         {/* Top Glow Bar */}
         <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
@@ -194,7 +194,7 @@ const CreateRoomModal = ({ close, create }) => {
         </button>
 
         {/* ── STEP PROGRESS BAR HEADER ── */}
-        <div className="bg-[#080810] border-b border-white/10 px-8 py-4 flex items-center justify-between">
+        <div className="bg-[#080810] border-b border-white/10 px-8 py-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-[#FF00C8]">
               <Flame size={20} />
