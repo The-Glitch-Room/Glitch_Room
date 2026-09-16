@@ -147,6 +147,7 @@ const CreateRoomModal = ({ close, create }) => {
       gbits_stake: {
         enabled: enableGbitsStake,
         entry_stake: enableGbitsStake ? entryStake : 0,
+        completion_reward: Number(completionReward) || 0,
         reward_rules: rewardPoolRules,
         missed_policy: missedCheckinPolicy,
       },

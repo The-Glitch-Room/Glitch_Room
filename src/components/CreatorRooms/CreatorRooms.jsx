@@ -238,6 +238,7 @@ const CreatorRooms = () => {
         entry_stake: roomData.gbits_stake?.enabled
           ? Number(roomData.gbits_stake?.entry_stake || 0)
           : 0,
+        completion_reward: Number(roomData.gbits_stake?.completion_reward || 0),
         reward_pool_rules: roomData.gbits_stake?.reward_rules || null,
         missed_checkin_policy: roomData.gbits_stake?.missed_policy || null,
 
@@ -311,11 +312,37 @@ const CreatorRooms = () => {
       }
 
       if (newRoom) {
-        const { error: memberError } = await supabase
-          .from("creator_room_members")
-          .insert([{ room_id: newRoom.id, user_id: user.id, role: "host" }]);
-        if (memberError) {
-          console.error("Failed to add host as member:", memberError);
+        // For staked rooms the host stakes gBits atomically via the same
+        // RPC every other member uses — this deducts their balance and sets
+        // staked_amount on the membership row so the room pool is accurate
+        // from the moment the room is created.
+        if (roomPayload.enable_gbits_stake && roomPayload.entry_stake > 0) {
+          const { error: stakeErr } = await supabase.rpc(
+            "join_creator_room_with_stake",
+            { p_room_id: newRoom.id, p_stake: roomPayload.entry_stake },
+          );
+          if (stakeErr) {
+            console.error("Host stake RPC failed:", stakeErr);
+            // Fallback: plain insert so the room isn't left host-less
+            await supabase
+              .from("creator_room_members")
+              .insert([{ room_id: newRoom.id, user_id: user.id, role: "host", staked_amount: roomPayload.entry_stake }]);
+          } else {
+            // RPC inserts role='member'; promote to 'host'
+            await supabase
+              .from("creator_room_members")
+              .update({ role: "host" })
+              .eq("room_id", newRoom.id)
+              .eq("user_id", user.id);
+          }
+        } else {
+          // Free room — plain insert, no gBits touched
+          const { error: memberError } = await supabase
+            .from("creator_room_members")
+            .insert([{ room_id: newRoom.id, user_id: user.id, role: "host" }]);
+          if (memberError) {
+            console.error("Failed to add host as member:", memberError);
+          }
         }
         setOpenModal(false);
         await fetchRooms();

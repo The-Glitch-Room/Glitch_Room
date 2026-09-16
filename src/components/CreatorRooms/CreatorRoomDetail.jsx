@@ -8,7 +8,7 @@ import {
 } from "../../services/emailService";
 import Navbar from "../Navbar";
 import GlitchBackground from "../GlitchBackground";
-import { updatePoints } from "../../utils/pointsHelper";
+import { updatePoints, fetchPoints } from "../../utils/pointsHelper";
 import {
   ArrowLeft,
   Share2,
@@ -3001,23 +3001,28 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </div>
                 <div className="text-sm font-black text-amber-300 font-mono">
                   {(() => {
-                    // Bug: this used to read room?.entry_stake — the
-                    // room's CONFIGURED requirement — so every member
-                    // saw the identical number regardless of what was
-                    // actually recorded for them. "Your Stake" must
-                    // read from this member's own row in `members`
-                    // (the same real data roomPoolGBits sums), not the
-                    // room's config.
                     const myStake = Number(
                       members.find((m) => m.user_id === userId)?.staked_amount || 0,
                     );
-                    return myStake > 0
-                      ? `${myStake} gBits`
-                      : "0 gBits (Free)";
+                    const roomStake = Number(room?.entry_stake || 0);
+                    const isStakedRoom = room?.enable_gbits_stake && roomStake > 0;
+                    if (myStake > 0) return `${myStake} gBits`;
+                    if (isMember && isStakedRoom) return `${roomStake} gBits`;
+                    if (!isMember && isStakedRoom) return `${roomStake} gBits`;
+                    return "Free";
                   })()}
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
-                  Your Stake
+                  {(() => {
+                    const myStake = Number(
+                      members.find((m) => m.user_id === userId)?.staked_amount || 0,
+                    );
+                    const isStakedRoom = room?.enable_gbits_stake && Number(room?.entry_stake || 0) > 0;
+                    if (myStake > 0) return "Your Stake";
+                    if (isMember && isStakedRoom) return "Stake Required";
+                    if (!isMember && isStakedRoom) return "Entry Stake";
+                    return "No Stake";
+                  })()}
                 </div>
               </div>
             </div>
@@ -3034,9 +3039,17 @@ const CreatorRoomDetail = ({ roomId }) => {
                   Potential Reward
                 </div>
                 <div className="text-sm font-black text-pink-300 font-mono">
-                  {Number(room?.entry_stake || 0) > 0
-                    ? `${roomPoolGBits} Pool + 150 Bonus`
-                    : "+10/day + 150 Bonus"}
+                  {(() => {
+                    const isStakedRoom = room?.enable_gbits_stake && Number(room?.entry_stake || 0) > 0;
+                    const bonus = Number(room?.completion_reward || 0);
+                    if (isStakedRoom && bonus > 0)
+                      return `${roomPoolGBits} Pool + ${bonus} Bonus`;
+                    if (isStakedRoom)
+                      return `Share of ${roomPoolGBits} Pool`;
+                    if (bonus > 0)
+                      return `+${bonus} gBits Bonus`;
+                    return "Completion Bonus";
+                  })()}
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
                   If you complete (≥80%)
