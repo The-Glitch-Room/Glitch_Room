@@ -172,7 +172,7 @@ const CreateRoomModal = ({ close, create }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/85 backdrop-blur-md flex justify-center items-center z-50 px-4 overflow-y-auto py-6"
+      className="fixed inset-0 bg-black/85 backdrop-blur-md flex justify-center items-center z-50 px-4 py-8"
       onClick={(e) => e.target === e.currentTarget && close()}
     >
       <motion.div
@@ -180,7 +180,7 @@ const CreateRoomModal = ({ close, create }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 25 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
-        className="relative bg-[#0d0d16] border border-purple-500/25 rounded-3xl w-full max-w-4xl overflow-hidden shadow-[0_0_80px_rgba(168,85,247,0.2)] my-auto font-sans"
+        className="relative bg-[#0d0d16] border border-purple-500/25 rounded-3xl w-full max-w-4xl shadow-[0_0_80px_rgba(168,85,247,0.2)] font-sans flex flex-col max-h-[92vh]"
       >
         {/* Top Glow Bar */}
         <div className="h-[2px] w-full bg-gradient-to-r from-[#FF00C8] via-purple-500 to-[#00F0FF]" />
@@ -233,7 +233,7 @@ const CreateRoomModal = ({ close, create }) => {
         </div>
 
         {/* ── STEP CONTENT AREA ── */}
-        <div className="p-6 sm:p-8 max-h-[72vh] overflow-y-auto space-y-6">
+        <div className="p-6 sm:p-8 flex-1 overflow-y-auto space-y-6">
           {/* STEP 1: BASICS & COMMITMENT PLEDGE */}
           {step === 1 && (
             <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
