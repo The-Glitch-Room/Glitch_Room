@@ -1035,10 +1035,27 @@ const CreatorRoomDetail = ({ roomId }) => {
       });
 
       setIsMember(true);
+
+      // Dispatch deduction toast for the stake — the RPC atomically
+      // deducts gBits but bypasses updatePoints(), so we manually
+      // fire the gbits_transaction event that GBitsToast listens to.
+      if (roomEntryStake > 0) {
+        const newBal = await fetchPoints(userId);
+        window.dispatchEvent(
+          new CustomEvent("gbits_transaction", {
+            detail: {
+              delta: -roomEntryStake,
+              title: `Room Entry Stake — ${room?.title || room?.name || "Creator Room"}`,
+              newTotal: newBal,
+            },
+          }),
+        );
+      }
+
       showToast(
         roomEntryStake > 0
-          ? ` Successfully staked ${roomEntryStake} gBits & joined squad!`
-          : " Successfully committed & joined squad!",
+          ? `✅ Successfully staked ${roomEntryStake} gBits & joined squad!`
+          : "✅ Successfully committed & joined squad!",
       );
       // Re-fetch from the DB — pool, member list, and balance all come
       // from this, never from local arithmetic.

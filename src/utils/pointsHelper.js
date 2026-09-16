@@ -236,6 +236,12 @@ export const updatePoints = async (
     window.dispatchEvent(
       new CustomEvent("points_updated", { detail: { points: newTotal } }),
     );
+    // Per-transaction toast event — picked up by GBitsToast (App.jsx)
+    window.dispatchEvent(
+      new CustomEvent("gbits_transaction", {
+        detail: { delta, title, newTotal },
+      }),
+    );
   }
 
   return newTotal;

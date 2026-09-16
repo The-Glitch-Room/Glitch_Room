@@ -55,6 +55,7 @@ import DailyFactBubble from "./components/DailyFactBubble";
 import AdminDashboard from "./components/AdminDashboard";
 import EarnRules from "./components/EarnRules";
 import CreateProfile from "./components/CreateProfile";
+import GBitsToast from "./components/GBitsToast";
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 const ProtectedRoute = ({ children }) => {
@@ -295,6 +296,7 @@ const App = () => {
       <AuthProvider>
         <ScrollToHashElement />
         <DailyFactBubble />
+        <GBitsToast />
         {showSplash ? (
           <SplashScreen onFinish={() => setShowSplash(false)} />
         ) : (
