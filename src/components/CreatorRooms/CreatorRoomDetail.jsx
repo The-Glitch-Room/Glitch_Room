@@ -404,6 +404,8 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showJoinConfirmModal, setShowJoinConfirmModal] = useState(false);
+  const [joinConfirmBalance, setJoinConfirmBalance] = useState(null);
   const [leavingRoom, setLeavingRoom] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showEmailPrefsModal, setShowEmailPrefsModal] = useState(false);
@@ -955,6 +957,28 @@ const CreatorRoomDetail = ({ roomId }) => {
     setCopied(true);
     showToast(" Room link copied to clipboard!");
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Entry point for both join buttons. For a staked room, this shows a
+  // confirmation modal BEFORE any transaction happens — a member
+  // clicking "Join" may not realize the room requires staking gBits.
+  // Free rooms skip straight to joining, same as before. The modal
+  // fetches the balance fresh from the DB rather than trusting any
+  // locally-cached number, so "balance after joining" is accurate.
+  const openJoinConfirm = async () => {
+    if (!userId) {
+      navigate("/");
+      return;
+    }
+    const stake = Number(room?.entry_stake || 0);
+    if (stake <= 0) {
+      handleJoinSquad();
+      return;
+    }
+    setJoinConfirmBalance(null);
+    setShowJoinConfirmModal(true);
+    const bal = await fetchPoints(userId);
+    setJoinConfirmBalance(bal);
   };
 
   const handleJoinSquad = async () => {
@@ -2025,7 +2049,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
             {!isMember ? (
               <button
-                onClick={handleJoinSquad}
+                onClick={openJoinConfirm}
                 disabled={joining}
                 className="w-full py-3 rounded-xl text-white text-xs font-bold bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 transition shadow-lg shadow-[#FF00C8]/20 cursor-pointer"
               >
@@ -2815,7 +2839,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     </button>
                   ) : (
                     <button
-                      onClick={handleJoinSquad}
+                      onClick={openJoinConfirm}
                       disabled={joining}
                       className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-[11px] font-bold font-mono transition cursor-pointer shadow-md disabled:opacity-50"
                     >
@@ -2976,9 +3000,21 @@ const CreatorRoomDetail = ({ roomId }) => {
                   gBits at Stake
                 </div>
                 <div className="text-sm font-black text-amber-300 font-mono">
-                  {Number(room?.entry_stake || 0) > 0
-                    ? `${Number(room?.entry_stake || 0)} gBits`
-                    : "0 gBits (Free)"}
+                  {(() => {
+                    // Bug: this used to read room?.entry_stake — the
+                    // room's CONFIGURED requirement — so every member
+                    // saw the identical number regardless of what was
+                    // actually recorded for them. "Your Stake" must
+                    // read from this member's own row in `members`
+                    // (the same real data roomPoolGBits sums), not the
+                    // room's config.
+                    const myStake = Number(
+                      members.find((m) => m.user_id === userId)?.staked_amount || 0,
+                    );
+                    return myStake > 0
+                      ? `${myStake} gBits`
+                      : "0 gBits (Free)";
+                  })()}
                 </div>
                 <div className="text-[10px] text-gray-400 font-sans">
                   Your Stake
@@ -3378,6 +3414,91 @@ const CreatorRoomDetail = ({ roomId }) => {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showJoinConfirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-amber-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans"
+            >
+              <div className="flex items-center gap-3 text-amber-400 mb-3">
+                <Coins size={24} />
+                <h3 className="text-lg font-bold text-white">Stake Required to Join</h3>
+              </div>
+
+              <p className="text-xs text-gray-300 mb-4 leading-relaxed">
+                This room requires a stake of{" "}
+                <strong className="text-amber-300">{room?.entry_stake} gBits</strong>.
+              </p>
+
+              <div className="text-xs text-gray-300 space-y-1.5 mb-4 bg-white/5 border border-white/10 rounded-xl p-3.5">
+                <p>If you join this room:</p>
+                <p className="pl-3">• <strong className="text-white">{room?.entry_stake} gBits</strong> will be deducted from your available balance.</p>
+                <p className="pl-3">• Your {room?.entry_stake} gBits will be held as your room stake.</p>
+                <p className="pl-3">• If you meet the room's completion criteria (≥80% standups), your stake is returned along with the applicable reward.</p>
+                <p className="pl-3">• If you don't meet the criteria, your stake is handled according to the room's staking rules (forfeited into the pool).</p>
+              </div>
+
+              <div className="flex justify-between items-center text-xs font-mono bg-black/30 border border-white/10 rounded-xl p-3.5 mb-5">
+                <div>
+                  <div className="text-gray-400 mb-0.5">Your balance</div>
+                  <div className="text-white font-bold">
+                    {joinConfirmBalance === null ? "…" : `${joinConfirmBalance} gBits`}
+                  </div>
+                </div>
+                <ArrowRight size={14} className="text-gray-500 shrink-0" />
+                <div className="text-right">
+                  <div className="text-gray-400 mb-0.5">After joining</div>
+                  <div
+                    className={`font-bold ${
+                      joinConfirmBalance !== null && joinConfirmBalance < Number(room?.entry_stake || 0)
+                        ? "text-red-400"
+                        : "text-emerald-400"
+                    }`}
+                  >
+                    {joinConfirmBalance === null
+                      ? "…"
+                      : `${Math.max(0, joinConfirmBalance - Number(room?.entry_stake || 0))} gBits`}
+                  </div>
+                </div>
+              </div>
+
+              {joinConfirmBalance !== null && joinConfirmBalance < Number(room?.entry_stake || 0) && (
+                <p className="text-[11px] text-red-400 font-mono mb-4">
+                  You don't have enough gBits to stake for this room.
+                </p>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowJoinConfirmModal(false)}
+                  disabled={joining}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 cursor-pointer disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowJoinConfirmModal(false);
+                    await handleJoinSquad();
+                  }}
+                  disabled={
+                    joining ||
+                    joinConfirmBalance === null ||
+                    joinConfirmBalance < Number(room?.entry_stake || 0)
+                  }
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-[#FF00C8]/20 flex items-center gap-2"
+                >
+                  {joining ? "Joining..." : `Join & Stake ${room?.entry_stake} gBits`}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* 3b. View Rewards Modal */}
       <AnimatePresence>
         {showRewardsModal && (
@@ -3683,12 +3804,13 @@ const CreatorRoomDetail = ({ roomId }) => {
                           <strong className="text-white/90">
                             gBits Staking & Room Pool
                           </strong>{" "}
-                          — you staked {room.entry_stake} gBits to join. The
-                          room pool is the sum of every member's stake. At the
-                          end of the sprint, members with ≥80% standup
-                          completion get their stake back, plus a share of the
-                          pool forfeited by members who fell short or left
-                          early, plus a 150 gBits completion bonus.
+                          — new members stake {room.entry_stake} gBits to
+                          join. The room pool is the sum of every member's
+                          actual recorded stake. At the end of the sprint,
+                          members with ≥80% standup completion get their
+                          stake back, plus a share of the pool forfeited by
+                          members who fell short or left early, plus a 150
+                          gBits completion bonus.
                         </p>
                       </div>
                     )}

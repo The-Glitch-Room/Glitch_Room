@@ -138,6 +138,21 @@ const CreatorRooms = () => {
       return;
     }
 
+    const roomEntryStake = Number(room?.entry_stake || 0);
+
+    // Staked rooms must show the "you're about to stake gBits"
+    // confirmation before any transaction happens — a member clicking
+    // this card may not realize joining requires staking. That
+    // confirmation modal lives on the room detail page, so for a
+    // staked room, just navigate there unjoined rather than staking
+    // immediately from this card with no confirmation at all. Free
+    // rooms have nothing to confirm, so they keep the previous
+    // immediate-join-then-navigate behavior.
+    if (roomEntryStake > 0) {
+      navigate(`/creator-rooms/${room.id}`);
+      return;
+    }
+
     setJoining(room.id);
     try {
       // Route through the SAME atomic RPC the room-detail page uses
@@ -147,7 +162,6 @@ const CreatorRooms = () => {
       // staked room from this list page silently skipped staking
       // entirely: 0 gBits deducted, 0 added to staked_amount, room pool
       // stuck at 0 regardless of what the room actually required.
-      const roomEntryStake = Number(room?.entry_stake || 0);
       const { error: joinError } = await supabase.rpc(
         "join_creator_room_with_stake",
         { p_room_id: room.id, p_stake: roomEntryStake },
