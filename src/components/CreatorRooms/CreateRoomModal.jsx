@@ -68,25 +68,19 @@ const CreateRoomModal = ({ close, create }) => {
   const [coverIcon, setCoverIcon] = useState("⚡");
   const [visibility, setVisibility] = useState("Public");
   const [goalPledge, setGoalPledge] = useState("");
-  const [expectedOutcome, setExpectedOutcome] = useState("");
-  const [successCriteria, setSuccessCriteria] = useState("");
+
 
   // ── Step 2: Duration, Proof & Standup ──
   const [durationType, setDurationType] = useState("30_day");
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [customEndDate, setCustomEndDate] = useState("");
-  const [checkinFrequency, setCheckinFrequency] = useState("daily");
   const [checkinDeadline, setCheckinDeadline] = useState("11:59 PM IST");
-  const [gracePeriod, setGracePeriod] = useState("2 Hours");
 
   const [selectedProofTypes, setSelectedProofTypes] = useState([
     "GitHub Commit",
     "GitHub PR",
     "Project/Demo Link",
   ]);
-  const [minProofReq, setMinProofReq] = useState("1");
-  const [isProofMandatory, setIsProofMandatory] = useState(true);
-  const [allowMultipleProofs, setAllowMultipleProofs] = useState(true);
 
   // Standup fields toggles
   const [accomplishmentRequired, setAccomplishmentRequired] = useState(true);
@@ -94,20 +88,13 @@ const CreateRoomModal = ({ close, create }) => {
   const [blockersRequired, setBlockersRequired] = useState(false);
   const [tomorrowGoalRequired, setTomorrowGoalRequired] = useState(false);
 
-  // ── Step 3: Verification, Buddy & Uptime ──
+  // ── Step 3: Verification & Buddy ──
   const [verificationRequired, setVerificationRequired] = useState(true);
   const [whoCanVerify, setWhoCanVerify] = useState("Any Room Member");
-  const [minVerifications, setMinVerifications] = useState("1");
-  const [verificationReward, setVerificationReward] = useState("gBits amount");
 
   const [enableBuddy, setEnableBuddy] = useState(true);
-  const [buddyPairing, setBuddyPairing] = useState("Automatic");
   const [allowBuddyChange, setAllowBuddyChange] = useState(true);
-  const [buddyReminderTime, setBuddyReminderTime] = useState("8:00 PM IST");
   const [allowBuddyNudges, setAllowBuddyNudges] = useState(true);
-
-  const [contributesToUptime, setContributesToUptime] = useState(true);
-  const [roomStreakEnabled, setRoomStreakEnabled] = useState(true);
 
   // ── Step 4: Stakes, Rules & Membership ──
   const [completionReward, setCompletionReward] = useState(150);
@@ -115,15 +102,11 @@ const CreateRoomModal = ({ close, create }) => {
   const [entryStake, setEntryStake] = useState(50);
   const [rewardPoolRules, setRewardPoolRules] = useState("Return stake on successful completion");
   const [missedCheckinPolicy, setMissedCheckinPolicy] = useState("Lose stake after 3 missed check-ins");
-  const [freezeAllowance, setFreezeAllowance] = useState(2);
-
   const [roomRules, setRoomRules] = useState("1. Submit daily standup with proof.\n2. Be respectful and verify peer standups.");
   const [codeOfConduct, setCodeOfConduct] = useState("Keep check-ins honest and support fellow builders.");
 
   const [maxMembers, setMaxMembers] = useState(25);
   const [approvalRequired, setApprovalRequired] = useState(false);
-  const [allowInvites, setAllowInvites] = useState(true);
-  const [requirePledgeToJoin, setRequirePledgeToJoin] = useState(true);
 
   const toggleProofType = (type) => {
     if (selectedProofTypes.includes(type)) {
@@ -350,34 +333,7 @@ const CreateRoomModal = ({ close, create }) => {
                 </div>
               </div>
 
-              {/* Expected Outcome & Success Criteria */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
-                    Expected Outcome
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Build 1 full-stack app & master DSA recursion"
-                    value={expectedOutcome}
-                    onChange={(e) => setExpectedOutcome(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-600 text-xs focus:outline-none focus:border-[#00F0FF]/50 transition font-sans"
-                  />
-                </div>
 
-                <div>
-                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
-                    Success Criteria
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Complete >= 80% of daily check-ins on time"
-                    value={successCriteria}
-                    onChange={(e) => setSuccessCriteria(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-600 text-xs focus:outline-none focus:border-[#00F0FF]/50 transition font-sans"
-                  />
-                </div>
-              </div>
             </motion.div>
           )}
 
@@ -395,7 +351,7 @@ const CreateRoomModal = ({ close, create }) => {
               </div>
 
               {/* Schedule Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <CustomSelect
                     label="Sprint Duration *"
@@ -408,19 +364,6 @@ const CreateRoomModal = ({ close, create }) => {
                       { value: "60_day", label: "60 Days Challenge" },
                       { value: "100_day", label: "100 Days Challenge" },
                       { value: "ongoing", label: "Ongoing Consistency" },
-                    ]}
-                  />
-                </div>
-
-                <div>
-                  <CustomSelect
-                    label="Check-in Frequency *"
-                    value={checkinFrequency}
-                    onChange={setCheckinFrequency}
-                    options={[
-                      { value: "daily", label: "Daily Check-ins" },
-                      { value: "thrice_weekly", label: "3× per Week" },
-                      { value: "weekly", label: "Weekly Check-in" },
                     ]}
                   />
                 </div>
@@ -466,42 +409,7 @@ const CreateRoomModal = ({ close, create }) => {
                 </div>
               </div>
 
-              {/* Mandatory Proof & Rules */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/5">
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[#07070d] border border-white/10">
-                  <span className="text-xs text-gray-300 font-mono font-semibold">Is Proof Mandatory?</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsProofMandatory(!isProofMandatory)}
-                    className={`w-11 h-6 rounded-full transition p-1 cursor-pointer ${
-                      isProofMandatory ? "bg-purple-600" : "bg-gray-700"
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full bg-white transition transform ${
-                        isProofMandatory ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
 
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[#07070d] border border-white/10">
-                  <span className="text-xs text-gray-300 font-mono font-semibold">Allow Multiple Proofs?</span>
-                  <button
-                    type="button"
-                    onClick={() => setAllowMultipleProofs(!allowMultipleProofs)}
-                    className={`w-11 h-6 rounded-full transition p-1 cursor-pointer ${
-                      allowMultipleProofs ? "bg-purple-600" : "bg-gray-700"
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full bg-white transition transform ${
-                        allowMultipleProofs ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
 
               {/* Standup Form Required Fields Toggles */}
               <div>
@@ -557,10 +465,10 @@ const CreateRoomModal = ({ close, create }) => {
               <div className="border-b border-white/10 pb-3">
                 <h4 className="text-base font-bold text-white flex items-center gap-2">
                   <ShieldCheck size={18} className="text-purple-400" />
-                  <span>3. Peer Verification, Accountability Buddies & Global Uptime</span>
+                  <span>3. Peer Verification & Accountability Buddies</span>
                 </h4>
                 <p className="text-xs text-gray-400 font-mono mt-0.5">
-                  Set rules for peer vouches, buddy pairing, and global uptime system integration.
+                  Set rules for peer vouches and buddy pairing.
                 </p>
               </div>
 
@@ -584,46 +492,18 @@ const CreateRoomModal = ({ close, create }) => {
                 </div>
 
                 {verificationRequired && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                    <div>
-                      <CustomSelect
-                        label="Who Can Verify?"
-                        value={whoCanVerify}
-                        onChange={setWhoCanVerify}
-                        options={[
-                          "Any Room Member",
-                          "Accountability Buddy",
-                          "Room Host",
-                          "Host + Members",
-                        ]}
-                      />
-                    </div>
-
-                    <div>
-                      <CustomSelect
-                        label="Min Verifications"
-                        value={minVerifications}
-                        onChange={setMinVerifications}
-                        options={[
-                          { value: "1", label: "1 Vouch" },
-                          { value: "2", label: "2 Vouches" },
-                          { value: "3", label: "3 Vouches" },
-                        ]}
-                      />
-                    </div>
-
-                    <div>
-                      <CustomSelect
-                        label="Verification Reward"
-                        value={verificationReward}
-                        onChange={setVerificationReward}
-                        options={[
-                          { value: "gBits amount", label: "+35 gBits Reward" },
-                          { value: "Uptime contribution", label: "Uptime Streak Boost" },
-                          { value: "No additional reward", label: "Standard Verification" },
-                        ]}
-                      />
-                    </div>
+                  <div className="pt-2">
+                    <CustomSelect
+                      label="Who Can Verify?"
+                      value={whoCanVerify}
+                      onChange={setWhoCanVerify}
+                      options={[
+                        "Any Room Member",
+                        "Accountability Buddy",
+                        "Room Host",
+                        "Host + Members",
+                      ]}
+                    />
                   </div>
                 )}
               </div>
@@ -652,27 +532,38 @@ const CreateRoomModal = ({ close, create }) => {
 
                 {enableBuddy && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    <div>
-                      <CustomSelect
-                        label="Pairing Method"
-                        value={buddyPairing}
-                        onChange={setBuddyPairing}
-                        options={[
-                          { value: "Automatic", label: "Automatic Pair-up on Join" },
-                          { value: "Manual", label: "Manual Selection by Members" },
-                        ]}
-                      />
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-[#0d0d16] border border-white/10">
+                      <span className="text-xs text-gray-300 font-mono">Allow Buddy Change?</span>
+                      <button
+                        type="button"
+                        onClick={() => setAllowBuddyChange(!allowBuddyChange)}
+                        className={`w-9 h-5 rounded-full transition p-0.5 cursor-pointer ${
+                          allowBuddyChange ? "bg-purple-600" : "bg-gray-700"
+                        }`}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-full bg-white transition transform ${
+                            allowBuddyChange ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
                     </div>
 
-                    <div>
-                      <label className="text-[10px] text-gray-400 font-mono block mb-1">Buddy Reminder Time</label>
-                      <input
-                        type="text"
-                        value={buddyReminderTime}
-                        onChange={(e) => setBuddyReminderTime(e.target.value)}
-                        placeholder="8:00 PM IST"
-                        className="w-full px-3 py-2 rounded-xl bg-[#0d0d16] border border-white/10 text-white text-xs focus:outline-none font-mono"
-                      />
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-[#0d0d16] border border-white/10">
+                      <span className="text-xs text-gray-300 font-mono">Allow Buddy Nudges?</span>
+                      <button
+                        type="button"
+                        onClick={() => setAllowBuddyNudges(!allowBuddyNudges)}
+                        className={`w-9 h-5 rounded-full transition p-0.5 cursor-pointer ${
+                          allowBuddyNudges ? "bg-purple-600" : "bg-gray-700"
+                        }`}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-full bg-white transition transform ${
+                            allowBuddyNudges ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -833,7 +724,7 @@ const CreateRoomModal = ({ close, create }) => {
               </div>
 
               {/* Membership Settings */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
                     Max Members Limit
@@ -847,34 +738,17 @@ const CreateRoomModal = ({ close, create }) => {
                 </div>
 
                 <div className="flex items-center justify-between p-3 rounded-xl bg-[#07070d] border border-white/10">
-                  <span className="text-xs text-gray-300 font-mono">Require Pledge to Join?</span>
+                  <span className="text-xs text-gray-300 font-mono">Require Approval to Join?</span>
                   <button
                     type="button"
-                    onClick={() => setRequirePledgeToJoin(!requirePledgeToJoin)}
+                    onClick={() => setApprovalRequired(!approvalRequired)}
                     className={`w-9 h-5 rounded-full transition p-0.5 cursor-pointer ${
-                      requirePledgeToJoin ? "bg-purple-600" : "bg-gray-700"
+                      approvalRequired ? "bg-purple-600" : "bg-gray-700"
                     }`}
                   >
                     <div
                       className={`w-4 h-4 rounded-full bg-white transition transform ${
-                        requirePledgeToJoin ? "translate-x-4" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[#07070d] border border-white/10">
-                  <span className="text-xs text-gray-300 font-mono">Allow Member Invites?</span>
-                  <button
-                    type="button"
-                    onClick={() => setAllowInvites(!allowInvites)}
-                    className={`w-9 h-5 rounded-full transition p-0.5 cursor-pointer ${
-                      allowInvites ? "bg-purple-600" : "bg-gray-700"
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full bg-white transition transform ${
-                        allowInvites ? "translate-x-4" : "translate-x-0"
+                        approvalRequired ? "translate-x-4" : "translate-x-0"
                       }`}
                     />
                   </button>
@@ -937,8 +811,8 @@ const CreateRoomModal = ({ close, create }) => {
                 {/* Grid Summary Details */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-2">
                   <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
-                    <span className="text-gray-500 text-[10px] block font-bold">FREQUENCY</span>
-                    <span className="text-white capitalize">{checkinFrequency}</span>
+                    <span className="text-gray-500 text-[10px] block font-bold">DURATION</span>
+                    <span className="text-white capitalize">{durationType.replace("_", " ")}</span>
                   </div>
 
                   <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
