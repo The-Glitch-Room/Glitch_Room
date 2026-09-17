@@ -884,6 +884,25 @@ const CreateProRoomPage = () => {
     });
   };
 
+  const addRegistrationQuestion = () => {
+    setEligibility({
+      ...eligibility,
+      custom_registration_questions: [
+        ...eligibility.custom_registration_questions,
+        { id: `rq-${Date.now()}`, question: "", required: true },
+      ],
+    });
+  };
+
+  const removeRegistrationQuestion = (qId) => {
+    setEligibility({
+      ...eligibility,
+      custom_registration_questions: eligibility.custom_registration_questions.filter(
+        (q) => q.id !== qId,
+      ),
+    });
+  };
+
   // Handlers for Sections & Questions
   const addSection = () => {
     const newSecId = `sec-${Date.now()}`;
