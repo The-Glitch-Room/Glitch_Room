@@ -363,18 +363,38 @@ const CreatorRooms = () => {
     );
   });
 
-  // Helper: true when the sprint end date is in the past.
+  // Maps duration_type enum values (stored in DB) to days —
+  // mirrors the exact same mapping used in CreatorRoomDetail.jsx so
+  // a room is considered completed on both the list page and the detail
+  // page at the same logical moment.
+  const DURATION_DAYS = {
+    "7_day": 7,
+    "14_day": 14,
+    "30_day": 30,
+    "60_day": 60,
+    "100_day": 100,
+    "ongoing": null, // ongoing rooms never auto-complete
+  };
+
   const isRoomCompleted = (room) => {
-    let endDate = null;
-    if (room.end_date) {
-      endDate = new Date(room.end_date);
-    } else if (room.start_date && room.duration_days) {
-      const s = new Date(room.start_date);
-      s.setDate(s.getDate() + Number(room.duration_days));
-      endDate = s;
+    // ongoing rooms never expire
+    if (room.duration_type === "ongoing") return false;
+
+    const days = DURATION_DAYS[room.duration_type] ?? null;
+    const anchor = room.start_date || room.created_at;
+
+    if (days && anchor) {
+      const endDate = new Date(anchor);
+      endDate.setDate(endDate.getDate() + days);
+      return endDate < new Date();
     }
-    if (!endDate || isNaN(endDate.getTime())) return false;
-    return endDate < new Date();
+
+    // Fallback: explicit end_date stored on the row
+    if (room.end_date) {
+      return new Date(room.end_date) < new Date();
+    }
+
+    return false;
   };
 
   const activeFiltered = filtered.filter((r) => !isRoomCompleted(r));

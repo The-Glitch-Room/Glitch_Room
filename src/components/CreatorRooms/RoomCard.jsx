@@ -81,20 +81,29 @@ const getDurationLabel = (d) => {
 const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
   const accent = getCategoryAccent(room.category);
 
-  // A room is considered completed when its end_date is in the past.
-  // Fallback: if end_date is missing but start_date + duration_days are
-  // available, derive the end date from those.
+  // Maps duration_type enum → sprint length in days (same as CreatorRoomDetail)
+  const DURATION_DAYS_MAP = {
+    "7_day": 7,
+    "14_day": 14,
+    "30_day": 30,
+    "60_day": 60,
+    "100_day": 100,
+  };
+
+  // A room is completed when (start_date || created_at) + sprint_days < now.
+  // Ongoing rooms never auto-complete.
   const isCompleted = (() => {
-    let endDate = null;
-    if (room.end_date) {
-      endDate = new Date(room.end_date);
-    } else if (room.start_date && room.duration_days) {
-      const s = new Date(room.start_date);
-      s.setDate(s.getDate() + Number(room.duration_days));
-      endDate = s;
+    if (room.duration_type === "ongoing") return false;
+    const days = DURATION_DAYS_MAP[room.duration_type] ?? null;
+    const anchor = room.start_date || room.created_at;
+    if (days && anchor) {
+      const end = new Date(anchor);
+      end.setDate(end.getDate() + days);
+      return end < new Date();
     }
-    if (!endDate || isNaN(endDate.getTime())) return false;
-    return endDate < new Date();
+    // Fallback to explicit end_date if no duration mapping found
+    if (room.end_date) return new Date(room.end_date) < new Date();
+    return false;
   })();
 
   return (
