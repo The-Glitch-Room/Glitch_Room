@@ -6,7 +6,7 @@ import Footer from "../Footer";
 import CreateRoomModal from "./CreateRoomModal";
 import RoomCard from "./RoomCard";
 import GlitchBackground from "../GlitchBackground";
-import { Search } from "lucide-react";
+import { Search, Archive, CheckCircle, Users, ArrowRight, Clock, Trophy } from "lucide-react";
 import Button from "../Button";
 import PageHeading from "../PageHeading";
 import StatCard from "../StatCard";
@@ -363,10 +363,28 @@ const CreatorRooms = () => {
     );
   });
 
+  // Helper: true when the sprint end date is in the past.
+  const isRoomCompleted = (room) => {
+    let endDate = null;
+    if (room.end_date) {
+      endDate = new Date(room.end_date);
+    } else if (room.start_date && room.duration_days) {
+      const s = new Date(room.start_date);
+      s.setDate(s.getDate() + Number(room.duration_days));
+      endDate = s;
+    }
+    if (!endDate || isNaN(endDate.getTime())) return false;
+    return endDate < new Date();
+  };
+
+  const activeFiltered = filtered.filter((r) => !isRoomCompleted(r));
+  const completedFiltered = filtered.filter((r) => isRoomCompleted(r));
+
+
   // REAL CALCULATED HERO STATS FROM DATABASE
   const statItems = [
     {
-      value: formatNumber(filtered.length),
+      value: formatNumber(activeFiltered.length),
       label: "ACTIVE SQUADS",
       sublabel: "Accountability hubs",
     },
@@ -468,7 +486,7 @@ const CreatorRooms = () => {
                 className="w-10 h-10 border-2 border-t-transparent border-purple-500 rounded-full"
               />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : activeFiltered.length === 0 && completedFiltered.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -490,18 +508,105 @@ const CreatorRooms = () => {
               </div>
             </motion.div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filtered.map((room) => (
-                <RoomCard
-                  key={room.id}
-                  room={room}
-                  isMember={myRoomIds.has(room.id)}
-                  onJoin={handleJoin}
-                  onEnter={handleEnter}
-                  joining={joining}
-                />
-              ))}
-            </div>
+            <>
+              {/* Active Rooms Grid */}
+              {activeFiltered.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {activeFiltered.map((room) => (
+                    <RoomCard
+                      key={room.id}
+                      room={room}
+                      isMember={myRoomIds.has(room.id)}
+                      onJoin={handleJoin}
+                      onEnter={handleEnter}
+                      joining={joining}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* ── Past Vault ── */}
+              {completedFiltered.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="mt-14"
+                >
+                  {/* Vault header */}
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                      <Archive size={15} />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-black text-white tracking-wide">Past Vault</h2>
+                      <p className="text-[10px] text-gray-500 font-mono">{completedFiltered.length} completed sprint{completedFiltered.length !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-emerald-500/20 to-transparent ml-2" />
+                  </div>
+
+                  {/* Compact vault cards */}
+                  <div className="flex flex-col gap-2">
+                    {completedFiltered.map((room) => {
+                      const endDate = room.end_date
+                        ? new Date(room.end_date)
+                        : room.start_date && room.duration_days
+                        ? (() => { const s = new Date(room.start_date); s.setDate(s.getDate() + Number(room.duration_days)); return s; })()
+                        : null;
+                      const endLabel = endDate
+                        ? endDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Sprint Ended';
+                      const durationLabel = room.duration_type
+                        || (room.duration_days ? `${room.duration_days} Days` : null)
+                        || (room.end_date && room.start_date
+                            ? `${Math.round((new Date(room.end_date) - new Date(room.start_date)) / 86400000)} Days`
+                            : null)
+                        || 'Sprint';
+
+                      return (
+                        <motion.button
+                          key={room.id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          whileHover={{ x: 4 }}
+                          onClick={() => handleEnter(room.id)}
+                          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#0c0c16] border border-white/[0.06] hover:border-emerald-500/25 hover:bg-emerald-500/5 transition-all group text-left cursor-pointer"
+                        >
+                          {/* Icon */}
+                          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg shrink-0">
+                            {room.cover_icon || '⚡'}
+                          </div>
+
+                          {/* Name + meta */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-white truncate">{room.name || room.title}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono shrink-0">{durationLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5">
+                              <span className="flex items-center gap-1 text-[10px] text-gray-500 font-mono">
+                                <Users size={9} /> {room.member_count || 1} members
+                              </span>
+                              <span className="flex items-center gap-1 text-[10px] text-gray-500 font-mono">
+                                <Clock size={9} /> Ended {endLabel}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Completed badge */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="hidden sm:flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold">
+                              <CheckCircle size={10} /> Completed
+                            </span>
+                            <ArrowRight size={13} className="text-gray-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </>
           )}
         </section>
       </div>

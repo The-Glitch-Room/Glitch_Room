@@ -81,6 +81,22 @@ const getDurationLabel = (d) => {
 const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
   const accent = getCategoryAccent(room.category);
 
+  // A room is considered completed when its end_date is in the past.
+  // Fallback: if end_date is missing but start_date + duration_days are
+  // available, derive the end date from those.
+  const isCompleted = (() => {
+    let endDate = null;
+    if (room.end_date) {
+      endDate = new Date(room.end_date);
+    } else if (room.start_date && room.duration_days) {
+      const s = new Date(room.start_date);
+      s.setDate(s.getDate() + Number(room.duration_days));
+      endDate = s;
+    }
+    if (!endDate || isNaN(endDate.getTime())) return false;
+    return endDate < new Date();
+  })();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -219,9 +235,15 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
             <span className="text-gray-500 truncate">Squad Members</span>
           </span>
 
-          <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 font-bold shrink-0">
-            <Zap size={13} className="fill-amber-400/30" /> Active
-          </span>
+          {isCompleted ? (
+            <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 font-bold shrink-0">
+              <CheckCircle size={13} /> Completed
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 font-bold shrink-0">
+              <Zap size={13} className="fill-amber-400/30" /> Active
+            </span>
+          )}
         </div>
 
         {/* Action Button */}
