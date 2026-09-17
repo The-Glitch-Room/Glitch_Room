@@ -864,6 +864,67 @@ const CreateProRoomPage = () => {
     };
   };
 
+  const formatDateRangePreview = (startStr, endStr) => {
+    if (!startStr || !endStr) return "Dates Not Set";
+    try {
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+        return "Dates Not Set";
+      const startFmt = start.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      const endFmt = end.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      return `${startFmt} – ${endFmt}`;
+    } catch (e) {
+      return "Dates Not Set";
+    }
+  };
+
+  const formatDateTimePreview = (dateStr) => {
+    if (!dateStr) return "Not Set";
+    try {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return "Not Set";
+      return d.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch (e) {
+      return "Not Set";
+    }
+  };
+
+  const getTeamParticipationPreview = (type, maxTeamSize) => {
+    if (type === "individual") return "Individual Only";
+    if (type === "team") return `Team (${maxTeamSize || 4} Members Max)`;
+    if (type === "both")
+      return `Individual & Team (${maxTeamSize || 4} Members Max)`;
+    return "Individual Only";
+  };
+
+  const getRewardsPreview = (evalState) => {
+    const parts = [];
+    if (evalState.gbits_prize_pool)
+      parts.push(`${evalState.gbits_prize_pool} gBits`);
+    if (evalState.prize_details) parts.push(evalState.prize_details);
+    if (
+      evalState.has_winner_certificate ||
+      evalState.has_participation_certificate
+    )
+      parts.push("Certificates");
+    if (evalState.has_achievement_badge) parts.push("Badges");
+    return parts.length > 0 ? parts.join(", ") : "Certificates & Badges";
+  };
+
   // Handlers for dynamic Host FAQ / Common Questions
   const addAppQuestion = () => {
     setEligibility({
@@ -3099,7 +3160,7 @@ const CreateProRoomPage = () => {
                   </span>
 
                   <h2 className="relative z-10 text-xl font-black text-white leading-tight drop-shadow-md uppercase tracking-wider">
-                    {basicInfo.name || "AI INNOVATION HACKATHON 2026"}
+                    {basicInfo.name || "UNNAMED PRO ROOM"}
                   </h2>
                 </div>
 
@@ -3119,36 +3180,40 @@ const CreateProRoomPage = () => {
                       </div>
                     )}
                     <span className="text-xs font-bold text-gray-200 flex items-center gap-1">
-                      By {basicInfo.org_name || "TechNova University"}
+                      By {basicInfo.org_name || "Organization Name"}
                       <ShieldCheck size={12} className="text-[#00F0FF]" />
                     </span>
                   </div>
 
                   {/* Date & Meta Pill Row */}
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-300 flex items-center gap-1.5">
-                      <Calendar size={12} className="text-[#00F0FF]" /> May 18 -
-                      May 20, 2026
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-300 flex items-center gap-1.5 truncate">
+                      <Calendar size={12} className="text-[#00F0FF] shrink-0" />
+                      <span className="truncate">
+                        {formatDateRangePreview(
+                          schedule.event_start_at,
+                          schedule.event_end_at,
+                        )}
+                      </span>
                     </div>
-                    <div className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-300 flex items-center gap-1.5">
-                      <Clock size={12} className="text-purple-400" />{" "}
-                      {durationText}
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-300 flex items-center gap-1.5 truncate">
+                      <Clock size={12} className="text-purple-400 shrink-0" />
+                      <span className="truncate">{durationText}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 text-[11px] font-mono">
                     <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-gray-400 flex items-center gap-1">
                       <Users size={12} className="text-[#00F0FF]" /> Max
-                      Participants: {eligibility.max_participants}
+                      Participants: {eligibility.max_participants || "Unlimited"}
                     </span>
                     <span className="px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 font-bold">
-                      {basicInfo.event_type}
+                      {basicInfo.event_type || "Technical Assessment"}
                     </span>
                   </div>
 
                   <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">
-                    {basicInfo.short_description ||
-                      "A virtual hackathon where innovators come together to build AI-powered solutions."}
+                    {basicInfo.short_description || "No description provided."}
                   </p>
                 </div>
               </div>
@@ -3169,55 +3234,61 @@ const CreateProRoomPage = () => {
                   <div className="flex justify-between text-gray-400">
                     <span>Event Type</span>
                     <span className="text-white font-semibold">
-                      {basicInfo.event_type}
+                      {basicInfo.event_type || "Not Specified"}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Category</span>
                     <span className="text-white font-semibold">
-                      {basicInfo.category}
+                      {basicInfo.category || "Not Specified"}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Start Date</span>
                     <span className="text-white font-semibold">
-                      May 18, 2026 10:00 AM
+                      {formatDateTimePreview(schedule.event_start_at)}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>End Date</span>
                     <span className="text-white font-semibold">
-                      May 20, 2026 10:00 AM
+                      {formatDateTimePreview(schedule.event_end_at)}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Registration</span>
                     <span className="text-white font-semibold">
-                      Apr 28 – May 15, 2026
+                      {formatDateRangePreview(
+                        schedule.reg_start_at,
+                        schedule.reg_end_at,
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Team Participation</span>
                     <span className="text-white font-semibold">
-                      Yes (2 - 4 Members)
+                      {getTeamParticipationPreview(
+                        eligibility.participation_type,
+                        eligibility.max_team_size,
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Max Participants</span>
                     <span className="text-white font-semibold">
-                      {eligibility.max_participants}
+                      {eligibility.max_participants || "Unlimited"}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Evaluation Method</span>
                     <span className="text-white font-semibold">
-                      {evaluation.eval_method}
+                      {evaluation.eval_method || "Automatic"}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Rewards</span>
                     <span className="text-[#00F0FF] font-semibold">
-                      Certificates, Prizes, gBits
+                      {getRewardsPreview(evaluation)}
                     </span>
                   </div>
                 </div>

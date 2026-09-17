@@ -21,7 +21,16 @@ export const isRegistrationClosed = (room) => {
 };
 
 export const getProRoomLifecycleState = (room) => {
-  if (!room) return { label: "UPCOMING", color: "purple", isLive: false, key: "upcoming" };
+  if (!room)
+    return {
+      label: "UPCOMING",
+      color: "purple",
+      isLive: false,
+      key: "upcoming",
+      isUpcoming: true,
+      isRegOpen: false,
+      isCompleted: false,
+    };
   const now = new Date();
 
   const regStart = room.reg_start_at ? new Date(room.reg_start_at) : null;
@@ -29,31 +38,104 @@ export const getProRoomLifecycleState = (room) => {
   const eventStart = room.event_start_at ? new Date(room.event_start_at) : null;
   const eventEnd = room.event_end_at ? new Date(room.event_end_at) : null;
 
-  if (room.status === "draft") {
-    return { label: "✏️ DRAFT", color: "amber", isLive: false, key: "draft" };
+  const isDraft = room.status === "draft";
+  const isCompleted =
+    !isDraft &&
+    ((eventEnd && now > eventEnd) ||
+      ["completed", "results_published", "evaluation"].includes(room.status));
+  const isLive =
+    !isDraft &&
+    !isCompleted &&
+    !!(eventStart && now >= eventStart && (!eventEnd || now <= eventEnd));
+  const isUpcoming =
+    !isDraft &&
+    !isCompleted &&
+    !isLive &&
+    (eventStart ? now < eventStart : true);
+  const isRegOpen =
+    !isDraft &&
+    !isCompleted &&
+    !!(regStart && now >= regStart && (!regEnd || now <= regEnd));
+
+  if (isDraft) {
+    return {
+      label: "✏️ DRAFT",
+      color: "amber",
+      isLive: false,
+      key: "draft",
+      isUpcoming: false,
+      isRegOpen: false,
+      isCompleted: false,
+    };
   }
-  if (room.status === "results_published") {
-    return { label: "RESULTS PUBLISHED", color: "purple", isLive: false, key: "completed" };
+  if (isCompleted) {
+    let label = "COMPLETED";
+    if (room.status === "results_published") label = "RESULTS PUBLISHED";
+    else if (room.status === "evaluation") label = "EVALUATION";
+    else if (eventEnd && now > eventEnd) label = "SUBMISSION CLOSED";
+    return {
+      label,
+      color: "gray",
+      isLive: false,
+      key: "completed",
+      isUpcoming: false,
+      isRegOpen: false,
+      isCompleted: true,
+    };
   }
-  if (room.status === "evaluation") {
-    return { label: "EVALUATION", color: "amber", isLive: false, key: "completed" };
+  if (isLive) {
+    return {
+      label: "🔴 LIVE",
+      color: "red",
+      isLive: true,
+      key: "live",
+      isUpcoming: false,
+      isRegOpen: false,
+      isCompleted: false,
+    };
   }
-  if (eventEnd && now > eventEnd) {
-    return { label: "SUBMISSION CLOSED", color: "gray", isLive: false, key: "completed" };
-  }
-  if (eventStart && now >= eventStart && (!eventEnd || now <= eventEnd)) {
-    return { label: "🔴 LIVE", color: "red", isLive: true, key: "live" };
+  if (isRegOpen) {
+    return {
+      label: "REGISTRATION OPEN",
+      color: "emerald",
+      isLive: false,
+      key: "registration_open",
+      isUpcoming,
+      isRegOpen: true,
+      isCompleted: false,
+    };
   }
   if (regStart && now < regStart) {
-    return { label: "REGISTRATION NOT OPEN", color: "purple", isLive: false, key: "before_registration" };
-  }
-  if (regStart && now >= regStart && (!regEnd || now <= regEnd)) {
-    return { label: "REGISTRATION OPEN", color: "emerald", isLive: false, key: "registration_open" };
+    return {
+      label: "REGISTRATION NOT OPEN",
+      color: "purple",
+      isLive: false,
+      key: "before_registration",
+      isUpcoming,
+      isRegOpen: false,
+      isCompleted: false,
+    };
   }
   if (regEnd && now > regEnd && (!eventStart || now < eventStart)) {
-    return { label: "REGISTRATION CLOSED", color: "amber", isLive: false, key: "registration_closed" };
+    return {
+      label: "REGISTRATION CLOSED",
+      color: "amber",
+      isLive: false,
+      key: "registration_closed",
+      isUpcoming,
+      isRegOpen: false,
+      isCompleted: false,
+    };
   }
-  return { label: "UPCOMING", color: "purple", isLive: false, key: "upcoming" };
+  return {
+    label: "UPCOMING",
+    color: "purple",
+    isLive: false,
+    key: "upcoming",
+    isUpcoming: true,
+    isRegOpen: false,
+    isCompleted: false,
+  };
 };
 
 const ProRoomCard = ({ room, isRegistered, userRegStatus, onSelect }) => {

@@ -130,8 +130,12 @@ const ProRooms = () => {
         .select("*", { count: "exact", head: true });
 
       // 4. Compute Dynamic Hero Stats
-      const liveCount = roomList.filter((r) => getProRoomLifecycleState(r).isLive).length;
-      const completedCount = roomList.filter((r) => getProRoomLifecycleState(r).key === "completed").length;
+      const liveCount = roomList.filter(
+        (r) => getProRoomLifecycleState(r).isLive,
+      ).length;
+      const completedCount = roomList.filter(
+        (r) => getProRoomLifecycleState(r).isCompleted,
+      ).length;
 
       setStats({
         activeRoomsCount: liveCount,
@@ -177,9 +181,10 @@ const ProRooms = () => {
 
       // Drafts belong ONLY to their host in "My Drafts" tab / status
       if (activeTab === "drafts" || selectedStatus === "My Drafts 📝") {
-        return isMyDraft && (
-          (room.name || room.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (room.org_name || "").toLowerCase().includes(searchQuery.toLowerCase())
+        return (
+          isMyDraft &&
+          ((room.name || room.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (room.org_name || "").toLowerCase().includes(searchQuery.toLowerCase()))
         );
       }
 
@@ -188,16 +193,16 @@ const ProRooms = () => {
 
       let matchesStatus = true;
       if (selectedStatus === "Live") matchesStatus = state.isLive;
-      else if (selectedStatus === "Registration Open") matchesStatus = state.key === "registration_open";
-      else if (selectedStatus === "Upcoming") matchesStatus = state.key === "upcoming";
-      else if (selectedStatus === "Completed") matchesStatus = state.key === "completed";
+      else if (selectedStatus === "Registration Open") matchesStatus = state.isRegOpen;
+      else if (selectedStatus === "Upcoming") matchesStatus = state.isUpcoming;
+      else if (selectedStatus === "Completed") matchesStatus = state.isCompleted;
 
       // Tab filter
       let matchesTab = true;
       if (activeTab === "live") matchesTab = state.isLive;
-      else if (activeTab === "upcoming") matchesTab = state.key === "upcoming";
-      else if (activeTab === "registration_open") matchesTab = state.key === "registration_open";
-      else if (activeTab === "completed") matchesTab = state.key === "completed";
+      else if (activeTab === "upcoming") matchesTab = state.isUpcoming;
+      else if (activeTab === "registration_open") matchesTab = state.isRegOpen;
+      else if (activeTab === "completed") matchesTab = state.isCompleted;
 
       return (
         matchesSearch &&
@@ -221,9 +226,9 @@ const ProRooms = () => {
   const tabCounts = {
     all: rooms.filter((r) => r.status !== "draft").length,
     live: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).isLive).length,
-    upcoming: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).key === "upcoming").length,
-    registration_open: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).key === "registration_open").length,
-    completed: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).key === "completed").length,
+    upcoming: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).isUpcoming).length,
+    registration_open: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).isRegOpen).length,
+    completed: rooms.filter((r) => r.status !== "draft" && getProRoomLifecycleState(r).isCompleted).length,
     drafts: rooms.filter((r) => r.status === "draft" && currentUserId && r.host_id === currentUserId).length,
   };
 
