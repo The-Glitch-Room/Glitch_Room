@@ -2221,7 +2221,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                         {isEvHost && (
                           <div className="flex items-center gap-1 shrink-0">
                             <button
-                              onClick={() => handleEditSquadEvent(ev)}
+                              onClick={() => openEditEventModal(ev)}
                               className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
                               title="Edit Event"
                             >
