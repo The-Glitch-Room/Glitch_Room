@@ -1861,7 +1861,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                         className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
                       >
                         <Handshake size={14} className="text-amber-400" /> Pair
-                        Accountability Buddies
+                        Buddies
                       </button>
                       <button
                         onClick={() => {
@@ -3795,7 +3795,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                         m.profiles?.avatar_url ||
                         `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.user_id}`;
                       const isPairedWithThisUser =
-                        myBuddyInfo?.buddy_id === m.user_id;
+                        myActivePair
+                          ? (myActivePair.user1_id === m.user_id || myActivePair.user2_id === m.user_id)
+                          : false;
 
                       return (
                         <div
@@ -3858,7 +3860,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-lg w-full shadow-2xl font-sans"
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-lg w-full shadow-2xl font-sans flex flex-col max-h-[85vh]"
             >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -3873,7 +3875,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </button>
               </div>
 
-              <div className="text-xs text-white/80 space-y-5 max-h-[28rem] overflow-y-auto pr-1">
+              <div className="text-xs text-white/80 space-y-5 overflow-y-auto pr-2 py-4 flex-1">
                 <div>
                   <h4 className="text-[11px] font-bold uppercase tracking-wider text-purple-300 mb-2 flex items-center gap-1.5">
                     <Target size={12} /> Group Commitment Pledge

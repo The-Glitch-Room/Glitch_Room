@@ -116,6 +116,50 @@ const DailyFactBubble = () => {
     fetchTodayFact();
   }, []);
 
+  // ── Real-time like/dislike sync via Supabase Realtime ──────────────────────
+  // Subscribes to INSERT/UPDATE/DELETE on daily_fact_reactions for the
+  // currently displayed fact. Any user's reaction change triggers a
+  // lightweight re-fetch of both counts, so the numbers stay live for
+  // everyone without a page refresh.
+  useEffect(() => {
+    if (!fact?.id) return;
+
+    const channel = supabase
+      .channel(`daily_fact_reactions:${fact.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "daily_fact_reactions",
+          filter: `fact_id=eq.${fact.id}`,
+        },
+        () => {
+          // Re-fetch counts only (not full fact), cheap 2-row aggregate.
+          Promise.all([
+            supabase
+              .from("daily_fact_reactions")
+              .select("*", { count: "exact", head: true })
+              .eq("fact_id", fact.id)
+              .eq("reaction", "like"),
+            supabase
+              .from("daily_fact_reactions")
+              .select("*", { count: "exact", head: true })
+              .eq("fact_id", fact.id)
+              .eq("reaction", "dislike"),
+          ]).then(([{ count: likes }, { count: dislikes }]) => {
+            setLikeCount(likes || 0);
+            setDislikeCount(dislikes || 0);
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fact?.id]);
+
   // ── Date rollover listener when tab becomes visible after midnight ──
   useEffect(() => {
     const checkDateRollover = () => {
