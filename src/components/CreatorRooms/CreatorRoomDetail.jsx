@@ -1853,16 +1853,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                         <Users size={14} className="text-cyan-400" /> Manage
                         Squad Members ({squadMemberCount})
                       </button>
-                      <button
-                        onClick={() => {
-                          setShowMenu(false);
-                          setShowPairBuddyModal(true);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-gray-200 hover:text-white cursor-pointer"
-                      >
-                        <Handshake size={14} className="text-amber-400" /> Pair
-                        Buddies
-                      </button>
+
                       <button
                         onClick={() => {
                           setShowMenu(false);
