@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Zap,
   CheckCircle,
+  CheckCircle2,
   FileText,
   AlertTriangle,
   Play,
@@ -243,7 +244,7 @@ const ProfessionalRoomDetail = () => {
       // 5. Fetch Registrations Roster with fallback profile lookup
       const { data: regList, error: regErr } = await supabase
         .from("pro_room_registrations")
-        .select("*, profiles:user_id(full_name, username, avatar_url)")
+        .select("*, profiles(full_name, username, avatar_url)")
         .eq("room_id", id);
 
       if (!regErr && regList) {

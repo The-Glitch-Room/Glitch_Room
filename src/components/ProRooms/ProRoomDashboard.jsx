@@ -207,7 +207,7 @@ const ProRoomDashboard = () => {
       let regList = [];
       const { data: regData, error: regError } = await supabase
         .from("pro_room_registrations")
-        .select("*, profiles:user_id(username, full_name, avatar_url)")
+        .select("*, profiles(username, full_name, avatar_url)")
         .eq("room_id", id);
       if (!regError && regData) {
         regList = regData;
