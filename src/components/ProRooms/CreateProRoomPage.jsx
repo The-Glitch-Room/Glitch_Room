@@ -1504,15 +1504,12 @@ const CreateProRoomPage = () => {
         category: basicInfo.category || null,
         event_type: basicInfo.event_type || null,
         org_name: basicInfo.org_name || null,
+        org_email: basicInfo.org_email || null,
+        organizer_name: basicInfo.organizer_name || null,
+        website: basicInfo.website || null,
         org_logo: basicInfo.org_logo || null,
         cover_image: basicInfo.cover_image || null,
         host_id: userId,
-        // Only force "draft" for a genuinely new/still-draft room. If
-        // we're editing a room that's already past draft (live,
-        // registration_open, evaluation, results_published — anything),
-        // "Save as Draft" here means "save my in-progress edits," not
-        // "un-publish this room." Previously this was unconditional and
-        // would silently hide an already-live room from candidates.
         status:
           loadedRoomStatus && loadedRoomStatus !== "draft"
             ? loadedRoomStatus
@@ -1530,6 +1527,9 @@ const CreateProRoomPage = () => {
         event_end_at: schedule.event_end_at
           ? new Date(schedule.event_end_at).toISOString()
           : null,
+        submission_deadline: schedule.submission_deadline
+          ? new Date(schedule.submission_deadline).toISOString()
+          : null,
         timezone: schedule.timezone || null,
         allow_late_entry: schedule.allow_late_entry,
         duration_minutes: schedule.duration_minutes
@@ -1545,9 +1545,12 @@ const CreateProRoomPage = () => {
           ? Number(eligibility.min_glitch_level)
           : null,
         participation_type: eligibility.participation_type,
-        max_team_size: eligibility.max_team_size
-          ? Number(eligibility.max_team_size)
-          : null,
+        max_team_size:
+          eligibility.participation_type === "individual"
+            ? 1
+            : eligibility.max_team_size
+              ? Number(eligibility.max_team_size)
+              : 4,
         require_application: eligibility.require_application,
         custom_app_questions: eligibility.custom_app_questions,
         custom_registration_questions: eligibility.custom_registration_questions,
@@ -1654,7 +1657,10 @@ const CreateProRoomPage = () => {
         detailed_description: basicInfo.detailed_description,
         category: basicInfo.category,
         event_type: basicInfo.event_type,
-        org_name: basicInfo.org_name,
+        org_name: basicInfo.org_name || null,
+        org_email: basicInfo.org_email || null,
+        organizer_name: basicInfo.organizer_name || null,
+        website: basicInfo.website || null,
         org_logo: basicInfo.org_logo || null,
         cover_image: basicInfo.cover_image || null,
         host_id: userId,
@@ -1663,15 +1669,12 @@ const CreateProRoomPage = () => {
         reg_end_at: new Date(schedule.reg_end_at).toISOString(),
         event_start_at: new Date(schedule.event_start_at).toISOString(),
         event_end_at: new Date(schedule.event_end_at).toISOString(),
+        submission_deadline: schedule.submission_deadline
+          ? new Date(schedule.submission_deadline).toISOString()
+          : null,
         timezone: schedule.timezone,
         duration_minutes: Number(schedule.duration_minutes) || 120,
         allow_late_entry: schedule.allow_late_entry,
-        // Only force "registration_open" for a genuinely new room, or one
-        // that's still a draft being published for the first time. If
-        // we're editing a room that's already live, in evaluation, or has
-        // results published, this must preserve that status — previously
-        // it was unconditional and would silently reset an in-progress or
-        // finished assessment's lifecycle back to "just opened."
         status:
           loadedRoomStatus && loadedRoomStatus !== "draft"
             ? loadedRoomStatus
@@ -1682,7 +1685,10 @@ const CreateProRoomPage = () => {
         required_skills: eligibility.required_skills,
         min_glitch_level: Number(eligibility.min_glitch_level) || 1,
         participation_type: eligibility.participation_type,
-        max_team_size: Number(eligibility.max_team_size) || 4,
+        max_team_size:
+          eligibility.participation_type === "individual"
+            ? 1
+            : Number(eligibility.max_team_size) || 4,
         require_application: eligibility.require_application,
         custom_app_questions: eligibility.custom_app_questions,
 
@@ -2466,6 +2472,45 @@ const CreateProRoomPage = () => {
                       />
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <label className="text-xs font-bold text-gray-300 block mb-1">
+                        Final Submission Deadline (Optional)
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={schedule.submission_deadline}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            submission_deadline: e.target.value,
+                          })
+                        }
+                        className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Hard cutoff for candidates to turn in assessment responses.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center pt-5">
+                      <label className="flex items-center gap-3 cursor-pointer text-xs text-gray-300 font-bold select-none">
+                        <input
+                          type="checkbox"
+                          checked={schedule.allow_late_entry}
+                          onChange={(e) =>
+                            setSchedule({
+                              ...schedule,
+                              allow_late_entry: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded border-white/20 bg-black text-[#00F0FF] focus:ring-0 cursor-pointer"
+                        />
+                        Allow Late Entry (Candidates can start test after event begins)
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -2530,6 +2575,7 @@ const CreateProRoomPage = () => {
                           setEligibility({
                             ...eligibility,
                             participation_type: v,
+                            max_team_size: v === "individual" ? "1" : (eligibility.max_team_size || "4"),
                           })
                         }
                         options={[
@@ -2543,19 +2589,22 @@ const CreateProRoomPage = () => {
 
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-1">
-                        Maximum Team Size
+                        Maximum Team Size {eligibility.participation_type === "individual" && "(Individual = 1)"}
                       </label>
                       <input
                         type="number"
+                        disabled={eligibility.participation_type === "individual"}
                         placeholder="e.g., 4"
-                        value={eligibility.max_team_size}
+                        value={eligibility.participation_type === "individual" ? "1" : eligibility.max_team_size}
                         onChange={(e) =>
                           setEligibility({
                             ...eligibility,
                             max_team_size: e.target.value,
                           })
                         }
-                        className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                        className={`w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF] ${
+                          eligibility.participation_type === "individual" ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
                       />
                     </div>
                   </div>
