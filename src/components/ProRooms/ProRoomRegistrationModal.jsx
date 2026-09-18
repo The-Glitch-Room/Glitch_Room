@@ -194,16 +194,18 @@ const ProRoomRegistrationModal = ({
     try {
       const requiresReview = room.require_application === true;
 
+      const answersData = {
+        ...customAnswers,
+        _organization_college: orgCollege,
+        _current_role: currentRole,
+        _portfolio_url: portfolioUrl,
+      };
+
       const payload = {
         room_id: room.id,
         user_id: currentUser.id,
         status: requiresReview ? "pending" : "approved",
-        answers_json: {
-          ...customAnswers,
-          _organization_college: orgCollege,
-          _current_role: currentRole,
-          _portfolio_url: portfolioUrl,
-        },
+        app_responses: answersData,
         registered_at: new Date().toISOString(),
       };
 

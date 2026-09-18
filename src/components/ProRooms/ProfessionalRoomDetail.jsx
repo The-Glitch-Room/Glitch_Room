@@ -2045,22 +2045,29 @@ const ProfessionalRoomDetail = () => {
                                   </span>
                                 </h5>
                                 <div className="text-[11px] text-gray-400 font-mono mt-1 flex flex-wrap gap-3">
-                                  {r.answers_json?._organization_college && (
-                                    <span>🏫 {r.answers_json._organization_college}</span>
-                                  )}
-                                  {r.answers_json?._current_role && (
-                                    <span>💼 {r.answers_json._current_role}</span>
-                                  )}
-                                  {r.answers_json?._portfolio_url && (
-                                    <a
-                                      href={r.answers_json._portfolio_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-[#00F0FF] hover:underline"
-                                    >
-                                      🔗 Portfolio / GitHub
-                                    </a>
-                                  )}
+                                  {(() => {
+                                    const resp = r.app_responses || r.answers_json || {};
+                                    return (
+                                      <>
+                                        {resp._organization_college && (
+                                          <span>🏫 {resp._organization_college}</span>
+                                        )}
+                                        {resp._current_role && (
+                                          <span>💼 {resp._current_role}</span>
+                                        )}
+                                        {resp._portfolio_url && (
+                                          <a
+                                            href={resp._portfolio_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[#00F0FF] hover:underline"
+                                          >
+                                            🔗 Portfolio / GitHub
+                                          </a>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 
