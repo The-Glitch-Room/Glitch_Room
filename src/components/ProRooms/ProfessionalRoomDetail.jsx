@@ -240,12 +240,38 @@ const ProfessionalRoomDetail = () => {
         setSubmissions(allSubs || []);
       }
 
-      // 5. Fetch Registrations Roster
-      const { data: regList } = await supabase
+      // 5. Fetch Registrations Roster with fallback profile lookup
+      const { data: regList, error: regErr } = await supabase
         .from("pro_room_registrations")
-        .select("*, profiles(full_name, username, avatar_url)")
+        .select("*, profiles:user_id(full_name, username, avatar_url)")
         .eq("room_id", id);
-      setRegistrations(regList || []);
+
+      if (!regErr && regList) {
+        setRegistrations(regList);
+      } else {
+        const { data: rawRegs } = await supabase
+          .from("pro_room_registrations")
+          .select("*")
+          .eq("room_id", id);
+        if (rawRegs && rawRegs.length > 0) {
+          const uids = Array.from(
+            new Set(rawRegs.map((r) => r.user_id).filter(Boolean)),
+          );
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("id, full_name, username, avatar_url")
+            .in("id", uids);
+          const pMap = (profs || []).reduce(
+            (acc, p) => ({ ...acc, [p.id]: p }),
+            {},
+          );
+          setRegistrations(
+            rawRegs.map((r) => ({ ...r, profiles: pMap[r.user_id] || null })),
+          );
+        } else {
+          setRegistrations([]);
+        }
+      }
 
       // 6. Fetch Leaderboard
       const { data: lbData } = await supabase
@@ -750,6 +776,32 @@ const ProfessionalRoomDetail = () => {
       showToast("⚠️ Couldn't post the announcement — please try again.");
     } finally {
       setPostingAnn(false);
+    }
+  };
+
+  const handleUpdateRegistrationStatus = async (regId, newStatus) => {
+    if (!isHost) return;
+    try {
+      const { error } = await supabase
+        .from("pro_room_registrations")
+        .update({ status: newStatus })
+        .eq("id", regId);
+
+      if (error) {
+        console.error("Failed to update registration status:", error);
+        showToast("⚠️ Couldn't update application status — please try again.");
+        return;
+      }
+
+      showToast(
+        newStatus === "approved"
+          ? "🎉 Candidate application approved!"
+          : "Application rejected.",
+      );
+      fetchRoomData();
+    } catch (err) {
+      console.error(err);
+      showToast("⚠️ Couldn't update application status — please try again.");
     }
   };
 
@@ -1949,35 +2001,132 @@ const ProfessionalRoomDetail = () => {
             )}
 
             {activeSidebarTab === "host_participants" && isHost && (
-              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs">
-                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <Users size={16} className="text-purple-400" /> Registered
-                  Candidate Roster ({registrations.length})
-                </h3>
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6 text-xs font-sans">
+                <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <Users size={16} className="text-purple-400" /> Candidate Management & Roster
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Review pending candidate applications and manage approved room participants.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 font-mono text-[11px]">
+                    <span className="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                      {registrations.filter((r) => r.status === "pending").length} Pending
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">
+                      {registrations.filter((r) => r.status === "approved" || !r.status).length} Approved
+                    </span>
+                  </div>
+                </div>
 
-                {registrations.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-8">
-                    No candidates registered yet.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {registrations.map((r, idx) => (
-                      <div
-                        key={r.id || idx}
-                        className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between"
-                      >
-                        <span className="text-white font-bold">
-                          {r.profiles?.full_name ||
-                            r.profiles?.username ||
-                            "Candidate"}
-                        </span>
-                        <span className="text-[10px] font-mono text-emerald-400">
-                          Registered
-                        </span>
-                      </div>
-                    ))}
+                {/* 1. Pending Applications Section */}
+                {registrations.filter((r) => r.status === "pending").length > 0 && (
+                  <div className="space-y-3 bg-[#06060c] border border-amber-500/20 rounded-2xl p-4">
+                    <h4 className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                      <Clock size={14} /> Pending Applications ({registrations.filter((r) => r.status === "pending").length})
+                    </h4>
+
+                    <div className="space-y-3">
+                      {registrations
+                        .filter((r) => r.status === "pending")
+                        .map((r, idx) => (
+                          <div
+                            key={r.id || idx}
+                            className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h5 className="text-sm font-bold text-white flex items-center gap-2">
+                                  {r.profiles?.full_name || "Candidate"}
+                                  <span className="text-xs font-mono text-cyan-300 font-normal">
+                                    @{r.profiles?.username || "candidate"}
+                                  </span>
+                                </h5>
+                                <div className="text-[11px] text-gray-400 font-mono mt-1 flex flex-wrap gap-3">
+                                  {r.answers_json?._organization_college && (
+                                    <span>🏫 {r.answers_json._organization_college}</span>
+                                  )}
+                                  {r.answers_json?._current_role && (
+                                    <span>💼 {r.answers_json._current_role}</span>
+                                  )}
+                                  {r.answers_json?._portfolio_url && (
+                                    <a
+                                      href={r.answers_json._portfolio_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[#00F0FF] hover:underline"
+                                    >
+                                      🔗 Portfolio / GitHub
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateRegistrationStatus(r.id, "approved")}
+                                  className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1"
+                                >
+                                  <CheckCircle2 size={13} /> Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateRegistrationStatus(r.id, "rejected")}
+                                  className="px-3.5 py-1.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold hover:bg-red-500/30 transition cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 )}
+
+                {/* 2. Registered / Approved Roster Section */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider">
+                    Approved Roster ({registrations.filter((r) => r.status === "approved" || !r.status).length})
+                  </h4>
+
+                  {registrations.filter((r) => r.status === "approved" || !r.status).length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-6 bg-[#06060c] border border-white/5 rounded-2xl">
+                      No approved candidates yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {registrations
+                        .filter((r) => r.status === "approved" || !r.status)
+                        .map((r, idx) => (
+                          <div
+                            key={r.id || idx}
+                            className="p-3 rounded-2xl bg-[#06060c] border border-white/5 flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold text-xs">
+                                {(r.profiles?.full_name || "C")[0]}
+                              </div>
+                              <div>
+                                <span className="text-white font-bold block">
+                                  {r.profiles?.full_name || "Candidate"}
+                                </span>
+                                <span className="text-[10px] text-cyan-300 font-mono">
+                                  @{r.profiles?.username || "candidate"}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-mono text-emerald-400 font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                              ✓ Approved Participant
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

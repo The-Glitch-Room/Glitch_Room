@@ -204,11 +204,37 @@ const ProRoomDashboard = () => {
       }
 
       // 2. Fetch Registrations
-      const { data: regData } = await supabase
+      let regList = [];
+      const { data: regData, error: regError } = await supabase
         .from("pro_room_registrations")
-        .select("*, profiles(username, full_name, avatar_url)")
+        .select("*, profiles:user_id(username, full_name, avatar_url)")
         .eq("room_id", id);
-      setRegistrations(regData || []);
+      if (!regError && regData) {
+        regList = regData;
+      } else {
+        const { data: rawRegs } = await supabase
+          .from("pro_room_registrations")
+          .select("*")
+          .eq("room_id", id);
+        if (rawRegs && rawRegs.length > 0) {
+          const userIds = [...new Set(rawRegs.map((r) => r.user_id).filter(Boolean))];
+          let profileMap = {};
+          if (userIds.length > 0) {
+            const { data: profs } = await supabase
+              .from("profiles")
+              .select("id, username, full_name, avatar_url")
+              .in("id", userIds);
+            (profs || []).forEach((p) => {
+              profileMap[p.id] = p;
+            });
+          }
+          regList = rawRegs.map((r) => ({
+            ...r,
+            profiles: profileMap[r.user_id] || null,
+          }));
+        }
+      }
+      setRegistrations(regList);
 
       // 3. Fetch Submissions
       const { data: subData } = await supabase

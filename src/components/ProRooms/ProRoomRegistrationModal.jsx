@@ -215,6 +215,22 @@ const ProRoomRegistrationModal = ({
 
       if (error) {
         console.error("Registration insert failed:", error);
+        // Handle duplicate key / candidate already applied
+        if (
+          error.code === "23505" ||
+          error.message?.includes("duplicate") ||
+          error.message?.includes("already exists") ||
+          error.details?.includes("already exists")
+        ) {
+          if (showToast) {
+            showToast(
+              `ℹ️ You have already submitted an application for ${room.name || room.title}.`,
+            );
+          }
+          if (onRegistrationSuccess) onRegistrationSuccess(payload);
+          onClose();
+          return;
+        }
         if (showToast) {
           showToast(
             "⚠️ Registration couldn't be completed — please try again.",
@@ -227,11 +243,11 @@ const ProRoomRegistrationModal = ({
       if (showToast) {
         showToast(
           requiresReview
-            ? `📝 Application submitted for ${room.name || room.title} — the host will review it.`
-            : `🎉 Registration approved! Welcome to ${room.name || room.title}`,
+            ? `📝 Application submitted for ${room.name || room.title} — awaiting host review!`
+            : `🎉 Successfully registered for ${room.name || room.title}!`,
         );
       }
-      if (onRegistrationSuccess) onRegistrationSuccess(data);
+      if (onRegistrationSuccess) onRegistrationSuccess(data || payload);
       onClose();
     } catch (err) {
       console.error("Error submitting registration:", err);
