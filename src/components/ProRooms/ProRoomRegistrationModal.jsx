@@ -16,6 +16,93 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 
+import { ChevronDown } from "lucide-react";
+
+// Reusable custom themed dropdown matching CreateProRoomPage
+const GlitchSelect = ({
+  value,
+  onChange,
+  options,
+  placeholder = "Select...",
+  className = "",
+}) => {
+  const [open, setOpen] = useState(false);
+  const wrapRef = React.useRef(null);
+
+  const normalized = options.map((o) =>
+    typeof o === "string" ? { value: o, label: o } : o,
+  );
+  const selected = normalized.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDocClick = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`w-full bg-[#030308] border rounded-xl px-3 py-2 text-xs text-left flex items-center justify-between gap-2 outline-none transition cursor-pointer ${
+          open
+            ? "border-[#00F0FF] ring-1 ring-[#00F0FF]/30"
+            : "border-white/10 hover:border-white/20"
+        } ${selected ? "text-white font-medium" : "text-gray-500"}`}
+      >
+        <span className="truncate">
+          {selected ? selected.label : placeholder}
+        </span>
+        <ChevronDown
+          size={13}
+          className={`shrink-0 text-gray-400 transition-transform ${
+            open ? "rotate-180 text-[#00F0FF]" : ""
+          }`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.12 }}
+            className="absolute z-50 mt-1.5 w-full max-h-48 overflow-y-auto bg-[#0c0c16] border border-white/10 rounded-xl shadow-2xl shadow-black/80 p-1.5"
+          >
+            {normalized.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition cursor-pointer flex items-center justify-between gap-2 ${
+                  o.value === value
+                    ? "bg-[#00F0FF]/15 text-[#00F0FF] font-bold"
+                    : "text-gray-300 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <span className="truncate">{o.label}</span>
+                {o.value === value && (
+                  <Check size={12} className="shrink-0 text-[#00F0FF]" />
+                )}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const ProRoomRegistrationModal = ({
   isOpen,
   onClose,
@@ -32,11 +119,26 @@ const ProRoomRegistrationModal = ({
   const [agreedToRules, setAgreedToRules] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const isHost = Boolean(
+    currentUser && room && room.host_id === currentUser.id,
+  );
+
   useEffect(() => {
     if (isOpen) {
       loadUserInfo();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && isHost) {
+      if (showToast) {
+        showToast(
+          "ℹ️ As the host of this room, you have direct management access.",
+        );
+      }
+      onClose();
+    }
+  }, [isOpen, isHost, onClose, showToast]);
 
   const loadUserInfo = async () => {
     try {
@@ -282,16 +384,17 @@ const ProRoomRegistrationModal = ({
                       <label className="text-[10px] text-gray-400 font-mono block mb-1">
                         Current Status
                       </label>
-                      <select
+                      <GlitchSelect
                         value={currentRole}
-                        onChange={(e) => setCurrentRole(e.target.value)}
-                        className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#00F0FF]"
-                      >
-                        <option value="Student">Student</option>
-                        <option value="Professional">Professional</option>
-                        <option value="Freelancer">Freelancer</option>
-                        <option value="Other">Other</option>
-                      </select>
+                        onChange={(val) => setCurrentRole(val)}
+                        options={[
+                          { value: "Student", label: "Student" },
+                          { value: "Professional", label: "Professional" },
+                          { value: "Freelancer", label: "Freelancer" },
+                          { value: "Other", label: "Other" },
+                        ]}
+                        placeholder="Select status..."
+                      />
                     </div>
                   </div>
 

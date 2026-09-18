@@ -418,7 +418,8 @@ const ProRooms = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRooms.map((room) => {
                 const regStatus = userRegistrations && room ? userRegistrations[room.id] : undefined;
-                const isReg = regStatus === "approved" || regStatus === "pending" || Boolean(regStatus);
+                const isHost = Boolean(currentUserId && room && room.host_id === currentUserId);
+                const isReg = isHost || regStatus === "approved" || regStatus === "pending" || Boolean(regStatus);
 
                 return (
                   <ProRoomCard
@@ -426,14 +427,26 @@ const ProRooms = () => {
                     room={room}
                     isRegistered={isReg}
                     userRegStatus={regStatus}
+                    isHost={isHost}
                     onSelect={() => {
                       const state = getProRoomLifecycleState(room);
                       const now = new Date();
                       const regStart = room.reg_start_at ? new Date(room.reg_start_at) : null;
                       const regEnd = room.reg_end_at ? new Date(room.reg_end_at) : null;
 
+                      // Host of the room gets immediate direct entry / management access
+                      if (isHost) {
+                        if (room.status === "draft") {
+                          navigate(`/pro-rooms/create?edit=${room.id}`);
+                        } else {
+                          navigate(`/pro-rooms/${room.id}`);
+                        }
+                        return;
+                      }
+
+                      // Candidate flow for non-hosts
                       if (room.status === "draft") {
-                        navigate(`/pro-rooms/create?edit=${room.id}`);
+                        return;
                       } else if (isReg || state.key === "completed") {
                         navigate(`/pro-rooms/${room.id}`);
                       } else if (regStart && now < regStart) {

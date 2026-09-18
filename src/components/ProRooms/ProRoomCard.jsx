@@ -138,7 +138,7 @@ export const getProRoomLifecycleState = (room) => {
   };
 };
 
-const ProRoomCard = ({ room, isRegistered, userRegStatus, onSelect }) => {
+const ProRoomCard = ({ room, isRegistered, userRegStatus, isHost, onSelect }) => {
   const lifecycle = getProRoomLifecycleState(room);
 
   // Formatting dates
@@ -161,6 +161,12 @@ const ProRoomCard = ({ room, isRegistered, userRegStatus, onSelect }) => {
 
   const getButtonText = () => {
     if (lifecycle.key === "draft") return "✏️ Resume Editing →";
+    if (isHost) {
+      if (lifecycle.isLive) return "Enter Room (Host) →";
+      if (lifecycle.key === "completed") return "View Results & Submissions →";
+      return "Manage Room →";
+    }
+
     if (lifecycle.key === "completed") return "View Results →";
 
     const isApproved = userRegStatus === "approved" || isRegistered === true || isRegistered === "approved";
@@ -225,19 +231,26 @@ const ProRoomCard = ({ room, isRegistered, userRegStatus, onSelect }) => {
 
         {/* Top Badges: Status & Event Type */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
-          <span
-            className={`text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${
-              lifecycle.isLive
-                ? "bg-red-500/80 border-red-400 text-white animate-pulse"
-                : lifecycle.color === "emerald"
-                ? "bg-emerald-500/80 border-emerald-400 text-white"
-                : lifecycle.color === "purple"
-                ? "bg-purple-600/80 border-purple-400 text-white"
-                : "bg-cyan-500/80 border-cyan-400 text-white"
-            }`}
-          >
-            {lifecycle.label}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={`text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${
+                lifecycle.isLive
+                  ? "bg-red-500/80 border-red-400 text-white animate-pulse"
+                  : lifecycle.color === "emerald"
+                  ? "bg-emerald-500/80 border-emerald-400 text-white"
+                  : lifecycle.color === "purple"
+                  ? "bg-purple-600/80 border-purple-400 text-white"
+                  : "bg-cyan-500/80 border-cyan-400 text-white"
+              }`}
+            >
+              {lifecycle.label}
+            </span>
+            {isHost && (
+              <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/90 border border-amber-300 text-black shadow">
+                ★ HOST
+              </span>
+            )}
+          </div>
 
           <span className="text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-black/60 border border-white/20 text-gray-300 backdrop-blur-md">
             {room.event_type || room.category || "Hackathon"}
