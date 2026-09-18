@@ -2971,7 +2971,7 @@ const CreateProRoomPage = () => {
                                 ["coding", "sql", "debugging", "code_analysis"].includes(
                                   q.question_type,
                                 )
-                                  ? "Enter full Coding Problem Statement...\n\ne.g.,\nFind the Most Frequent Element\n\nGiven an array of integers, find the element that appears most frequently.\n\nExample:\nInput: [4, 2, 4, 3, 2, 4, 2]\nOutput: 2\n\nExplanation:\nBoth 2 and 4 appear 3 times. Since 2 is smaller, return 2.\n\nConstraints:\n1 <= n <= 100000\n\nExpected Time Complexity: O(n)\nExpected Space Complexity: O(n)"
+                                  ? "Problem Title:\nFind the Most Frequent Element\n\nDescription:\nGiven an array of integers, find the element that appears most frequently.\n\nIf multiple elements have the same highest frequency, return the smallest element among them.\n\nExample:\nInput: [4, 2, 4, 3, 2, 4, 2]\nOutput: 2\n\nExplanation:\nBoth 2 and 4 appear 3 times. Since 2 is smaller, return 2.\n\nConstraints:\n1 <= n <= 100000\n-10^9 <= arr[i] <= 10^9\n\nExpected Time Complexity:\nO(n)\n\nExpected Space Complexity:\nO(n)"
                                   : "Question Problem Statement..."
                               }
                               value={q.question_text}
