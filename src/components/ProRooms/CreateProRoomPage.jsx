@@ -2959,16 +2959,28 @@ const CreateProRoomPage = () => {
                               </button>
                             </div>
 
-                            <input
-                              type="text"
-                              placeholder="Question Problem Statement..."
+                            <textarea
+                              rows={
+                                ["coding", "sql", "debugging", "code_analysis"].includes(
+                                  q.question_type,
+                                ) || (q.question_text || "").includes("\n")
+                                  ? 6
+                                  : 2
+                              }
+                              placeholder={
+                                ["coding", "sql", "debugging", "code_analysis"].includes(
+                                  q.question_type,
+                                )
+                                  ? "Enter full Coding Problem Statement...\n\ne.g.,\nFind the Most Frequent Element\n\nGiven an array of integers, find the element that appears most frequently.\n\nExample:\nInput: [4, 2, 4, 3, 2, 4, 2]\nOutput: 2\n\nExplanation:\nBoth 2 and 4 appear 3 times. Since 2 is smaller, return 2.\n\nConstraints:\n1 <= n <= 100000\n\nExpected Time Complexity: O(n)\nExpected Space Complexity: O(n)"
+                                  : "Question Problem Statement..."
+                              }
                               value={q.question_text}
                               onChange={(e) =>
                                 updateQuestion(sec.id, q.id, {
                                   question_text: e.target.value,
                                 })
                               }
-                              className="w-full bg-[#12121e] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#00F0FF]"
+                              className="w-full bg-[#12121e] border border-white/10 rounded-lg p-3 text-xs text-white outline-none focus:border-[#00F0FF] font-sans leading-relaxed whitespace-pre-wrap resize-y"
                             />
 
                             <QuestionAnswerEditor

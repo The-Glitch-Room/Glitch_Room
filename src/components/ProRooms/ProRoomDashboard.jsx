@@ -1118,7 +1118,7 @@ const ProRoomDashboard = () => {
                                     className="bg-[#07070e] border border-white/10 rounded-xl p-4 text-xs space-y-2"
                                   >
                                     <div className="flex items-start justify-between gap-3">
-                                      <p className="text-gray-200 font-semibold flex-1">
+                                      <p className="text-gray-200 font-semibold flex-1 whitespace-pre-wrap">
                                         {q?.question_text || "(question unavailable)"}
                                       </p>
                                       <span className="text-[10px] font-mono text-gray-500 shrink-0">

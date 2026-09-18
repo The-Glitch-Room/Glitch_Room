@@ -958,12 +958,12 @@ const ProRoomAssessment = () => {
                 </span>
               </div>
 
-              <h3 className="text-base sm:text-lg font-bold text-white leading-relaxed">
+              <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
                 {currentQuestion.question_text}
-              </h3>
+              </div>
 
               {currentQuestion.description && (
-                <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl">
+                <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
                   {currentQuestion.description}
                 </p>
               )}

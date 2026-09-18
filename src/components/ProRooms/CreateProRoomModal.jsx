@@ -761,14 +761,14 @@ const CreateProRoomModal = ({ onClose, onRoomCreated }) => {
                         </div>
 
                         {/* Question Text */}
-                        <input
-                          type="text"
+                        <textarea
+                          rows={["coding", "sql", "debugging", "code_analysis"].includes(q.question_type) || (q.question_text || "").includes("\n") ? 5 : 2}
                           placeholder="Question Statement..."
                           value={q.question_text}
                           onChange={(e) =>
                             updateQuestion(sec.id, q.id, { question_text: e.target.value })
                           }
-                          className="w-full bg-[#12121e] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#00F0FF]"
+                          className="w-full bg-[#12121e] border border-white/10 rounded-lg p-3 text-xs text-white outline-none focus:border-[#00F0FF] font-sans leading-relaxed whitespace-pre-wrap resize-y"
                         />
                       </div>
                     ))}
