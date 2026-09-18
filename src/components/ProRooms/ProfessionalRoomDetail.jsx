@@ -162,10 +162,10 @@ const ProfessionalRoomDetail = () => {
         // Fetch User gBits Balance
         const { data: prof } = await supabase
           .from("profiles")
-          .select("gbits")
+          .select("*")
           .eq("id", uid)
           .maybeSingle();
-        setUserGbits(prof?.gbits || 0);
+        setUserGbits(prof?.gbits || prof?.points || prof?.gbits_balance || 0);
       }
 
       // 1. Fetch Room Metadata
@@ -290,18 +290,41 @@ const ProfessionalRoomDetail = () => {
         .order("created_at", { ascending: false });
       setAnnouncements(annData || []);
 
-      // 8. Fetch Discussions & Replies
-      const { data: discData } = await supabase
+      // 8. Fetch Discussions & Replies with fallback
+      const { data: discData, error: discErr } = await supabase
         .from("pro_room_discussions")
         .select("*, profiles(full_name, username, avatar_url)")
         .eq("room_id", id)
         .order("created_at", { ascending: false });
 
-      if (discData && discData.length > 0) {
-        const discIds = discData.map((d) => d.id);
+      let finalDiscs = discData;
+      if (discErr || !finalDiscs) {
+        const { data: rawD } = await supabase
+          .from("pro_room_discussions")
+          .select("*")
+          .eq("room_id", id)
+          .order("created_at", { ascending: false });
+        if (rawD && rawD.length > 0) {
+          const uids = Array.from(new Set(rawD.map((d) => d.user_id).filter(Boolean)));
+          let pMap = {};
+          if (uids.length > 0) {
+            const { data: profs } = await supabase
+              .from("profiles")
+              .select("id, full_name, username, avatar_url")
+              .in("id", uids);
+            pMap = (profs || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
+          }
+          finalDiscs = rawD.map((d) => ({ ...d, profiles: pMap[d.user_id] || null }));
+        } else {
+          finalDiscs = [];
+        }
+      }
+
+      if (finalDiscs && finalDiscs.length > 0) {
+        const discIds = finalDiscs.map((d) => d.id);
         const { data: replyData } = await supabase
           .from("pro_room_discussion_replies")
-          .select("*, profiles(full_name, username, avatar_url)")
+          .select("*")
           .in("discussion_id", discIds)
           .order("created_at", { ascending: true });
 
@@ -314,13 +337,13 @@ const ProfessionalRoomDetail = () => {
           });
         }
 
-        const mergedDiscussions = discData.map((d) => ({
+        const mergedDiscussions = finalDiscs.map((d) => ({
           ...d,
           replies: repliesByDiscId[d.id] || d.replies || [],
         }));
         setDiscussions(mergedDiscussions);
       } else {
-        setDiscussions(discData || []);
+        setDiscussions(finalDiscs || []);
       }
 
       // 9. Fetch Dynamic Room Notifications

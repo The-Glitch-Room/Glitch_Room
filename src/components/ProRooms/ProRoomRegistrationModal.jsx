@@ -163,14 +163,19 @@ const ProRoomRegistrationModal = ({
 
   const isClosed = room?.reg_end_at && new Date() > new Date(room.reg_end_at);
 
-  // Read explicitly defined candidate registration questions (fallback to questions without answer)
-  const customQuestions = Array.isArray(room?.custom_registration_questions) && room.custom_registration_questions.length > 0
-    ? room.custom_registration_questions
-    : Array.isArray(room?.custom_questions)
-      ? room.custom_questions.filter((q) => !q.answer && !q.is_faq)
-      : Array.isArray(room?.custom_app_questions)
-        ? room.custom_app_questions.filter((q) => !q.answer && !q.is_faq)
-        : [];
+  // Read candidate application / registration questions created by the host
+  const rawAppQuestions =
+    Array.isArray(room?.custom_app_questions) && room.custom_app_questions.length > 0
+      ? room.custom_app_questions
+      : Array.isArray(room?.custom_registration_questions) && room.custom_registration_questions.length > 0
+        ? room.custom_registration_questions
+        : Array.isArray(room?.custom_questions) && room.custom_questions.length > 0
+          ? room.custom_questions
+          : [];
+
+  const customQuestions = rawAppQuestions.filter(
+    (q) => (q?.question || q?.text || q?.title) && !q?.is_faq
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
