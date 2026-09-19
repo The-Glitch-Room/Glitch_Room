@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
+import { fetchPoints } from "../utils/pointsHelper";
 import {
   User,
   Bell,
@@ -399,9 +400,9 @@ const Settings = () => {
       }
 
       // Load profile & points
-      const [{ data: profileData }, { data: pts }] = await Promise.all([
+      const [{ data: profileData }, calculatedXP] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-        supabase.from("user_points").select("points").eq("user_id", userId).maybeSingle(),
+        fetchPoints(userId),
       ]);
 
       const userMeta = user?.user_metadata || {};
@@ -436,7 +437,6 @@ const Settings = () => {
       setProfile(p);
       setOriginalProfile(p);
 
-      const calculatedXP = Math.max(pts?.points || 0, profileData?.points || 0);
       setXp(calculatedXP);
 
       setLoading(false);

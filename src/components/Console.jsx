@@ -32,7 +32,7 @@ import GlitchBackground from "./GlitchBackground";
 import Footer from "./Footer";
 import ActivityHeatmap from "./ActivityHeatmap";
 import BadgesSection from "./BadgesSection";
-import { getLevelFromXP, getLevelProgressDetails } from "../utils/pointsHelper";
+import { getLevelFromXP, getLevelProgressDetails, fetchPoints } from "../utils/pointsHelper";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -241,9 +241,9 @@ const Console = () => {
       return;
     }
 
-    const [profRes, progRes, recentRes, allUsersRes, badgesRes] = await Promise.all([
+    const [profRes, totalPoints, recentRes, allUsersRes, badgesRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).single(),
-      supabase.from("user_points").select("*").eq("user_id", userId).maybeSingle(),
+      fetchPoints(userId),
       supabase
         .from("glitch_activity")
         .select("*")
@@ -278,7 +278,7 @@ const Console = () => {
     setWeekChartMap(dayTotals);
 
     setProfile(profRes.data);
-    if (progRes.data) setUserData(progRes.data);
+    setUserData({ points: totalPoints });
     setEarnedBadgesCount(badgesRes?.count || 0);
 
     const recentActivities = recentRes.data || [];

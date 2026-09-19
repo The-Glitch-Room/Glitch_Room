@@ -51,14 +51,8 @@ const NavbarUserSection = ({ user: propUser }) => {
       .eq("id", userId)
       .maybeSingle();
 
-    // 2. Fetch User Points from Supabase
-    const { data: ptsData } = await supabase
-      .from("user_points")
-      .select("points")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    const points = ptsData?.points ?? dbProfile?.points ?? 0;
+    // 2. Fetch User Points using unified fetchPoints helper
+    const points = await fetchPoints(userId);
     const level = getLevelFromXP(points);
 
     const name =

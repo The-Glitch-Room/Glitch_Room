@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../supabaseClient";
+import { fetchPoints } from "../utils/pointsHelper";
 import {
   MessageCircle,
   Mail,
@@ -308,12 +309,8 @@ const HelpPage = () => {
       setAuthUser(au?.user);
       const userId = au?.user?.id;
       if (userId) {
-        const { data: pts } = await supabase
-          .from("user_points")
-          .select("points")
-          .eq("user_id", userId)
-          .single();
-        if (pts) setGBits(pts.points);
+        const pts = await fetchPoints(userId);
+        setGBits(pts);
       }
       setLoading(false);
     };

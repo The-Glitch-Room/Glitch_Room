@@ -865,12 +865,8 @@ const Explore = () => {
       setAuthUser(user);
 
       if (user?.id) {
-        const { data: pts } = await supabase
-          .from("user_points")
-          .select("points")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (pts) setUserPoints(pts.points);
+        const pts = await fetchPoints(user.id);
+        setUserPoints(pts);
 
         const { data: subs } = await supabase
           .from("challenge_submissions")

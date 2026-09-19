@@ -178,13 +178,8 @@ const EarnRules = () => {
       const userId = userData?.user?.id;
       if (!userId) return;
 
-      const { data } = await supabase
-        .from("user_points")
-        .select("points")
-        .eq("user_id", userId)
-        .single();
-
-      if (data) setXp(data.points || 0);
+      const points = await fetchPoints(userId);
+      setXp(points);
     };
 
     fetchXP();

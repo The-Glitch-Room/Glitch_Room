@@ -20,6 +20,7 @@ import {
   getLevelProgressDetails,
   getCurrentLevelXP,
   getNextLevelXP,
+  fetchPoints,
 } from "../utils/pointsHelper";
 
 const menuItems = [
@@ -125,15 +126,8 @@ const SharedSidebar = ({ user, xp = 0, avatarPreview = null }) => {
             null;
         }
 
-        const { data: pts } = await supabase
-          .from("user_points")
-          .select("points")
-          .eq("user_id", currentUser.id)
-          .maybeSingle();
-
-        if (pts && typeof pts.points === "number") {
-          setCurrentXp(pts.points);
-        }
+        const points = await fetchPoints(currentUser.id);
+        setCurrentXp(points);
       }
 
       if (isMounted) {
