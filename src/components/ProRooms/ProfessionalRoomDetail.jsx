@@ -95,7 +95,6 @@ const ProfessionalRoomDetail = () => {
 
   const [loading, setLoading] = useState(true);
   const [activeSidebarTab, setActiveSidebarTab] = useState("overview");
-  const [isFollowingOrg, setIsFollowingOrg] = useState(false);
 
   // Dynamic Database Host & Registration Verification
   // pro_rooms only ever sets host_id at creation (both CreateProRoomPage.jsx
@@ -1589,15 +1588,6 @@ const ProfessionalRoomDetail = () => {
                     By {room.org_name || "Verified Organization"}
                     <ShieldCheck size={13} className="text-[#00F0FF]" />
                   </span>
-                  {!isHost && (
-                    <button
-                      type="button"
-                      onClick={() => setIsFollowingOrg(!isFollowingOrg)}
-                      className="px-3 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-[10px] font-bold border border-purple-500/30 transition cursor-pointer"
-                    >
-                      {isFollowingOrg ? "✓ Following" : "Follow"}
-                    </button>
-                  )}
                 </div>
 
                 <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
