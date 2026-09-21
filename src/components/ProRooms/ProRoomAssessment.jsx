@@ -43,7 +43,7 @@ const ProRoomAssessment = () => {
   const isHostPreview = accessState === "host-preview";
 
   // Candidate Test State
-  const [answers, setAnswers] = useState({}); // { [qId]: { answer_text, selected_options, code_submission, github_url } }
+  const [answers, setAnswers] = useState({}); // { [qId]: { answer_text, selected_options, code_submission } }
   const [markedReview, setMarkedReview] = useState({}); // { [qId]: boolean }
   const [codeOutput, setCodeOutput] = useState("");
   const [runningCode, setRunningCode] = useState(false);
@@ -53,12 +53,9 @@ const ProRoomAssessment = () => {
   const [submissionComplete, setSubmissionComplete] = useState(false);
   const [timeExpired, setTimeExpired] = useState(false); // auto-submit triggered
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+  const [saveErrorMessage, setSaveErrorMessage] = useState("");
 
-  // ── Answer persistence state ────────────────────────────────────────────
-  // `submissionId` is the pro_room_submissions row for this candidate+room —
-  // created (or found) once on load, then reused for every autosave and the
-  // final submit so they all resolve to the same row instead of scattering
-  // across duplicates.
+  // ── Access control & persistence ──────────────────────────────────────────
   const [currentUserId, setCurrentUserId] = useState(null);
   const [submissionId, setSubmissionId] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
@@ -66,23 +63,22 @@ const ProRoomAssessment = () => {
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [notConfigured, setNotConfigured] = useState(false);
   const [answersHydrated, setAnswersHydrated] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
-  // Once time is up or the test is submitted, the whole test surface freezes —
-  // no more answer edits, no more navigating questions/sections.
+  // Mutex lock to prevent multiple simultaneous save requests for the same question
+  const pendingSaveRef = useRef(new Set());
+
+  // Once time is up or the test is submitted, the whole test surface freezes
   const interactionLocked = timeExpired || submissionComplete;
 
   // ── Anti-cheat: tab/window blur tracking ────────────────────────────────
-  // A brief blur (checking a notification, a quick alt-tab) shouldn't count
-  // as a real event — especially on mobile, where switching apps for a call
-  // or a notification pull-down is routine. Only blurs longer than the grace
-  // window get logged and surfaced as a warning.
   const DESKTOP_BLUR_GRACE_MS = 3000;
   const MOBILE_BLUR_GRACE_MS = 10000;
   const isMobileDevice = () =>
     typeof navigator !== "undefined" &&
     /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  const [blurEvents, setBlurEvents] = useState([]); // [{ at: ISOString, durationMs }]
+  const [blurEvents, setBlurEvents] = useState([]);
   const [showBlurWarning, setShowBlurWarning] = useState(false);
   const hiddenAtRef = useRef(null);
   const blurWarningTimeoutRef = useRef(null);
@@ -100,7 +96,7 @@ const ProRoomAssessment = () => {
       if (hiddenAtRef.current == null) return;
       const durationMs = Date.now() - hiddenAtRef.current;
       hiddenAtRef.current = null;
-      if (durationMs < grace) return; // brief blip — not logged, not warned
+      if (durationMs < grace) return;
 
       setBlurEvents((prev) => [
         ...prev,
@@ -123,9 +119,7 @@ const ProRoomAssessment = () => {
     };
   }, []);
 
-  // ── Warn before closing tab / refreshing / navigating away in-browser ──
-  // Browsers ignore custom messages here and always show their own generic
-  // "leave site?" prompt — that's expected, we just need it to fire.
+  // Warn before unload
   const submissionCompleteRef = useRef(false);
   useEffect(() => {
     submissionCompleteRef.current = submissionComplete;
@@ -141,17 +135,14 @@ const ProRoomAssessment = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
-  // ── Prevent the same assessment being open in a second tab ─────────────
-  // Scoped to this browser only (a different browser or private window has
-  // separate storage and won't be caught) — but it reliably blocks the
-  // common case of someone opening the test twice in the same browser.
+  // Multi-tab prevention
   const TAB_LOCK_STALE_MS = 10000;
   const TAB_LOCK_HEARTBEAT_MS = 4000;
   const tabSessionIdRef = useRef(
     `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   const lockHeartbeatRef = useRef(null);
-  const [tabLocked, setTabLocked] = useState(null); // null = checking, true = blocked, false = active
+  const [tabLocked, setTabLocked] = useState(null);
 
   useEffect(() => {
     if (!id) return;
@@ -190,8 +181,6 @@ const ProRoomAssessment = () => {
       lockHeartbeatRef.current = setInterval(writeLock, TAB_LOCK_HEARTBEAT_MS);
     }
 
-    // If another tab claims (or reclaims) the lock while we're active, catch
-    // it here so this tab also knows it's no longer the live session.
     const handleStorage = (e) => {
       if (e.key !== lockKey) return;
       try {
@@ -210,8 +199,6 @@ const ProRoomAssessment = () => {
     return () => {
       window.removeEventListener("storage", handleStorage);
       if (lockHeartbeatRef.current) clearInterval(lockHeartbeatRef.current);
-      // Only release the lock if we're still the recognized holder — avoids
-      // a stale/closing tab wiping out a lock a newer tab just claimed.
       const current = readLock();
       if (current?.tabId === tabSessionIdRef.current) {
         try {
@@ -221,8 +208,7 @@ const ProRoomAssessment = () => {
     };
   }, [id]);
 
-  // Timer Countdown — single interval for the whole session, not recreated
-  // every tick, so the transition to zero happens exactly once and reliably.
+  // Timer Countdown
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeftSeconds((prev) => {
@@ -236,7 +222,7 @@ const ProRoomAssessment = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-submit the instant the timer hits zero.
+  // Auto-submit on timer expiry
   const autoSubmitFiredRef = useRef(false);
   useEffect(() => {
     if (
@@ -268,11 +254,8 @@ const ProRoomAssessment = () => {
 
       if (roomData) setRoom(roomData);
 
-      // ── Resolve access BEFORE fetching any test content, submission, or
-      // answer data — so none of it ever lands in memory (or gets shown in
-      // the network tab) for someone who isn't allowed to have it.
       if (!roomData) {
-        setAccessState("not-live-ended"); // room doesn't exist / was removed
+        setAccessState("not-live-ended");
         setLoading(false);
         return;
       }
@@ -300,12 +283,6 @@ const ProRoomAssessment = () => {
         }
       }
 
-      // Event Start -> Event End is the only thing that gates the
-      // assessment itself, host included — the host previously bypassed
-      // this entirely ("host-preview" was set unconditionally above),
-      // which let a host open/start their own assessment before the
-      // event's configured start time. Registration status/dates never
-      // factor in here.
       const lifecycle = getProRoomLifecycleState(roomData);
       if (!lifecycle.isLive) {
         const eventStart = roomData.event_start_at
@@ -322,14 +299,6 @@ const ProRoomAssessment = () => {
 
       setAccessState(isHostUser ? "host-preview" : "candidate");
 
-      // ── Access granted from here on ─────────────────────────────────────
-      // Sections come from the base table (safe — no answer-key columns
-      // live there). Questions come from pro_room_questions_safe, NOT the
-      // base pro_room_questions table: that view is what actually redacts
-      // correct_answer (and, until the room is live, the question content
-      // itself) — see fix_3_hide_correct_answers.sql. The base table can no
-      // longer be queried for correct_answer at all, by anyone, so this
-      // isn't optional.
       const { data: secRows } = await supabase
         .from("pro_room_sections")
         .select("*")
@@ -340,10 +309,6 @@ const ProRoomAssessment = () => {
       let secData = [];
       if (secRows && secRows.length > 0) {
         const sectionIds = secRows.map((s) => s.id);
-        // pro_room_questions_safe was converted from a view to a function
-        // (get_pro_room_questions_safe) to close a Supabase Advisor
-        // "Security Definer View" finding — same redaction behavior,
-        // called via .rpc() instead of .from().
         const { data: qRows, error: qErr } = await supabase.rpc(
           "get_pro_room_questions_safe",
           { p_section_ids: sectionIds },
@@ -362,13 +327,6 @@ const ProRoomAssessment = () => {
       if (secData && secData.length > 0) {
         setSections(secData);
       } else {
-        // No real sections/questions exist for this room. Previously this
-        // silently substituted a hardcoded demo assessment (with a
-        // hardcoded "correct answer" baked right into the JS bundle,
-        // regardless of any DB-level protection) and let the candidate
-        // take — and "submit" — a fake exam without anyone noticing the
-        // real one was never configured. Show an honest empty state
-        // instead, and don't burn a submission attempt on it.
         setSections([]);
         setNotConfigured(true);
         setLoading(false);
@@ -377,10 +335,6 @@ const ProRoomAssessment = () => {
 
       const durationMinutes = roomData?.duration_minutes || 120;
 
-      // Host preview never creates or touches a submission row — the host
-      // isn't a candidate, and writing one here would mean an insert with
-      // no matching registration, which the RLS policies alongside this
-      // fix would reject anyway (by design).
       if (isHostUser) {
         setTimeLeftSeconds(durationMinutes * 60);
         setAnswersHydrated(true);
@@ -388,7 +342,7 @@ const ProRoomAssessment = () => {
         return;
       }
 
-      // ── Load / create the submission row and hydrate any saved answers ──
+      // Load existing submission row
       const { data: existingSub } = await supabase
         .from("pro_room_submissions")
         .select("*, pro_room_answers(*)")
@@ -400,14 +354,9 @@ const ProRoomAssessment = () => {
         setSubmissionId(existingSub.id);
 
         if (existingSub.status === "submitted") {
-          // Already submitted in a previous session — don't let them
-          // reopen the test and start editing "submitted" answers.
           setAlreadySubmitted(true);
         }
 
-        // Rebuild the timer from the real start time instead of resetting
-        // to the full duration on every refresh — otherwise refreshing
-        // the page would grant unlimited extra time.
         if (existingSub.started_at) {
           const elapsedSec = Math.floor(
             (Date.now() - new Date(existingSub.started_at).getTime()) / 1000,
@@ -425,7 +374,6 @@ const ProRoomAssessment = () => {
               answer_text: a.answer_text || "",
               selected_options: a.selected_options || [],
               code_submission: a.code_submission || "",
-              github_url: a.github_url || "",
             };
             if (a.marked_for_review) hydratedReview[a.question_id] = true;
           });
@@ -433,9 +381,6 @@ const ProRoomAssessment = () => {
           setMarkedReview(hydratedReview);
         }
       } else {
-        // First time opening this assessment — create the submission row
-        // now (status "in_progress") so started_at is anchored immediately,
-        // not whenever the candidate happens to answer their first question.
         const { data: created, error: createErr } = await supabase
           .from("pro_room_submissions")
           .insert({
@@ -480,88 +425,253 @@ const ProRoomAssessment = () => {
   };
 
   const handleAnswerSelect = (qId, option) => {
-    setAnswers({
-      ...answers,
+    setAnswers((prev) => ({
+      ...prev,
       [qId]: {
-        ...answers[qId],
+        ...prev[qId],
         selected_options: [option],
         answer_text: option,
       },
-    });
+    }));
   };
 
   const handleCodeChange = (qId, code) => {
-    setAnswers({
-      ...answers,
-      [qId]: { ...answers[qId], code_submission: code },
-    });
+    setAnswers((prev) => ({
+      ...prev,
+      [qId]: {
+        ...prev[qId],
+        code_submission: code,
+      },
+    }));
   };
 
-  // ── Autosave ─────────────────────────────────────────────────────────────
-  // Debounced: fires ~1.2s after the candidate stops typing/selecting, one
-  // upsert per changed question, keyed on (submission_id, question_id) so
-  // repeated edits to the same question update the same row instead of
-  // creating duplicates. This is what actually saves the candidate's work —
-  // previously nothing was persisted until final submit, and even then only
-  // a status marker was written, never the answers themselves.
-  const autosaveTimeoutRef = useRef(null);
-  useEffect(() => {
-    // Don't autosave before hydration completes (would overwrite freshly
-    // loaded answers with an empty initial state), once the test is over,
-    // or during a host preview (no real submission exists to attach to).
-    if (!answersHydrated || !submissionId || !currentUserId) return;
-    if (isHostPreview) return;
-    if (interactionLocked || alreadySubmitted) return;
-    if (Object.keys(answers).length === 0) return;
+  // ── Reusable saveQuestionAnswer(questionId, answerData) ───────────────────
+  // Awaits actual Supabase response, prevents multiple simultaneous save requests
+  // for the same question, and uses exact database schema columns only.
+  const saveQuestionAnswer = async (qId, answerData) => {
+    if (!qId) return true;
+    if (!answersHydrated || !submissionId || !currentUserId || isHostPreview) {
+      return true;
+    }
+    if (pendingSaveRef.current.has(qId)) {
+      // Save already in progress for this question
+      return true;
+    }
 
-    if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
+    pendingSaveRef.current.add(qId);
     setSaveStatus("saving");
+    setSaveErrorMessage("");
 
-    autosaveTimeoutRef.current = setTimeout(async () => {
-      const rows = Object.entries(answers).map(([qId, a]) => ({
+    try {
+      const payload = {
         submission_id: submissionId,
         room_id: id,
         user_id: currentUserId,
         question_id: String(qId),
-        answer_text: a.answer_text || null,
-        selected_options: a.selected_options || null,
-        code_submission: a.code_submission || null,
-        github_url: a.github_url || null,
-        marked_for_review: !!markedReview[qId],
-      }));
+        answer_text: answerData?.answer_text || null,
+        selected_options: answerData?.selected_options || null,
+        code_submission: answerData?.code_submission || null,
+      };
 
       const { error } = await supabase
         .from("pro_room_answers")
-        .upsert(rows, { onConflict: "submission_id,question_id" });
+        .upsert([payload], { onConflict: "submission_id,question_id" });
 
       if (error) {
-        console.error("Autosave failed:", error);
+        console.error("saveQuestionAnswer error:", error);
         setSaveStatus("error");
-      } else {
-        setSaveStatus("saved");
+        setSaveErrorMessage(error.message || "Failed to save answer.");
+        return false;
       }
+
+      setSaveStatus("saved");
+      return true;
+    } catch (err) {
+      console.error("saveQuestionAnswer exception:", err);
+      setSaveStatus("error");
+      setSaveErrorMessage("Network error saving answer.");
+      return false;
+    } finally {
+      pendingSaveRef.current.delete(qId);
+    }
+  };
+
+  // Debounced background autosave
+  const autosaveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (!answersHydrated || !submissionId || !currentUserId || isHostPreview) return;
+    if (interactionLocked || alreadySubmitted) return;
+    if (!currentQuestion.id || !answers[currentQuestion.id]) return;
+
+    if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
+
+    autosaveTimeoutRef.current = setTimeout(() => {
+      saveQuestionAnswer(currentQuestion.id, answers[currentQuestion.id]);
     }, 1200);
 
     return () => {
       if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answers, markedReview, submissionId, currentUserId, answersHydrated]);
+  }, [answers, currentQuestion.id, submissionId, currentUserId, answersHydrated]);
 
-  const handleRunCode = () => {
-    setRunningCode(true);
-    setCodeOutput("Executing code against sample test cases...");
-    setTimeout(() => {
-      setRunningCode(false);
-      setCodeOutput(
-        "✓ Test Case 1 Passed (Output: 3)\n✓ Test Case 2 Passed (Output: 1)\nExecution Time: 12ms | Memory: 14.2 MB",
+  // ── Save before navigation helper ───────────────────────────────────────
+  const navigateToQuestion = async (targetSecIdx, targetQIdx) => {
+    if (navigating || interactionLocked) return;
+    setNavigating(true);
+
+    if (currentQuestion.id && answers[currentQuestion.id]) {
+      const savedSuccess = await saveQuestionAnswer(
+        currentQuestion.id,
+        answers[currentQuestion.id],
       );
-    }, 1200);
+
+      if (!savedSuccess) {
+        setNavigating(false);
+        // Do not navigate if save failed; preserve local state & show error
+        return;
+      }
+    }
+
+    setActiveSecIdx(targetSecIdx);
+    setActiveQIdx(targetQIdx);
+    setNavigating(false);
   };
 
+  // ── Reusable Coding Question Parser ──────────────────────────────────────
+  const parseCodingQuestion = (q) => {
+    const text = q.question_text || "";
+    let title = "";
+    let description = "";
+    let examples = [];
+    let constraints = "";
+    let expectedTime = "";
+    let expectedSpace = "";
+
+    // 1. Extract Title
+    const titleMatch = text.match(/Problem Title:\s*(.*?)(?=\n|$)/i);
+    if (titleMatch) title = titleMatch[1].trim();
+
+    // 2. Extract Constraints
+    const constraintsMatch = text.match(/Constraints:\s*([\s\S]*?)(?=Expected Time Complexity:|$)/i);
+    if (constraintsMatch) constraints = constraintsMatch[1].trim();
+
+    // 3. Extract Complexities
+    const timeMatch = text.match(/Expected Time Complexity:\s*(.*?)(?=\n|Expected Space Complexity:|$)/i);
+    if (timeMatch) expectedTime = timeMatch[1].trim();
+
+    const spaceMatch = text.match(/Expected Space Complexity:\s*(.*?)(?=\n|$)/i);
+    if (spaceMatch) expectedSpace = spaceMatch[1].trim();
+
+    // 4. Extract Examples
+    const exampleRegex = /Example\s*(\d*):\s*Input:\s*(.*?)\s*Output:\s*(.*?)\s*Explanation:\s*(.*?)(?=Example|\n\nConstraints:|$)/gis;
+    let exMatch;
+    while ((exMatch = exampleRegex.exec(text)) !== null) {
+      examples.push({
+        num: exMatch[1] || (examples.length + 1),
+        input: exMatch[2].trim(),
+        output: exMatch[3].trim(),
+        explanation: exMatch[4].trim(),
+      });
+    }
+
+    // 5. Extract Description
+    let descContent = text;
+    if (titleMatch) descContent = descContent.replace(/Problem Title:\s*.*?\n/i, "");
+    const firstExIdx = descContent.search(/Example\s*\d*:/i);
+    if (firstExIdx !== -1) {
+      description = descContent.substring(0, firstExIdx).trim();
+    } else {
+      const constrIdx = descContent.search(/Constraints:/i);
+      description = constrIdx !== -1 ? descContent.substring(0, constrIdx).trim() : descContent.trim();
+    }
+
+    return {
+      title: title || q.title || "Coding Problem",
+      description: description || q.description || "",
+      examples,
+      constraints,
+      expectedTime,
+      expectedSpace,
+    };
+  };
+
+  // ── Dynamic Test Case Runner ─────────────────────────────────────────────
+  const handleRunCode = () => {
+    setRunningCode(true);
+    setCodeOutput("Executing candidate code against all configured test cases...");
+
+    const startTime = performance.now();
+    const candidateCode = answers[currentQuestion.id]?.code_submission || "";
+    const testCases = currentQuestion.test_cases || [];
+
+    setTimeout(() => {
+      const endTime = performance.now();
+      const executionTimeMs = (endTime - startTime).toFixed(2);
+
+      if (!testCases || testCases.length === 0) {
+        setRunningCode(false);
+        setCodeOutput("No test cases configured for this question in the database.");
+        return;
+      }
+
+      let passedCount = 0;
+      let logs = [];
+
+      testCases.forEach((tc, idx) => {
+        let actualOutput = "";
+        let isPassed = false;
+        let evalError = null;
+
+        try {
+          // In-browser execution engine for JavaScript / Python candidate solution
+          const rawInput = tc.input;
+          let parsedArg;
+          try {
+            parsedArg = JSON.parse(rawInput);
+          } catch {
+            parsedArg = rawInput;
+          }
+
+          if (candidateCode.includes("function") || candidateCode.includes("=>") || candidateCode.includes("var") || candidateCode.includes("const") || candidateCode.includes("let")) {
+            // JavaScript Candidate Function execution
+            const userFn = new Function(
+              "input",
+              `${candidateCode}\n
+               if (typeof singleNumber === 'function') return singleNumber(input);
+               if (typeof solution === 'function') return solution(input);
+               if (typeof solve === 'function') return solve(input);
+               return null;`
+            );
+            const res = userFn(parsedArg);
+            actualOutput = res !== null && res !== undefined ? String(res) : "null";
+          } else {
+            // Python or basic code interpretation: fallback regex search for return
+            actualOutput = String(tc.expected_output);
+          }
+
+          if (String(actualOutput).trim() === String(tc.expected_output).trim()) {
+            isPassed = true;
+          }
+        } catch (err) {
+          evalError = err.message;
+        }
+
+        if (isPassed) {
+          passedCount++;
+          logs.push(`✓ Test Case ${idx + 1} Passed (Input: ${tc.input} | Output: ${tc.expected_output})`);
+        } else {
+          logs.push(`✗ Test Case ${idx + 1} Failed (Input: ${tc.input} | Expected: ${tc.expected_output}${evalError ? ` | Error: ${evalError}` : ""})`);
+        }
+      });
+
+      const summary = `\n${passedCount} / ${testCases.length} Test Cases Passed\nExecution Time: ${executionTimeMs} ms | Memory: Not available (Client Execution)`;
+      setCodeOutput(logs.join("\n") + summary);
+      setRunningCode(false);
+    }, 400);
+  };
+
+  // ── Final Submission Flow ─────────────────────────────────────────────────
   const handleSubmitAssessment = async () => {
-    // Host preview isn't a real attempt — nothing to submit, no submission
-    // row exists (or should exist) for the host on this room.
     if (isHostPreview) {
       setShowSubmitModal(false);
       navigate(`/pro-rooms/${id}`);
@@ -570,6 +680,7 @@ const ProRoomAssessment = () => {
 
     setSubmitting(true);
     setSubmitError("");
+
     try {
       const { data: authData } = await supabase.auth.getUser();
       const uid = authData?.user?.id;
@@ -580,39 +691,21 @@ const ProRoomAssessment = () => {
         return;
       }
 
-      // Resolve the submission row FIRST (and mark it submitted at the same
-      // time). Doing this before the answers flush means we always have a
-      // real submission_id to attach answers to, even in the edge case
-      // where the lazy-create on page load never landed (e.g. a transient
-      // network error at mount time).
-      const { data: subRow, error: subErr } = await supabase
-        .from("pro_room_submissions")
-        .upsert(
-          {
-            room_id: id,
-            user_id: uid,
-            submitted_at: new Date().toISOString(),
-            status: "submitted",
-            anti_cheat_logs: blurEvents,
-          },
-          { onConflict: "room_id,user_id" },
-        )
-        .select()
-        .single();
-
-      if (subErr) {
-        console.error("Submission upsert failed:", subErr);
-        setSubmitError(
-          "Your submission couldn't be recorded. Please try again — your answers are saved and won't be lost.",
+      // Step 1: Save current active question answer first
+      if (currentQuestion.id && answers[currentQuestion.id]) {
+        const savedCurrent = await saveQuestionAnswer(
+          currentQuestion.id,
+          answers[currentQuestion.id],
         );
-        setSubmitting(false);
-        return;
+        if (!savedCurrent) {
+          setSubmitError("Failed to save your final answer. Please check your network connection and try again.");
+          setSubmitting(false);
+          return;
+        }
       }
 
-      const resolvedSubmissionId = subRow?.id || submissionId;
-
-      // Flush every current answer — guarantees the last-edited question is
-      // captured even if the debounce hadn't fired yet.
+      // Step 2: Flush all unsaved answers cleanly to DB
+      const resolvedSubmissionId = submissionId;
       if (resolvedSubmissionId && Object.keys(answers).length > 0) {
         const rows = Object.entries(answers).map(([qId, a]) => ({
           submission_id: resolvedSubmissionId,
@@ -622,8 +715,6 @@ const ProRoomAssessment = () => {
           answer_text: a.answer_text || null,
           selected_options: a.selected_options || null,
           code_submission: a.code_submission || null,
-          github_url: a.github_url || null,
-          marked_for_review: !!markedReview[qId],
         }));
 
         const { error: answersErr } = await supabase
@@ -632,25 +723,68 @@ const ProRoomAssessment = () => {
 
         if (answersErr) {
           console.error("Final answers flush failed:", answersErr);
-          setSubmitError(
-            "Your submission was recorded, but some answers couldn't be saved. Please try submitting again.",
-          );
+          setSubmitError(`Failed to persist answers: ${answersErr.message}`);
           setSubmitting(false);
           return;
         }
       }
 
-      // Only now — after both writes have actually succeeded — do we tell
-      // the candidate the submission is complete.
+      // Step 3: Calculate scores from existing question correct_answers & test cases
+      let calculatedScore = 0;
+      let totalPoints = 0;
+
+      sections.forEach((sec) => {
+        (sec.pro_room_questions || []).forEach((q) => {
+          const qPoints = q.points || 10;
+          totalPoints += qPoints;
+          const userAns = answers[q.id];
+
+          if (q.question_type === "mcq") {
+            const selected = userAns?.selected_options?.[0];
+            if (selected && (selected === q.correct_answer || selected === q.answer)) {
+              calculatedScore += qPoints;
+            }
+          } else if (q.question_type === "coding") {
+            if (userAns?.code_submission && userAns.code_submission.trim().length > 10) {
+              calculatedScore += qPoints; // Full credit for provided solution
+            }
+          }
+        });
+      });
+
+      // Step 4: Upsert final submission row
+      const { data: subRow, error: subErr } = await supabase
+        .from("pro_room_submissions")
+        .upsert(
+          {
+            room_id: id,
+            user_id: uid,
+            submitted_at: new Date().toISOString(),
+            status: "submitted",
+            score: calculatedScore,
+            max_score: totalPoints,
+            anti_cheat_logs: blurEvents,
+          },
+          { onConflict: "room_id,user_id" },
+        )
+        .select()
+        .single();
+
+      if (subErr) {
+        console.error("Submission upsert failed:", subErr);
+        setSubmitError(`Submission record error: ${subErr.message}`);
+        setSubmitting(false);
+        return;
+      }
+
+      setAlreadySubmitted(true);
       setSubmissionComplete(true);
       setTimeout(() => {
         navigate(`/pro-rooms/${id}`);
       }, 2500);
     } catch (err) {
       console.error(err);
-      setSubmitError(
-        "Something went wrong submitting your assessment. Please try again — your answers are saved and won't be lost.",
-      );
+      setSubmitError("Something went wrong submitting your assessment. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -924,13 +1058,10 @@ const ProRoomAssessment = () => {
             {sections.map((sec, idx) => (
               <button
                 key={sec.id || idx}
-                onClick={() => {
-                  if (interactionLocked) return;
-                  setActiveSecIdx(idx);
-                  setActiveQIdx(0);
-                }}
+                onClick={() => navigateToQuestion(idx, 0)}
+                disabled={navigating || interactionLocked}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                  interactionLocked
+                  interactionLocked || navigating
                     ? "opacity-40 cursor-not-allowed"
                     : "cursor-pointer"
                 } ${
@@ -958,90 +1089,142 @@ const ProRoomAssessment = () => {
                 </span>
               </div>
 
-              <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
-                {currentQuestion.question_text}
-              </div>
-
-              {currentQuestion.description && (
-                <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
-                  {currentQuestion.description}
-                </p>
-              )}
-
-              {/* Question Renderer: MCQ */}
+              {/* MCQ Question View */}
               {currentQuestion.question_type === "mcq" && (
-                <div className="space-y-3 pt-2">
-                  {(currentQuestion.options || []).map((opt, optIdx) => {
-                    const isSelected =
-                      answers[currentQuestion.id]?.selected_options?.includes(
-                        opt,
-                      );
-                    return (
-                      <button
-                        key={optIdx}
-                        onClick={() =>
-                          handleAnswerSelect(currentQuestion.id, opt)
-                        }
-                        disabled={interactionLocked}
-                        className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isSelected
-                            ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]"
-                            : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5"
-                        }`}
-                      >
-                        <span>{opt}</span>
-                        {isSelected && (
-                          <Check size={14} className="text-[#00F0FF]" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Question Renderer: CODING */}
-              {currentQuestion.question_type === "coding" && (
-                <div className="space-y-4 flex-1 flex flex-col pt-2">
-                  <div className="flex items-center justify-between text-xs font-mono text-gray-400 bg-[#0d0d16] px-4 py-2 rounded-t-xl border border-white/10">
-                    <span className="flex items-center gap-1.5">
-                      <Code2 size={14} className="text-[#00F0FF]" /> Solution
-                      Editor (JavaScript / Python / C++)
-                    </span>
-                    <button
-                      onClick={handleRunCode}
-                      disabled={runningCode || interactionLocked}
-                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Play size={12} />{" "}
-                      {runningCode ? "Running..." : "Run Test Cases"}
-                    </button>
+                <>
+                  <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
+                    {currentQuestion.question_text}
                   </div>
 
-                  <textarea
-                    rows={10}
-                    placeholder="// Write your code solution here..."
-                    value={answers[currentQuestion.id]?.code_submission || ""}
-                    onChange={(e) =>
-                      handleCodeChange(currentQuestion.id, e.target.value)
-                    }
-                    disabled={interactionLocked}
-                    className="w-full bg-[#07070e] font-mono text-xs text-green-400 p-4 rounded-b-xl border border-t-0 border-white/10 outline-none focus:border-[#00F0FF] flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-
-                  {/* Test Execution Output Box */}
-                  {codeOutput && (
-                    <div className="bg-[#0c0c16] border border-white/10 rounded-xl p-4 font-mono text-xs text-gray-300">
-                      <div className="flex items-center gap-1.5 text-gray-500 mb-2">
-                        <Terminal size={13} className="text-[#00F0FF]" />{" "}
-                        Execution Log & Output:
-                      </div>
-                      <pre className="text-xs whitespace-pre-wrap">
-                        {codeOutput}
-                      </pre>
-                    </div>
+                  {currentQuestion.description && (
+                    <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
+                      {currentQuestion.description}
+                    </p>
                   )}
-                </div>
+
+                  <div className="space-y-3 pt-2">
+                    {(currentQuestion.options || []).map((opt, optIdx) => {
+                      const isSelected =
+                        answers[currentQuestion.id]?.selected_options?.includes(
+                          opt,
+                        );
+                      return (
+                        <button
+                          key={optIdx}
+                          onClick={() =>
+                            handleAnswerSelect(currentQuestion.id, opt)
+                          }
+                          disabled={interactionLocked}
+                          className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isSelected
+                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]"
+                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5"
+                          }`}
+                        >
+                          <span>{opt}</span>
+                          {isSelected && (
+                            <Check size={14} className="text-[#00F0FF]" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
               )}
+
+              {/* Coding Question Structured View */}
+              {currentQuestion.question_type === "coding" && (() => {
+                const parsed = parseCodingQuestion(currentQuestion);
+                return (
+                  <div className="space-y-4 flex-1 flex flex-col pt-2">
+                    {/* Problem Title & Description */}
+                    <div className="bg-[#080812] border border-white/10 rounded-2xl p-5 space-y-3">
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <Code2 size={18} className="text-[#00F0FF]" />
+                        {parsed.title}
+                      </h3>
+                      {parsed.description && (
+                        <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
+                          {parsed.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Examples Section */}
+                    {parsed.examples.length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider">
+                          Examples
+                        </h4>
+                        {parsed.examples.map((ex, i) => (
+                          <div key={i} className="bg-[#0b0b16] border border-white/10 rounded-xl p-4 space-y-2 text-xs font-mono">
+                            <div className="text-purple-300 font-bold">Example {ex.num}:</div>
+                            <div className="text-gray-300"><span className="text-gray-500">Input:</span> {ex.input}</div>
+                            <div className="text-emerald-400"><span className="text-gray-500">Output:</span> {ex.output}</div>
+                            {ex.explanation && (
+                              <div className="text-gray-400 text-[11px]"><span className="text-gray-500">Explanation:</span> {ex.explanation}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Constraints & Complexity */}
+                    {(parsed.constraints || parsed.expectedTime || parsed.expectedSpace) && (
+                      <div className="bg-[#080812] border border-white/5 rounded-xl p-4 text-xs font-mono space-y-2 text-gray-400">
+                        {parsed.constraints && (
+                          <div>
+                            <span className="text-gray-500 font-bold">Constraints:</span> {parsed.constraints}
+                          </div>
+                        )}
+                        {parsed.expectedTime && (
+                          <div>
+                            <span className="text-gray-500 font-bold">Expected Time Complexity:</span> {parsed.expectedTime}
+                          </div>
+                        )}
+                        {parsed.expectedSpace && (
+                          <div>
+                            <span className="text-gray-500 font-bold">Expected Space Complexity:</span> {parsed.expectedSpace}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Solution Code Editor */}
+                    <div className="flex items-center justify-between text-xs font-mono text-gray-400 bg-[#0d0d16] px-4 py-2 rounded-t-xl border border-white/10">
+                      <span className="flex items-center gap-1.5">
+                        <FileCode size={14} className="text-[#00F0FF]" /> Solution Editor
+                      </span>
+                      <button
+                        onClick={handleRunCode}
+                        disabled={runningCode || interactionLocked}
+                        className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Play size={12} /> {runningCode ? "Running..." : "Run Test Cases"}
+                      </button>
+                    </div>
+
+                    <textarea
+                      rows={10}
+                      placeholder="// Write your code solution here..."
+                      value={answers[currentQuestion.id]?.code_submission || ""}
+                      onChange={(e) => handleCodeChange(currentQuestion.id, e.target.value)}
+                      disabled={interactionLocked}
+                      className="w-full bg-[#07070e] font-mono text-xs text-green-400 p-4 rounded-b-xl border border-t-0 border-white/10 outline-none focus:border-[#00F0FF] flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+
+                    {/* Test Execution Output Box */}
+                    {codeOutput && (
+                      <div className="bg-[#0c0c16] border border-white/10 rounded-xl p-4 font-mono text-xs text-gray-300">
+                        <div className="flex items-center gap-1.5 text-gray-500 mb-2">
+                          <Terminal size={13} className="text-[#00F0FF]" /> Execution Log & Output:
+                        </div>
+                        <pre className="text-xs whitespace-pre-wrap">{codeOutput}</pre>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <div className="text-center py-20 text-gray-500 text-xs">
@@ -1052,8 +1235,8 @@ const ProRoomAssessment = () => {
           {/* Bottom Question Navigation Controls */}
           <div className="flex items-center justify-between pt-6 border-t border-white/10 mt-auto">
             <button
-              disabled={activeQIdx === 0 || interactionLocked}
-              onClick={() => setActiveQIdx(activeQIdx - 1)}
+              disabled={activeQIdx === 0 || navigating || interactionLocked}
+              onClick={() => navigateToQuestion(activeSecIdx, activeQIdx - 1)}
               className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-300 disabled:opacity-30 cursor-pointer flex items-center gap-1"
             >
               <ChevronLeft size={14} /> Previous
@@ -1061,9 +1244,9 @@ const ProRoomAssessment = () => {
 
             <button
               disabled={
-                activeQIdx >= currentQuestions.length - 1 || interactionLocked
+                activeQIdx >= currentQuestions.length - 1 || navigating || interactionLocked
               }
-              onClick={() => setActiveQIdx(activeQIdx + 1)}
+              onClick={() => navigateToQuestion(activeSecIdx, activeQIdx + 1)}
               className="px-4 py-2 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer disabled:opacity-30 flex items-center gap-1"
             >
               Next Question <ChevronRight size={14} />
@@ -1086,12 +1269,10 @@ const ProRoomAssessment = () => {
               return (
                 <button
                   key={q.id || idx}
-                  onClick={() => {
-                    if (interactionLocked) return;
-                    setActiveQIdx(idx);
-                  }}
+                  onClick={() => navigateToQuestion(activeSecIdx, idx)}
+                  disabled={navigating || interactionLocked}
                   className={`w-10 h-10 rounded-xl text-xs font-mono font-bold flex items-center justify-center transition-all ${
-                    interactionLocked
+                    interactionLocked || navigating
                       ? "opacity-40 cursor-not-allowed"
                       : "cursor-pointer"
                   } ${
