@@ -196,6 +196,241 @@ const isRealId = (id) =>
   typeof id === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+// ── Structured coding-question editor ───────────────────────────────────
+// Replaces the single free-text "type the whole problem as one blob"
+// textarea with real fields (Title / Description / Examples / Constraints /
+// Time & Space Complexity), matching exactly how ProRoomAssessment.jsx's
+// parseCodingQuestion() already splits question_text apart for candidates.
+// No schema change: this still writes to the same question_text column,
+// just composed from structured inputs instead of typed freehand — so
+// existing questions and the assessment-side parser both keep working
+// unchanged. parseCodingText below is the same extraction logic as
+// ProRoomAssessment.jsx's parseCodingQuestion, kept in sync deliberately —
+// composeCodingText is written to be its exact inverse.
+const parseCodingText = (text) => {
+  text = text || "";
+  let title = "";
+  let description = "";
+  let examples = [];
+  let constraints = "";
+  let expectedTime = "";
+  let expectedSpace = "";
+
+  const titleMatch = text.match(/Problem Title:\s*(.*?)(?=\n|$)/i);
+  if (titleMatch) title = titleMatch[1].trim();
+
+  const constraintsMatch = text.match(
+    /Constraints:\s*([\s\S]*?)(?=Expected Time Complexity:|$)/i,
+  );
+  if (constraintsMatch) constraints = constraintsMatch[1].trim();
+
+  const timeMatch = text.match(
+    /Expected Time Complexity:\s*(.*?)(?=\n|Expected Space Complexity:|$)/i,
+  );
+  if (timeMatch) expectedTime = timeMatch[1].trim();
+
+  const spaceMatch = text.match(/Expected Space Complexity:\s*(.*?)(?=\n|$)/i);
+  if (spaceMatch) expectedSpace = spaceMatch[1].trim();
+
+  const exampleRegex =
+    /Example\s*(\d*):\s*Input:\s*(.*?)\s*Output:\s*(.*?)\s*Explanation:\s*(.*?)(?=Example|\n\nConstraints:|$)/gis;
+  let exMatch;
+  while ((exMatch = exampleRegex.exec(text)) !== null) {
+    examples.push({
+      input: exMatch[2].trim(),
+      output: exMatch[3].trim(),
+      explanation: exMatch[4].trim(),
+    });
+  }
+
+  let descContent = text;
+  if (titleMatch)
+    descContent = descContent.replace(/Problem Title:\s*.*?\n/i, "");
+  const firstExIdx = descContent.search(/Example\s*\d*:/i);
+  if (firstExIdx !== -1) {
+    description = descContent.substring(0, firstExIdx).trim();
+  } else {
+    const constrIdx = descContent.search(/Constraints:/i);
+    description =
+      constrIdx !== -1
+        ? descContent.substring(0, constrIdx).trim()
+        : descContent.trim();
+  }
+
+  return {
+    title,
+    description,
+    examples,
+    constraints,
+    expectedTime,
+    expectedSpace,
+  };
+};
+
+const composeCodingText = ({
+  title,
+  description,
+  examples,
+  constraints,
+  expectedTime,
+  expectedSpace,
+}) => {
+  let out = `Problem Title:\n${title || ""}\n\n`;
+  out += `${description || ""}\n\n`;
+  (examples || []).forEach((ex, i) => {
+    out += `Example ${i + 1}:\nInput: ${ex.input || ""}\nOutput: ${ex.output || ""}\nExplanation: ${ex.explanation || ""}\n\n`;
+  });
+  out += `Constraints:\n${constraints || ""}\n\n`;
+  out += `Expected Time Complexity:\n${expectedTime || ""}\n\n`;
+  out += `Expected Space Complexity:\n${expectedSpace || ""}`;
+  return out;
+};
+
+const fieldClass =
+  "w-full bg-[#12121e] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]";
+const labelClass =
+  "text-[10px] font-bold text-gray-400 uppercase tracking-wider";
+
+// Keyed by question.id where rendered (see below), so switching between
+// questions cleanly remounts this with fresh local state parsed from that
+// question's own question_text, instead of carrying stale field values over
+// from whatever question was open before.
+const CodingQuestionEditor = ({ questionText, onChange }) => {
+  const [fields, setFields] = useState(() => parseCodingText(questionText));
+
+  const patch = (partial) => {
+    const next = { ...fields, ...partial };
+    setFields(next);
+    onChange(composeCodingText(next));
+  };
+
+  const setExample = (idx, key, val) => {
+    const next = [...fields.examples];
+    next[idx] = { ...next[idx], [key]: val };
+    patch({ examples: next });
+  };
+  const addExample = () =>
+    patch({
+      examples: [
+        ...fields.examples,
+        { input: "", output: "", explanation: "" },
+      ],
+    });
+  const removeExample = (idx) =>
+    patch({ examples: fields.examples.filter((_, i) => i !== idx) });
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <label className={labelClass}>Problem Title</label>
+        <input
+          type="text"
+          value={fields.title}
+          placeholder="e.g., Find the Most Frequent Element"
+          onChange={(e) => patch({ title: e.target.value })}
+          className={fieldClass}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className={labelClass}>Description</label>
+        <textarea
+          rows={4}
+          value={fields.description}
+          placeholder="Given an array of integers, find the element that appears most frequently. If multiple elements have the same highest frequency, return the smallest element among them."
+          onChange={(e) => patch({ description: e.target.value })}
+          className={fieldClass + " resize-y"}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className={labelClass}>Examples</label>
+        {fields.examples.map((ex, idx) => (
+          <div
+            key={idx}
+            className="border border-white/10 rounded-lg p-2 space-y-1.5 bg-[#0d0d16]"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-gray-500">
+                Example {idx + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeExample(idx)}
+                className="text-gray-600 hover:text-red-400 cursor-pointer"
+              >
+                <FiTrash2 size={12} />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={ex.input}
+              placeholder="Input, e.g., [4, 2, 4, 3, 2, 4, 2]"
+              onChange={(e) => setExample(idx, "input", e.target.value)}
+              className={fieldClass}
+            />
+            <input
+              type="text"
+              value={ex.output}
+              placeholder="Output, e.g., 2"
+              onChange={(e) => setExample(idx, "output", e.target.value)}
+              className={fieldClass}
+            />
+            <input
+              type="text"
+              value={ex.explanation}
+              placeholder="Explanation, e.g., Both 2 and 4 appear 3 times. Since 2 is smaller, return 2."
+              onChange={(e) => setExample(idx, "explanation", e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addExample}
+          className="text-[10px] font-bold text-purple-300 hover:text-purple-200 flex items-center gap-1 cursor-pointer"
+        >
+          <FiPlus size={10} /> Add Example
+        </button>
+      </div>
+
+      <div className="space-y-1">
+        <label className={labelClass}>Constraints</label>
+        <textarea
+          rows={2}
+          value={fields.constraints}
+          placeholder={"1 <= n <= 100000\n-10^9 <= arr[i] <= 10^9"}
+          onChange={(e) => patch({ constraints: e.target.value })}
+          className={fieldClass + " resize-y"}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className={labelClass}>Expected Time Complexity</label>
+          <input
+            type="text"
+            value={fields.expectedTime}
+            placeholder="O(n)"
+            onChange={(e) => patch({ expectedTime: e.target.value })}
+            className={fieldClass}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={labelClass}>Expected Space Complexity</label>
+          <input
+            type="text"
+            value={fields.expectedSpace}
+            placeholder="O(n)"
+            onChange={(e) => patch({ expectedSpace: e.target.value })}
+            className={fieldClass}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Per-question-type answer-key editor ─────────────────────────────────
 // Without this, a host had no way to ever set real options or a real
 // correct answer — every question silently kept addQuestion's defaults.
@@ -958,9 +1193,8 @@ const CreateProRoomPage = () => {
   const removeRegistrationQuestion = (qId) => {
     setEligibility({
       ...eligibility,
-      custom_registration_questions: eligibility.custom_registration_questions.filter(
-        (q) => q.id !== qId,
-      ),
+      custom_registration_questions:
+        eligibility.custom_registration_questions.filter((q) => q.id !== qId),
     });
   };
 
@@ -1553,7 +1787,8 @@ const CreateProRoomPage = () => {
               : 4,
         require_application: eligibility.require_application,
         custom_app_questions: eligibility.custom_app_questions,
-        custom_registration_questions: eligibility.custom_registration_questions,
+        custom_registration_questions:
+          eligibility.custom_registration_questions,
 
         passing_score: evaluation.passing_score
           ? Number(evaluation.passing_score)
@@ -2490,7 +2725,8 @@ const CreateProRoomPage = () => {
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                       />
                       <p className="text-[10px] text-gray-500 mt-1">
-                        Hard cutoff for candidates to turn in assessment responses.
+                        Hard cutoff for candidates to turn in assessment
+                        responses.
                       </p>
                     </div>
 
@@ -2507,7 +2743,8 @@ const CreateProRoomPage = () => {
                           }
                           className="w-4 h-4 rounded border-white/20 bg-black text-[#00F0FF] focus:ring-0 cursor-pointer"
                         />
-                        Allow Late Entry (Candidates can start test after event begins)
+                        Allow Late Entry (Candidates can start test after event
+                        begins)
                       </label>
                     </div>
                   </div>
@@ -2575,7 +2812,10 @@ const CreateProRoomPage = () => {
                           setEligibility({
                             ...eligibility,
                             participation_type: v,
-                            max_team_size: v === "individual" ? "1" : (eligibility.max_team_size || "4"),
+                            max_team_size:
+                              v === "individual"
+                                ? "1"
+                                : eligibility.max_team_size || "4",
                           })
                         }
                         options={[
@@ -2589,13 +2829,21 @@ const CreateProRoomPage = () => {
 
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-1">
-                        Maximum Team Size {eligibility.participation_type === "individual" && "(Individual = 1)"}
+                        Maximum Team Size{" "}
+                        {eligibility.participation_type === "individual" &&
+                          "(Individual = 1)"}
                       </label>
                       <input
                         type="number"
-                        disabled={eligibility.participation_type === "individual"}
+                        disabled={
+                          eligibility.participation_type === "individual"
+                        }
                         placeholder="e.g., 4"
-                        value={eligibility.participation_type === "individual" ? "1" : eligibility.max_team_size}
+                        value={
+                          eligibility.participation_type === "individual"
+                            ? "1"
+                            : eligibility.max_team_size
+                        }
                         onChange={(e) =>
                           setEligibility({
                             ...eligibility,
@@ -2603,7 +2851,9 @@ const CreateProRoomPage = () => {
                           })
                         }
                         className={`w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF] ${
-                          eligibility.participation_type === "individual" ? "opacity-50 cursor-not-allowed" : ""
+                          eligibility.participation_type === "individual"
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
                         }`}
                       />
                     </div>
@@ -2665,7 +2915,9 @@ const CreateProRoomPage = () => {
                           Candidate Registration Questions
                         </h4>
                         <p className="text-[11px] text-gray-500">
-                          Add custom questions that candidates must answer when applying/registering (e.g. "Why do you want to participate?", "GitHub link").
+                          Add custom questions that candidates must answer when
+                          applying/registering (e.g. "Why do you want to
+                          participate?", "GitHub link").
                         </p>
                       </div>
                       <button
@@ -2679,67 +2931,77 @@ const CreateProRoomPage = () => {
 
                     {eligibility.custom_registration_questions.length === 0 ? (
                       <p className="text-xs text-gray-500 text-center py-3 bg-[#06060c] border border-white/5 rounded-xl">
-                        No custom registration questions added. Candidates will complete basic profile verification.
+                        No custom registration questions added. Candidates will
+                        complete basic profile verification.
                       </p>
                     ) : (
-                      eligibility.custom_registration_questions.map((rq, rIdx) => (
-                        <div
-                          key={rq.id || rIdx}
-                          className="p-3.5 rounded-xl bg-[#06060c] border border-white/10 space-y-2.5 relative"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-mono text-[#FF00C8] font-bold uppercase">
-                              Applicant Question #{rIdx + 1}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeRegistrationQuestion(rq.id)}
-                              className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
-                            >
-                              <FiTrash2 size={13} />
-                            </button>
-                          </div>
+                      eligibility.custom_registration_questions.map(
+                        (rq, rIdx) => (
+                          <div
+                            key={rq.id || rIdx}
+                            className="p-3.5 rounded-xl bg-[#06060c] border border-white/10 space-y-2.5 relative"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-mono text-[#FF00C8] font-bold uppercase">
+                                Applicant Question #{rIdx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeRegistrationQuestion(rq.id)
+                                }
+                                className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
+                              >
+                                <FiTrash2 size={13} />
+                              </button>
+                            </div>
 
-                          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                            <input
-                              type="text"
-                              placeholder="e.g. Why do you want to participate in this challenge?"
-                              value={rq.question || ""}
-                              onChange={(e) =>
-                                setEligibility({
-                                  ...eligibility,
-                                  custom_registration_questions:
-                                    eligibility.custom_registration_questions.map((q) =>
-                                      q.id === rq.id
-                                        ? { ...q, question: e.target.value }
-                                        : q
-                                    ),
-                                })
-                              }
-                              className="flex-1 w-full bg-[#030308] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FF00C8]"
-                            />
-                            <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer shrink-0">
+                            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                               <input
-                                type="checkbox"
-                                checked={rq.required !== false}
+                                type="text"
+                                placeholder="e.g. Why do you want to participate in this challenge?"
+                                value={rq.question || ""}
                                 onChange={(e) =>
                                   setEligibility({
                                     ...eligibility,
                                     custom_registration_questions:
-                                      eligibility.custom_registration_questions.map((q) =>
-                                        q.id === rq.id
-                                          ? { ...q, required: e.target.checked }
-                                          : q
+                                      eligibility.custom_registration_questions.map(
+                                        (q) =>
+                                          q.id === rq.id
+                                            ? { ...q, question: e.target.value }
+                                            : q,
                                       ),
                                   })
                                 }
-                                className="rounded border-white/20 bg-black text-[#FF00C8] focus:ring-0"
+                                className="flex-1 w-full bg-[#030308] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FF00C8]"
                               />
-                              Required
-                            </label>
+                              <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer shrink-0">
+                                <input
+                                  type="checkbox"
+                                  checked={rq.required !== false}
+                                  onChange={(e) =>
+                                    setEligibility({
+                                      ...eligibility,
+                                      custom_registration_questions:
+                                        eligibility.custom_registration_questions.map(
+                                          (q) =>
+                                            q.id === rq.id
+                                              ? {
+                                                  ...q,
+                                                  required: e.target.checked,
+                                                }
+                                              : q,
+                                        ),
+                                    })
+                                  }
+                                  className="rounded border-white/20 bg-black text-[#FF00C8] focus:ring-0"
+                                />
+                                Required
+                              </label>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        ),
+                      )
                     )}
                   </div>
 
@@ -2959,29 +3221,36 @@ const CreateProRoomPage = () => {
                               </button>
                             </div>
 
-                            <textarea
-                              rows={
-                                ["coding", "sql", "debugging", "code_analysis"].includes(
-                                  q.question_type,
-                                ) || (q.question_text || "").includes("\n")
-                                  ? 6
-                                  : 2
-                              }
-                              placeholder={
-                                ["coding", "sql", "debugging", "code_analysis"].includes(
-                                  q.question_type,
-                                )
-                                  ? "Problem Title:\nFind the Most Frequent Element\n\nDescription:\nGiven an array of integers, find the element that appears most frequently.\n\nIf multiple elements have the same highest frequency, return the smallest element among them.\n\nExample:\nInput: [4, 2, 4, 3, 2, 4, 2]\nOutput: 2\n\nExplanation:\nBoth 2 and 4 appear 3 times. Since 2 is smaller, return 2.\n\nConstraints:\n1 <= n <= 100000\n-10^9 <= arr[i] <= 10^9\n\nExpected Time Complexity:\nO(n)\n\nExpected Space Complexity:\nO(n)"
-                                  : "Question Problem Statement..."
-                              }
-                              value={q.question_text}
-                              onChange={(e) =>
-                                updateQuestion(sec.id, q.id, {
-                                  question_text: e.target.value,
-                                })
-                              }
-                              className="w-full bg-[#12121e] border border-white/10 rounded-lg p-3 text-xs text-white outline-none focus:border-[#00F0FF] font-sans leading-relaxed whitespace-pre-wrap resize-y"
-                            />
+                            {[
+                              "coding",
+                              "sql",
+                              "debugging",
+                              "code_analysis",
+                            ].includes(q.question_type) ? (
+                              <CodingQuestionEditor
+                                key={q.id}
+                                questionText={q.question_text}
+                                onChange={(newText) =>
+                                  updateQuestion(sec.id, q.id, {
+                                    question_text: newText,
+                                  })
+                                }
+                              />
+                            ) : (
+                              <textarea
+                                rows={
+                                  (q.question_text || "").includes("\n") ? 6 : 2
+                                }
+                                placeholder="Question Problem Statement..."
+                                value={q.question_text}
+                                onChange={(e) =>
+                                  updateQuestion(sec.id, q.id, {
+                                    question_text: e.target.value,
+                                  })
+                                }
+                                className="w-full bg-[#12121e] border border-white/10 rounded-lg p-3 text-xs text-white outline-none focus:border-[#00F0FF] font-sans leading-relaxed whitespace-pre-wrap resize-y"
+                              />
+                            )}
 
                             <QuestionAnswerEditor
                               question={q}
@@ -3266,7 +3535,8 @@ const CreateProRoomPage = () => {
                   <div className="flex items-center gap-2 text-[11px] font-mono">
                     <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-gray-400 flex items-center gap-1">
                       <Users size={12} className="text-[#00F0FF]" /> Max
-                      Participants: {eligibility.max_participants || "Unlimited"}
+                      Participants:{" "}
+                      {eligibility.max_participants || "Unlimited"}
                     </span>
                     <span className="px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 font-bold">
                       {basicInfo.event_type || "Technical Assessment"}

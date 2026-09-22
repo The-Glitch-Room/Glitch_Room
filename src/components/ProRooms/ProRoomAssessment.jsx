@@ -276,7 +276,11 @@ const ProRoomAssessment = () => {
           .maybeSingle();
 
         if (!regRow || regRow.status !== "approved") {
-          setAccessState(regRow?.status === "pending" ? "pending-approval" : "not-registered");
+          setAccessState(
+            regRow?.status === "pending"
+              ? "pending-approval"
+              : "not-registered",
+          );
           setLoading(false);
           return;
         }
@@ -373,6 +377,7 @@ const ProRoomAssessment = () => {
               answer_text: a.answer_text || "",
               selected_options: a.selected_options || [],
               code_submission: a.code_submission || "",
+              code_language: a.code_language || "javascript",
             };
             if (a.marked_for_review) hydratedReview[a.question_id] = true;
           });
@@ -444,6 +449,16 @@ const ProRoomAssessment = () => {
     }));
   };
 
+  const handleLanguageChange = (qId, code_language) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [qId]: {
+        ...prev[qId],
+        code_language,
+      },
+    }));
+  };
+
   // ── Reusable saveQuestionAnswer(questionId, answerData) ───────────────────
   // Awaits actual Supabase response, prevents multiple simultaneous save requests
   // for the same question, and uses exact database schema columns only.
@@ -470,6 +485,7 @@ const ProRoomAssessment = () => {
         answer_text: answerData?.answer_text || null,
         selected_options: answerData?.selected_options || null,
         code_submission: answerData?.code_submission || null,
+        code_language: answerData?.code_language || null,
       };
 
       const { error } = await supabase
@@ -498,7 +514,8 @@ const ProRoomAssessment = () => {
   // Debounced background autosave
   const autosaveTimeoutRef = useRef(null);
   useEffect(() => {
-    if (!answersHydrated || !submissionId || !currentUserId || isHostPreview) return;
+    if (!answersHydrated || !submissionId || !currentUserId || isHostPreview)
+      return;
     if (interactionLocked || alreadySubmitted) return;
     if (!currentQuestion.id || !answers[currentQuestion.id]) return;
 
@@ -511,7 +528,13 @@ const ProRoomAssessment = () => {
     return () => {
       if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
     };
-  }, [answers, currentQuestion.id, submissionId, currentUserId, answersHydrated]);
+  }, [
+    answers,
+    currentQuestion.id,
+    submissionId,
+    currentUserId,
+    answersHydrated,
+  ]);
 
   // ── Save before navigation helper ───────────────────────────────────────
   const navigateToQuestion = async (targetSecIdx, targetQIdx) => {
@@ -551,22 +574,29 @@ const ProRoomAssessment = () => {
     if (titleMatch) title = titleMatch[1].trim();
 
     // 2. Extract Constraints
-    const constraintsMatch = text.match(/Constraints:\s*([\s\S]*?)(?=Expected Time Complexity:|$)/i);
+    const constraintsMatch = text.match(
+      /Constraints:\s*([\s\S]*?)(?=Expected Time Complexity:|$)/i,
+    );
     if (constraintsMatch) constraints = constraintsMatch[1].trim();
 
     // 3. Extract Complexities
-    const timeMatch = text.match(/Expected Time Complexity:\s*(.*?)(?=\n|Expected Space Complexity:|$)/i);
+    const timeMatch = text.match(
+      /Expected Time Complexity:\s*(.*?)(?=\n|Expected Space Complexity:|$)/i,
+    );
     if (timeMatch) expectedTime = timeMatch[1].trim();
 
-    const spaceMatch = text.match(/Expected Space Complexity:\s*(.*?)(?=\n|$)/i);
+    const spaceMatch = text.match(
+      /Expected Space Complexity:\s*(.*?)(?=\n|$)/i,
+    );
     if (spaceMatch) expectedSpace = spaceMatch[1].trim();
 
     // 4. Extract Examples
-    const exampleRegex = /Example\s*(\d*):\s*Input:\s*(.*?)\s*Output:\s*(.*?)\s*Explanation:\s*(.*?)(?=Example|\n\nConstraints:|$)/gis;
+    const exampleRegex =
+      /Example\s*(\d*):\s*Input:\s*(.*?)\s*Output:\s*(.*?)\s*Explanation:\s*(.*?)(?=Example|\n\nConstraints:|$)/gis;
     let exMatch;
     while ((exMatch = exampleRegex.exec(text)) !== null) {
       examples.push({
-        num: exMatch[1] || (examples.length + 1),
+        num: exMatch[1] || examples.length + 1,
         input: exMatch[2].trim(),
         output: exMatch[3].trim(),
         explanation: exMatch[4].trim(),
@@ -575,13 +605,17 @@ const ProRoomAssessment = () => {
 
     // 5. Extract Description
     let descContent = text;
-    if (titleMatch) descContent = descContent.replace(/Problem Title:\s*.*?\n/i, "");
+    if (titleMatch)
+      descContent = descContent.replace(/Problem Title:\s*.*?\n/i, "");
     const firstExIdx = descContent.search(/Example\s*\d*:/i);
     if (firstExIdx !== -1) {
       description = descContent.substring(0, firstExIdx).trim();
     } else {
       const constrIdx = descContent.search(/Constraints:/i);
-      description = constrIdx !== -1 ? descContent.substring(0, constrIdx).trim() : descContent.trim();
+      description =
+        constrIdx !== -1
+          ? descContent.substring(0, constrIdx).trim()
+          : descContent.trim();
     }
 
     return {
@@ -594,79 +628,89 @@ const ProRoomAssessment = () => {
     };
   };
 
-  // ── Dynamic Test Case Runner ─────────────────────────────────────────────
-  const handleRunCode = () => {
-    setRunningCode(true);
-    setCodeOutput("Executing candidate code against all configured test cases...");
-
-    const startTime = performance.now();
+  // ── Real Test Case Runner (server-side) ──────────────────────────────────
+  // Calls the run-code Edge Function, which fetches the host's test cases
+  // itself (service role — the client never sees/sends expected_output) and
+  // actually executes the candidate's code via Piston. Replaces the old
+  // in-browser new Function() approach, which (a) could only ever run
+  // JavaScript and (b) let a candidate inspect/tamper with grading logic
+  // from devtools since everything happened client-side.
+  const handleRunCode = async () => {
     const candidateCode = answers[currentQuestion.id]?.code_submission || "";
-    const testCases = currentQuestion.test_cases || [];
+    const language = answers[currentQuestion.id]?.code_language || "javascript";
 
-    setTimeout(() => {
-      const endTime = performance.now();
-      const executionTimeMs = (endTime - startTime).toFixed(2);
+    if (!candidateCode.trim()) {
+      setCodeOutput("Write some code before running the test cases.");
+      return;
+    }
 
-      if (!testCases || testCases.length === 0) {
+    setRunningCode(true);
+    setCodeOutput(
+      "Executing candidate code against all configured test cases...",
+    );
+
+    try {
+      const { data, error } = await supabase.functions.invoke("run-code", {
+        body: {
+          question_id: currentQuestion.id,
+          code: candidateCode,
+          language,
+          submission_id: submissionId,
+        },
+      });
+
+      if (error) {
+        console.error("[Code Execution]", {
+          questionId: currentQuestion.id,
+          language,
+          status: "failed",
+          error: error.message,
+        });
+        setCodeOutput(`⚠ Execution failed: ${error.message}`);
         setRunningCode(false);
-        setCodeOutput("No test cases configured for this question in the database.");
         return;
       }
 
-      let passedCount = 0;
-      let logs = [];
+      if (data?.error) {
+        console.error("[Code Execution]", {
+          questionId: currentQuestion.id,
+          language,
+          status: "failed",
+          error: data.error,
+        });
+        setCodeOutput(`⚠ ${data.error}`);
+        setRunningCode(false);
+        return;
+      }
 
-      testCases.forEach((tc, idx) => {
-        let actualOutput = "";
-        let isPassed = false;
-        let evalError = null;
+      const { passedCount, totalCount, results } = data;
 
-        try {
-          // In-browser execution engine for JavaScript / Python candidate solution
-          const rawInput = tc.input;
-          let parsedArg;
-          try {
-            parsedArg = JSON.parse(rawInput);
-          } catch {
-            parsedArg = rawInput;
-          }
-
-          if (candidateCode.includes("function") || candidateCode.includes("=>") || candidateCode.includes("var") || candidateCode.includes("const") || candidateCode.includes("let")) {
-            // JavaScript Candidate Function execution
-            const userFn = new Function(
-              "input",
-              `${candidateCode}\n
-               if (typeof singleNumber === 'function') return singleNumber(input);
-               if (typeof solution === 'function') return solution(input);
-               if (typeof solve === 'function') return solve(input);
-               return null;`
-            );
-            const res = userFn(parsedArg);
-            actualOutput = res !== null && res !== undefined ? String(res) : "null";
-          } else {
-            // Python or basic code interpretation: fallback regex search for return
-            actualOutput = String(tc.expected_output);
-          }
-
-          if (String(actualOutput).trim() === String(tc.expected_output).trim()) {
-            isPassed = true;
-          }
-        } catch (err) {
-          evalError = err.message;
-        }
-
-        if (isPassed) {
-          passedCount++;
-          logs.push(`✓ Test Case ${idx + 1} Passed (Input: ${tc.input} | Output: ${tc.expected_output})`);
-        } else {
-          logs.push(`✗ Test Case ${idx + 1} Failed (Input: ${tc.input} | Expected: ${tc.expected_output}${evalError ? ` | Error: ${evalError}` : ""})`);
-        }
+      console.log("[Code Execution]", {
+        questionId: currentQuestion.id,
+        language,
+        testCaseCount: totalCount,
+        executedCount: results.length,
+        passedCount,
+        failedCount: totalCount - passedCount,
       });
 
-      const summary = `\n${passedCount} / ${testCases.length} Test Cases Passed\nExecution Time: ${executionTimeMs} ms | Memory: Not available (Client Execution)`;
+      const logs = results.map((r) =>
+        r.passed
+          ? `✓ Test Case ${r.index} Passed (Input: ${r.input} | Output: ${r.expected_output})`
+          : `✗ Test Case ${r.index} Failed (Input: ${r.input} | Expected: ${r.expected_output} | Got: ${r.actual_output || "(no output)"}${r.stderr ? ` | Error: ${r.stderr}` : ""})`,
+      );
+      const avgTimeMs =
+        results.reduce((s, r) => s + (r.execution_time_ms || 0), 0) /
+        results.length;
+
+      const summary = `\n${passedCount} / ${totalCount} Test Cases Passed\nExecution Time: ${avgTimeMs.toFixed(0)} ms (avg, real, per-test) | Memory: not reported by this execution service`;
       setCodeOutput(logs.join("\n") + summary);
+    } catch (err) {
+      console.error("[Code Execution] exception:", err);
+      setCodeOutput(`⚠ Network error running your code: ${err.message}`);
+    } finally {
       setRunningCode(false);
-    }, 400);
+    }
   };
 
   // ── Final Submission Flow ─────────────────────────────────────────────────
@@ -697,7 +741,9 @@ const ProRoomAssessment = () => {
           answers[currentQuestion.id],
         );
         if (!savedCurrent) {
-          setSubmitError("Failed to save your final answer. Please check your network connection and try again.");
+          setSubmitError(
+            "Failed to save your final answer. Please check your network connection and try again.",
+          );
           setSubmitting(false);
           return;
         }
@@ -714,6 +760,7 @@ const ProRoomAssessment = () => {
           answer_text: a.answer_text || null,
           selected_options: a.selected_options || null,
           code_submission: a.code_submission || null,
+          code_language: a.code_language || null,
         }));
 
         const { error: answersErr } = await supabase
@@ -740,20 +787,27 @@ const ProRoomAssessment = () => {
 
           if (q.question_type === "mcq") {
             const selected = userAns?.selected_options?.[0];
-            if (selected && (selected === q.correct_answer || selected === q.answer)) {
+            if (
+              selected &&
+              (selected === q.correct_answer || selected === q.answer)
+            ) {
               calculatedScore += qPoints;
             }
           } else if (q.question_type === "coding") {
-            if (userAns?.code_submission && userAns.code_submission.trim().length > 10) {
+            if (
+              userAns?.code_submission &&
+              userAns.code_submission.trim().length > 10
+            ) {
               calculatedScore += qPoints; // Full credit for provided solution
             }
           }
         });
       });
 
-      const percentageVal = totalPoints > 0
-        ? Number(((calculatedScore / totalPoints) * 100).toFixed(2))
-        : 0;
+      const percentageVal =
+        totalPoints > 0
+          ? Number(((calculatedScore / totalPoints) * 100).toFixed(2))
+          : 0;
 
       // Step 4: Upsert final submission row
       const { data: subRow, error: subErr } = await supabase
@@ -789,7 +843,9 @@ const ProRoomAssessment = () => {
       }, 2500);
     } catch (err) {
       console.error(err);
-      setSubmitError("Something went wrong submitting your assessment. Please try again.");
+      setSubmitError(
+        "Something went wrong submitting your assessment. Please try again.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -1138,98 +1194,156 @@ const ProRoomAssessment = () => {
               )}
 
               {/* Coding Question Structured View */}
-              {currentQuestion.question_type === "coding" && (() => {
-                const parsed = parseCodingQuestion(currentQuestion);
-                return (
-                  <div className="space-y-4 flex-1 flex flex-col pt-2">
-                    {/* Problem Title & Description */}
-                    <div className="bg-[#080812] border border-white/10 rounded-2xl p-5 space-y-3">
-                      <h3 className="text-base font-bold text-white flex items-center gap-2">
-                        <Code2 size={18} className="text-[#00F0FF]" />
-                        {parsed.title}
-                      </h3>
-                      {parsed.description && (
-                        <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
-                          {parsed.description}
-                        </p>
+              {currentQuestion.question_type === "coding" &&
+                (() => {
+                  const parsed = parseCodingQuestion(currentQuestion);
+                  return (
+                    <div className="space-y-4 flex-1 flex flex-col pt-2">
+                      {/* Problem Title & Description */}
+                      <div className="bg-[#080812] border border-white/10 rounded-2xl p-5 space-y-3">
+                        <h3 className="text-base font-bold text-white flex items-center gap-2">
+                          <Code2 size={18} className="text-[#00F0FF]" />
+                          {parsed.title}
+                        </h3>
+                        {parsed.description && (
+                          <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
+                            {parsed.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Examples Section */}
+                      {parsed.examples.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider">
+                            Examples
+                          </h4>
+                          {parsed.examples.map((ex, i) => (
+                            <div
+                              key={i}
+                              className="bg-[#0b0b16] border border-white/10 rounded-xl p-4 space-y-2 text-xs font-mono"
+                            >
+                              <div className="text-purple-300 font-bold">
+                                Example {ex.num}:
+                              </div>
+                              <div className="text-gray-300">
+                                <span className="text-gray-500">Input:</span>{" "}
+                                {ex.input}
+                              </div>
+                              <div className="text-emerald-400">
+                                <span className="text-gray-500">Output:</span>{" "}
+                                {ex.output}
+                              </div>
+                              {ex.explanation && (
+                                <div className="text-gray-400 text-[11px]">
+                                  <span className="text-gray-500">
+                                    Explanation:
+                                  </span>{" "}
+                                  {ex.explanation}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Constraints & Complexity */}
+                      {(parsed.constraints ||
+                        parsed.expectedTime ||
+                        parsed.expectedSpace) && (
+                        <div className="bg-[#080812] border border-white/5 rounded-xl p-4 text-xs font-mono space-y-2 text-gray-400">
+                          {parsed.constraints && (
+                            <div>
+                              <span className="text-gray-500 font-bold">
+                                Constraints:
+                              </span>{" "}
+                              {parsed.constraints}
+                            </div>
+                          )}
+                          {parsed.expectedTime && (
+                            <div>
+                              <span className="text-gray-500 font-bold">
+                                Expected Time Complexity:
+                              </span>{" "}
+                              {parsed.expectedTime}
+                            </div>
+                          )}
+                          {parsed.expectedSpace && (
+                            <div>
+                              <span className="text-gray-500 font-bold">
+                                Expected Space Complexity:
+                              </span>{" "}
+                              {parsed.expectedSpace}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Solution Code Editor */}
+                      <div className="flex items-center justify-between text-xs font-mono text-gray-400 bg-[#0d0d16] px-4 py-2 rounded-t-xl border border-white/10">
+                        <span className="flex items-center gap-1.5">
+                          <FileCode size={14} className="text-[#00F0FF]" />{" "}
+                          Solution Editor
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={
+                              answers[currentQuestion.id]?.code_language ||
+                              "javascript"
+                            }
+                            onChange={(e) =>
+                              handleLanguageChange(
+                                currentQuestion.id,
+                                e.target.value,
+                              )
+                            }
+                            disabled={interactionLocked}
+                            className="bg-[#07070e] border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 outline-none focus:border-[#00F0FF] disabled:opacity-50 cursor-pointer"
+                          >
+                            <option value="javascript">JavaScript</option>
+                            <option value="python">Python</option>
+                            <option value="cpp">C++</option>
+                            <option value="java">Java</option>
+                          </select>
+                          <button
+                            onClick={handleRunCode}
+                            disabled={runningCode || interactionLocked}
+                            className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Play size={12} />{" "}
+                            {runningCode ? "Running..." : "Run Test Cases"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <textarea
+                        rows={10}
+                        placeholder="// Write your code solution here..."
+                        value={
+                          answers[currentQuestion.id]?.code_submission || ""
+                        }
+                        onChange={(e) =>
+                          handleCodeChange(currentQuestion.id, e.target.value)
+                        }
+                        disabled={interactionLocked}
+                        className="w-full bg-[#07070e] font-mono text-xs text-green-400 p-4 rounded-b-xl border border-t-0 border-white/10 outline-none focus:border-[#00F0FF] flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+
+                      {/* Test Execution Output Box */}
+                      {codeOutput && (
+                        <div className="bg-[#0c0c16] border border-white/10 rounded-xl p-4 font-mono text-xs text-gray-300">
+                          <div className="flex items-center gap-1.5 text-gray-500 mb-2">
+                            <Terminal size={13} className="text-[#00F0FF]" />{" "}
+                            Execution Log & Output:
+                          </div>
+                          <pre className="text-xs whitespace-pre-wrap">
+                            {codeOutput}
+                          </pre>
+                        </div>
                       )}
                     </div>
-
-                    {/* Examples Section */}
-                    {parsed.examples.length > 0 && (
-                      <div className="space-y-3">
-                        <h4 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider">
-                          Examples
-                        </h4>
-                        {parsed.examples.map((ex, i) => (
-                          <div key={i} className="bg-[#0b0b16] border border-white/10 rounded-xl p-4 space-y-2 text-xs font-mono">
-                            <div className="text-purple-300 font-bold">Example {ex.num}:</div>
-                            <div className="text-gray-300"><span className="text-gray-500">Input:</span> {ex.input}</div>
-                            <div className="text-emerald-400"><span className="text-gray-500">Output:</span> {ex.output}</div>
-                            {ex.explanation && (
-                              <div className="text-gray-400 text-[11px]"><span className="text-gray-500">Explanation:</span> {ex.explanation}</div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Constraints & Complexity */}
-                    {(parsed.constraints || parsed.expectedTime || parsed.expectedSpace) && (
-                      <div className="bg-[#080812] border border-white/5 rounded-xl p-4 text-xs font-mono space-y-2 text-gray-400">
-                        {parsed.constraints && (
-                          <div>
-                            <span className="text-gray-500 font-bold">Constraints:</span> {parsed.constraints}
-                          </div>
-                        )}
-                        {parsed.expectedTime && (
-                          <div>
-                            <span className="text-gray-500 font-bold">Expected Time Complexity:</span> {parsed.expectedTime}
-                          </div>
-                        )}
-                        {parsed.expectedSpace && (
-                          <div>
-                            <span className="text-gray-500 font-bold">Expected Space Complexity:</span> {parsed.expectedSpace}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Solution Code Editor */}
-                    <div className="flex items-center justify-between text-xs font-mono text-gray-400 bg-[#0d0d16] px-4 py-2 rounded-t-xl border border-white/10">
-                      <span className="flex items-center gap-1.5">
-                        <FileCode size={14} className="text-[#00F0FF]" /> Solution Editor
-                      </span>
-                      <button
-                        onClick={handleRunCode}
-                        disabled={runningCode || interactionLocked}
-                        className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Play size={12} /> {runningCode ? "Running..." : "Run Test Cases"}
-                      </button>
-                    </div>
-
-                    <textarea
-                      rows={10}
-                      placeholder="// Write your code solution here..."
-                      value={answers[currentQuestion.id]?.code_submission || ""}
-                      onChange={(e) => handleCodeChange(currentQuestion.id, e.target.value)}
-                      disabled={interactionLocked}
-                      className="w-full bg-[#07070e] font-mono text-xs text-green-400 p-4 rounded-b-xl border border-t-0 border-white/10 outline-none focus:border-[#00F0FF] flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-
-                    {/* Test Execution Output Box */}
-                    {codeOutput && (
-                      <div className="bg-[#0c0c16] border border-white/10 rounded-xl p-4 font-mono text-xs text-gray-300">
-                        <div className="flex items-center gap-1.5 text-gray-500 mb-2">
-                          <Terminal size={13} className="text-[#00F0FF]" /> Execution Log & Output:
-                        </div>
-                        <pre className="text-xs whitespace-pre-wrap">{codeOutput}</pre>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+                  );
+                })()}
             </div>
           ) : (
             <div className="text-center py-20 text-gray-500 text-xs">
@@ -1247,15 +1361,39 @@ const ProRoomAssessment = () => {
               <ChevronLeft size={14} /> Previous
             </button>
 
-            <button
-              disabled={
-                activeQIdx >= currentQuestions.length - 1 || navigating || interactionLocked
-              }
-              onClick={() => navigateToQuestion(activeSecIdx, activeQIdx + 1)}
-              className="px-4 py-2 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer disabled:opacity-30 flex items-center gap-1"
-            >
-              Next Question <ChevronRight size={14} />
-            </button>
+            {(() => {
+              // FIXED: previously this button just went disabled at the last
+              // question of a section — as if the assessment had ended —
+              // even when more sections existed after it. navigateToQuestion
+              // already takes an explicit section index, it just was never
+              // called with the next one. Now: at the last question of a
+              // non-final section, "Next" advances to question 1 of the next
+              // section instead of doing nothing; it's only truly disabled
+              // at the last question of the last section.
+              const isLastQuestionInSection =
+                activeQIdx >= currentQuestions.length - 1;
+              const isLastSection = activeSecIdx >= sections.length - 1;
+              const goToNextSection = isLastQuestionInSection && !isLastSection;
+
+              return (
+                <button
+                  disabled={
+                    (isLastQuestionInSection && isLastSection) ||
+                    navigating ||
+                    interactionLocked
+                  }
+                  onClick={() =>
+                    goToNextSection
+                      ? navigateToQuestion(activeSecIdx + 1, 0)
+                      : navigateToQuestion(activeSecIdx, activeQIdx + 1)
+                  }
+                  className="px-4 py-2 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer disabled:opacity-30 flex items-center gap-1"
+                >
+                  {goToNextSection ? "Next Section" : "Next Question"}{" "}
+                  <ChevronRight size={14} />
+                </button>
+              );
+            })()}
           </div>
         </div>
 
