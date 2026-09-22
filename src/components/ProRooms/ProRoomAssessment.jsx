@@ -752,6 +752,10 @@ const ProRoomAssessment = () => {
         });
       });
 
+      const percentageVal = totalPoints > 0
+        ? Number(((calculatedScore / totalPoints) * 100).toFixed(2))
+        : 0;
+
       // Step 4: Upsert final submission row
       const { data: subRow, error: subErr } = await supabase
         .from("pro_room_submissions")
@@ -761,8 +765,9 @@ const ProRoomAssessment = () => {
             user_id: uid,
             submitted_at: new Date().toISOString(),
             status: "submitted",
-            score: calculatedScore,
-            max_score: totalPoints,
+            auto_score: calculatedScore,
+            total_score: calculatedScore,
+            percentage: percentageVal,
             anti_cheat_logs: blurEvents,
           },
           { onConflict: "room_id,user_id" },
