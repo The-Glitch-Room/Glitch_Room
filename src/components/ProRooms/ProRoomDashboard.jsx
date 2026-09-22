@@ -673,6 +673,46 @@ const ProRoomDashboard = () => {
     return list;
   }, [submissions, statusFilter, searchQuery, minScoreFilter, maxScoreFilter, sortBy]);
 
+  // Recent activity stream aggregated from real data (MUST be declared before early returns per React Rules of Hooks)
+  const activityEvents = useMemo(() => {
+    const events = [];
+
+    registrations.forEach((r) => {
+      events.push({
+        type: "registration",
+        title: `${r.profiles?.full_name || r.profiles?.username || "Candidate"} registered for assessment`,
+        time: r.registered_at || r.created_at || new Date().toISOString(),
+      });
+    });
+
+    submissions.forEach((s) => {
+      events.push({
+        type: "submission",
+        title: `${s.profiles?.full_name || s.profiles?.username || "Candidate"} submitted assessment (${s.total_score ?? 0} pts)`,
+        time: s.submitted_at || s.created_at || new Date().toISOString(),
+      });
+    });
+
+    announcements.forEach((a) => {
+      events.push({
+        type: "announcement",
+        title: `Announcement broadcasted: "${a.title}"`,
+        time: a.created_at || new Date().toISOString(),
+      });
+    });
+
+    events.sort((a, b) => new Date(b.time) - new Date(a.time));
+    return events.slice(0, 10);
+  }, [registrations, submissions, announcements]);
+
+  // Derived leaderboard fallback if RPC view is empty (MUST be declared before early returns per React Rules of Hooks)
+  const activeLeaderboard = useMemo(() => {
+    if (leaderboard && leaderboard.length > 0) return leaderboard;
+    return [...submissions]
+      .filter((s) => s.status === "graded" || (s.total_score ?? 0) > 0)
+      .sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
+  }, [leaderboard, submissions]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#080810] flex items-center justify-center">
@@ -724,46 +764,6 @@ const ProRoomDashboard = () => {
       : totalSubs > 0
         ? "Pending"
         : "0 Pts";
-
-  // Recent activity stream aggregated from real data
-  const activityEvents = useMemo(() => {
-    const events = [];
-
-    registrations.forEach((r) => {
-      events.push({
-        type: "registration",
-        title: `${r.profiles?.full_name || r.profiles?.username || "Candidate"} registered for assessment`,
-        time: r.registered_at || r.created_at || new Date().toISOString(),
-      });
-    });
-
-    submissions.forEach((s) => {
-      events.push({
-        type: "submission",
-        title: `${s.profiles?.full_name || s.profiles?.username || "Candidate"} submitted assessment (${s.total_score ?? 0} pts)`,
-        time: s.submitted_at || s.created_at || new Date().toISOString(),
-      });
-    });
-
-    announcements.forEach((a) => {
-      events.push({
-        type: "announcement",
-        title: `Announcement broadcasted: "${a.title}"`,
-        time: a.created_at || new Date().toISOString(),
-      });
-    });
-
-    events.sort((a, b) => new Date(b.time) - new Date(a.time));
-    return events.slice(0, 10);
-  }, [registrations, submissions, announcements]);
-
-  // Derived leaderboard fallback if RPC view is empty
-  const activeLeaderboard = useMemo(() => {
-    if (leaderboard && leaderboard.length > 0) return leaderboard;
-    return [...submissions]
-      .filter((s) => s.status === "graded" || (s.total_score ?? 0) > 0)
-      .sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
-  }, [leaderboard, submissions]);
 
   return (
     <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20 relative overflow-hidden">
