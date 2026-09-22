@@ -231,7 +231,6 @@ const ProRoomAssessment = () => {
       !submissionComplete
     ) {
       autoSubmitFiredRef.current = true;
-      setTimeExpired(true);
       setShowSubmitModal(true);
       handleSubmitAssessment();
     }
@@ -784,6 +783,7 @@ const ProRoomAssessment = () => {
 
       setAlreadySubmitted(true);
       setSubmissionComplete(true);
+      setTimeExpired(true);
       setTimeout(() => {
         navigate(`/pro-rooms/${id}`);
       }, 2500);
