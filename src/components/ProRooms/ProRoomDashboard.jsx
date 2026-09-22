@@ -708,12 +708,62 @@ const ProRoomDashboard = () => {
 
   const totalRegs = registrations.length;
   const totalSubs = submissions.length;
-  const avgScore =
-    totalSubs > 0
+  const evaluatedSubs = submissions.filter(
+    (s) => s.status === "graded" || (s.total_score && s.total_score > 0),
+  );
+  const avgScoreVal =
+    evaluatedSubs.length > 0
       ? Math.round(
-          submissions.reduce((s, b) => s + (b.total_score || 0), 0) / totalSubs,
+          evaluatedSubs.reduce((acc, s) => acc + (s.total_score || 0), 0) /
+            evaluatedSubs.length,
         )
-      : 0;
+      : null;
+  const avgScoreText =
+    avgScoreVal !== null
+      ? `${avgScoreVal} Pts`
+      : totalSubs > 0
+        ? "Pending"
+        : "0 Pts";
+
+  // Recent activity stream aggregated from real data
+  const activityEvents = useMemo(() => {
+    const events = [];
+
+    registrations.forEach((r) => {
+      events.push({
+        type: "registration",
+        title: `${r.profiles?.full_name || r.profiles?.username || "Candidate"} registered for assessment`,
+        time: r.registered_at || r.created_at || new Date().toISOString(),
+      });
+    });
+
+    submissions.forEach((s) => {
+      events.push({
+        type: "submission",
+        title: `${s.profiles?.full_name || s.profiles?.username || "Candidate"} submitted assessment (${s.total_score ?? 0} pts)`,
+        time: s.submitted_at || s.created_at || new Date().toISOString(),
+      });
+    });
+
+    announcements.forEach((a) => {
+      events.push({
+        type: "announcement",
+        title: `Announcement broadcasted: "${a.title}"`,
+        time: a.created_at || new Date().toISOString(),
+      });
+    });
+
+    events.sort((a, b) => new Date(b.time) - new Date(a.time));
+    return events.slice(0, 10);
+  }, [registrations, submissions, announcements]);
+
+  // Derived leaderboard fallback if RPC view is empty
+  const activeLeaderboard = useMemo(() => {
+    if (leaderboard && leaderboard.length > 0) return leaderboard;
+    return [...submissions]
+      .filter((s) => s.status === "graded" || (s.total_score ?? 0) > 0)
+      .sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
+  }, [leaderboard, submissions]);
 
   return (
     <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20 relative overflow-hidden">
@@ -733,11 +783,11 @@ const ProRoomDashboard = () => {
         )}
       </AnimatePresence>
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full relative z-10">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full relative z-10 flex flex-col">
         <GlitchBackground />
 
-        {/* Dashboard Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+        {/* Compact Dashboard Header */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-5">
           <div>
             <span className="text-[10px] font-mono font-bold px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 uppercase tracking-widest">
               ORGANIZER CONTROL CENTER
@@ -746,7 +796,7 @@ const ProRoomDashboard = () => {
               {room?.name || "Pro Room Dashboard"}
             </h1>
             <p className="text-xs text-gray-400 mt-1">
-              {room?.org_name} • Status:{" "}
+              {room?.org_name || "Glitch Room"} • Status:{" "}
               <span className="text-[#00F0FF] font-bold uppercase">
                 {room?.status || "Live"}
               </span>
@@ -756,14 +806,14 @@ const ProRoomDashboard = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(`/pro-rooms/${id}`)}
-              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 hover:text-white"
+              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 hover:text-white cursor-pointer transition-all"
             >
               View Candidate Page
             </button>
             <button
               onClick={handlePublishResults}
               disabled={publishing || room?.status === "results_published"}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 text-white text-xs font-bold shadow-lg shadow-[#00F0FF]/20 disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 text-white text-xs font-bold shadow-lg shadow-[#00F0FF]/20 disabled:opacity-50 cursor-pointer"
             >
               {room?.status === "results_published"
                 ? "✓ Results Published"
@@ -773,7 +823,7 @@ const ProRoomDashboard = () => {
         </div>
 
         {/* KPI Metrics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             label="Total Registrations"
             value={totalRegs}
@@ -790,7 +840,7 @@ const ProRoomDashboard = () => {
           />
           <StatCard
             label="Average Score"
-            value={`${avgScore} Pts`}
+            value={avgScoreText}
             change="Automated Benchmark"
             color="pink"
             icon={Trophy}
@@ -805,7 +855,7 @@ const ProRoomDashboard = () => {
         </div>
 
         {/* Management Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto py-2 mb-8 border-b border-white/10">
+        <div className="flex items-center gap-2 overflow-x-auto py-2 mb-6 border-b border-white/10 shrink-0">
           {[
             { id: "overview", label: "Overview & Analytics" },
             { id: "candidates", label: `Candidates (${totalRegs})` },
@@ -827,11 +877,115 @@ const ProRoomDashboard = () => {
           ))}
         </div>
 
+        {/* Tab Content: Overview & Analytics */}
+        {activeTab === "overview" && (
+          <div className="space-y-6 flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Participation Overview */}
+              <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 space-y-4">
+                <h3 className="text-sm font-mono font-bold text-[#00F0FF] uppercase tracking-wider flex items-center gap-2">
+                  <Users size={16} /> Participation Breakdown
+                </h3>
+                <div className="grid grid-cols-2 gap-4 pt-2 font-mono">
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">Registered</span>
+                    <span className="text-xl font-bold text-white mt-1 block">{totalRegs}</span>
+                  </div>
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">Submitted</span>
+                    <span className="text-xl font-bold text-emerald-400 mt-1 block">{totalSubs}</span>
+                  </div>
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">Pending Review</span>
+                    <span className="text-xl font-bold text-amber-400 mt-1 block">
+                      {submissions.filter((s) => s.status === "pending_review" || s.status === "in_progress").length}
+                    </span>
+                  </div>
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">Completion Rate</span>
+                    <span className="text-xl font-bold text-purple-400 mt-1 block">
+                      {totalRegs > 0 ? Math.round((totalSubs / totalRegs) * 100) : 0}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance Overview */}
+              <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 space-y-4">
+                <h3 className="text-sm font-mono font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                  <Trophy size={16} /> Performance Summary
+                </h3>
+                <div className="grid grid-cols-2 gap-4 pt-2 font-mono">
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">Average Score</span>
+                    <span className="text-xl font-bold text-white mt-1 block">{avgScoreText}</span>
+                  </div>
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">Highest Score</span>
+                    <span className="text-xl font-bold text-[#00F0FF] mt-1 block">
+                      {totalSubs > 0 ? `${Math.max(...submissions.map((s) => s.total_score || 0))} Pts` : "N/A"}
+                    </span>
+                  </div>
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">Graded Submissions</span>
+                    <span className="text-xl font-bold text-emerald-400 mt-1 block">
+                      {submissions.filter((s) => s.status === "graded").length} / {totalSubs}
+                    </span>
+                  </div>
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">Room Status</span>
+                    <span className="text-sm font-bold text-cyan-300 uppercase mt-2 block truncate">
+                      {room?.status || "Live"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activity Stream */}
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6">
+              <h3 className="text-sm font-mono font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Clock size={16} className="text-[#00F0FF]" /> Recent Activity
+              </h3>
+              {activityEvents.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 text-xs font-mono">
+                  No activity recorded yet for this assessment room.
+                </div>
+              ) : (
+                <div className="space-y-3 font-mono text-xs">
+                  {activityEvents.map((evt, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-[#06060c] border border-white/5 rounded-xl flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            evt.type === "submission"
+                              ? "bg-emerald-400"
+                              : evt.type === "registration"
+                                ? "bg-[#00F0FF]"
+                                : "bg-purple-400"
+                          }`}
+                        />
+                        <span className="text-gray-200">{evt.title}</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 shrink-0">
+                        {new Date(evt.time).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Tab Content: Candidates */}
         {activeTab === "candidates" && (
-          <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6">
+          <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 flex-1">
             <h3 className="text-base font-bold text-white mb-4">
-              Registered Candidates
+              Registered Candidates ({totalRegs})
             </h3>
             {registrations.length === 0 ? (
               <div className="text-center py-12 text-gray-500 text-xs">
@@ -902,9 +1056,9 @@ const ProRoomDashboard = () => {
 
         {/* Tab Content: Grading (Submissions) */}
         {activeTab === "grading" && (
-          <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6">
+          <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 flex-1">
             <h3 className="text-base font-bold text-white mb-1">
-              Submissions & Grading
+              Submissions & Grading ({totalSubs})
             </h3>
             <p className="text-xs text-gray-400 mb-4">
               Objective questions (MCQ, True/False, Short Answer, MSQ) are
@@ -1068,34 +1222,34 @@ const ProRoomDashboard = () => {
                               <span className="text-white font-bold text-xs block">
                                 {sub.profiles?.full_name ||
                                   sub.profiles?.username ||
-                                "Candidate"}
+                                  "Candidate"}
+                              </span>
+                              <span className="text-[10px] text-gray-500 font-mono">
+                                {sub.submitted_at
+                                  ? new Date(sub.submitted_at).toLocaleString()
+                                  : "Not submitted"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`text-[10px] font-mono font-bold uppercase px-2.5 py-1 rounded-full border ${
+                                sub.status === "graded"
+                                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                  : sub.status === "pending_review"
+                                    ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                                    : "bg-white/5 border-white/10 text-gray-400"
+                              }`}
+                            >
+                              {sub.status === "pending_review"
+                                ? "Needs Grading"
+                                : sub.status || "in progress"}
                             </span>
-                            <span className="text-[10px] text-gray-500 font-mono">
-                              {sub.submitted_at
-                                ? new Date(sub.submitted_at).toLocaleString()
-                                : "Not submitted"}
+                            <span className="text-xs font-mono font-bold text-[#00F0FF] w-14 text-right">
+                              {sub.total_score ?? 0} pts
                             </span>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`text-[10px] font-mono font-bold uppercase px-2.5 py-1 rounded-full border ${
-                              sub.status === "graded"
-                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                                : sub.status === "pending_review"
-                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                                  : "bg-white/5 border-white/10 text-gray-400"
-                            }`}
-                          >
-                            {sub.status === "pending_review"
-                              ? "Needs Grading"
-                              : sub.status || "in progress"}
-                          </span>
-                          <span className="text-xs font-mono font-bold text-[#00F0FF] w-14 text-right">
-                            {sub.total_score ?? 0} pts
-                          </span>
-                        </div>
-                      </button>
+                        </button>
                       </div>
 
                       {isExpanded && (
@@ -1237,13 +1391,64 @@ const ProRoomDashboard = () => {
           </div>
         )}
 
+        {/* Tab Content: Leaderboard & Ranks */}
+        {activeTab === "leaderboard" && (
+          <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 flex-1">
+            <h3 className="text-base font-bold text-white mb-4 flex items-center gap-2">
+              <Trophy size={18} className="text-amber-400" /> Leaderboard & Ranks
+            </h3>
+            {activeLeaderboard.length === 0 ? (
+              <div className="text-center py-16 text-gray-500 text-xs space-y-2 font-mono">
+                <Trophy size={32} className="mx-auto text-gray-600 mb-2 opacity-50" />
+                <p className="text-gray-300 font-bold">Leaderboard will appear after submissions are evaluated.</p>
+                <p className="text-gray-500">Submissions received will show scores here once graded.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-white/5 font-mono text-xs">
+                {activeLeaderboard.map((lb, idx) => (
+                  <div key={lb.id || idx} className="py-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                          idx === 0
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                            : idx === 1
+                              ? "bg-gray-300/20 text-gray-200 border border-gray-400/40"
+                              : idx === 2
+                                ? "bg-amber-700/20 text-amber-500 border border-amber-600/40"
+                                : "bg-white/5 text-gray-500"
+                        }`}
+                      >
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <span className="text-white font-bold block">
+                          {lb.profiles?.full_name || lb.profiles?.username || "Candidate"}
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          {lb.submitted_at ? new Date(lb.submitted_at).toLocaleDateString() : "Evaluated"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {lb.percentage != null && (
+                        <span className="text-gray-400 text-[11px]">{lb.percentage}%</span>
+                      )}
+                      <span className="text-[#00F0FF] font-bold text-sm">{lb.total_score ?? 0} Pts</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Tab Content: Broadcast Announcements */}
         {activeTab === "announcements" && (
-          <div className="space-y-6">
+          <div className="space-y-6 flex-1">
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 space-y-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Megaphone size={18} className="text-[#00F0FF]" /> Post
-                Broadcast Announcement
+                <Megaphone size={18} className="text-[#00F0FF]" /> Post Broadcast Announcement
               </h3>
               <input
                 type="text"
@@ -1265,6 +1470,26 @@ const ProRoomDashboard = () => {
               >
                 Broadcast Announcement 📢
               </button>
+            </div>
+
+            {/* Existing Announcements Feed */}
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 space-y-4">
+              <h4 className="text-sm font-bold text-white">Broadcast History ({announcements.length})</h4>
+              {announcements.length === 0 ? (
+                <div className="text-center py-6 text-gray-500 text-xs">No announcements broadcasted yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {announcements.map((a) => (
+                    <div key={a.id} className="p-4 bg-[#07070e] border border-white/5 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-[#00F0FF]">{a.title}</span>
+                        <span className="text-[10px] text-gray-500">{new Date(a.created_at).toLocaleString()}</span>
+                      </div>
+                      <p className="text-xs text-gray-300 whitespace-pre-wrap">{a.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
