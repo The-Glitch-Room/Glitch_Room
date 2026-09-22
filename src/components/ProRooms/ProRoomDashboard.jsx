@@ -783,7 +783,7 @@ const ProRoomDashboard = () => {
         )}
       </AnimatePresence>
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full relative z-10 flex flex-col">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 sm:pt-32 pb-12 w-full relative z-10 flex flex-col">
         <GlitchBackground />
 
         {/* Compact Dashboard Header */}
