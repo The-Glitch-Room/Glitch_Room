@@ -715,6 +715,19 @@ const ProRoomAssessment = () => {
 
   // ── Final Submission Flow ─────────────────────────────────────────────────
   const handleSubmitAssessment = async () => {
+    // Looks up a question object by id across all sections — needed to know
+    // a given answer's question_type (e.g. to decide whether it needs the
+    // pre-submit code re-verification run below).
+    const findQuestionById = (qId) => {
+      for (const sec of sections) {
+        const q = (sec.pro_room_questions || []).find(
+          (qq) => String(qq.id) === String(qId),
+        );
+        if (q) return q;
+      }
+      return null;
+    };
+
     if (isHostPreview) {
       setShowSubmitModal(false);
       navigate(`/pro-rooms/${id}`);
@@ -775,41 +788,88 @@ const ProRoomAssessment = () => {
         }
       }
 
-      // Step 3: Calculate scores from existing question correct_answers & test cases
-      let calculatedScore = 0;
-      let totalPoints = 0;
-
-      sections.forEach((sec) => {
-        (sec.pro_room_questions || []).forEach((q) => {
-          const qPoints = q.points || 10;
-          totalPoints += qPoints;
-          const userAns = answers[q.id];
-
-          if (q.question_type === "mcq") {
-            const selected = userAns?.selected_options?.[0];
-            if (
-              selected &&
-              (selected === q.correct_answer || selected === q.answer)
-            ) {
-              calculatedScore += qPoints;
-            }
-          } else if (q.question_type === "coding") {
-            if (
-              userAns?.code_submission &&
-              userAns.code_submission.trim().length > 10
-            ) {
-              calculatedScore += qPoints; // Full credit for provided solution
-            }
-          }
-        });
+      // Step 3: Force a fresh, server-side re-run of every coding-type
+      // answer against the host's test cases — using exactly the code
+      // currently in code_submission, right now, not whatever the candidate
+      // last clicked "Run Test Cases" on. This is what makes auto-grading
+      // coding questions safe to trust: without it, a candidate could test
+      // a correct draft, then paste in something broken, and still get
+      // credited off the old passing run.
+      //
+      // Each question's last_run_passed_count is explicitly cleared FIRST,
+      // before the re-run — so if the re-run itself fails (network issue,
+      // execution service down), grade_pro_room_submission sees NULL rather
+      // than a stale prior result, and correctly leaves that one question
+      // for manual review instead of trusting old data. A failed re-run
+      // does not block submission; it just means that question won't be
+      // auto-graded this time.
+      const codingAnswers = Object.entries(answers).filter(([qId, a]) => {
+        const q = findQuestionById(qId);
+        return (
+          q &&
+          ["coding", "sql", "debugging", "code_analysis"].includes(
+            q.question_type,
+          ) &&
+          a?.code_submission?.trim()
+        );
       });
 
-      const percentageVal =
-        totalPoints > 0
-          ? Number(((calculatedScore / totalPoints) * 100).toFixed(2))
-          : 0;
+      for (const [qId, a] of codingAnswers) {
+        try {
+          await supabase
+            .from("pro_room_answers")
+            .update({ last_run_passed_count: null, last_run_results: null })
+            .eq("submission_id", resolvedSubmissionId)
+            .eq("question_id", String(qId));
 
-      // Step 4: Upsert final submission row
+          const { data: runData, error: runError } =
+            await supabase.functions.invoke("run-code", {
+              body: {
+                question_id: qId,
+                code: a.code_submission,
+                language: a.code_language || "javascript",
+                submission_id: resolvedSubmissionId,
+              },
+            });
+
+          if (runError || runData?.error) {
+            console.error(
+              "[Final Submission] Pre-submit verification run failed:",
+              {
+                questionId: qId,
+                error: runError?.message || runData?.error,
+                note: "This question will fall to manual review instead of being auto-graded, since its result could not be freshly verified.",
+              },
+            );
+          } else {
+            console.log("[Final Submission] Pre-submit verification run:", {
+              questionId: qId,
+              passedCount: runData.passedCount,
+              totalCount: runData.totalCount,
+            });
+          }
+        } catch (err) {
+          console.error(
+            "[Final Submission] Pre-submit verification run threw:",
+            {
+              questionId: qId,
+              error: err.message,
+            },
+          );
+        }
+      }
+
+      // Step 4: Upsert final submission row.
+      // total_score / auto_score / percentage / status / needs_manual_review
+      // are intentionally NOT set here — grade_pro_room_submission (fired by
+      // the grade_on_submit trigger the moment status flips to 'submitted')
+      // is the single source of truth for those, using the fresh
+      // last_run_passed_count values just written above for coding
+      // questions and the existing correct-answer comparison for MCQs.
+      // Computing a score here too would just be redundant client work that
+      // gets immediately overwritten — and re-introduces the exact
+      // "full credit for any code longer than 10 characters" bug this whole
+      // thread started from if it's ever trusted instead of the trigger's.
       const { data: subRow, error: subErr } = await supabase
         .from("pro_room_submissions")
         .upsert(
@@ -818,9 +878,6 @@ const ProRoomAssessment = () => {
             user_id: uid,
             submitted_at: new Date().toISOString(),
             status: "submitted",
-            auto_score: calculatedScore,
-            total_score: calculatedScore,
-            percentage: percentageVal,
             anti_cheat_logs: blurEvents,
           },
           { onConflict: "room_id,user_id" },

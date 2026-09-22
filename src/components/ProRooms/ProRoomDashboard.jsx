@@ -164,6 +164,13 @@ const ProRoomDashboard = () => {
   const [manualScoreDrafts, setManualScoreDrafts] = useState({}); // { [answerId]: string }
   const [savingAnswerId, setSavingAnswerId] = useState(null);
   const [finalizingSubmissionId, setFinalizingSubmissionId] = useState(null);
+  // Answers the host has explicitly chosen to manually override, despite
+  // being auto-graded. Without this, an auto-graded answer (every MCQ, and
+  // now any coding-family answer with a fresh verified test run) has no
+  // editable input at all — set_manual_answer_score already supports
+  // overriding any answer regardless of auto_graded, the UI just never
+  // exposed a way to reach it.
+  const [overriddenAnswerIds, setOverriddenAnswerIds] = useState(new Set());
 
   // ── Filtering / sorting / bulk actions ──────────────────────────────────
   const [statusFilter, setStatusFilter] = useState("all");
@@ -217,7 +224,9 @@ const ProRoomDashboard = () => {
           .select("*")
           .eq("room_id", id);
         if (rawRegs && rawRegs.length > 0) {
-          const userIds = [...new Set(rawRegs.map((r) => r.user_id).filter(Boolean))];
+          const userIds = [
+            ...new Set(rawRegs.map((r) => r.user_id).filter(Boolean)),
+          ];
           let profileMap = {};
           if (userIds.length > 0) {
             const { data: profs } = await supabase
@@ -433,6 +442,23 @@ const ProRoomDashboard = () => {
     }
   };
 
+  const startOverride = (answer) => {
+    setManualScoreDrafts((prev) => ({
+      ...prev,
+      [answer.id]:
+        answer.points_earned != null ? String(answer.points_earned) : "",
+    }));
+    setOverriddenAnswerIds((prev) => new Set(prev).add(answer.id));
+  };
+
+  const cancelOverride = (answerId) => {
+    setOverriddenAnswerIds((prev) => {
+      const next = new Set(prev);
+      next.delete(answerId);
+      return next;
+    });
+  };
+
   const handleFinalizeGrade = async (submissionId) => {
     setFinalizingSubmissionId(submissionId);
     try {
@@ -569,10 +595,11 @@ const ProRoomDashboard = () => {
     const header = ["Candidate", "Status", "Total Score", "Submitted At"];
     const lines = rows.map((sub) =>
       [
-        (sub.profiles?.full_name || sub.profiles?.username || "Candidate").replace(
-          /,/g,
-          " ",
-        ),
+        (
+          sub.profiles?.full_name ||
+          sub.profiles?.username ||
+          "Candidate"
+        ).replace(/,/g, " "),
         sub.status || "in_progress",
         sub.total_score ?? 0,
         sub.submitted_at ? new Date(sub.submitted_at).toISOString() : "",
@@ -642,26 +669,26 @@ const ProRoomDashboard = () => {
 
     if (minScoreFilter !== "") {
       const min = Number(minScoreFilter);
-      if (!Number.isNaN(min)) list = list.filter((s) => (s.total_score ?? 0) >= min);
+      if (!Number.isNaN(min))
+        list = list.filter((s) => (s.total_score ?? 0) >= min);
     }
     if (maxScoreFilter !== "") {
       const max = Number(maxScoreFilter);
-      if (!Number.isNaN(max)) list = list.filter((s) => (s.total_score ?? 0) <= max);
+      if (!Number.isNaN(max))
+        list = list.filter((s) => (s.total_score ?? 0) <= max);
     }
 
     list.sort((a, b) => {
       if (sortBy === "newest") {
-        return (
-          new Date(b.submitted_at || 0) - new Date(a.submitted_at || 0)
-        );
+        return new Date(b.submitted_at || 0) - new Date(a.submitted_at || 0);
       }
       if (sortBy === "oldest") {
-        return (
-          new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0)
-        );
+        return new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0);
       }
-      if (sortBy === "score_desc") return (b.total_score ?? 0) - (a.total_score ?? 0);
-      if (sortBy === "score_asc") return (a.total_score ?? 0) - (b.total_score ?? 0);
+      if (sortBy === "score_desc")
+        return (b.total_score ?? 0) - (a.total_score ?? 0);
+      if (sortBy === "score_asc")
+        return (a.total_score ?? 0) - (b.total_score ?? 0);
       if (sortBy === "name_asc") {
         const nameA = a.profiles?.full_name || a.profiles?.username || "";
         const nameB = b.profiles?.full_name || b.profiles?.username || "";
@@ -671,7 +698,14 @@ const ProRoomDashboard = () => {
     });
 
     return list;
-  }, [submissions, statusFilter, searchQuery, minScoreFilter, maxScoreFilter, sortBy]);
+  }, [
+    submissions,
+    statusFilter,
+    searchQuery,
+    minScoreFilter,
+    maxScoreFilter,
+    sortBy,
+  ]);
 
   // Recent activity stream aggregated from real data (MUST be declared before early returns per React Rules of Hooks)
   const activityEvents = useMemo(() => {
@@ -888,23 +922,44 @@ const ProRoomDashboard = () => {
                 </h3>
                 <div className="grid grid-cols-2 gap-4 pt-2 font-mono">
                   <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
-                    <span className="text-gray-500 text-xs block">Registered</span>
-                    <span className="text-xl font-bold text-white mt-1 block">{totalRegs}</span>
-                  </div>
-                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
-                    <span className="text-gray-500 text-xs block">Submitted</span>
-                    <span className="text-xl font-bold text-emerald-400 mt-1 block">{totalSubs}</span>
-                  </div>
-                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
-                    <span className="text-gray-500 text-xs block">Pending Review</span>
-                    <span className="text-xl font-bold text-amber-400 mt-1 block">
-                      {submissions.filter((s) => s.status === "pending_review" || s.status === "in_progress").length}
+                    <span className="text-gray-500 text-xs block">
+                      Registered
+                    </span>
+                    <span className="text-xl font-bold text-white mt-1 block">
+                      {totalRegs}
                     </span>
                   </div>
                   <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
-                    <span className="text-gray-500 text-xs block">Completion Rate</span>
+                    <span className="text-gray-500 text-xs block">
+                      Submitted
+                    </span>
+                    <span className="text-xl font-bold text-emerald-400 mt-1 block">
+                      {totalSubs}
+                    </span>
+                  </div>
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">
+                      Pending Review
+                    </span>
+                    <span className="text-xl font-bold text-amber-400 mt-1 block">
+                      {
+                        submissions.filter(
+                          (s) =>
+                            s.status === "pending_review" ||
+                            s.status === "in_progress",
+                        ).length
+                      }
+                    </span>
+                  </div>
+                  <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
+                    <span className="text-gray-500 text-xs block">
+                      Completion Rate
+                    </span>
                     <span className="text-xl font-bold text-purple-400 mt-1 block">
-                      {totalRegs > 0 ? Math.round((totalSubs / totalRegs) * 100) : 0}%
+                      {totalRegs > 0
+                        ? Math.round((totalSubs / totalRegs) * 100)
+                        : 0}
+                      %
                     </span>
                   </div>
                 </div>
@@ -917,23 +972,36 @@ const ProRoomDashboard = () => {
                 </h3>
                 <div className="grid grid-cols-2 gap-4 pt-2 font-mono">
                   <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
-                    <span className="text-gray-500 text-xs block">Average Score</span>
-                    <span className="text-xl font-bold text-white mt-1 block">{avgScoreText}</span>
+                    <span className="text-gray-500 text-xs block">
+                      Average Score
+                    </span>
+                    <span className="text-xl font-bold text-white mt-1 block">
+                      {avgScoreText}
+                    </span>
                   </div>
                   <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
-                    <span className="text-gray-500 text-xs block">Highest Score</span>
+                    <span className="text-gray-500 text-xs block">
+                      Highest Score
+                    </span>
                     <span className="text-xl font-bold text-[#00F0FF] mt-1 block">
-                      {totalSubs > 0 ? `${Math.max(...submissions.map((s) => s.total_score || 0))} Pts` : "N/A"}
+                      {totalSubs > 0
+                        ? `${Math.max(...submissions.map((s) => s.total_score || 0))} Pts`
+                        : "N/A"}
                     </span>
                   </div>
                   <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
-                    <span className="text-gray-500 text-xs block">Graded Submissions</span>
+                    <span className="text-gray-500 text-xs block">
+                      Graded Submissions
+                    </span>
                     <span className="text-xl font-bold text-emerald-400 mt-1 block">
-                      {submissions.filter((s) => s.status === "graded").length} / {totalSubs}
+                      {submissions.filter((s) => s.status === "graded").length}{" "}
+                      / {totalSubs}
                     </span>
                   </div>
                   <div className="bg-[#06060c] border border-white/5 p-4 rounded-xl">
-                    <span className="text-gray-500 text-xs block">Room Status</span>
+                    <span className="text-gray-500 text-xs block">
+                      Room Status
+                    </span>
                     <span className="text-sm font-bold text-cyan-300 uppercase mt-2 block truncate">
                       {room?.status || "Live"}
                     </span>
@@ -1062,9 +1130,10 @@ const ProRoomDashboard = () => {
             </h3>
             <p className="text-xs text-gray-400 mb-4">
               Objective questions (MCQ, True/False, Short Answer, MSQ) are
-              graded automatically. Coding and other open-ended questions
-              need a score entered here before you can finalize a
-              submission's grade.
+              graded automatically. Coding questions are auto-graded too when a
+              fresh, verified test run exists — otherwise they need a score
+              entered here. Any auto-graded score can still be overridden
+              manually before finalizing.
             </p>
 
             {/* Filter / Sort / Bulk toolbar */}
@@ -1074,7 +1143,6 @@ const ProRoomDashboard = () => {
                   { id: "all", label: "All" },
                   { id: "pending_review", label: "Needs Grading" },
                   { id: "graded", label: "Graded" },
-                  { id: "submitted", label: "Submitted" },
                   { id: "in_progress", label: "In Progress" },
                 ].map((f) => (
                   <button
@@ -1214,9 +1282,15 @@ const ProRoomDashboard = () => {
                         >
                           <div className="flex items-center gap-3">
                             {isExpanded ? (
-                              <ChevronUp size={14} className="text-gray-500 shrink-0" />
+                              <ChevronUp
+                                size={14}
+                                className="text-gray-500 shrink-0"
+                              />
                             ) : (
-                              <ChevronDown size={14} className="text-gray-500 shrink-0" />
+                              <ChevronDown
+                                size={14}
+                                className="text-gray-500 shrink-0"
+                              />
                             )}
                             <div>
                               <span className="text-white font-bold text-xs block">
@@ -1273,7 +1347,8 @@ const ProRoomDashboard = () => {
                                   >
                                     <div className="flex items-start justify-between gap-3">
                                       <p className="text-gray-200 font-semibold flex-1 whitespace-pre-wrap">
-                                        {q?.question_text || "(question unavailable)"}
+                                        {q?.question_text ||
+                                          "(question unavailable)"}
                                       </p>
                                       <span className="text-[10px] font-mono text-gray-500 shrink-0">
                                         {q?.question_type}
@@ -1282,8 +1357,9 @@ const ProRoomDashboard = () => {
 
                                     <AnswerContent answer={a} question={q} />
 
-                                    {a.auto_graded ? (
-                                      <div className="flex items-center gap-2 pt-1">
+                                    {a.auto_graded &&
+                                    !overriddenAnswerIds.has(a.id) ? (
+                                      <div className="flex items-center gap-2 pt-1 flex-wrap">
                                         {a.is_correct ? (
                                           <CheckCircle
                                             size={14}
@@ -1302,12 +1378,26 @@ const ProRoomDashboard = () => {
                                               : "text-red-400 font-bold"
                                           }
                                         >
-                                          {a.points_earned ?? 0} / {q?.points ?? "?"} pts
-                                          (auto-graded)
+                                          {a.points_earned ?? 0} /{" "}
+                                          {q?.points ?? "?"} pts (auto-graded)
                                         </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => startOverride(a)}
+                                          className="text-[10px] font-bold text-gray-500 hover:text-[#00F0FF] cursor-pointer underline decoration-dotted"
+                                        >
+                                          Override
+                                        </button>
                                       </div>
                                     ) : (
-                                      <div className="flex items-center gap-2 pt-1">
+                                      <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                        {a.auto_graded && (
+                                          <span className="w-full text-[10px] text-gray-500">
+                                            Auto-graded: {a.points_earned ?? 0}{" "}
+                                            / {q?.points ?? "?"} pts — enter a
+                                            score below to override.
+                                          </span>
+                                        )}
                                         <input
                                           type="number"
                                           min="0"
@@ -1340,10 +1430,20 @@ const ProRoomDashboard = () => {
                                               ? "Update Score"
                                               : "Save Score"}
                                         </button>
-                                        {a.points_earned != null && (
-                                          <span className="text-[10px] text-gray-500">
-                                            currently {a.points_earned} pts
-                                          </span>
+                                        {a.points_earned != null &&
+                                          !a.auto_graded && (
+                                            <span className="text-[10px] text-gray-500">
+                                              currently {a.points_earned} pts
+                                            </span>
+                                          )}
+                                        {a.auto_graded && (
+                                          <button
+                                            type="button"
+                                            onClick={() => cancelOverride(a.id)}
+                                            className="text-[10px] font-bold text-gray-500 hover:text-gray-300 cursor-pointer"
+                                          >
+                                            Cancel
+                                          </button>
                                         )}
                                       </div>
                                     )}
@@ -1395,18 +1495,29 @@ const ProRoomDashboard = () => {
         {activeTab === "leaderboard" && (
           <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 flex-1">
             <h3 className="text-base font-bold text-white mb-4 flex items-center gap-2">
-              <Trophy size={18} className="text-amber-400" /> Leaderboard & Ranks
+              <Trophy size={18} className="text-amber-400" /> Leaderboard &
+              Ranks
             </h3>
             {activeLeaderboard.length === 0 ? (
               <div className="text-center py-16 text-gray-500 text-xs space-y-2 font-mono">
-                <Trophy size={32} className="mx-auto text-gray-600 mb-2 opacity-50" />
-                <p className="text-gray-300 font-bold">Leaderboard will appear after submissions are evaluated.</p>
-                <p className="text-gray-500">Submissions received will show scores here once graded.</p>
+                <Trophy
+                  size={32}
+                  className="mx-auto text-gray-600 mb-2 opacity-50"
+                />
+                <p className="text-gray-300 font-bold">
+                  Leaderboard will appear after submissions are evaluated.
+                </p>
+                <p className="text-gray-500">
+                  Submissions received will show scores here once graded.
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-white/5 font-mono text-xs">
                 {activeLeaderboard.map((lb, idx) => (
-                  <div key={lb.id || idx} className="py-3.5 flex items-center justify-between">
+                  <div
+                    key={lb.id || idx}
+                    className="py-3.5 flex items-center justify-between"
+                  >
                     <div className="flex items-center gap-3">
                       <span
                         className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
@@ -1423,18 +1534,26 @@ const ProRoomDashboard = () => {
                       </span>
                       <div>
                         <span className="text-white font-bold block">
-                          {lb.profiles?.full_name || lb.profiles?.username || "Candidate"}
+                          {lb.profiles?.full_name ||
+                            lb.profiles?.username ||
+                            "Candidate"}
                         </span>
                         <span className="text-[10px] text-gray-500">
-                          {lb.submitted_at ? new Date(lb.submitted_at).toLocaleDateString() : "Evaluated"}
+                          {lb.submitted_at
+                            ? new Date(lb.submitted_at).toLocaleDateString()
+                            : "Evaluated"}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
                       {lb.percentage != null && (
-                        <span className="text-gray-400 text-[11px]">{lb.percentage}%</span>
+                        <span className="text-gray-400 text-[11px]">
+                          {lb.percentage}%
+                        </span>
                       )}
-                      <span className="text-[#00F0FF] font-bold text-sm">{lb.total_score ?? 0} Pts</span>
+                      <span className="text-[#00F0FF] font-bold text-sm">
+                        {lb.total_score ?? 0} Pts
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -1448,7 +1567,8 @@ const ProRoomDashboard = () => {
           <div className="space-y-6 flex-1">
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 space-y-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Megaphone size={18} className="text-[#00F0FF]" /> Post Broadcast Announcement
+                <Megaphone size={18} className="text-[#00F0FF]" /> Post
+                Broadcast Announcement
               </h3>
               <input
                 type="text"
@@ -1474,18 +1594,31 @@ const ProRoomDashboard = () => {
 
             {/* Existing Announcements Feed */}
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-6 space-y-4">
-              <h4 className="text-sm font-bold text-white">Broadcast History ({announcements.length})</h4>
+              <h4 className="text-sm font-bold text-white">
+                Broadcast History ({announcements.length})
+              </h4>
               {announcements.length === 0 ? (
-                <div className="text-center py-6 text-gray-500 text-xs">No announcements broadcasted yet.</div>
+                <div className="text-center py-6 text-gray-500 text-xs">
+                  No announcements broadcasted yet.
+                </div>
               ) : (
                 <div className="space-y-3">
                   {announcements.map((a) => (
-                    <div key={a.id} className="p-4 bg-[#07070e] border border-white/5 rounded-xl space-y-1">
+                    <div
+                      key={a.id}
+                      className="p-4 bg-[#07070e] border border-white/5 rounded-xl space-y-1"
+                    >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-[#00F0FF]">{a.title}</span>
-                        <span className="text-[10px] text-gray-500">{new Date(a.created_at).toLocaleString()}</span>
+                        <span className="font-bold text-[#00F0FF]">
+                          {a.title}
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          {new Date(a.created_at).toLocaleString()}
+                        </span>
                       </div>
-                      <p className="text-xs text-gray-300 whitespace-pre-wrap">{a.content}</p>
+                      <p className="text-xs text-gray-300 whitespace-pre-wrap">
+                        {a.content}
+                      </p>
                     </div>
                   ))}
                 </div>
