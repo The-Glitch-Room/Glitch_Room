@@ -854,88 +854,49 @@ const ProRoomAssessment = () => {
     setRunningCode(true);
     setRunResults(null);
 
-    // Map language name to Piston runtime identifiers
-    const PISTON_LANGUAGE_MAP = {
-      python: { language: "python", version: "3.10.0" },
-      javascript: { language: "javascript", version: "18.15.0" },
-      cpp: { language: "c++", version: "10.2.0" },
-      java: { language: "java", version: "15.0.2" },
-    };
-
-    const pistonLang = PISTON_LANGUAGE_MAP[language] || PISTON_LANGUAGE_MAP["python"];
-
     try {
-      const results = [];
-      let passedCount = 0;
+      // Calls the deployed Supabase Edge Function "run-code".
+      // supabase.functions.invoke() automatically attaches the signed-in
+      // user's JWT as the Authorization header — the Edge Function uses that
+      // to verify the candidate is authenticated, then fetches test cases
+      // server-side with the service-role key so the candidate can never see
+      // or tamper with expected_output from DevTools.
+      const { data, error } = await supabase.functions.invoke("run-code", {
+        body: {
+          question_id: currentQuestion.id,
+          code: candidateCode,
+          language,
+          submission_id: submissionId,
+        },
+      });
 
-      for (let i = 0; i < testCases.length; i++) {
-        const tc = testCases[i];
-        const startTime = performance.now();
-
-        let actual_output = "";
-        let stderr = "";
-        let passed = false;
-        let execError = null;
-
-        try {
-          const res = await fetch("https://emkc.org/api/v2/piston/execute", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              language: pistonLang.language,
-              version: pistonLang.version,
-              files: [{ content: candidateCode }],
-              stdin: String(tc.input ?? ""),
-            }),
-          });
-
-          if (!res.ok) {
-            execError = `Execution service error: HTTP ${res.status}`;
-          } else {
-            const json = await res.json();
-            actual_output = (json.run?.stdout ?? "").trim();
-            stderr = (json.run?.stderr ?? "").trim();
-            const expected = String(tc.expected_output ?? "").trim();
-            passed = actual_output === expected;
-          }
-        } catch (fetchErr) {
-          execError = `Network error: ${fetchErr.message}`;
-        }
-
-        const execution_time_ms = performance.now() - startTime;
-
-        if (passed) passedCount++;
-
-        results.push({
-          index: i + 1,
-          input: tc.input,
-          expected_output: tc.expected_output,
-          actual_output,
-          stderr,
-          passed,
-          execution_time_ms,
-          ...(execError ? { stderr: execError } : {}),
-        });
+      if (error) {
+        console.error("[Code Execution] Edge Function error:", error);
+        setRunResults({ error: `Execution failed: ${error.message}` });
+        return;
       }
+
+      if (data?.error) {
+        console.error("[Code Execution] API error:", data.error);
+        setRunResults({ error: data.error });
+        return;
+      }
+
+      const { passedCount, totalCount, results } = data;
 
       console.log("[Code Execution]", {
         questionId: currentQuestion.id,
         language,
-        testCaseCount: testCases.length,
+        testCaseCount: totalCount,
         passedCount,
-        failedCount: testCases.length - passedCount,
+        failedCount: totalCount - passedCount,
       });
 
       const avgTimeMs =
         results.reduce((s, r) => s + (r.execution_time_ms || 0), 0) /
         results.length;
 
-      setRunResults({
-        passedCount,
-        totalCount: testCases.length,
-        results,
-        avgTimeMs,
-      });
+      setRunResults({ passedCount, totalCount, results, avgTimeMs });
     } catch (err) {
       console.error("[Code Execution] exception:", err);
       setRunResults({
