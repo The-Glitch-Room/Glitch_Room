@@ -97,11 +97,9 @@ const ProfessionalRoomDetail = () => {
   const [activeSidebarTab, setActiveSidebarTab] = useState("overview");
 
   // Dynamic Database Host & Registration Verification
-  // pro_rooms only ever sets host_id at creation (both CreateProRoomPage.jsx
-  // and the orphaned CreateProRoomModal.jsx write host_id, never
-  // created_by) — that column belongs to the separate Creator Rooms
-  // feature's `rooms` table. Checking it here was dead code implying a
-  // second valid ownership path that doesn't actually exist for pro_rooms.
+  // pro_rooms only ever sets host_id at creation (CreateProRoomPage.jsx writes
+  // host_id, never created_by) — that column belongs to the separate Creator
+  // Rooms feature's `rooms` table.
   const isHost = Boolean(
     currentUserId && room && room.host_id === currentUserId,
   );

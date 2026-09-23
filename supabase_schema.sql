@@ -55,3 +55,51 @@ ALTER TABLE public.challenge_submissions ADD COLUMN IF NOT EXISTS time_taken_sec
 ALTER TABLE public.user_points ADD COLUMN IF NOT EXISTS last_streak_bonus_at INTEGER DEFAULT 0;
 
 -- Done! Tables updated successfully.
+
+
+--- Achievements table
+create table public.achievements (
+  id uuid not null default extensions.uuid_generate_v4 (),
+  title text not null,
+  description text null,
+  icon text null default 'Award'::text,
+  "requiredPoints" integer null default 0,
+  constraint achievements_pkey primary key (id)
+) TABLESPACE pg_default;
+
+
+--- Arena-completions table
+create table public.arena_completions (
+  id uuid not null default gen_random_uuid (),
+  user_id uuid null,
+  event_id uuid null,
+  completed_at timestamp with time zone null default now(),
+  score integer null default 0,
+  completed_date date null default CURRENT_DATE,
+  pitch_text text null,
+  constraint arena_completions_pkey primary key (id),
+  constraint arena_completions_user_id_event_id_key unique (user_id, event_id),
+  constraint arena_completions_user_id_fkey foreign KEY (user_id) references auth.users (id)
+) TABLESPACE pg_default;
+
+--- arena-events table
+create table public.arena_events (
+  id uuid not null default gen_random_uuid (),
+  title text not null,
+  description text not null,
+  hosted_by text not null default 'Glitch Room Team'::text,
+  skills text[] null default '{}'::text[],
+  glitch_scenario text null,
+  is_live boolean null default true,
+  created_at timestamp with time zone null default now(),
+  constraint arena_events_pkey primary key (id)
+) TABLESPACE pg_default;
+
+--- Achievements table
+
+--- Achievements table
+
+
+--- Achievements table
+
+--- Achievements table
