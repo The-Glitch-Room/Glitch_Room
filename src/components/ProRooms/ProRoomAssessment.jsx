@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
   CheckCircle,
+  XCircle,
   Play,
   Terminal,
   AlertTriangle,
@@ -17,6 +18,118 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { getProRoomLifecycleState } from "./ProRoomCard";
+
+// Real code editor — replaces the plain <textarea>. Requires:
+//   npm install @uiw/react-codemirror @uiw/codemirror-theme-vscode
+//              @codemirror/lang-javascript @codemirror/lang-python
+//              @codemirror/lang-cpp @codemirror/lang-java
+//              @codemirror/lint @codemirror/language
+import CodeMirror from "@uiw/react-codemirror";
+import { vscodeDark } from "@uiw/codemirror-theme-vscode";
+import { javascript } from "@codemirror/lang-javascript";
+import { python } from "@codemirror/lang-python";
+import { cpp } from "@codemirror/lang-cpp";
+import { java } from "@codemirror/lang-java";
+import { linter, lintGutter } from "@codemirror/lint";
+import { syntaxTree } from "@codemirror/language";
+
+// Human-readable labels for the type badge — matches CreateProRoomPage.jsx's
+// QUESTION_TYPES list exactly, so what the host picked is what the
+// candidate sees (not the raw internal type string like "file_upload").
+const QUESTION_TYPE_LABELS = {
+  mcq: "Multiple Choice",
+  msq: "Multiple Select",
+  true_false: "True / False",
+  short_answer: "Short Answer",
+  coding: "Coding Problem",
+  sql: "SQL Query",
+  debugging: "Debugging Challenge",
+  output_pred: "Output Prediction",
+  code_analysis: "Code Analysis",
+  file_upload: "File Upload / GitHub URL",
+  project: "Project Submission",
+  video: "Video Submission",
+};
+
+const LANGUAGE_EXTENSIONS = {
+  javascript: javascript(),
+  python: python(),
+  cpp: cpp(),
+  java: java(),
+};
+
+// Generic full-program starter skeletons (stdin -> stdout), since no
+// per-problem starter code is stored in the DB — this is a per-language
+// template, not a per-problem one. If you want real per-problem starters
+// later, that needs a `starter_code jsonb` column on pro_room_questions and
+// a host-side field to author it; this is the honest version of "if
+// possible" without that.
+const STARTER_CODE = {
+  javascript: `// Read input from stdin, write your answer to stdout.
+const readline = require('readline').createInterface({ input: process.stdin });
+let inputLines = [];
+readline.on('line', (line) => inputLines.push(line));
+readline.on('close', () => {
+  const input = inputLines.join('\\n');
+  // TODO: parse \`input\` and compute your answer
+  console.log(/* your answer */);
+});
+`,
+  python: `import sys
+
+def main():
+    data = sys.stdin.read()
+    # TODO: parse \`data\` and compute your answer
+    print()  # your answer
+
+if __name__ == "__main__":
+    main()
+`,
+  cpp: `#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    // TODO: read input with cin, compute your answer
+    // cout << answer << endl;
+    return 0;
+}
+`,
+  java: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        // TODO: read input with sc, compute your answer
+        // System.out.println(answer);
+    }
+}
+`,
+};
+
+// Generic, language-agnostic syntax-error detection. Works off the CodeMirror
+// language extension's own parser (lezer) rather than a per-language linter
+// (ESLint et al. would mean a much heavier, per-language dependency set) —
+// it flags nodes the grammar itself couldn't parse. This catches real
+// structural mistakes (unmatched brackets, malformed statements) but is not
+// a semantic linter — it won't catch a misspelled variable name, only
+// things that don't parse as valid syntax at all.
+const syntaxErrorLinter = linter((view) => {
+  const diagnostics = [];
+  const tree = syntaxTree(view.state);
+  tree.iterate({
+    enter: (node) => {
+      if (node.type.isError) {
+        diagnostics.push({
+          from: node.from,
+          to: node.to === node.from ? node.from + 1 : node.to,
+          severity: "error",
+          message: "Syntax error",
+        });
+      }
+    },
+  });
+  return diagnostics;
+});
 
 const ProRoomAssessment = () => {
   const { id } = useParams();
@@ -45,7 +158,7 @@ const ProRoomAssessment = () => {
   // Candidate Test State
   const [answers, setAnswers] = useState({}); // { [qId]: { answer_text, selected_options, code_submission } }
   const [markedReview, setMarkedReview] = useState({}); // { [qId]: boolean }
-  const [codeOutput, setCodeOutput] = useState("");
+  const [runResults, setRunResults] = useState(null);
   const [runningCode, setRunningCode] = useState(false);
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(7200); // 2 hours default
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -439,6 +552,44 @@ const ProRoomAssessment = () => {
     }));
   };
 
+  // MSQ: toggles one option in/out of a multi-value selection, instead of
+  // replacing the whole selection like single-select MCQ/True-False does.
+  // Stored as a JSON array of the selected option strings — matches exactly
+  // what grade_pro_room_submission's msq auto-grade block expects
+  // (jsonb_array_elements_text(a.selected_options)).
+  const handleMultiSelectToggle = (qId, option) => {
+    setAnswers((prev) => {
+      const current = prev[qId]?.selected_options || [];
+      const next = current.includes(option)
+        ? current.filter((o) => o !== option)
+        : [...current, option];
+      return {
+        ...prev,
+        [qId]: {
+          ...prev[qId],
+          selected_options: next,
+          answer_text: next.join(", "),
+        },
+      };
+    });
+  };
+
+  // short_answer / output_pred / file_upload / project / video: all just
+  // need a free-text value saved to answer_text. grade_pro_room_submission
+  // auto-grades short_answer/output_pred by comparing this (case/whitespace
+  // -insensitive) against correct_answer; file_upload/project/video are
+  // intentionally never auto-graded (no correct_answer concept for a URL or
+  // video submission) and always fall to manual host review.
+  const handleTextAnswerChange = (qId, text) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [qId]: {
+        ...prev[qId],
+        answer_text: text,
+      },
+    }));
+  };
+
   const handleCodeChange = (qId, code) => {
     setAnswers((prev) => ({
       ...prev,
@@ -450,14 +601,60 @@ const ProRoomAssessment = () => {
   };
 
   const handleLanguageChange = (qId, code_language) => {
+    setAnswers((prev) => {
+      const current = prev[qId] || {};
+      const currentCode = current.code_submission || "";
+      const prevLang = current.code_language || "javascript";
+      // Only auto-swap in the new starter if the candidate hasn't actually
+      // written anything of their own yet (still empty, or still exactly the
+      // previous language's unmodified starter) — never overwrite real code.
+      const isUntouched =
+        !currentCode.trim() || currentCode === STARTER_CODE[prevLang];
+      return {
+        ...prev,
+        [qId]: {
+          ...current,
+          code_language,
+          code_submission: isUntouched
+            ? STARTER_CODE[code_language] || ""
+            : currentCode,
+        },
+      };
+    });
+  };
+
+  // Auto-fill a starter skeleton the first time a coding question is opened
+  // with no code written yet, for whatever language is currently selected
+  // (default javascript). Never touches a question that already has code.
+  // Clear stale run results whenever the candidate navigates to a different
+  // question — otherwise the previous question's pass/fail results would
+  // still show under a different problem entirely.
+  useEffect(() => {
+    setRunResults(null);
+  }, [currentQuestion?.id]);
+
+  useEffect(() => {
+    if (!currentQuestion || !currentQuestion.id) return;
+    const isCodingType = [
+      "coding",
+      "sql",
+      "debugging",
+      "code_analysis",
+    ].includes(currentQuestion.question_type);
+    if (!isCodingType) return;
+    const existing = answers[currentQuestion.id]?.code_submission;
+    if (existing && existing.trim()) return;
+    const lang = answers[currentQuestion.id]?.code_language || "javascript";
     setAnswers((prev) => ({
       ...prev,
-      [qId]: {
-        ...prev[qId],
-        code_language,
+      [currentQuestion.id]: {
+        ...prev[currentQuestion.id],
+        code_language: lang,
+        code_submission: STARTER_CODE[lang] || "",
       },
     }));
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestion?.id]);
 
   // ── Reusable saveQuestionAnswer(questionId, answerData) ───────────────────
   // Awaits actual Supabase response, prevents multiple simultaneous save requests
@@ -640,16 +837,22 @@ const ProRoomAssessment = () => {
     const language = answers[currentQuestion.id]?.code_language || "javascript";
 
     if (!candidateCode.trim()) {
-      setCodeOutput("Write some code before running the test cases.");
+      setRunResults({
+        error: "Write some code before running the test cases.",
+      });
       return;
     }
 
     setRunningCode(true);
-    setCodeOutput(
-      "Executing candidate code against all configured test cases...",
-    );
+    setRunResults(null);
 
     try {
+      // This is the "Run" action only — it never touches submission status
+      // or fires grading. It writes last_run_results/last_run_passed_count
+      // as a live snapshot (so the editor can show fresh results and the
+      // grading trigger has something to use later), but nothing here marks
+      // the assessment as submitted. Only handleSubmitAssessment's own
+      // separate re-run + "Finish & Submit" flow does that.
       const { data, error } = await supabase.functions.invoke("run-code", {
         body: {
           question_id: currentQuestion.id,
@@ -666,7 +869,7 @@ const ProRoomAssessment = () => {
           status: "failed",
           error: error.message,
         });
-        setCodeOutput(`⚠ Execution failed: ${error.message}`);
+        setRunResults({ error: `Execution failed: ${error.message}` });
         setRunningCode(false);
         return;
       }
@@ -678,7 +881,7 @@ const ProRoomAssessment = () => {
           status: "failed",
           error: data.error,
         });
-        setCodeOutput(`⚠ ${data.error}`);
+        setRunResults({ error: data.error });
         setRunningCode(false);
         return;
       }
@@ -694,20 +897,16 @@ const ProRoomAssessment = () => {
         failedCount: totalCount - passedCount,
       });
 
-      const logs = results.map((r) =>
-        r.passed
-          ? `✓ Test Case ${r.index} Passed (Input: ${r.input} | Output: ${r.expected_output})`
-          : `✗ Test Case ${r.index} Failed (Input: ${r.input} | Expected: ${r.expected_output} | Got: ${r.actual_output || "(no output)"}${r.stderr ? ` | Error: ${r.stderr}` : ""})`,
-      );
       const avgTimeMs =
         results.reduce((s, r) => s + (r.execution_time_ms || 0), 0) /
         results.length;
 
-      const summary = `\n${passedCount} / ${totalCount} Test Cases Passed\nExecution Time: ${avgTimeMs.toFixed(0)} ms (avg, real, per-test) | Memory: not reported by this execution service`;
-      setCodeOutput(logs.join("\n") + summary);
+      setRunResults({ passedCount, totalCount, results, avgTimeMs });
     } catch (err) {
       console.error("[Code Execution] exception:", err);
-      setCodeOutput(`⚠ Network error running your code: ${err.message}`);
+      setRunResults({
+        error: `Network error running your code: ${err.message}`,
+      });
     } finally {
       setRunningCode(false);
     }
@@ -1202,8 +1401,9 @@ const ProRoomAssessment = () => {
                   {currentQuestion.points || 10} Points)
                 </span>
                 <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30">
-                  {currentQuestion.question_type} •{" "}
-                  {currentQuestion.difficulty || "Medium"}
+                  {QUESTION_TYPE_LABELS[currentQuestion.question_type] ||
+                    currentQuestion.question_type}{" "}
+                  • {currentQuestion.difficulty || "Medium"}
                 </span>
               </div>
 
@@ -1250,8 +1450,192 @@ const ProRoomAssessment = () => {
                 </>
               )}
 
+              {/* True / False — same single-select interaction as MCQ, just
+                  with the two options fixed instead of host-authored.
+                  Auto-graded server-side by the same block as MCQ
+                  (grade_pro_room_submission: mcq/true_false share one
+                  exact-match rule). */}
+              {currentQuestion.question_type === "true_false" && (
+                <>
+                  <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
+                    {currentQuestion.question_text}
+                  </div>
+                  <div className="space-y-3 pt-2">
+                    {["True", "False"].map((opt) => {
+                      const isSelected =
+                        answers[currentQuestion.id]?.selected_options?.includes(
+                          opt,
+                        );
+                      return (
+                        <button
+                          key={opt}
+                          onClick={() =>
+                            handleAnswerSelect(currentQuestion.id, opt)
+                          }
+                          disabled={interactionLocked}
+                          className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isSelected
+                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]"
+                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5"
+                          }`}
+                        >
+                          <span>{opt}</span>
+                          {isSelected && (
+                            <Check size={14} className="text-[#00F0FF]" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Multiple Select (MSQ) — checkboxes, several options can be
+                  selected at once. Auto-graded server-side by comparing the
+                  full selected set against q.correct_answer's set, not one
+                  value at a time. */}
+              {currentQuestion.question_type === "msq" && (
+                <>
+                  <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
+                    {currentQuestion.question_text}
+                  </div>
+                  {currentQuestion.description && (
+                    <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
+                      {currentQuestion.description}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">
+                    Select all that apply
+                  </p>
+                  <div className="space-y-3 pt-1">
+                    {(currentQuestion.options || []).map((opt, optIdx) => {
+                      const isSelected =
+                        answers[currentQuestion.id]?.selected_options?.includes(
+                          opt,
+                        );
+                      return (
+                        <button
+                          key={optIdx}
+                          onClick={() =>
+                            handleMultiSelectToggle(currentQuestion.id, opt)
+                          }
+                          disabled={interactionLocked}
+                          className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isSelected
+                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]"
+                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5"
+                          }`}
+                        >
+                          <span>{opt}</span>
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                              isSelected
+                                ? "bg-[#00F0FF] border-[#00F0FF]"
+                                : "border-white/20"
+                            }`}
+                          >
+                            {isSelected && (
+                              <Check size={11} className="text-[#07070e]" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Short Answer / Output Prediction — free text, saved to
+                  answer_text. grade_pro_room_submission auto-grades both by
+                  comparing (case-insensitive, whitespace-trimmed) against
+                  correct_answer. Output Prediction shows question_text as a
+                  monospace code block since it's normally "what does this
+                  code print", not prose. */}
+              {["short_answer", "output_pred"].includes(
+                currentQuestion.question_type,
+              ) && (
+                <>
+                  <div
+                    className={`bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner ${
+                      currentQuestion.question_type === "output_pred"
+                        ? "font-mono text-xs"
+                        : "font-sans sm:text-base"
+                    }`}
+                  >
+                    {currentQuestion.question_text}
+                  </div>
+                  {currentQuestion.description && (
+                    <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
+                      {currentQuestion.description}
+                    </p>
+                  )}
+                  <textarea
+                    rows={
+                      currentQuestion.question_type === "output_pred" ? 3 : 5
+                    }
+                    placeholder="Type your answer..."
+                    value={answers[currentQuestion.id]?.answer_text || ""}
+                    onChange={(e) =>
+                      handleTextAnswerChange(currentQuestion.id, e.target.value)
+                    }
+                    disabled={interactionLocked}
+                    className="w-full bg-[#0b0b14] border border-white/10 rounded-xl p-4 text-sm text-gray-100 outline-none focus:border-[#00F0FF] disabled:opacity-50 disabled:cursor-not-allowed resize-y"
+                  />
+                </>
+              )}
+
+              {/* File Upload / GitHub URL, Project Submission, Video
+                  Submission — all just a URL field saved to answer_text.
+                  None of these are ever auto-graded (no correct_answer
+                  concept for a link) — they intentionally always land in the
+                  host's "Needs Grading" queue, same as an unsupported type
+                  would, which grade_pro_room_submission already handles
+                  correctly with no changes needed there. */}
+              {["file_upload", "project", "video"].includes(
+                currentQuestion.question_type,
+              ) && (
+                <>
+                  <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
+                    {currentQuestion.question_text}
+                  </div>
+                  {currentQuestion.description && (
+                    <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
+                      {currentQuestion.description}
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      {currentQuestion.question_type === "file_upload"
+                        ? "GitHub / File URL"
+                        : currentQuestion.question_type === "project"
+                          ? "Project Repository / Deployed URL"
+                          : "Video URL"}
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      value={answers[currentQuestion.id]?.answer_text || ""}
+                      onChange={(e) =>
+                        handleTextAnswerChange(
+                          currentQuestion.id,
+                          e.target.value,
+                        )
+                      }
+                      disabled={interactionLocked}
+                      className="w-full bg-[#0b0b14] border border-white/10 rounded-xl p-3.5 text-sm text-gray-100 outline-none focus:border-[#00F0FF] disabled:opacity-50 disabled:cursor-not-allowed font-mono"
+                    />
+                    <p className="text-[10px] text-gray-500">
+                      This will be reviewed manually by the host — it isn't
+                      auto-graded.
+                    </p>
+                  </div>
+                </>
+              )}
+
               {/* Coding Question Structured View */}
-              {currentQuestion.question_type === "coding" &&
+              {["coding", "sql", "debugging", "code_analysis"].includes(
+                currentQuestion.question_type,
+              ) &&
                 (() => {
                   const parsed = parseCodingQuestion(currentQuestion);
                   return (
@@ -1373,29 +1757,144 @@ const ProRoomAssessment = () => {
                         </div>
                       </div>
 
-                      <textarea
-                        rows={10}
-                        placeholder="// Write your code solution here..."
+                      {/* Real code editor: syntax highlighting, line numbers,
+                        auto-closing brackets/quotes, bracket matching, and
+                        basic parse-level syntax-error detection (red
+                        underline via lintGutter) — all per the language
+                        selected above. This never submits anything; it's
+                        purely local editing. Only "Run Test Cases" above and
+                        "Finish & Submit" at the bottom of the page do
+                        anything server-side, and they remain two fully
+                        separate actions — running never marks the
+                        assessment as submitted. */}
+                      <CodeMirror
                         value={
                           answers[currentQuestion.id]?.code_submission || ""
                         }
-                        onChange={(e) =>
-                          handleCodeChange(currentQuestion.id, e.target.value)
+                        height="320px"
+                        theme={vscodeDark}
+                        basicSetup={{
+                          lineNumbers: true,
+                          highlightActiveLine: true,
+                          highlightActiveLineGutter: true,
+                          foldGutter: true,
+                          bracketMatching: true,
+                          closeBrackets: true,
+                          autocompletion: true,
+                          history: true,
+                        }}
+                        extensions={[
+                          LANGUAGE_EXTENSIONS[
+                            answers[currentQuestion.id]?.code_language ||
+                              "javascript"
+                          ],
+                          lintGutter(),
+                          syntaxErrorLinter,
+                        ]}
+                        editable={!interactionLocked}
+                        onChange={(value) =>
+                          handleCodeChange(currentQuestion.id, value)
                         }
-                        disabled={interactionLocked}
-                        className="w-full bg-[#07070e] font-mono text-xs text-green-400 p-4 rounded-b-xl border border-t-0 border-white/10 outline-none focus:border-[#00F0FF] flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="rounded-b-xl overflow-hidden border border-t-0 border-white/10"
                       />
 
-                      {/* Test Execution Output Box */}
-                      {codeOutput && (
-                        <div className="bg-[#0c0c16] border border-white/10 rounded-xl p-4 font-mono text-xs text-gray-300">
-                          <div className="flex items-center gap-1.5 text-gray-500 mb-2">
+                      {/* Test Execution Output — structured per-test-case
+                        cards instead of a single text blob, so pass/fail,
+                        input, expected, and actual output are each clearly
+                        their own line rather than run together. */}
+                      {runResults && (
+                        <div className="bg-[#0c0c16] border border-white/10 rounded-xl p-4 font-mono text-xs text-gray-300 space-y-3">
+                          <div className="flex items-center gap-1.5 text-gray-500">
                             <Terminal size={13} className="text-[#00F0FF]" />{" "}
-                            Execution Log & Output:
+                            Execution Log & Output
                           </div>
-                          <pre className="text-xs whitespace-pre-wrap">
-                            {codeOutput}
-                          </pre>
+
+                          {runResults.error ? (
+                            <p className="text-amber-400">
+                              ⚠ {runResults.error}
+                            </p>
+                          ) : (
+                            <>
+                              <div className="space-y-2">
+                                {runResults.results.map((r) => (
+                                  <div
+                                    key={r.index}
+                                    className={`rounded-lg border p-3 space-y-1 ${
+                                      r.passed
+                                        ? "border-emerald-500/30 bg-emerald-500/5"
+                                        : "border-red-500/30 bg-red-500/5"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 font-bold">
+                                      {r.passed ? (
+                                        <CheckCircle
+                                          size={13}
+                                          className="text-emerald-400"
+                                        />
+                                      ) : (
+                                        <XCircle
+                                          size={13}
+                                          className="text-red-400"
+                                        />
+                                      )}
+                                      <span
+                                        className={
+                                          r.passed
+                                            ? "text-emerald-400"
+                                            : "text-red-400"
+                                        }
+                                      >
+                                        Test Case {r.index}{" "}
+                                        {r.passed ? "Passed" : "Failed"}
+                                      </span>
+                                    </div>
+                                    <div className="text-gray-400 pl-4">
+                                      <span className="text-gray-500">
+                                        Input:
+                                      </span>{" "}
+                                      {r.input}
+                                    </div>
+                                    <div className="text-gray-400 pl-4">
+                                      <span className="text-gray-500">
+                                        Expected:
+                                      </span>{" "}
+                                      {r.expected_output}
+                                    </div>
+                                    {!r.passed && (
+                                      <div className="text-red-300 pl-4">
+                                        <span className="text-gray-500">
+                                          Got:
+                                        </span>{" "}
+                                        {r.actual_output || "(no output)"}
+                                        {r.stderr && (
+                                          <div className="text-red-400 mt-0.5">
+                                            Error: {r.stderr}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px]">
+                                <span
+                                  className={
+                                    runResults.passedCount ===
+                                    runResults.totalCount
+                                      ? "text-emerald-400 font-bold"
+                                      : "text-amber-400 font-bold"
+                                  }
+                                >
+                                  {runResults.passedCount} /{" "}
+                                  {runResults.totalCount} Test Cases Passed
+                                </span>
+                                <span className="text-gray-500">
+                                  {runResults.avgTimeMs.toFixed(0)} ms avg
+                                  (real, per-test) · memory not reported
+                                </span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
