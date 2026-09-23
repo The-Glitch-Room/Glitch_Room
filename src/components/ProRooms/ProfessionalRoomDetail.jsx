@@ -97,9 +97,11 @@ const ProfessionalRoomDetail = () => {
   const [activeSidebarTab, setActiveSidebarTab] = useState("overview");
 
   // Dynamic Database Host & Registration Verification
-  // pro_rooms only ever sets host_id at creation (CreateProRoomPage.jsx writes
-  // host_id, never created_by) — that column belongs to the separate Creator
-  // Rooms feature's `rooms` table.
+  // pro_rooms only ever sets host_id at creation (both CreateProRoomPage.jsx
+  // and the orphaned CreateProRoomModal.jsx write host_id, never
+  // created_by) — that column belongs to the separate Creator Rooms
+  // feature's `rooms` table. Checking it here was dead code implying a
+  // second valid ownership path that doesn't actually exist for pro_rooms.
   const isHost = Boolean(
     currentUserId && room && room.host_id === currentUserId,
   );
@@ -302,16 +304,24 @@ const ProfessionalRoomDetail = () => {
           .eq("room_id", id)
           .order("created_at", { ascending: false });
         if (rawD && rawD.length > 0) {
-          const uids = Array.from(new Set(rawD.map((d) => d.user_id).filter(Boolean)));
+          const uids = Array.from(
+            new Set(rawD.map((d) => d.user_id).filter(Boolean)),
+          );
           let pMap = {};
           if (uids.length > 0) {
             const { data: profs } = await supabase
               .from("profiles")
               .select("id, full_name, username, avatar_url")
               .in("id", uids);
-            pMap = (profs || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
+            pMap = (profs || []).reduce(
+              (acc, p) => ({ ...acc, [p.id]: p }),
+              {},
+            );
           }
-          finalDiscs = rawD.map((d) => ({ ...d, profiles: pMap[d.user_id] || null }));
+          finalDiscs = rawD.map((d) => ({
+            ...d,
+            profiles: pMap[d.user_id] || null,
+          }));
         } else {
           finalDiscs = [];
         }
@@ -964,7 +974,8 @@ const ProfessionalRoomDetail = () => {
                   Check Status Now
                 </button>
               </>
-            ) : room?.reg_start_at && new Date() < new Date(room.reg_start_at) ? (
+            ) : room?.reg_start_at &&
+              new Date() < new Date(room.reg_start_at) ? (
               <>
                 <div className="w-14 h-14 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center mx-auto">
                   <Clock size={26} className="text-purple-300" />
@@ -975,7 +986,12 @@ const ProfessionalRoomDetail = () => {
                 <p className="text-xs text-gray-400 leading-relaxed">
                   Registration for this room opens on{" "}
                   <span className="text-[#00F0FF] font-bold">
-                    {new Date(room.reg_start_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(room.reg_start_at).toLocaleString([], {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </span>
                   . Please check back when registration opens!
                 </p>
@@ -987,14 +1003,32 @@ const ProfessionalRoomDetail = () => {
                   Back to Pro Rooms →
                 </button>
               </>
-            ) : (room?.reg_end_at && new Date() > new Date(room.reg_end_at)) || lifecycle.isLive || (room?.event_end_at && new Date() > new Date(room.event_end_at)) || room?.status === "completed" || room?.status === "results_published" || room?.status === "evaluation" ? (
+            ) : (room?.reg_end_at && new Date() > new Date(room.reg_end_at)) ||
+              lifecycle.isLive ||
+              (room?.event_end_at &&
+                new Date() > new Date(room.event_end_at)) ||
+              room?.status === "completed" ||
+              room?.status === "results_published" ||
+              room?.status === "evaluation" ? (
               (() => {
                 const now = new Date();
-                const eventStart = room?.event_start_at ? new Date(room.event_start_at) : null;
-                const eventEnd = room?.event_end_at ? new Date(room.event_end_at) : null;
+                const eventStart = room?.event_start_at
+                  ? new Date(room.event_start_at)
+                  : null;
+                const eventEnd = room?.event_end_at
+                  ? new Date(room.event_end_at)
+                  : null;
 
-                const isEventEnded = (eventEnd && now > eventEnd) || room?.status === "results_published" || room?.status === "evaluation" || room?.status === "completed";
-                const isEventLive = lifecycle.isLive || (eventStart && now >= eventStart && (!eventEnd || now <= eventEnd));
+                const isEventEnded =
+                  (eventEnd && now > eventEnd) ||
+                  room?.status === "results_published" ||
+                  room?.status === "evaluation" ||
+                  room?.status === "completed";
+                const isEventLive =
+                  lifecycle.isLive ||
+                  (eventStart &&
+                    now >= eventStart &&
+                    (!eventEnd || now <= eventEnd));
 
                 if (isEventEnded) {
                   return (
@@ -1006,7 +1040,8 @@ const ProfessionalRoomDetail = () => {
                         Event Completed
                       </h2>
                       <p className="text-xs text-gray-400 leading-relaxed">
-                        This event has ended and submissions are closed. Results and leaderboards are available for participants.
+                        This event has ended and submissions are closed. Results
+                        and leaderboards are available for participants.
                       </p>
                       <button
                         type="button"
@@ -1029,7 +1064,9 @@ const ProfessionalRoomDetail = () => {
                         Event in Progress
                       </h2>
                       <p className="text-xs text-gray-400 leading-relaxed">
-                        This event is currently live and in progress. Registration is closed and only registered participants can access the live room.
+                        This event is currently live and in progress.
+                        Registration is closed and only registered participants
+                        can access the live room.
                       </p>
                       <button
                         type="button"
@@ -1051,7 +1088,8 @@ const ProfessionalRoomDetail = () => {
                       Registration Closed
                     </h2>
                     <p className="text-xs text-gray-400 leading-relaxed">
-                      Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
+                      Sorry, registration for this room is closed. Please check
+                      out other active or upcoming rooms.
                     </p>
                     <button
                       type="button"
@@ -2017,27 +2055,44 @@ const ProfessionalRoomDetail = () => {
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
                   <div>
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <Users size={16} className="text-purple-400" /> Candidate Management & Roster
+                      <Users size={16} className="text-purple-400" /> Candidate
+                      Management & Roster
                     </h3>
                     <p className="text-xs text-gray-400 mt-1">
-                      Review pending candidate applications and manage approved room participants.
+                      Review pending candidate applications and manage approved
+                      room participants.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 font-mono text-[11px]">
                     <span className="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
-                      {registrations.filter((r) => r.status === "pending").length} Pending
+                      {
+                        registrations.filter((r) => r.status === "pending")
+                          .length
+                      }{" "}
+                      Pending
                     </span>
                     <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">
-                      {registrations.filter((r) => r.status === "approved" || !r.status).length} Approved
+                      {
+                        registrations.filter(
+                          (r) => r.status === "approved" || !r.status,
+                        ).length
+                      }{" "}
+                      Approved
                     </span>
                   </div>
                 </div>
 
                 {/* 1. Pending Applications Section */}
-                {registrations.filter((r) => r.status === "pending").length > 0 && (
+                {registrations.filter((r) => r.status === "pending").length >
+                  0 && (
                   <div className="space-y-3 bg-[#06060c] border border-amber-500/20 rounded-2xl p-4">
                     <h4 className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
-                      <Clock size={14} /> Pending Applications ({registrations.filter((r) => r.status === "pending").length})
+                      <Clock size={14} /> Pending Applications (
+                      {
+                        registrations.filter((r) => r.status === "pending")
+                          .length
+                      }
+                      )
                     </h4>
 
                     <div className="space-y-3">
@@ -2058,11 +2113,14 @@ const ProfessionalRoomDetail = () => {
                                 </h5>
                                 <div className="text-[11px] text-gray-400 font-mono mt-1 flex flex-wrap gap-3">
                                   {(() => {
-                                    const resp = r.app_responses || r.answers_json || {};
+                                    const resp =
+                                      r.app_responses || r.answers_json || {};
                                     return (
                                       <>
                                         {resp._organization_college && (
-                                          <span>🏫 {resp._organization_college}</span>
+                                          <span>
+                                            🏫 {resp._organization_college}
+                                          </span>
                                         )}
                                         {resp._current_role && (
                                           <span>💼 {resp._current_role}</span>
@@ -2086,14 +2144,24 @@ const ProfessionalRoomDetail = () => {
                               <div className="flex items-center gap-2 shrink-0">
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateRegistrationStatus(r.id, "approved")}
+                                  onClick={() =>
+                                    handleUpdateRegistrationStatus(
+                                      r.id,
+                                      "approved",
+                                    )
+                                  }
                                   className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1"
                                 >
                                   <CheckCircle2 size={13} /> Approve
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateRegistrationStatus(r.id, "rejected")}
+                                  onClick={() =>
+                                    handleUpdateRegistrationStatus(
+                                      r.id,
+                                      "rejected",
+                                    )
+                                  }
                                   className="px-3.5 py-1.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold hover:bg-red-500/30 transition cursor-pointer"
                                 >
                                   Reject
@@ -2109,10 +2177,18 @@ const ProfessionalRoomDetail = () => {
                 {/* 2. Registered / Approved Roster Section */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider">
-                    Approved Roster ({registrations.filter((r) => r.status === "approved" || !r.status).length})
+                    Approved Roster (
+                    {
+                      registrations.filter(
+                        (r) => r.status === "approved" || !r.status,
+                      ).length
+                    }
+                    )
                   </h4>
 
-                  {registrations.filter((r) => r.status === "approved" || !r.status).length === 0 ? (
+                  {registrations.filter(
+                    (r) => r.status === "approved" || !r.status,
+                  ).length === 0 ? (
                     <p className="text-xs text-gray-500 text-center py-6 bg-[#06060c] border border-white/5 rounded-2xl">
                       No approved candidates yet.
                     </p>
@@ -2428,10 +2504,16 @@ const ProfessionalRoomDetail = () => {
                   </button>
                 </div>
 
-                {/* ❓ DYNAMIC HOST FAQ / COMMON QUESTIONS ACCORDION */}
+                {/* DYNAMIC HOST FAQ / COMMON QUESTIONS ACCORDION — only show
+                    entries with a real host-written answer, matching the
+                    same guard the Need Help modal uses. Same underlying
+                    custom_app_questions data, same rule, in both places. */}
                 {Array.isArray(room?.custom_app_questions) &&
                   room.custom_app_questions.filter(
-                    (q) => q && (q.question || q.title),
+                    (q) =>
+                      q &&
+                      (q.question || q.title) &&
+                      (q.answer || q.description),
                   ).length > 0 && (
                     <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
                       <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
@@ -2441,7 +2523,12 @@ const ProfessionalRoomDetail = () => {
 
                       <div className="space-y-3">
                         {room.custom_app_questions
-                          .filter((q) => q && (q.question || q.title))
+                          .filter(
+                            (q) =>
+                              q &&
+                              (q.question || q.title) &&
+                              (q.answer || q.description),
+                          )
                           .map((faq, idx) => (
                             <details
                               key={faq.id || idx}
@@ -2463,8 +2550,7 @@ const ProfessionalRoomDetail = () => {
                                 <span className="text-emerald-400 font-mono font-bold">
                                   A:
                                 </span>{" "}
-                                {faq.answer ||
-                                  "Answer will be updated by the host."}
+                                {faq.answer || faq.description}
                               </div>
                             </details>
                           ))}
@@ -3274,6 +3360,30 @@ const ProfessionalRoomDetail = () => {
                 </span>
               </div>
             </div>
+
+            {/* FIXED: was "hidden sm:flex" — completely unreachable below the
+                sm breakpoint since it sat outside this scroll container,
+                competing for space with a w-full stats block that left it
+                nowhere to go. Moved inside the same horizontally-scrollable
+                row as the other stat items so it scrolls into view on
+                mobile instead of disappearing. */}
+            <button
+              type="button"
+              onClick={() => setShowHelpModal(true)}
+              className="flex sm:hidden flex-col items-center text-center gap-1 shrink-0 border-l border-white/10 pl-3 cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <HelpCircle size={16} className="text-purple-400" />
+              </div>
+              <div>
+                <span className="text-white text-xs font-black font-mono block leading-none">
+                  Help
+                </span>
+                <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
+                  Support
+                </span>
+              </div>
+            </button>
           </div>
 
           <button

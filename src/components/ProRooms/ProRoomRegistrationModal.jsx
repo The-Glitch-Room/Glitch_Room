@@ -163,18 +163,26 @@ const ProRoomRegistrationModal = ({
 
   const isClosed = room?.reg_end_at && new Date() > new Date(room.reg_end_at);
 
-  // Read candidate application / registration questions created by the host
+  // Read candidate application / registration questions created by the host.
+  // custom_app_questions is NOT a valid source here: CreateProRoomModal.jsx
+  // (the only place that ever wrote real intake questions into that field)
+  // is orphaned and never rendered anywhere in the app — the only live
+  // creation flow, CreateProRoomPage.jsx, writes host FAQs (question+answer)
+  // into custom_app_questions and the real intake questions into
+  // custom_registration_questions instead. Using custom_app_questions here
+  // meant every room with any host FAQ silently showed those FAQs as the
+  // registration form and never reached the real questions at all.
   const rawAppQuestions =
-    Array.isArray(room?.custom_app_questions) && room.custom_app_questions.length > 0
-      ? room.custom_app_questions
-      : Array.isArray(room?.custom_registration_questions) && room.custom_registration_questions.length > 0
-        ? room.custom_registration_questions
-        : Array.isArray(room?.custom_questions) && room.custom_questions.length > 0
-          ? room.custom_questions
-          : [];
+    Array.isArray(room?.custom_registration_questions) &&
+    room.custom_registration_questions.length > 0
+      ? room.custom_registration_questions
+      : Array.isArray(room?.custom_questions) &&
+          room.custom_questions.length > 0
+        ? room.custom_questions
+        : [];
 
   const customQuestions = rawAppQuestions.filter(
-    (q) => (q?.question || q?.text || q?.title) && !q?.is_faq
+    (q) => (q?.question || q?.text || q?.title) && !q?.is_faq,
   );
 
   const handleSubmit = async (e) => {
@@ -186,7 +194,10 @@ const ProRoomRegistrationModal = ({
     }
 
     if (!agreedToRules) {
-      if (showToast) showToast("⚠️ Please confirm that your information is accurate and accept event rules.");
+      if (showToast)
+        showToast(
+          "⚠️ Please confirm that your information is accurate and accept event rules.",
+        );
       return;
     }
 
@@ -300,9 +311,12 @@ const ProRoomRegistrationModal = ({
               <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
                 <Lock size={28} />
               </div>
-              <h3 className="text-base font-bold text-white">Registration Closed</h3>
+              <h3 className="text-base font-bold text-white">
+                Registration Closed
+              </h3>
               <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
-                Sorry, registration for this room is closed. Please check out other active or upcoming rooms.
+                Sorry, registration for this room is closed. Please check out
+                other active or upcoming rooms.
               </p>
               <button
                 type="button"
@@ -337,8 +351,8 @@ const ProRoomRegistrationModal = ({
                 {/* 1. Account Information (Read-Only) */}
                 <div className="space-y-2.5 bg-[#06060c] border border-white/5 rounded-2xl p-4">
                   <h4 className="text-[11px] font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                    <ShieldCheck size={13} className="text-emerald-400" />{" "}
-                    1. Profile Verification (Read-Only)
+                    <ShieldCheck size={13} className="text-emerald-400" /> 1.
+                    Profile Verification (Read-Only)
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -385,8 +399,8 @@ const ProRoomRegistrationModal = ({
                 {/* 2. Additional Information & Portfolio Links */}
                 <div className="space-y-3 bg-[#06060c] border border-white/5 rounded-2xl p-4">
                   <h4 className="text-[11px] font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <Briefcase size={13} className="text-purple-400" />{" "}
-                    2. Additional Information
+                    <Briefcase size={13} className="text-purple-400" /> 2.
+                    Additional Information
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -447,7 +461,8 @@ const ProRoomRegistrationModal = ({
                     {customQuestions.map((q, idx) => (
                       <div key={q.id || idx} className="space-y-1.5">
                         <label className="text-xs font-semibold text-gray-200 block">
-                          {q.question || q.text || `Question ${idx + 1}`} {q.required !== false ? "*" : "(Optional)"}
+                          {q.question || q.text || `Question ${idx + 1}`}{" "}
+                          {q.required !== false ? "*" : "(Optional)"}
                         </label>
                         <input
                           type="text"
@@ -477,7 +492,8 @@ const ProRoomRegistrationModal = ({
                       className="mt-0.5 rounded border-white/20 bg-black text-[#FF00C8] focus:ring-0 cursor-pointer"
                     />
                     <span>
-                      I confirm that the information provided is accurate and I agree to follow the rules and guidelines of this Pro Room.
+                      I confirm that the information provided is accurate and I
+                      agree to follow the rules and guidelines of this Pro Room.
                     </span>
                   </label>
 

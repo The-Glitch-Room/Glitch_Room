@@ -218,10 +218,20 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                   </span>
                 </div>
 
-                {/* Host FAQ Preview */}
+                {/* Host FAQ Preview — only show entries that actually have a
+                    real host-written answer. custom_app_questions means two
+                    different things depending on which room-creation flow
+                    was used (CreateProRoomModal.jsx: plain intake questions
+                    with no answer; CreateProRoomPage.jsx: real FAQs with a
+                    real answer) — requiring `answer`/`description` to be
+                    present is what correctly tells the two apart here,
+                    regardless of which flow built this room. */}
                 {Array.isArray(room?.custom_app_questions) &&
                   room.custom_app_questions.filter(
-                    (q) => q && (q.question || q.title),
+                    (q) =>
+                      q &&
+                      (q.question || q.title) &&
+                      (q.answer || q.description),
                   ).length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
@@ -230,7 +240,12 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                       </h4>
                       <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
                         {room.custom_app_questions
-                          .filter((q) => q && (q.question || q.title))
+                          .filter(
+                            (q) =>
+                              q &&
+                              (q.question || q.title) &&
+                              (q.answer || q.description),
+                          )
                           .map((faq, idx) => (
                             <details
                               key={idx}
@@ -243,9 +258,7 @@ const ProRoomHelpModal = ({ isOpen, onClose, room, showToast }) => {
                                 </span>
                               </summary>
                               <p className="mt-2 text-gray-400 leading-relaxed pt-2 border-t border-white/5">
-                                {faq.answer ||
-                                  faq.description ||
-                                  "Refer to room rules or message host below."}
+                                {faq.answer || faq.description}
                               </p>
                             </details>
                           ))}
