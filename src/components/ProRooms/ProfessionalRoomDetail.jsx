@@ -1706,26 +1706,37 @@ const ProfessionalRoomDetail = () => {
                     </div>
                   ) : (
                     <>
-                      <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
-                        {Math.round(
-                          (submissions.length / registrations.length) * 100,
-                        )}
-                        %
-                      </div>
-                      <span className="text-[11px] text-gray-300 font-bold">
-                        {submissions.length} / {registrations.length} Submitted
-                      </span>
+                      {(() => {
+                        const submittedCount = submissions.filter(s => s.status === "submitted").length;
+                        const pct = Math.round((submittedCount / registrations.length) * 100);
+                        return (
+                          <>
+                            <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
+                              {pct}%
+                            </div>
+                            <span className="text-[11px] text-gray-300 font-bold">
+                              {submittedCount} / {registrations.length} Submitted
+                            </span>
+                          </>
+                        );
+                      })()}
                     </>
                   )
                 ) : (
                   <>
                     <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
-                      {userSubmission
-                        ? `${userSubmission.percentage || 100}%`
+                      {userSubmission?.status === "submitted"
+                        ? `${userSubmission.percentage || 0}%`
+                        : userSubmission
+                        ? "—"
                         : "0%"}
                     </div>
                     <span className="text-[11px] text-gray-300 font-bold">
-                      {userSubmission ? "Completed" : "Not Started"}
+                      {userSubmission?.status === "submitted"
+                        ? "Completed"
+                        : userSubmission
+                        ? "In Progress"
+                        : "Not Started"}
                     </span>
                   </>
                 )}

@@ -335,13 +335,21 @@ const ProRoomAssessment = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-submit on timer expiry
+  // Auto-submit on timer expiry.
+  // dataLoadedRef guards against the race where fetchAssessmentData sets
+  // timeLeftSeconds = 0 (because the candidate's time already ran out in a
+  // previous session) BEFORE the effect has had a chance to check the DB
+  // status. Without this guard, reopening a timed-out in_progress attempt
+  // would immediately trigger another submission attempt the instant the
+  // page loaded, showing the "Submitting…" modal with no way out.
   const autoSubmitFiredRef = useRef(false);
+  const dataLoadedRef = useRef(false);
   useEffect(() => {
     if (
       timeLeftSeconds === 0 &&
       !autoSubmitFiredRef.current &&
-      !submissionComplete
+      !submissionComplete &&
+      dataLoadedRef.current   // only after DB data is fully loaded
     ) {
       autoSubmitFiredRef.current = true;
       setShowSubmitModal(true);
@@ -349,6 +357,7 @@ const ProRoomAssessment = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeftSeconds, submissionComplete]);
+
 
   // Fetch Assessment Data
   const fetchAssessmentData = async () => {
@@ -521,6 +530,10 @@ const ProRoomAssessment = () => {
     } catch (err) {
       console.error(err);
     } finally {
+      // Signal to the auto-submit effect that real DB data is now loaded.
+      // This prevents the timer effect from firing a submission the instant
+      // the page mounts (before we know the real time remaining from the DB).
+      dataLoadedRef.current = true;
       setLoading(false);
     }
   };
