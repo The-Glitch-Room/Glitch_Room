@@ -2475,6 +2475,12 @@ const ProfessionalRoomDetail = () => {
               count: canViewResults ? leaderboard.length : undefined,
             },
             {
+              id: "certificates",
+              label: "Certificates & Awards",
+              icon: Award,
+              count: userCertificates.length > 0 ? userCertificates.length : undefined,
+            },
+            {
               id: "discussion",
               label: "Discussion",
               icon: MessageSquare,
@@ -2612,6 +2618,12 @@ const ProfessionalRoomDetail = () => {
                   label: canViewResults ? "Leaderboard" : "Leaderboard 🔒",
                   icon: Trophy,
                   count: canViewResults ? leaderboard.length : undefined,
+                },
+                {
+                  id: "certificates",
+                  label: "Certificates & Awards",
+                  icon: Award,
+                  count: userCertificates.length > 0 ? userCertificates.length : undefined,
                 },
                 { id: "ask_doubt", label: "Ask a Doubt", icon: HelpCircle },
                 { id: "organizers", label: "Organizers", icon: Building2 },
@@ -3960,6 +3972,132 @@ const ProfessionalRoomDetail = () => {
                           </div>
                         );
                       })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CERTIFICATES & AWARDS TAB */}
+            {activeSidebarTab === "certificates" && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <Award size={18} className="text-[#00F0FF]" /> Official Certificates & Awards
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Verifiable digital credentials and achievements earned in this Pro Arena.
+                    </p>
+                  </div>
+                  {userCertificates.length > 0 && (
+                    <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1.5">
+                      <CheckCircle size={11} /> {userCertificates.length} Verified Credential{userCertificates.length > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+
+                {userCertificates.length > 0 ? (
+                  <div className="space-y-6">
+                    {userCertificates.map((cert) => {
+                      const isWinner = cert.type && cert.type.startsWith("winner");
+                      return (
+                        <div
+                          key={cert.id}
+                          className={`p-6 rounded-2xl border transition shadow-xl space-y-5 ${
+                            isWinner
+                              ? "bg-gradient-to-r from-yellow-500/10 via-purple-900/10 to-transparent border-yellow-500/30"
+                              : "bg-white/[0.02] border-white/10"
+                          }`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <div
+                                className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 ${
+                                  isWinner
+                                    ? "bg-yellow-400/20 border border-yellow-400/40 text-yellow-300"
+                                    : "bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF]"
+                                }`}
+                              >
+                                {isWinner ? "🏆" : "🎓"}
+                              </div>
+                              <div>
+                                <span
+                                  className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mb-1 ${
+                                    isWinner
+                                      ? "bg-yellow-400/20 text-yellow-300"
+                                      : "bg-[#00F0FF]/20 text-[#00F0FF]"
+                                  }`}
+                                >
+                                  {isWinner
+                                    ? `Official ${cert.type === "winner_1" ? "1st Place" : cert.type === "winner_2" ? "2nd Place" : "3rd Place"} Award`
+                                    : "Certificate of Completion"}
+                                </span>
+                                <h4 className="text-base font-bold text-white">
+                                  {isWinner ? "Certificate of Excellence" : "Certificate of Participation"}
+                                </h4>
+                                <p className="text-xs text-gray-400">
+                                  Awarded to <strong className="text-white">{cert.recipient_name}</strong> • Placement:{" "}
+                                  <strong className="text-white">Rank #{cert.rank ?? "—"}</strong>
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => handleOpenCertificate(cert)}
+                              className={`px-5 py-2.5 rounded-xl font-bold text-xs cursor-pointer transition flex items-center gap-2 self-start sm:self-auto shrink-0 shadow-lg ${
+                                isWinner
+                                  ? "bg-gradient-to-r from-yellow-400 to-amber-500 text-black shadow-yellow-500/20 hover:opacity-90"
+                                  : "bg-[#00F0FF] text-black shadow-[#00F0FF]/20 hover:opacity-90"
+                              }`}
+                            >
+                              <Award size={15} />
+                              <span>View & Download Certificate</span>
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-black/40 rounded-xl border border-white/5 text-xs">
+                            <div>
+                              <span className="text-[10px] text-gray-500 block font-mono">Score</span>
+                              <span className="text-white font-bold font-mono">{cert.score ?? 0} Pts</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-gray-500 block font-mono">Percentage</span>
+                              <span className="text-white font-bold font-mono">{cert.percentage ?? 0}%</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-gray-500 block font-mono">Credential ID</span>
+                              <span className="text-cyan-400 font-bold font-mono text-[11px] truncate block">
+                                {cert.certificate_number}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-gray-500 block font-mono">Issued Date</span>
+                              <span className="text-gray-300 font-mono text-[11px]">
+                                {new Date(cert.issued_at || Date.now()).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 space-y-4 bg-[#06060c] border border-white/5 rounded-2xl p-6">
+                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-gray-400">
+                      <Award size={28} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h4 className="text-base font-bold text-white">
+                        {canViewResults ? "No Certificate Issued" : "Certificates Awaiting Publication"}
+                      </h4>
+                      <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+                        {userSubmission
+                          ? canViewResults
+                            ? `You completed this assessment with a score of ${actualScore} pts (${actualPercentage}). A minimum score of ${room?.passing_score || 50}% is required for certification.`
+                            : "Your submission has been recorded. Official digital certificates and awards will be generated and made available here once the organizer publishes results."
+                          : "Complete your assessment and meet the qualification benchmark to receive an official verified cyber certificate."}
+                      </p>
                     </div>
                   </div>
                 )}

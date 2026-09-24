@@ -156,6 +156,10 @@ const ProRoomDashboard = () => {
   const [annContent, setAnnContent] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [customP1, setCustomP1] = useState(0);
+  const [customP2, setCustomP2] = useState(0);
+  const [customP3, setCustomP3] = useState(0);
+  const [customPPart, setCustomPPart] = useState(0);
   const [toastMsg, setToastMsg] = useState("");
 
   // ── Grading tab state ──────────────────────────────────────────────────
@@ -628,6 +632,30 @@ const ProRoomDashboard = () => {
 
   const handlePublishResults = () => {
     if (!isHost) return;
+    const dist = room?.prize_distribution || {};
+    const totalPool = Number(room?.gbits_prize_pool) || 0;
+    let d1 = Number(dist.rank_1) || 0;
+    let d2 = Number(dist.rank_2) || 0;
+    let d3 = Number(dist.rank_3) || 0;
+    let dPart = Number(dist.participation) || 0;
+
+    // Intelligent default mapping from pool if not explicitly set
+    if (d1 === 0 && d2 === 0 && d3 === 0 && totalPool > 0) {
+      if (submissions.length <= 2) {
+        d1 = Math.round(totalPool * 0.6);
+        d2 = Math.round(totalPool * 0.4);
+        d3 = 0;
+      } else {
+        d1 = Math.round(totalPool * 0.5);
+        d2 = Math.round(totalPool * 0.3);
+        d3 = Math.max(0, totalPool - d1 - d2);
+      }
+    }
+
+    setCustomP1(d1);
+    setCustomP2(d2);
+    setCustomP3(d3);
+    setCustomPPart(dPart);
     setShowPublishModal(true);
   };
 
@@ -648,13 +676,12 @@ const ProRoomDashboard = () => {
       return new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0);
     });
 
-    const dist = room?.prize_distribution || {};
-    const p1 = Number(dist.rank_1) || 0;
-    const p2 = Number(dist.rank_2) || 0;
-    const p3 = Number(dist.rank_3) || 0;
-    const pPart = Number(dist.participation) || 0;
-    const passingScore = Number(room?.passing_score) || 50;
     const totalPool = Number(room?.gbits_prize_pool) || 0;
+    const p1 = Number(customP1) || 0;
+    const p2 = Number(customP2) || 0;
+    const p3 = Number(customP3) || 0;
+    const pPart = Number(customPPart) || 0;
+    const passingScore = Number(room?.passing_score) || 50;
 
     const rank1Cand = sorted[0];
     const rank2Cand = sorted[1];
@@ -683,15 +710,39 @@ const ProRoomDashboard = () => {
       rank2Cand,
       rank3Cand,
       passingCount: passingCandidates.length,
-      totalPayout: Math.min(totalPayout, totalPool),
+      totalPayout,
       totalPool,
     };
-  }, [submissions, room]);
+  }, [submissions, room, customP1, customP2, customP3, customPPart]);
 
   const executePublishAndDistribute = async () => {
     if (!isHost) return;
     setPublishing(true);
     try {
+      const p1 = Number(customP1) || 0;
+      const p2 = Number(customP2) || 0;
+      const p3 = Number(customP3) || 0;
+      const pPart = Number(customPPart) || 0;
+      const passingScore = Number(room?.passing_score) || 50;
+      const totalPool = Number(room?.gbits_prize_pool) || (p1 + p2 + p3);
+
+      // Save configured prize distribution back to pro_rooms
+      try {
+        await supabase
+          .from("pro_rooms")
+          .update({
+            prize_distribution: {
+              rank_1: p1,
+              rank_2: p2,
+              rank_3: p3,
+              participation: pPart,
+            },
+          })
+          .eq("id", id);
+      } catch (e) {
+        console.warn("Error updating room prize distribution:", e);
+      }
+
       // 1. Deterministic ranking calculation
       const sortedSubs = [...submissions].sort((a, b) => {
         const scoreDiff = (b.total_score ?? 0) - (a.total_score ?? 0);
@@ -736,147 +787,177 @@ const ProRoomDashboard = () => {
         } catch (e) {}
       }
 
-      // 2. Rewards Distribution (Idempotent: only if !room.rewards_distributed)
-      const isAlreadyDistributed = room?.rewards_distributed === true;
-      const dist = room?.prize_distribution || {};
-      const totalPool = Number(room?.gbits_prize_pool) || 0;
+      // 2. Rewards Distribution
+      let allocatedGBits = 0;
 
-      const p1 = Number(dist.rank_1) || 0;
-      const p2 = Number(dist.rank_2) || 0;
-      const p3 = Number(dist.rank_3) || 0;
-      const pPart = Number(dist.participation) || 0;
-      const passingScore = Number(room?.passing_score) || 50;
-
-      if (!isAlreadyDistributed) {
-        let allocatedGBits = 0;
-
-        // Rank 1 Payout
-        if (rankUpdates[0] && p1 > 0 && allocatedGBits + p1 <= totalPool) {
-          const winner = rankUpdates[0];
-          try {
-            await supabase.from("pro_room_rewards").upsert(
-              {
-                room_id: id,
-                user_id: winner.user_id,
-                reward_type: "rank_1",
-                rank: 1,
-                gbits_awarded: p1,
-              },
-              { onConflict: "room_id,user_id,reward_type" },
-            );
-            await updatePoints(
-              p1,
-              `🏆 1st Place Prize — ${room.name}`,
-              "reward",
-              id,
-              winner.user_id,
-            );
-            allocatedGBits += p1;
-          } catch (e) {
-            console.warn("Rank 1 reward err:", e);
-          }
+      // Rank 1 Payout
+      if (rankUpdates[0] && p1 > 0) {
+        const winner = rankUpdates[0];
+        try {
+          await supabase.from("pro_room_rewards").upsert(
+            {
+              room_id: id,
+              user_id: winner.user_id,
+              reward_type: "rank_1",
+              rank: 1,
+              gbits_awarded: p1,
+            },
+            { onConflict: "room_id,user_id,reward_type" },
+          );
+          await updatePoints(
+            p1,
+            `🏆 1st Place Prize — ${room.name || "Pro Room"}`,
+            "reward",
+            id,
+            winner.user_id,
+          );
+          allocatedGBits += p1;
+        } catch (e) {
+          console.warn("Rank 1 reward err:", e);
         }
+      }
 
-        // Rank 2 Payout
-        if (rankUpdates[1] && p2 > 0 && allocatedGBits + p2 <= totalPool) {
-          const runnerUp = rankUpdates[1];
-          try {
-            await supabase.from("pro_room_rewards").upsert(
-              {
-                room_id: id,
-                user_id: runnerUp.user_id,
-                reward_type: "rank_2",
-                rank: 2,
-                gbits_awarded: p2,
-              },
-              { onConflict: "room_id,user_id,reward_type" },
-            );
-            await updatePoints(
-              p2,
-              `🥈 2nd Place Prize — ${room.name}`,
-              "reward",
-              id,
-              runnerUp.user_id,
-            );
-            allocatedGBits += p2;
-          } catch (e) {
-            console.warn("Rank 2 reward err:", e);
-          }
+      // Rank 2 Payout
+      if (rankUpdates[1] && p2 > 0) {
+        const runnerUp = rankUpdates[1];
+        try {
+          await supabase.from("pro_room_rewards").upsert(
+            {
+              room_id: id,
+              user_id: runnerUp.user_id,
+              reward_type: "rank_2",
+              rank: 2,
+              gbits_awarded: p2,
+            },
+            { onConflict: "room_id,user_id,reward_type" },
+          );
+          await updatePoints(
+            p2,
+            `🥈 2nd Place Prize — ${room.name || "Pro Room"}`,
+            "reward",
+            id,
+            runnerUp.user_id,
+          );
+          allocatedGBits += p2;
+        } catch (e) {
+          console.warn("Rank 2 reward err:", e);
         }
+      }
 
-        // Rank 3 Payout
-        if (rankUpdates[2] && p3 > 0 && allocatedGBits + p3 <= totalPool) {
-          const third = rankUpdates[2];
-          try {
-            await supabase.from("pro_room_rewards").upsert(
-              {
-                room_id: id,
-                user_id: third.user_id,
-                reward_type: "rank_3",
-                rank: 3,
-                gbits_awarded: p3,
-              },
-              { onConflict: "room_id,user_id,reward_type" },
-            );
-            await updatePoints(
-              p3,
-              `🥉 3rd Place Prize — ${room.name}`,
-              "reward",
-              id,
-              third.user_id,
-            );
-            allocatedGBits += p3;
-          } catch (e) {
-            console.warn("Rank 3 reward err:", e);
-          }
+      // Rank 3 Payout
+      if (rankUpdates[2] && p3 > 0) {
+        const third = rankUpdates[2];
+        try {
+          await supabase.from("pro_room_rewards").upsert(
+            {
+              room_id: id,
+              user_id: third.user_id,
+              reward_type: "rank_3",
+              rank: 3,
+              gbits_awarded: p3,
+            },
+            { onConflict: "room_id,user_id,reward_type" },
+          );
+          await updatePoints(
+            p3,
+            `🥉 3rd Place Prize — ${room.name || "Pro Room"}`,
+            "reward",
+            id,
+            third.user_id,
+          );
+          allocatedGBits += p3;
+        } catch (e) {
+          console.warn("Rank 3 reward err:", e);
         }
+      }
 
-        // Participation rewards for passing candidates (Rank 4+)
-        if (pPart > 0) {
-          for (let i = 3; i < rankUpdates.length; i++) {
-            const cand = rankUpdates[i];
-            const pct = cand.percentage ?? 0;
-            if (pct >= passingScore && allocatedGBits + pPart <= totalPool) {
-              try {
-                await supabase.from("pro_room_rewards").upsert(
-                  {
-                    room_id: id,
-                    user_id: cand.user_id,
-                    reward_type: "participation",
-                    rank: cand.calculatedRank,
-                    gbits_awarded: pPart,
-                  },
-                  { onConflict: "room_id,user_id,reward_type" },
-                );
-                await updatePoints(
-                  pPart,
-                  `🎖️ Passing Participation Reward — ${room.name}`,
-                  "reward",
-                  id,
-                  cand.user_id,
-                );
-                allocatedGBits += pPart;
-              } catch (e) {
-                console.warn("Participation reward err:", e);
-              }
+      // Participation rewards for passing candidates (Rank 4+)
+      if (pPart > 0) {
+        for (let i = 3; i < rankUpdates.length; i++) {
+          const cand = rankUpdates[i];
+          const pct = cand.percentage ?? 0;
+          if (pct >= passingScore) {
+            try {
+              await supabase.from("pro_room_rewards").upsert(
+                {
+                  room_id: id,
+                  user_id: cand.user_id,
+                  reward_type: "participation",
+                  rank: cand.calculatedRank,
+                  gbits_awarded: pPart,
+                },
+                { onConflict: "room_id,user_id,reward_type" },
+              );
+              await updatePoints(
+                pPart,
+                `🎖️ Participation Award — ${room.name || "Pro Room"}`,
+                "reward",
+                id,
+                cand.user_id,
+              );
+              allocatedGBits += pPart;
+            } catch (e) {
+              console.warn("Participation reward err:", e);
             }
           }
         }
+      }
 
-        // 3. Digital Certificates Generation
-        const roomCode = (id || "0000").slice(0, 8).toUpperCase();
+      // 3. Digital Certificates Generation
+      const roomCode = (id || "0000").slice(0, 8).toUpperCase();
 
-        // Winner Certificates (Top 3)
-        if (room?.has_winner_certificate) {
-          for (let i = 0; i < Math.min(3, rankUpdates.length); i++) {
-            const cand = rankUpdates[i];
+      // Winner Certificates (Top 3) — issued by default unless explicitly disabled
+      if (room?.has_winner_certificate !== false) {
+        for (let i = 0; i < Math.min(3, rankUpdates.length); i++) {
+          const cand = rankUpdates[i];
+          const candProfile =
+            cand.profiles ||
+            registrations.find((r) => r.user_id === cand.user_id)?.profiles;
+          const candName =
+            candProfile?.full_name ||
+            candProfile?.username ||
+            "Candidate";
+          const certType =
+            i === 0 ? "winner_1" : i === 1 ? "winner_2" : "winner_3";
+          const certNumber = `GR-PRO-WIN-${roomCode}-${String(i + 1).padStart(3, "0")}`;
+
+          try {
+            await supabase.from("pro_room_certificates").upsert(
+              {
+                certificate_number: certNumber,
+                room_id: id,
+                user_id: cand.user_id,
+                type: certType,
+                recipient_name: candName,
+                event_name: room.name,
+                organization_name: room.org_name || "Glitch Room Arena",
+                score: cand.total_score ?? 0,
+                percentage: cand.percentage ?? 0,
+                rank: cand.calculatedRank,
+                issued_at: new Date().toISOString(),
+              },
+              { onConflict: "room_id,user_id,type" },
+            );
+          } catch (e) {
+            console.warn("Winner certificate insert err:", e);
+          }
+        }
+      }
+
+      // Participation Certificates for all passing candidates
+      if (room?.has_participation_certificate !== false) {
+        for (let i = 0; i < rankUpdates.length; i++) {
+          const cand = rankUpdates[i];
+          const pct = cand.percentage ?? 0;
+          if (pct >= passingScore) {
+            const candProfile =
+              cand.profiles ||
+              registrations.find((r) => r.user_id === cand.user_id)?.profiles;
             const candName =
-              cand.profiles?.full_name ||
-              cand.profiles?.username ||
+              candProfile?.full_name ||
+              candProfile?.username ||
               "Candidate";
-            const certType =
-              i === 0 ? "winner_1" : i === 1 ? "winner_2" : "winner_3";
-            const certNumber = `GR-PRO-WIN-${roomCode}-${String(i + 1).padStart(3, "0")}`;
+            const certNumber = `GR-PRO-PART-${roomCode}-${String(i + 1).padStart(3, "0")}`;
 
             try {
               await supabase.from("pro_room_certificates").upsert(
@@ -884,7 +965,7 @@ const ProRoomDashboard = () => {
                   certificate_number: certNumber,
                   room_id: id,
                   user_id: cand.user_id,
-                  type: certType,
+                  type: "participation",
                   recipient_name: candName,
                   event_name: room.name,
                   organization_name: room.org_name || "Glitch Room Arena",
@@ -896,60 +977,24 @@ const ProRoomDashboard = () => {
                 { onConflict: "room_id,user_id,type" },
               );
             } catch (e) {
-              console.warn("Winner certificate insert err:", e);
+              console.warn("Participation certificate insert err:", e);
             }
           }
         }
+      }
 
-        // Participation Certificates for all passing candidates
-        if (room?.has_participation_certificate) {
-          for (let i = 0; i < rankUpdates.length; i++) {
-            const cand = rankUpdates[i];
-            const pct = cand.percentage ?? 0;
-            if (pct >= passingScore) {
-              const candName =
-                cand.profiles?.full_name ||
-                cand.profiles?.username ||
-                "Candidate";
-              const certNumber = `GR-PRO-PART-${roomCode}-${String(i + 1).padStart(3, "0")}`;
-
-              try {
-                await supabase.from("pro_room_certificates").upsert(
-                  {
-                    certificate_number: certNumber,
-                    room_id: id,
-                    user_id: cand.user_id,
-                    type: "participation",
-                    recipient_name: candName,
-                    event_name: room.name,
-                    organization_name: room.org_name || "Glitch Room Arena",
-                    score: cand.total_score ?? 0,
-                    percentage: cand.percentage ?? 0,
-                    rank: cand.calculatedRank,
-                    issued_at: new Date().toISOString(),
-                  },
-                  { onConflict: "room_id,user_id,type" },
-                );
-              } catch (e) {
-                console.warn("Participation certificate insert err:", e);
-              }
-            }
-          }
-        }
-
-        // 4. Award Achievement Badge to Rank 1 if enabled
-        if (room?.has_achievement_badge && rankUpdates[0]) {
-          try {
-            await supabase.from("user_badges").upsert(
-              {
-                user_id: rankUpdates[0].user_id,
-                badge_id: "arena_3",
-                earned_at: new Date().toISOString(),
-              },
-              { onConflict: "user_id,badge_id" },
-            );
-          } catch (e) {}
-        }
+      // 4. Award Achievement Badge to Rank 1 if enabled
+      if (room?.has_achievement_badge !== false && rankUpdates[0]) {
+        try {
+          await supabase.from("user_badges").upsert(
+            {
+              user_id: rankUpdates[0].user_id,
+              badge_id: "arena_3",
+              earned_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,badge_id" },
+          );
+        } catch (e) {}
       }
 
       // 5. Update room status to published and set rewards distributed
@@ -977,7 +1022,7 @@ const ProRoomDashboard = () => {
       } catch (notifErr) {}
 
       setShowPublishModal(false);
-      showToast("🏆 Results & Rewards published successfully!");
+      showToast("🏆 Results, Rewards & Certificates published successfully!");
       fetchDashboardData();
     } catch (err) {
       console.error("Publish & distribute error:", err);
@@ -1189,15 +1234,63 @@ const ProRoomDashboard = () => {
             </button>
             <button
               onClick={handlePublishResults}
-              disabled={publishing || room?.status === "results_published"}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 text-white text-xs font-bold shadow-lg shadow-[#00F0FF]/20 disabled:opacity-50 cursor-pointer"
+              disabled={publishing}
+              className={`px-5 py-2 rounded-xl text-xs font-bold shadow-lg cursor-pointer transition flex items-center gap-1.5 ${
+                room?.status === "results_published"
+                  ? room?.rewards_distributed
+                    ? "bg-purple-600/30 border border-purple-500/40 text-purple-200 hover:bg-purple-600/50 shadow-purple-500/10"
+                    : "bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-extrabold shadow-yellow-500/20"
+                  : "bg-gradient-to-r from-[#00F0FF] to-purple-600 text-white hover:opacity-90 shadow-[#00F0FF]/20"
+              }`}
             >
-              {room?.status === "results_published"
-                ? "✓ Results Published"
-                : "Publish Results 🏆"}
+              {room?.status === "results_published" ? (
+                room?.rewards_distributed ? (
+                  <>
+                    <Trophy size={14} className="text-yellow-400" />
+                    <span>Awards Distributed</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} />
+                    <span>Distribute Rewards & Certs 🏆</span>
+                  </>
+                )
+              ) : (
+                <>
+                  <Trophy size={14} />
+                  <span>Publish Results 🏆</span>
+                </>
+              )}
             </button>
           </div>
         </div>
+
+        {/* Action Needed Banner if results published but rewards/certs not distributed */}
+        {room?.status === "results_published" && !room?.rewards_distributed && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-transparent border border-yellow-500/40 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-yellow-400/20 border border-yellow-400/40 flex items-center justify-center text-yellow-400 shrink-0">
+                <Gift size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Results Are Published — Rewards & Certificates Pending</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 font-mono font-bold">Action Required</span>
+                </h4>
+                <p className="text-xs text-gray-300">
+                  Rankings are recorded, but prize pool gBits and digital certificates have not been generated yet.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handlePublishResults}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black text-xs transition shadow-lg shadow-yellow-500/20 cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0"
+            >
+              <Sparkles size={14} />
+              <span>Distribute Rewards & Certs Now</span>
+            </button>
+          </div>
+        )}
 
         {/* KPI Metrics Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -2044,6 +2137,77 @@ const ProRoomDashboard = () => {
                       <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Passing Candidates</div>
                       <div className="text-base font-black text-purple-400 mt-0.5">
                         {publishPreviewData.passingCount} <span className="text-xs font-normal text-gray-400">/{submissions.length}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Configurable Prize Distribution Inputs */}
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <Gift size={14} className="text-[#00F0FF]" />
+                        Configure Prize Pool Allocation
+                      </h4>
+                      <span className="text-[11px] text-gray-400">
+                        Pool: <strong className="text-[#00F0FF]">{publishPreviewData.totalPool.toLocaleString()} gBits</strong>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div className="p-2.5 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+                        <div className="text-[10px] text-yellow-300 font-semibold mb-1 flex items-center justify-between">
+                          <span>🥇 Rank 1</span>
+                          <span className="text-[9px] text-gray-400 font-mono">gBits</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={customP1}
+                          onChange={(e) => setCustomP1(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-full bg-black/40 border border-yellow-500/40 rounded-lg px-2 py-1 text-xs text-white font-mono font-bold focus:border-yellow-400 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="p-2.5 bg-slate-400/10 border border-slate-400/20 rounded-xl">
+                        <div className="text-[10px] text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                          <span>🥈 Rank 2</span>
+                          <span className="text-[9px] text-gray-400 font-mono">gBits</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={customP2}
+                          onChange={(e) => setCustomP2(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-full bg-black/40 border border-slate-400/40 rounded-lg px-2 py-1 text-xs text-white font-mono font-bold focus:border-slate-300 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="p-2.5 bg-amber-700/10 border border-amber-700/20 rounded-xl">
+                        <div className="text-[10px] text-amber-300 font-semibold mb-1 flex items-center justify-between">
+                          <span>🥉 Rank 3</span>
+                          <span className="text-[9px] text-gray-400 font-mono">gBits</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={customP3}
+                          onChange={(e) => setCustomP3(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-full bg-black/40 border border-amber-700/40 rounded-lg px-2 py-1 text-xs text-white font-mono font-bold focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="p-2.5 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                        <div className="text-[10px] text-purple-300 font-semibold mb-1 flex items-center justify-between">
+                          <span>🎖️ Participation</span>
+                          <span className="text-[9px] text-gray-400 font-mono">each</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={customPPart}
+                          onChange={(e) => setCustomPPart(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-full bg-black/40 border border-purple-500/40 rounded-lg px-2 py-1 text-xs text-white font-mono font-bold focus:border-purple-400 focus:outline-none"
+                        />
                       </div>
                     </div>
                   </div>

@@ -167,9 +167,10 @@ BEGIN
             USING (true);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can insert pro_room_rewards') THEN
-        CREATE POLICY "Authenticated users can insert pro_room_rewards"
-            ON public.pro_room_rewards FOR INSERT
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can manage pro_room_rewards') THEN
+        CREATE POLICY "Authenticated users can manage pro_room_rewards"
+            ON public.pro_room_rewards FOR ALL
+            USING (auth.uid() IS NOT NULL)
             WITH CHECK (auth.uid() IS NOT NULL);
     END IF;
 END $$;
@@ -201,9 +202,10 @@ BEGIN
             USING (true);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can insert pro_room_certificates') THEN
-        CREATE POLICY "Authenticated users can insert pro_room_certificates"
-            ON public.pro_room_certificates FOR INSERT
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can manage pro_room_certificates') THEN
+        CREATE POLICY "Authenticated users can manage pro_room_certificates"
+            ON public.pro_room_certificates FOR ALL
+            USING (auth.uid() IS NOT NULL)
             WITH CHECK (auth.uid() IS NOT NULL);
     END IF;
 END $$;
