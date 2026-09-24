@@ -838,17 +838,14 @@ const ProRoomAssessment = () => {
     };
   };
 
-  // ── Test Case Runner (browser → Piston directly) ─────────────────────────
-  // Calls Piston directly from the browser — NOT through the Edge Function.
-  // Judge0 CE via RapidAPI removed its free tier, and Piston's public
-  // instance (emkc.org) blocks requests from data-center IPs (Supabase's
-  // servers) with 401/429 errors. Browser IPs are dynamic and not subject
-  // to those blocks, so direct browser calls work reliably and are free.
+  // ── Test Case Runner (browser → Wandbox directly) ─────────────────────────
+  // Calls Wandbox directly from the browser — completely free, open, and
+  // does not require any API keys or whitelisting (Piston public API became
+  // whitelist-only with 401 errors as of Feb 2026).
   //
-  // Security: this path is for real-time candidate feedback only.
-  // Final grading still goes through the Edge Function at submit time
-  // (handleSubmitAssessment → Step 3), where test cases are fetched
-  // server-side with the service-role key so candidates can't tamper.
+  // Security: this path is for real-time candidate feedback.
+  // Results are saved to pro_room_answers after each run, and the latest
+  // run's passed count is used by the database trigger for final grading.
   const handleRunCode = async () => {
     const candidateCode = answers[currentQuestion.id]?.code_submission || "";
     const language = answers[currentQuestion.id]?.code_language || "javascript";
@@ -882,15 +879,20 @@ const ProRoomAssessment = () => {
         return;
       }
 
-      // Piston language identifiers must match the runtime list at
-      // https://emkc.org/api/v2/piston/runtimes
-      const PISTON_LANG = {
-        python:     { language: "python",     version: "3.10.0" },
-        javascript: { language: "javascript", version: "18.15.0" },
-        cpp:        { language: "c++",        version: "10.2.0" },
-        java:       { language: "java",       version: "15.0.2" },
+      // Wandbox compilers (free, open, no auth/whitelist required, CORS enabled)
+      const WANDBOX_COMPILERS = {
+        python:     "cpython-3.13.8",
+        javascript: "nodejs-20.17.0",
+        cpp:        "gcc-13.2.0",
+        java:       "openjdk-jdk-21+35",
       };
-      const pistonLang = PISTON_LANG[language] ?? PISTON_LANG.python;
+      const compiler = WANDBOX_COMPILERS[language] || WANDBOX_COMPILERS.python;
+
+      // In Java on Wandbox, file is saved as prog.java, so replace "public class" with "class"
+      let preparedCode = candidateCode;
+      if (language === "java") {
+        preparedCode = preparedCode.replace(/public\s+class\s+/g, "class ");
+      }
 
       const results = [];
       let passedCount = 0;
@@ -904,14 +906,13 @@ const ProRoomAssessment = () => {
         let execError = null;
 
         try {
-          const res = await fetch("https://emkc.org/api/v2/piston/execute", {
+          const res = await fetch("https://wandbox.org/api/compile.json", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              language: pistonLang.language,
-              version:  pistonLang.version,
-              files:    [{ content: candidateCode }],
-              stdin:    String(tc.input ?? ""),
+              compiler,
+              code:  preparedCode,
+              stdin: String(tc.input ?? ""),
             }),
           });
 
@@ -919,11 +920,15 @@ const ProRoomAssessment = () => {
             execError = `Code runner error: HTTP ${res.status}. Please try again.`;
           } else {
             const json = await res.json();
-            actual_output = (json.run?.stdout ?? "").trim();
-            stderr        = (json.run?.stderr  ?? "").trim();
+            const stdout = (json.program_output ?? "").trim();
+            const errorOutput = (json.compiler_error || json.program_error || "").trim();
+            actual_output = stdout;
+            stderr        = errorOutput;
+
             const expected = String(tc.expected_output ?? "").replace(/\s+/g, " ").trim();
             const actual   = actual_output.replace(/\s+/g, " ").trim();
-            passed = !json.run?.code && actual === expected;
+            const isSuccess = (json.status === 0 || json.status === "0") && !json.signal;
+            passed = isSuccess && actual === expected;
           }
         } catch (fetchErr) {
           execError = `Network error: ${fetchErr.message}`;
