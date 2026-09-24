@@ -634,12 +634,16 @@ const ProRoomDashboard = () => {
         return;
       }
 
-      // Broadcast notification to room participants
-      await supabase.from("pro_room_notifications").insert({
-        room_id: id,
-        title: "🏆 Official Results Published!",
-        message: "Final scores, ranks, and leaderboard standings are now live.",
-      }).catch(() => {});
+      // Broadcast notification to room participants (safely)
+      try {
+        await supabase.from("pro_room_notifications").insert({
+          room_id: id,
+          title: "🏆 Official Results Published!",
+          message: "Final scores, ranks, and leaderboard standings are now live.",
+        });
+      } catch (notifErr) {
+        console.warn("Notification insert note:", notifErr);
+      }
 
       showToast("🏆 Results published successfully!");
       fetchDashboardData();
