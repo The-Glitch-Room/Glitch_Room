@@ -1706,37 +1706,32 @@ const ProfessionalRoomDetail = () => {
                     </div>
                   ) : (
                     <>
-                      {(() => {
-                        const submittedCount = submissions.filter(s => s.status === "submitted").length;
-                        const pct = Math.round((submittedCount / registrations.length) * 100);
-                        return (
-                          <>
-                            <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
-                              {pct}%
-                            </div>
-                            <span className="text-[11px] text-gray-300 font-bold">
-                              {submittedCount} / {registrations.length} Submitted
-                            </span>
-                          </>
-                        );
-                      })()}
+                      <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
+                        {Math.round(
+                          (submissions.length / registrations.length) * 100,
+                        )}
+                        %
+                      </div>
+                      <span className="text-[11px] text-gray-300 font-bold">
+                        {submissions.length} / {registrations.length} Submitted
+                      </span>
                     </>
                   )
                 ) : (
                   <>
                     <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
-                      {userSubmission?.status === "submitted"
-                        ? `${userSubmission.percentage || 0}%`
-                        : userSubmission
-                        ? "—"
+                      {/* FIXED: `percentage || 100` treated a real 0%
+                          (falsy in JS) as if it were 100% — the exact
+                          inverse of the truth. `percentage` is now a real,
+                          server-computed value (see grade_pro_room_submission),
+                          so it's displayed as-is with no truthy-coercion
+                          fallback. */}
+                      {userSubmission
+                        ? `${userSubmission.percentage ?? 0}%`
                         : "0%"}
                     </div>
                     <span className="text-[11px] text-gray-300 font-bold">
-                      {userSubmission?.status === "submitted"
-                        ? "Completed"
-                        : userSubmission
-                        ? "In Progress"
-                        : "Not Started"}
+                      {userSubmission ? "Completed" : "Not Started"}
                     </span>
                   </>
                 )}
@@ -2185,7 +2180,13 @@ const ProfessionalRoomDetail = () => {
                   </div>
                 )}
 
-                {/* 2. Registered / Approved Roster Section */}
+                {/* 2. Registered / Approved Roster Section — now shows each
+                    participant's ACTUAL progress/status (their real
+                    submission row, cross-referenced by user_id) instead of
+                    a static "Approved Participant" badge every row got
+                    regardless of where they actually were in the
+                    assessment. `submissions` is already fetched for the
+                    host above; this just uses it here too. */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider">
                     Approved Roster (
@@ -2207,29 +2208,67 @@ const ProfessionalRoomDetail = () => {
                     <div className="space-y-2">
                       {registrations
                         .filter((r) => r.status === "approved" || !r.status)
-                        .map((r, idx) => (
-                          <div
-                            key={r.id || idx}
-                            className="p-3 rounded-2xl bg-[#06060c] border border-white/5 flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-7 h-7 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold text-xs">
-                                {(r.profiles?.full_name || "C")[0]}
+                        .map((r, idx) => {
+                          const sub = submissions.find(
+                            (s) => s.user_id === r.user_id,
+                          );
+                          const statusInfo = !sub
+                            ? { label: "Not Started", color: "gray" }
+                            : sub.status === "in_progress"
+                              ? { label: "In Progress", color: "amber" }
+                              : sub.status === "pending_review"
+                                ? { label: "Needs Grading", color: "purple" }
+                                : sub.status === "graded"
+                                  ? { label: "Graded", color: "emerald" }
+                                  : {
+                                      label: sub.status || "Unknown",
+                                      color: "gray",
+                                    };
+
+                          const colorClasses = {
+                            gray: "text-gray-400 bg-white/5 border-white/10",
+                            amber:
+                              "text-amber-300 bg-amber-500/10 border-amber-500/20",
+                            purple:
+                              "text-purple-300 bg-purple-500/10 border-purple-500/20",
+                            emerald:
+                              "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+                          }[statusInfo.color];
+
+                          return (
+                            <div
+                              key={r.id || idx}
+                              className="p-3 rounded-2xl bg-[#06060c] border border-white/5 flex items-center justify-between gap-2"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-7 h-7 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold text-xs shrink-0">
+                                  {(r.profiles?.full_name || "C")[0]}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-white font-bold block truncate">
+                                    {r.profiles?.full_name || "Candidate"}
+                                  </span>
+                                  <span className="text-[10px] text-cyan-300 font-mono">
+                                    @{r.profiles?.username || "candidate"}
+                                  </span>
+                                </div>
                               </div>
-                              <div>
-                                <span className="text-white font-bold block">
-                                  {r.profiles?.full_name || "Candidate"}
-                                </span>
-                                <span className="text-[10px] text-cyan-300 font-mono">
-                                  @{r.profiles?.username || "candidate"}
+                              <div className="flex items-center gap-2 shrink-0">
+                                {sub && (
+                                  <span className="text-[10px] font-mono text-gray-400">
+                                    {sub.total_score ?? 0}/{totalPossible} pts
+                                    {sub.rank ? ` · #${sub.rank}` : ""}
+                                  </span>
+                                )}
+                                <span
+                                  className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg border ${colorClasses}`}
+                                >
+                                  {statusInfo.label}
                                 </span>
                               </div>
                             </div>
-                            <span className="text-[10px] font-mono text-emerald-400 font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                              ✓ Approved Participant
-                            </span>
-                          </div>
-                        ))}
+                          );
+                        })}
                     </div>
                   )}
                 </div>
@@ -2494,7 +2533,7 @@ const ProfessionalRoomDetail = () => {
                     onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
                     className="w-full py-3 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center justify-between px-4"
                   >
-                    <span>Continue Assessment</span>
+                    <span>Go to Current Section</span>
                     <ArrowRight size={14} />
                   </button>
                   <button
@@ -2826,59 +2865,47 @@ const ProfessionalRoomDetail = () => {
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {sections.map((sec, idx) => {
-                      // Sum actual question points from DB — never hardcode.
-                      const qList = sec.pro_room_questions || [];
-                      const sectionPoints = qList.reduce((sum, q) => sum + (q.points || 0), 0);
-                      const questionCount = qList.length;
-                      // Duration is the total room time — sections share the
-                      // same timer (there is no per-section time limit column).
-                      const totalMins = room?.duration_minutes || null;
-                      const durationLabel = totalMins ? `${totalMins} Min${totalMins !== 1 ? "s" : ""}` : null;
-
-                      return (
-                        <div
-                          key={sec.id || idx}
-                          className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="w-8 h-8 rounded-xl bg-purple-600 text-white font-mono text-xs font-bold flex items-center justify-center">
-                                {idx + 1}
-                              </span>
-                              <div>
-                                <h4 className="text-xs font-bold text-white">
-                                  {sec.section_name}
-                                </h4>
-                                <p className="text-[11px] text-gray-400">
-                                  {sec.description ||
-                                    [durationLabel, sectionPoints > 0 ? `${sectionPoints} Points` : null]
-                                      .filter(Boolean)
-                                      .join(" • ")}
-                                </p>
-                              </div>
+                    {sections.map((sec, idx) => (
+                      <div
+                        key={sec.id || idx}
+                        className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-xl bg-purple-600 text-white font-mono text-xs font-bold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <h4 className="text-xs font-bold text-white">
+                                {sec.section_name}
+                              </h4>
+                              <p className="text-[11px] text-gray-400">
+                                {sec.description ||
+                                  `${sec.time_limit_minutes || 30} Mins • ${sec.total_points || 50} Points`}
+                              </p>
                             </div>
-                            <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[#00F0FF] font-bold">
-                              {sec.section_type?.toUpperCase() || "MCQ / CODING"}
-                            </span>
                           </div>
-
-                          <div className="pt-2 flex items-center justify-between text-xs border-t border-white/5">
-                            <span className="text-gray-400 font-mono text-[11px]">
-                              {questionCount} Question{questionCount !== 1 ? "s" : ""}{sectionPoints > 0 ? ` • ${sectionPoints} Points` : ""}
-                            </span>
-                            <button
-                              onClick={() =>
-                                navigate(`/pro-rooms/${id}/assessment`)
-                              }
-                              className="px-4 py-1.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer flex items-center gap-1"
-                            >
-                              Open Assessment <ArrowRight size={13} />
-                            </button>
-                          </div>
+                          <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[#00F0FF] font-bold">
+                            {sec.section_type?.toUpperCase() || "MCQ / CODING"}
+                          </span>
                         </div>
-                      );
-                    })}
+
+                        <div className="pt-2 flex items-center justify-between text-xs border-t border-white/5">
+                          <span className="text-gray-400 font-mono text-[11px]">
+                            {sec.pro_room_questions?.length || 5} Questions •{" "}
+                            {sec.total_points || 50} Points
+                          </span>
+                          <button
+                            onClick={() =>
+                              navigate(`/pro-rooms/${id}/assessment`)
+                            }
+                            className="px-4 py-1.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer flex items-center gap-1"
+                          >
+                            Launch Section <ArrowRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2921,7 +2948,7 @@ const ProfessionalRoomDetail = () => {
                         <div className="flex justify-between text-gray-400">
                           <span>Percentage:</span>
                           <span className="text-white font-bold">
-                            {userSubmission.percentage || 100}%
+                            {userSubmission.percentage ?? 0}%
                           </span>
                         </div>
                         <div className="flex justify-between text-gray-400">
@@ -3014,8 +3041,18 @@ const ProfessionalRoomDetail = () => {
                           }`}
                         >
                           <div className="flex items-center gap-3">
+                            {/* FIXED: was `#{idx + 1}` — computed its own
+                                rank from array position instead of reading
+                                the same persisted `rank` column Room
+                                Overview and the bottom stat bar use. That's
+                                why this list happened to look right while
+                                the other two didn't: same underlying data,
+                                different code path. All three now read the
+                                one value grade_pro_room_submission computes.
+                                idx + 1 stays only as a defensive fallback in
+                                case rank is ever null. */}
                             <span className="font-mono text-gray-400 w-6">
-                              #{idx + 1}
+                              #{lb.rank ?? idx + 1}
                             </span>
                             <span className="text-white font-bold">
                               {lb.profiles?.full_name ||
@@ -3272,7 +3309,7 @@ const ProfessionalRoomDetail = () => {
                 onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
                 className="w-full py-3 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center justify-between px-4"
               >
-                <span>Continue Assessment</span>
+                <span>Go to Current Section</span>
                 <ArrowRight size={14} />
               </button>
 
