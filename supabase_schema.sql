@@ -95,11 +95,5 @@ create table public.arena_events (
   constraint arena_events_pkey primary key (id)
 ) TABLESPACE pg_default;
 
---- Achievements table
-
---- Achievements table
-
-
---- Achievements table
-
---- Achievements table
+--- Pro Room Discussions: Ensure title column exists
+ALTER TABLE public.pro_room_discussions ADD COLUMN IF NOT EXISTS title text;

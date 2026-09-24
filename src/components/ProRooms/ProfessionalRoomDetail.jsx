@@ -290,25 +290,28 @@ const ProfessionalRoomDetail = () => {
       setAnnouncements(annData || []);
 
       // 8. Fetch Discussions & Replies with fallback
-      const { data: discData, error: discErr } = await supabase
-        .from("pro_room_discussions")
-        .select("*, profiles(full_name, username, avatar_url)")
-        .eq("room_id", id)
-        .order("created_at", { ascending: false });
-
-      let finalDiscs = discData;
-      if (discErr || !finalDiscs) {
-        const { data: rawD } = await supabase
+      let rawD = null;
+      try {
+        const { data: dData, error: dErr } = await supabase
           .from("pro_room_discussions")
           .select("*")
           .eq("room_id", id)
           .order("created_at", { ascending: false });
-        if (rawD && rawD.length > 0) {
-          const uids = Array.from(
-            new Set(rawD.map((d) => d.user_id).filter(Boolean)),
-          );
-          let pMap = {};
-          if (uids.length > 0) {
+        if (!dErr && dData) {
+          rawD = dData;
+        }
+      } catch (err) {
+        console.warn("Error fetching pro_room_discussions:", err);
+      }
+
+      let finalDiscs = [];
+      if (rawD && rawD.length > 0) {
+        const uids = Array.from(
+          new Set(rawD.map((d) => d.user_id).filter(Boolean)),
+        );
+        let pMap = {};
+        if (uids.length > 0) {
+          try {
             const { data: profs } = await supabase
               .from("profiles")
               .select("id, full_name, username, avatar_url")
@@ -317,14 +320,30 @@ const ProfessionalRoomDetail = () => {
               (acc, p) => ({ ...acc, [p.id]: p }),
               {},
             );
+          } catch (pe) {
+            console.warn("Error fetching discussion profiles:", pe);
           }
-          finalDiscs = rawD.map((d) => ({
-            ...d,
-            profiles: pMap[d.user_id] || null,
-          }));
-        } else {
-          finalDiscs = [];
         }
+
+        finalDiscs = rawD.map((d) => {
+          let t = d.title;
+          let c = d.content || "";
+          if (!t && c) {
+            const parts = c.split("\n\n");
+            if (parts.length > 1) {
+              t = parts[0];
+              c = parts.slice(1).join("\n\n");
+            } else {
+              t = c.split("\n")[0];
+            }
+          }
+          return {
+            ...d,
+            title: t || "Question",
+            content: c,
+            profiles: pMap[d.user_id] || null,
+          };
+        });
       }
 
       if (finalDiscs && finalDiscs.length > 0) {
@@ -335,12 +354,36 @@ const ProfessionalRoomDetail = () => {
           .in("discussion_id", discIds)
           .order("created_at", { ascending: true });
 
+        let replyPMap = {};
+        if (replyData && replyData.length > 0) {
+          const replyUids = Array.from(
+            new Set(replyData.map((r) => r.user_id).filter(Boolean)),
+          );
+          if (replyUids.length > 0) {
+            try {
+              const { data: rProfs } = await supabase
+                .from("profiles")
+                .select("id, full_name, username, avatar_url")
+                .in("id", replyUids);
+              replyPMap = (rProfs || []).reduce(
+                (acc, p) => ({ ...acc, [p.id]: p }),
+                {},
+              );
+            } catch (rpe) {
+              console.warn("Error fetching reply profiles:", rpe);
+            }
+          }
+        }
+
         const repliesByDiscId = {};
         if (replyData) {
           replyData.forEach((r) => {
             if (!repliesByDiscId[r.discussion_id])
               repliesByDiscId[r.discussion_id] = [];
-            repliesByDiscId[r.discussion_id].push(r);
+            repliesByDiscId[r.discussion_id].push({
+              ...r,
+              profiles: replyPMap[r.user_id] || null,
+            });
           });
         }
 
@@ -577,7 +620,14 @@ const ProfessionalRoomDetail = () => {
   };
 
   const handlePostDiscussion = async () => {
-    if (!discTitle.trim() || !discContent.trim()) return;
+    const titleText = discTitle.trim();
+    const contentText = discContent.trim();
+
+    if (!titleText || !contentText) {
+      showToast("⚠️ Please enter both a question title and details.");
+      return;
+    }
+
     setPostingDisc(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -587,32 +637,80 @@ const ProfessionalRoomDetail = () => {
         return;
       }
 
-      const newDiscPayload = {
-        room_id: id,
-        user_id: userId,
-        title: discTitle.trim(),
-        content: discContent.trim(),
-      };
+      let insertedDisc = null;
 
-      const { data: insertedDisc, error: insertErr } = await supabase
+      // 1. Attempt insert with title column
+      const { data: withTitleData, error: withTitleErr } = await supabase
         .from("pro_room_discussions")
-        .insert(newDiscPayload)
-        .select("*, profiles(full_name, username, avatar_url)")
+        .insert({
+          room_id: id,
+          user_id: userId,
+          title: titleText,
+          content: contentText,
+        })
+        .select()
         .single();
 
-      if (insertErr) {
-        console.error("Failed to post discussion:", insertErr);
-        showToast("⚠️ Couldn't post your question — please try again.");
-        return;
+      if (!withTitleErr && withTitleData) {
+        insertedDisc = withTitleData;
+      } else {
+        // Fallback: If title column does not exist in schema, store title inside content
+        console.warn("Posting with title failed, attempting fallback:", withTitleErr);
+        const { data: fallbackData, error: fallbackErr } = await supabase
+          .from("pro_room_discussions")
+          .insert({
+            room_id: id,
+            user_id: userId,
+            content: `${titleText}\n\n${contentText}`,
+          })
+          .select()
+          .single();
+
+        if (fallbackErr) {
+          console.error("Failed to post discussion fallback:", fallbackErr);
+          showToast("⚠️ Couldn't post your question — please try again.");
+          return;
+        }
+
+        insertedDisc = {
+          ...fallbackData,
+          title: titleText,
+          content: contentText,
+        };
       }
 
-      setDiscussions((prev) => [{ ...insertedDisc, replies: [] }, ...prev]);
+      // 2. Fetch author profile details for immediate rendering
+      let authorProf = null;
+      try {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, avatar_url")
+          .eq("id", userId)
+          .maybeSingle();
+        authorProf = prof;
+      } catch (profErr) {
+        console.warn("Could not fetch profile for new discussion:", profErr);
+      }
+
+      const completeDisc = {
+        ...insertedDisc,
+        title: insertedDisc.title || titleText,
+        content: insertedDisc.content || contentText,
+        profiles: authorProf || {
+          id: userId,
+          full_name: currentUserProfile?.full_name || "You",
+          username: currentUserProfile?.username || "You",
+        },
+        replies: [],
+      };
+
+      setDiscussions((prev) => [completeDisc, ...prev]);
       setDiscTitle("");
       setDiscContent("");
-      showToast("💬 Question posted successfully! Opening Discussion feed...");
+      showToast("💬 Question posted successfully!");
       setShowDiscussionModal(true);
     } catch (err) {
-      console.error(err);
+      console.error("Error in handlePostDiscussion:", err);
       showToast("⚠️ Error posting question.");
     } finally {
       setPostingDisc(false);
@@ -3606,7 +3704,7 @@ const ProfessionalRoomDetail = () => {
                           </div>
                           <div className="min-w-0 flex-1">
                             <h4 className="text-sm font-bold text-white leading-tight flex items-center gap-2 flex-wrap">
-                              {d.title}
+                              {d.title || d.content?.split("\n")[0] || "Question"}
                               {d.user_id === room?.host_id && (
                                 <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
                                   HOST
