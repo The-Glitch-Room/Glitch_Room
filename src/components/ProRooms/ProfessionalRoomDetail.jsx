@@ -168,9 +168,9 @@ const ProfessionalRoomDetail = () => {
   // ── Glitch Room Official Credential Preview Component ─────────────────
   const GlitchCertificateDOM = ({ cert, room: roomProp }) => {
     if (!cert) return null;
-    const isWinner = cert.type && cert.type.startsWith("winner");
-    const rankNum = cert.rank || 1;
-    const rankLabel = rankNum === 1 ? "1st Place Champion" : rankNum === 2 ? "2nd Place Runner-Up" : rankNum === 3 ? "3rd Place Podium" : `Rank #${rankNum}`;
+    const isWinner = cert.type === "winner" || cert.type === "runner_up" || cert.type === "top_3" || (cert.type && cert.type.startsWith("winner")) || (cert.rank && cert.rank <= 3);
+    const rankNum = cert.rank || (cert.type === "winner" ? 1 : cert.type === "runner_up" ? 2 : cert.type === "top_3" ? 3 : 1);
+    const rankLabel = rankNum === 1 ? "1st Place Champion" : rankNum === 2 ? "2nd Place Runner-Up" : rankNum === 3 ? "3rd Place Podium" : (cert.type === "participation" ? "Verified Finisher" : `Rank #${rankNum}`);
     const accentColor = rankNum === 1 ? "#FFD700" : rankNum === 2 ? "#E2E8F0" : rankNum === 3 ? "#D97706" : "#00F0FF";
     const accentBorder = rankNum === 1 ? "border-yellow-400" : rankNum === 2 ? "border-slate-300" : rankNum === 3 ? "border-amber-600" : "border-[#00F0FF]";
     const accentGlow = rankNum === 1 ? "shadow-yellow-500/20" : rankNum === 2 ? "shadow-slate-300/20" : rankNum === 3 ? "shadow-amber-500/20" : "shadow-[#00F0FF]/20";
@@ -306,10 +306,10 @@ const ProfessionalRoomDetail = () => {
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
-    const isWinner = cert.type && cert.type.startsWith("winner");
-    const rankNum = cert.rank || 1;
+    const isWinner = cert.type === "winner" || cert.type === "runner_up" || cert.type === "top_3" || (cert.type && cert.type.startsWith("winner")) || (cert.rank && cert.rank <= 3);
+    const rankNum = cert.rank || (cert.type === "winner" ? 1 : cert.type === "runner_up" ? 2 : cert.type === "top_3" ? 3 : 1);
     const primaryColor = rankNum === 1 ? "#FFD700" : rankNum === 2 ? "#E2E8F0" : rankNum === 3 ? "#D97706" : "#00F0FF";
-    const rankTitle = rankNum === 1 ? "1st Place Champion" : rankNum === 2 ? "2nd Place Runner-Up" : rankNum === 3 ? "3rd Place Podium" : `Rank #${rankNum}`;
+    const rankTitle = rankNum === 1 ? "1st Place Champion" : rankNum === 2 ? "2nd Place Runner-Up" : rankNum === 3 ? "3rd Place Podium" : (cert.type === "participation" ? "Verified Finisher" : `Rank #${rankNum}`);
 
     // Cyber Grid effect
     ctx.strokeStyle = "rgba(255, 255, 255, 0.035)";
@@ -537,6 +537,89 @@ const ProfessionalRoomDetail = () => {
         </html>
       `);
       printWindow.document.close();
+    }
+  };
+
+  const [generatingCert, setGeneratingCert] = useState(false);
+  const handleClaimOrGenerateCertificate = async () => {
+    if (!currentUserId || !room) return;
+    setGeneratingCert(true);
+    try {
+      const userRank = userSubmission?.rank || (myRankItem?.rank ? Number(myRankItem.rank) : 1);
+      const userScore = Number(userSubmission?.total_score != null ? userSubmission.total_score : (myRankItem?.total_score ?? 0));
+      const maxScore = Number(room.total_possible_score) || 100;
+      const userPct = Number(userSubmission?.percentage) || (maxScore > 0 ? Math.round((userScore / maxScore) * 100) : 0);
+      const isWinner = userRank <= 3;
+      const roomCode = (id || "0000").slice(0, 8).toUpperCase();
+      const certType = isWinner
+        ? (userRank === 1 ? "winner" : userRank === 2 ? "runner_up" : "top_3")
+        : "participation";
+      const certNumber = isWinner
+        ? `GR-PRO-WIN-${roomCode}-${String(userRank).padStart(3, "0")}`
+        : `GR-PRO-PART-${roomCode}-${String(userRank).padStart(3, "0")}`;
+
+      const { data: pData } = await supabase
+        .from("profiles")
+        .select("full_name, username")
+        .eq("id", currentUserId)
+        .maybeSingle();
+
+      const candName = pData?.full_name || pData?.username || "Candidate";
+
+      const newCert = {
+        id: `cert_${id}_${currentUserId}`,
+        certificate_number: certNumber,
+        room_id: id,
+        user_id: currentUserId,
+        type: certType,
+        recipient_name: candName,
+        event_name: room.title || room.name || "Pro Arena Assessment",
+        organization_name: room.org_name || room.organizer_name || "Glitch Room Arena",
+        score: userScore,
+        percentage: userPct,
+        rank: userRank,
+        issued_at: new Date().toISOString(),
+      };
+
+      // Set immediately into state
+      setUserCertificates([newCert]);
+      setSelectedCertificate(newCert);
+      setShowCertModal(true);
+
+      // Persist to DB using check-then-insert/update
+      const { data: existing } = await supabase
+        .from("pro_room_certificates")
+        .select("id")
+        .eq("room_id", id)
+        .eq("user_id", currentUserId)
+        .eq("type", certType)
+        .maybeSingle();
+
+      if (existing?.id) {
+        const { error: uErr } = await supabase
+          .from("pro_room_certificates")
+          .update(newCert)
+          .eq("id", existing.id);
+        if (uErr) {
+          const { percentage, ...noPct } = newCert;
+          await supabase.from("pro_room_certificates").update(noPct).eq("id", existing.id);
+        }
+      } else {
+        const { error: iErr } = await supabase
+          .from("pro_room_certificates")
+          .insert(newCert);
+        if (iErr) {
+          const { percentage, ...noPct } = newCert;
+          await supabase.from("pro_room_certificates").insert(noPct);
+        }
+      }
+
+      showToast("🏆 Official certificate generated successfully!");
+    } catch (err) {
+      console.warn("Claim certificate err:", err);
+      showToast("Could not generate certificate. Please try again.");
+    } finally {
+      setGeneratingCert(false);
     }
   };
 
@@ -940,9 +1023,15 @@ const ProfessionalRoomDetail = () => {
           let finalCerts = uCerts || [];
 
           // Synthesize / fallback certificate if results are published or rewards distributed, but DB cert row is missing
-          const isPub = currentRoom?.status === "results_published" || Boolean(currentRoom?.rewards_distributed);
+          const isPub = currentRoom?.status === "results_published" || Boolean(currentRoom?.rewards_distributed) || isResultsPublished;
           if (finalCerts.length === 0 && sub && isPub) {
-            const userRank = sub.rank || 1;
+            let userRank = sub.rank;
+            if (!userRank && leaderboardData && leaderboardData.length > 0) {
+              const lbEntry = leaderboardData.find((l) => l.user_id === uid);
+              if (lbEntry?.rank) userRank = lbEntry.rank;
+            }
+            if (!userRank) userRank = 1;
+
             const userScore = Number(sub.total_score) || 0;
             const maxScore = Number(currentRoom.total_possible_score) || 100;
             const userPct = Number(sub.percentage) || Math.round((userScore / maxScore) * 100);
@@ -952,15 +1041,26 @@ const ProfessionalRoomDetail = () => {
 
             if (isEligible) {
               const roomCode = (id || "0000").slice(0, 8).toUpperCase();
-              const certType = isWinner ? `winner_${userRank}` : "participation";
+              // Postgres check constraint pro_room_certificates_type_check: 'winner', 'runner_up', 'top_3', 'participation'
+              const certType = isWinner
+                ? (userRank === 1 ? "winner" : userRank === 2 ? "runner_up" : "top_3")
+                : "participation";
               const certNumber = isWinner
                 ? `GR-PRO-WIN-${roomCode}-${String(userRank).padStart(3, "0")}`
                 : `GR-PRO-PART-${roomCode}-${String(userRank).padStart(3, "0")}`;
 
-              const candName =
+              let candName =
                 reg?.profiles?.full_name ||
-                reg?.profiles?.username ||
-                "Candidate";
+                reg?.profiles?.username;
+
+              if (!candName) {
+                const { data: pData } = await supabase
+                  .from("profiles")
+                  .select("full_name, username")
+                  .eq("id", uid)
+                  .maybeSingle();
+                candName = pData?.full_name || pData?.username || "Candidate";
+              }
 
               const fallbackCert = {
                 id: `cert_${id}_${uid}`,
@@ -979,19 +1079,53 @@ const ProfessionalRoomDetail = () => {
 
               finalCerts = [fallbackCert];
 
-              // Save to DB in background without percentage column to avoid PGRST204
-              supabase.from("pro_room_certificates").upsert({
-                certificate_number: certNumber,
-                room_id: id,
-                user_id: uid,
-                type: certType,
-                recipient_name: candName,
-                event_name: currentRoom.title || currentRoom.name || "Pro Arena Assessment",
-                organization_name: currentRoom.org_name || currentRoom.organizer_name || "Glitch Room Arena",
-                score: userScore,
-                rank: userRank,
-                issued_at: sub.submitted_at || new Date().toISOString(),
-              }, { onConflict: "room_id,user_id,type" }).catch(() => {});
+              // Save to DB in background using check-then-insert/update
+              (async () => {
+                try {
+                  const { data: existing } = await supabase
+                    .from("pro_room_certificates")
+                    .select("id")
+                    .eq("room_id", id)
+                    .eq("user_id", uid)
+                    .eq("type", certType)
+                    .maybeSingle();
+
+                  const dbPayload = {
+                    certificate_number: certNumber,
+                    room_id: id,
+                    user_id: uid,
+                    type: certType,
+                    recipient_name: candName,
+                    event_name: currentRoom.title || currentRoom.name || "Pro Arena Assessment",
+                    organization_name: currentRoom.org_name || currentRoom.organizer_name || "Glitch Room Arena",
+                    score: userScore,
+                    percentage: userPct,
+                    rank: userRank,
+                    issued_at: sub.submitted_at || new Date().toISOString(),
+                  };
+
+                  if (existing?.id) {
+                    const { error: uErr } = await supabase
+                      .from("pro_room_certificates")
+                      .update(dbPayload)
+                      .eq("id", existing.id);
+                    if (uErr) {
+                      const { percentage, ...noPct } = dbPayload;
+                      await supabase.from("pro_room_certificates").update(noPct).eq("id", existing.id);
+                    }
+                  } else {
+                    const { error: iErr } = await supabase
+                      .from("pro_room_certificates")
+                      .insert(dbPayload);
+                    if (iErr) {
+                      const { percentage, ...noPct } = dbPayload;
+                      await supabase.from("pro_room_certificates").insert(noPct);
+                    }
+                  }
+                } catch (saveErr) {
+                  console.warn("Could not persist synthesized certificate to DB:", saveErr);
+                }
+              })();
             }
           }
 
@@ -2021,6 +2155,14 @@ const ProfessionalRoomDetail = () => {
   const actualScore = userSubmission?.total_score != null ? userSubmission.total_score : (myRankItem?.total_score ?? 0);
   const actualPercentage = userSubmission?.percentage != null ? `${userSubmission.percentage}%` : "0%";
   const totalPossible = room?.total_possible_score || 300;
+  const candidateScoreNum = Number(userSubmission?.total_score != null ? userSubmission.total_score : (myRankItem?.total_score ?? 0));
+  const candidateMaxScore = Number(room?.total_possible_score) || 100;
+  const candidatePctNum = Number(userSubmission?.percentage) || (candidateMaxScore > 0 ? Math.round((candidateScoreNum / candidateMaxScore) * 100) : 0);
+  const candidateRankNum = userSubmission?.rank || (myRankItem?.rank ? Number(myRankItem.rank) : null);
+  const isEligibleForCert = Boolean(
+    (candidateRankNum && candidateRankNum <= 3) ||
+    candidatePctNum >= (Number(room?.passing_score) || 50)
+  );
 
   // Candidate evaluation states:
   const isSubmissionPendingReview = Boolean(
@@ -4285,8 +4427,8 @@ const ProfessionalRoomDetail = () => {
                                   }`}
                                 >
                                   {isWinner
-                                    ? `Official ${cert.type === "winner_1" ? "1st Place" : cert.type === "winner_2" ? "2nd Place" : "3rd Place"} Award`
-                                    : "Certificate of Completion"}
+                                    ? `Official ${cert.type === "winner" || cert.type === "winner_1" ? "1st Place" : cert.type === "runner_up" || cert.type === "winner_2" ? "2nd Place" : "3rd Place"} Award`
+                                    : "Certificate of Achievement"}
                                 </span>
                                 <h4 className="text-base font-bold text-white">
                                   {isWinner ? "Certificate of Excellence" : "Certificate of Achievement"}
@@ -4359,17 +4501,33 @@ const ProfessionalRoomDetail = () => {
                     <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-gray-400">
                       <Award size={28} />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-3 max-w-md mx-auto">
                       <h4 className="text-base font-bold text-white">
-                        {canViewResults ? "No Certificate Issued" : "Certificates Awaiting Publication"}
+                        {canViewResults
+                          ? isEligibleForCert
+                            ? "Official Credential Ready to Claim"
+                            : "No Certificate Issued"
+                          : "Certificates Awaiting Publication"}
                       </h4>
-                      <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+                      <p className="text-xs text-gray-400 leading-relaxed">
                         {userSubmission
                           ? canViewResults
-                            ? `You completed this assessment with a score of ${actualScore} pts (${actualPercentage}). A minimum score of ${room?.passing_score || 50}% is required for certification.`
+                            ? isEligibleForCert
+                              ? `Congratulations! You placed Rank ${actualRank} with a score of ${actualScore} pts (${actualPercentage})! You qualify for an official verified credential in this arena.`
+                              : `You completed this assessment with a score of ${actualScore} pts (${actualPercentage}). A minimum score of ${room?.passing_score || 50}% is required for certification.`
                             : "Your submission has been recorded. Official digital certificates and awards will be generated and made available here once the organizer publishes results."
                           : "Complete your assessment and meet the qualification benchmark to receive an official verified cyber certificate."}
                       </p>
+                      {canViewResults && isEligibleForCert && (
+                        <button
+                          onClick={handleClaimOrGenerateCertificate}
+                          disabled={generatingCert}
+                          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 hover:opacity-90 text-white font-bold text-xs shadow-lg shadow-[#00F0FF]/20 transition cursor-pointer flex items-center gap-2 mx-auto disabled:opacity-50"
+                        >
+                          <Award size={15} />
+                          <span>{generatingCert ? "Generating Certificate..." : "Claim & View Official Certificate"}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

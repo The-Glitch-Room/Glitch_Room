@@ -999,8 +999,9 @@ const ProRoomDashboard = () => {
             candProfile?.full_name ||
             candProfile?.username ||
             "Candidate";
+          // Check constraint pro_room_certificates_type_check permits: 'winner', 'runner_up', 'top_3', 'participation'
           const certType =
-            i === 0 ? "winner_1" : i === 1 ? "winner_2" : "winner_3";
+            i === 0 ? "winner" : i === 1 ? "runner_up" : "top_3";
           const certNumber = `GR-PRO-WIN-${roomCode}-${String(i + 1).padStart(3, "0")}`;
 
           const certPayload = {
@@ -1012,30 +1013,41 @@ const ProRoomDashboard = () => {
             event_name: room.name || room.title || "Pro Arena Assessment",
             organization_name: room.org_name || room.organizer_name || "Glitch Room Arena",
             score: cand.total_score ?? 0,
+            percentage: cand.percentage ?? 0,
             rank: cand.calculatedRank,
             issued_at: new Date().toISOString(),
           };
 
           try {
-            const { error: cErr } = await supabase.from("pro_room_certificates").upsert(
-              { ...certPayload, percentage: cand.percentage ?? 0 },
-              { onConflict: "room_id,user_id,type" },
-            );
-            if (cErr) {
-              await supabase.from("pro_room_certificates").upsert(
-                certPayload,
-                { onConflict: "room_id,user_id,type" },
-              );
+            // Check if certificate already exists for this room, user, and type
+            const { data: existingCert } = await supabase
+              .from("pro_room_certificates")
+              .select("id")
+              .eq("room_id", id)
+              .eq("user_id", cand.user_id)
+              .eq("type", certType)
+              .maybeSingle();
+
+            if (existingCert?.id) {
+              const { error: updErr } = await supabase
+                .from("pro_room_certificates")
+                .update(certPayload)
+                .eq("id", existingCert.id);
+              if (updErr) {
+                const { percentage, ...noPct } = certPayload;
+                await supabase.from("pro_room_certificates").update(noPct).eq("id", existingCert.id);
+              }
+            } else {
+              const { error: insErr } = await supabase
+                .from("pro_room_certificates")
+                .insert(certPayload);
+              if (insErr) {
+                const { percentage, ...noPct } = certPayload;
+                await supabase.from("pro_room_certificates").insert(noPct);
+              }
             }
           } catch (e) {
-            try {
-              await supabase.from("pro_room_certificates").upsert(
-                certPayload,
-                { onConflict: "room_id,user_id,type" },
-              );
-            } catch (innerErr) {
-              console.warn("Winner certificate insert err:", innerErr);
-            }
+            console.warn("Winner certificate save err:", e);
           }
         }
       }
@@ -1064,30 +1076,40 @@ const ProRoomDashboard = () => {
               event_name: room.name || room.title || "Pro Arena Assessment",
               organization_name: room.org_name || room.organizer_name || "Glitch Room Arena",
               score: cand.total_score ?? 0,
+              percentage: cand.percentage ?? 0,
               rank: cand.calculatedRank,
               issued_at: new Date().toISOString(),
             };
 
             try {
-              const { error: cErr } = await supabase.from("pro_room_certificates").upsert(
-                { ...certPayload, percentage: cand.percentage ?? 0 },
-                { onConflict: "room_id,user_id,type" },
-              );
-              if (cErr) {
-                await supabase.from("pro_room_certificates").upsert(
-                  certPayload,
-                  { onConflict: "room_id,user_id,type" },
-                );
+              const { data: existingPart } = await supabase
+                .from("pro_room_certificates")
+                .select("id")
+                .eq("room_id", id)
+                .eq("user_id", cand.user_id)
+                .eq("type", "participation")
+                .maybeSingle();
+
+              if (existingPart?.id) {
+                const { error: updErr } = await supabase
+                  .from("pro_room_certificates")
+                  .update(certPayload)
+                  .eq("id", existingPart.id);
+                if (updErr) {
+                  const { percentage, ...noPct } = certPayload;
+                  await supabase.from("pro_room_certificates").update(noPct).eq("id", existingPart.id);
+                }
+              } else {
+                const { error: insErr } = await supabase
+                  .from("pro_room_certificates")
+                  .insert(certPayload);
+                if (insErr) {
+                  const { percentage, ...noPct } = certPayload;
+                  await supabase.from("pro_room_certificates").insert(noPct);
+                }
               }
             } catch (e) {
-              try {
-                await supabase.from("pro_room_certificates").upsert(
-                  certPayload,
-                  { onConflict: "room_id,user_id,type" },
-                );
-              } catch (innerErr) {
-                console.warn("Participation certificate insert err:", innerErr);
-              }
+              console.warn("Participation certificate save err:", e);
             }
           }
         }
