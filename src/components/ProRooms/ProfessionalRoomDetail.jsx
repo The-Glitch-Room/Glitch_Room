@@ -2865,47 +2865,84 @@ const ProfessionalRoomDetail = () => {
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {sections.map((sec, idx) => (
-                      <div
-                        key={sec.id || idx}
-                        className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="w-8 h-8 rounded-xl bg-purple-600 text-white font-mono text-xs font-bold flex items-center justify-center">
-                              {idx + 1}
+                    {/* ── Total assessment duration banner ── */}
+                    {(() => {
+                      const totalMins = room?.duration_minutes;
+                      const totalPoints = sections.reduce((sum, s) => {
+                        const qs = s.pro_room_questions || [];
+                        return sum + qs.reduce((ps, q) => ps + (q.points || 0), 0);
+                      }, 0);
+                      const totalQuestions = sections.reduce(
+                        (sum, s) => sum + (s.pro_room_questions?.length || 0), 0
+                      );
+                      return (
+                        <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-2xl bg-[#07070e] border border-white/8 text-[11px] font-mono text-gray-400">
+                          {totalMins && (
+                            <span className="flex items-center gap-1.5">
+                              <Clock size={12} className="text-[#00F0FF]" />
+                              <span className="text-white font-bold">{totalMins} Min{totalMins !== 1 ? "s" : ""}</span>
+                              <span className="text-gray-500">— Total Assessment Duration</span>
                             </span>
-                            <div>
-                              <h4 className="text-xs font-bold text-white">
-                                {sec.section_name}
-                              </h4>
-                              <p className="text-[11px] text-gray-400">
-                                {sec.description ||
-                                  `${sec.time_limit_minutes || 30} Mins • ${sec.total_points || 50} Points`}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[#00F0FF] font-bold">
-                            {sec.section_type?.toUpperCase() || "MCQ / CODING"}
-                          </span>
+                          )}
+                          {totalMins && totalPoints > 0 && <span className="text-white/20">·</span>}
+                          {totalPoints > 0 && (
+                            <span className="flex items-center gap-1">
+                              <span className="text-white font-bold">{totalPoints} pts</span>
+                              <span className="text-gray-500">total</span>
+                            </span>
+                          )}
+                          {totalQuestions > 0 && (
+                            <>
+                              <span className="text-white/20">·</span>
+                              <span className="flex items-center gap-1">
+                                <span className="text-white font-bold">{totalQuestions}</span>
+                                <span className="text-gray-500">question{totalQuestions !== 1 ? "s" : ""}</span>
+                              </span>
+                            </>
+                          )}
                         </div>
+                      );
+                    })()}
 
-                        <div className="pt-2 flex items-center justify-between text-xs border-t border-white/5">
-                          <span className="text-gray-400 font-mono text-[11px]">
-                            {sec.pro_room_questions?.length || 5} Questions •{" "}
-                            {sec.total_points || 50} Points
-                          </span>
-                          <button
-                            onClick={() =>
-                              navigate(`/pro-rooms/${id}/assessment`)
-                            }
-                            className="px-4 py-1.5 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] text-xs font-bold hover:bg-[#00F0FF]/25 cursor-pointer flex items-center gap-1"
-                          >
-                            Launch Section <ArrowRight size={13} />
-                          </button>
+                    {/* ── Individual section cards ── */}
+                    {sections.map((sec, idx) => {
+                      const qList = sec.pro_room_questions || [];
+                      const sectionPoints = qList.reduce((sum, q) => sum + (q.points || 0), 0);
+                      const questionCount = qList.length;
+
+                      return (
+                        <div
+                          key={sec.id || idx}
+                          className="p-5 rounded-2xl bg-[#06060c] border border-white/10 space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="w-8 h-8 rounded-xl bg-purple-600 text-white font-mono text-xs font-bold flex items-center justify-center shrink-0">
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-bold text-white">
+                                  {sec.section_name}
+                                </h4>
+                                {sec.description && (
+                                  <p className="text-[11px] text-gray-400">{sec.description}</p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[#00F0FF] font-bold shrink-0">
+                              {sec.section_type?.toUpperCase() || "MCQ / CODING"}
+                            </span>
+                          </div>
+
+                          <div className="pt-2 text-xs border-t border-white/5">
+                            <span className="text-gray-400 font-mono text-[11px]">
+                              {questionCount} Question{questionCount !== 1 ? "s" : ""}
+                              {sectionPoints > 0 ? ` • ${sectionPoints} Points` : ""}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
