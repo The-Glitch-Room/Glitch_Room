@@ -634,6 +634,13 @@ const ProRoomDashboard = () => {
         return;
       }
 
+      // Broadcast notification to room participants
+      await supabase.from("pro_room_notifications").insert({
+        room_id: id,
+        title: "🏆 Official Results Published!",
+        message: "Final scores, ranks, and leaderboard standings are now live.",
+      }).catch(() => {});
+
       showToast("🏆 Results published successfully!");
       fetchDashboardData();
     } catch (err) {

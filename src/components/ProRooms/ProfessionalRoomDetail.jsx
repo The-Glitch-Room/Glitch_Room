@@ -273,13 +273,18 @@ const ProfessionalRoomDetail = () => {
         }
       }
 
-      // 6. Fetch Leaderboard
-      const { data: lbData } = await supabase
-        .from("pro_room_leaderboard")
-        .select("*, profiles(full_name, username, avatar_url)")
-        .eq("room_id", id)
-        .order("total_score", { ascending: false });
-      setLeaderboard(lbData || []);
+      // 6. Fetch Leaderboard (Gated: Only host or after results are published)
+      const isResultsPublished = currentRoom?.status === "results_published";
+      if (isHostUser || isResultsPublished) {
+        const { data: lbData } = await supabase
+          .from("pro_room_leaderboard")
+          .select("*, profiles(full_name, username, avatar_url)")
+          .eq("room_id", id)
+          .order("total_score", { ascending: false });
+        setLeaderboard(lbData || []);
+      } else {
+        setLeaderboard([]);
+      }
 
       // 7. Fetch Announcements
       const { data: annData } = await supabase
@@ -552,6 +557,16 @@ const ProfessionalRoomDetail = () => {
     return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPendingApproval]);
+
+  // Poll if candidate has submitted but results are not yet published
+  useEffect(() => {
+    if (isHost || room?.status === "results_published" || !userSubmission) return;
+    const poll = setInterval(() => {
+      fetchRoomData();
+    }, 15000);
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, room?.status, userSubmission]);
 
   useEffect(() => {
     if (!loading && room && !isHost && activeSidebarTab.startsWith("host_")) {
@@ -1246,14 +1261,50 @@ const ProfessionalRoomDetail = () => {
     );
   }
 
+  // ── Results Publication Gate & Candidate Status ───────────────────────
+  const areResultsPublished = room?.status === "results_published";
+  const canViewResults = isHost || areResultsPublished;
+
   // Compute User Specific Rank & Score
   const myRankItem = (leaderboard || []).find(
     (l) => l.user_id === currentUserId,
   );
-  const userRankDisplay = myRankItem ? `#${myRankItem.rank}` : "—";
-  const userScoreDisplay =
-    userSubmission?.total_score || myRankItem?.total_score || 0;
+
+  const actualRank = userSubmission?.rank != null ? `#${userSubmission.rank}` : (myRankItem?.rank ? `#${myRankItem.rank}` : "—");
+  const actualScore = userSubmission?.total_score != null ? userSubmission.total_score : (myRankItem?.total_score ?? 0);
+  const actualPercentage = userSubmission?.percentage != null ? `${userSubmission.percentage}%` : "0%";
   const totalPossible = room?.total_possible_score || 300;
+
+  // Candidate evaluation states:
+  const isSubmissionPendingReview = Boolean(
+    userSubmission && (userSubmission.status === "pending_review" || userSubmission.needs_manual_review)
+  );
+  const isSubmissionGraded = Boolean(
+    userSubmission && (userSubmission.status === "graded" || (!userSubmission.needs_manual_review && userSubmission.total_score != null))
+  );
+
+  // Status message & badge for candidates before publication
+  let candidateResultStatusBadge = "Not Started";
+  let candidateResultStatusDesc = "Complete your assessment tasks to receive a score.";
+  if (userSubmission) {
+    if (areResultsPublished) {
+      candidateResultStatusBadge = "Results Published";
+      candidateResultStatusDesc = "Official final results and standings have been published by the organizer.";
+    } else if (isSubmissionPendingReview) {
+      candidateResultStatusBadge = "Submitted — Awaiting Review";
+      candidateResultStatusDesc = "Assessment submitted — evaluation in progress. Standings will be published once host review is complete.";
+    } else if (isSubmissionGraded) {
+      candidateResultStatusBadge = "Assessment Graded — Results Awaiting Publication";
+      candidateResultStatusDesc = "Assessment graded — results awaiting publication. The host will release official scores and ranks shortly.";
+    } else {
+      candidateResultStatusBadge = "Submitted — Awaiting Results";
+      candidateResultStatusDesc = "Assessment submitted — awaiting results publication.";
+    }
+  }
+
+  // Display strings based on publication gate:
+  const userRankDisplay = canViewResults ? actualRank : (userSubmission ? "—" : "—");
+  const userScoreDisplay = canViewResults ? actualScore : "—";
 
   // Format Event Start / End Time
   const eventStartFormatted = room?.event_start_at
@@ -1818,24 +1869,24 @@ const ProfessionalRoomDetail = () => {
                 ) : (
                   <>
                     <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-[#00F0FF] flex items-center justify-center text-xs font-mono font-bold text-white shrink-0">
-                      {/* FIXED: `percentage || 100` treated a real 0%
-                          (falsy in JS) as if it were 100% — the exact
-                          inverse of the truth. `percentage` is now a real,
-                          server-computed value (see grade_pro_room_submission),
-                          so it's displayed as-is with no truthy-coercion
-                          fallback. */}
-                      {userSubmission
-                        ? `${userSubmission.percentage ?? 0}%`
-                        : "0%"}
+                      {canViewResults
+                        ? `${userSubmission ? (userSubmission.percentage ?? 0) : 0}%`
+                        : userSubmission
+                          ? "✓"
+                          : "0%"}
                     </div>
                     <span className="text-[11px] text-gray-300 font-bold">
-                      {userSubmission ? "Completed" : "Not Started"}
+                      {canViewResults
+                        ? (userSubmission ? "Completed" : "Not Started")
+                        : (userSubmission
+                            ? (isSubmissionPendingReview ? "Submitted" : "Graded")
+                            : "Not Started")}
                     </span>
                   </>
                 )}
               </div>
               <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">
-                {isHost ? "Assessment Phase" : "Personal Progress"}
+                {isHost ? "Assessment Phase" : canViewResults ? "Score %" : "Personal Progress"}
               </span>
             </div>
 
@@ -1846,6 +1897,11 @@ const ProfessionalRoomDetail = () => {
                   <Trophy size={13} className="text-amber-400" />{" "}
                   {isHost ? "Top Candidate Score" : "Your Rank"}
                 </span>
+                {!isHost && !canViewResults && userSubmission && (
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1">
+                    <Lock size={9} /> Hidden
+                  </span>
+                )}
               </div>
               <div className="my-2">
                 <div className="text-xl font-black text-white font-mono">
@@ -1853,22 +1909,30 @@ const ProfessionalRoomDetail = () => {
                     ? leaderboard[0]
                       ? `${leaderboard[0].total_score} pts`
                       : "—"
-                    : userRankDisplay}
-                  {!isHost && (
+                    : canViewResults
+                      ? userRankDisplay
+                      : "—"}
+                  {!isHost && canViewResults && myRankItem && (
                     <span className="text-xs text-gray-500 font-normal">
                       {" "}
                       / {registrations.length || 1}
                     </span>
                   )}
                 </div>
-                <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                <span className={`text-[11px] font-mono font-bold ${canViewResults ? "text-emerald-400" : "text-amber-400"}`}>
                   {isHost
                     ? `Total Candidates: ${registrations.length}`
-                    : `Score: ${userScoreDisplay} / ${totalPossible}`}
+                    : canViewResults
+                      ? `Score: ${userScoreDisplay} / ${totalPossible}`
+                      : userSubmission
+                        ? (isSubmissionPendingReview
+                            ? "Submitted — awaiting results"
+                            : "Assessment graded — results awaiting publication")
+                        : "Assessment not started"}
                 </span>
               </div>
               <span className="text-[10px] text-gray-500 border-t border-white/5 pt-1">
-                Official Standings
+                {isHost ? "Organizer Overview" : canViewResults ? "Official Standings" : "Results Pending Publication"}
               </span>
             </div>
 
@@ -1914,9 +1978,9 @@ const ProfessionalRoomDetail = () => {
             { id: "submissions", label: "Submissions", icon: CheckCircle },
             {
               id: "leaderboard",
-              label: "Leaderboard",
+              label: canViewResults ? "Leaderboard" : "Leaderboard 🔒",
               icon: Trophy,
-              count: leaderboard.length,
+              count: canViewResults ? leaderboard.length : undefined,
             },
             {
               id: "discussion",
@@ -2046,6 +2110,12 @@ const ProfessionalRoomDetail = () => {
                   count: sections.length,
                 },
                 { id: "submissions", label: "Submissions", icon: CheckCircle },
+                {
+                  id: "leaderboard",
+                  label: canViewResults ? "Leaderboard" : "Leaderboard 🔒",
+                  icon: Trophy,
+                  count: canViewResults ? leaderboard.length : undefined,
+                },
                 { id: "ask_doubt", label: "Ask a Doubt", icon: HelpCircle },
                 { id: "organizers", label: "Organizers", icon: Building2 },
                 { id: "resources", label: "Resources", icon: Folder },
@@ -2639,7 +2709,10 @@ const ProfessionalRoomDetail = () => {
                     onClick={() => setActiveSidebarTab("leaderboard")}
                     className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 text-xs font-bold transition cursor-pointer flex items-center justify-between px-4"
                   >
-                    <span>View Leaderboard</span>
+                    <span className="flex items-center gap-1.5">
+                      <span>View Leaderboard</span>
+                      {!canViewResults && <Lock size={11} className="text-amber-400" />}
+                    </span>
                     <ChevronRight size={14} />
                   </button>
                   <button
@@ -3060,13 +3133,17 @@ const ProfessionalRoomDetail = () => {
                 {!isHost ? (
                   userSubmission ? (
                     <div className="p-6 rounded-2xl bg-[#06060c] border border-emerald-500/30 space-y-4">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
                         <div>
                           <span className="text-xs text-gray-400 block font-mono">
                             Submission Status
                           </span>
-                          <span className="text-sm font-bold text-emerald-400 uppercase">
-                            {userSubmission.status || "Completed"}
+                          <span className={`text-sm font-bold uppercase ${canViewResults ? "text-emerald-400" : "text-amber-400"}`}>
+                            {canViewResults
+                              ? (userSubmission.status || "Graded")
+                              : (isSubmissionPendingReview
+                                  ? "Submitted — Awaiting Review"
+                                  : "Assessment Graded — Awaiting Publication")}
                           </span>
                         </div>
                         <div className="text-right">
@@ -3074,7 +3151,7 @@ const ProfessionalRoomDetail = () => {
                             Your Score
                           </span>
                           <span className="text-xl font-black text-white font-mono">
-                            {userSubmission.total_score || 0} / {totalPossible}
+                            {canViewResults ? `${actualScore} / ${totalPossible}` : "🔒 Awaiting Publication"}
                           </span>
                         </div>
                       </div>
@@ -3082,10 +3159,18 @@ const ProfessionalRoomDetail = () => {
                       <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2 text-xs">
                         <div className="flex justify-between text-gray-400">
                           <span>Percentage:</span>
-                          <span className="text-white font-bold">
-                            {userSubmission.percentage ?? 0}%
+                          <span className="text-white font-bold font-mono">
+                            {canViewResults ? actualPercentage : "🔒 Hidden until published"}
                           </span>
                         </div>
+                        {canViewResults && (
+                          <div className="flex justify-between text-gray-400">
+                            <span>Official Rank:</span>
+                            <span className="text-white font-bold font-mono">
+                              {actualRank} {myRankItem && `of ${registrations.length}`}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex justify-between text-gray-400">
                           <span>Submitted At:</span>
                           <span className="text-white font-mono">
@@ -3095,6 +3180,17 @@ const ProfessionalRoomDetail = () => {
                           </span>
                         </div>
                       </div>
+
+                      {!canViewResults && (
+                        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-start gap-2.5">
+                          <Lock size={15} className="shrink-0 mt-0.5" />
+                          <span>
+                            {isSubmissionPendingReview
+                              ? "Your answers have been securely recorded. The organizer will review submissions before publishing final scores and official rankings."
+                              : "Your assessment has been evaluated! Final scores, percentage, and official rankings will be released once the organizer publishes results."}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-12 space-y-3">
@@ -3153,11 +3249,39 @@ const ProfessionalRoomDetail = () => {
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <Trophy size={16} className="text-amber-400" /> Official
-                    Standings & Leaderboard ({leaderboard.length})
+                    Standings & Leaderboard {canViewResults ? `(${leaderboard.length})` : ""}
                   </h3>
+                  {!canViewResults && (
+                    <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1.5">
+                      <Lock size={12} /> Awaiting Publication
+                    </span>
+                  )}
                 </div>
 
-                {leaderboard.length === 0 ? (
+                {!canViewResults ? (
+                  <div className="text-center py-12 space-y-4 bg-[#06060c] border border-white/5 rounded-2xl p-6">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+                      <Lock size={28} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h4 className="text-base font-bold text-white">
+                        Official Leaderboard Locked
+                      </h4>
+                      <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+                        {userSubmission
+                          ? isSubmissionPendingReview
+                            ? "Assessment Submitted — Results Awaiting Review. Your submission is currently undergoing evaluation. Standings and rankings will unlock once results are officially published by the organizer."
+                            : "Assessment Graded — Results Awaiting Publication. Your assessment has been evaluated. Standings, scores, and rankings will unlock once the organizer officially publishes results."
+                          : "Leaderboard standings are hidden while the assessment is underway. Results will be published by the organizer after the evaluation phase."}
+                      </p>
+                    </div>
+                    {userSubmission && (
+                      <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-mono">
+                        <Clock size={13} /> {candidateResultStatusBadge}
+                      </div>
+                    )}
+                  </div>
+                ) : leaderboard.length === 0 ? (
                   <p className="text-xs text-gray-500 text-center py-10">
                     Leaderboard standings will update after submissions are
                     evaluated.
@@ -3453,7 +3577,10 @@ const ProfessionalRoomDetail = () => {
                 onClick={() => setActiveSidebarTab("leaderboard")}
                 className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-gray-300 hover:text-white transition cursor-pointer flex items-center justify-between px-4"
               >
-                <span>View Leaderboard</span>
+                <span className="flex items-center gap-1.5">
+                  <span>View Leaderboard</span>
+                  {!canViewResults && <Lock size={11} className="text-amber-400" />}
+                </span>
                 <ChevronRight size={14} />
               </button>
 
@@ -3503,10 +3630,10 @@ const ProfessionalRoomDetail = () => {
               </div>
               <div>
                 <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">
-                  {userRankDisplay}
+                  {canViewResults ? userRankDisplay : (userSubmission ? "🔒 Pending" : "—")}
                 </span>
                 <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
-                  Target Rank
+                  {canViewResults ? "Target Rank" : "Official Rank"}
                 </span>
               </div>
             </div>
@@ -3518,7 +3645,7 @@ const ProfessionalRoomDetail = () => {
               </div>
               <div>
                 <span className="text-white text-xs sm:text-sm font-black font-mono block leading-none">
-                  {userScoreDisplay} / {totalPossible}
+                  {canViewResults ? `${actualScore} / ${totalPossible}` : (userSubmission ? "🔒 Pending" : `— / ${totalPossible}`)}
                 </span>
                 <span className="text-[9px] text-gray-400 tracking-wider uppercase mt-0.5 block">
                   Total Points
