@@ -139,3 +139,71 @@ BEGIN
             USING (auth.uid() IS NOT NULL);
     END IF;
 END $$;
+
+--- Pro Rooms Prize Distribution & Rewards System
+ALTER TABLE public.pro_rooms ADD COLUMN IF NOT EXISTS prize_distribution JSONB DEFAULT '{"rank_1": 0, "rank_2": 0, "rank_3": 0, "participation": 0}'::jsonb;
+ALTER TABLE public.pro_rooms ADD COLUMN IF NOT EXISTS rewards_distributed BOOLEAN DEFAULT false;
+ALTER TABLE public.pro_rooms ADD COLUMN IF NOT EXISTS rewards_distributed_at TIMESTAMPTZ;
+
+--- Pro Room Rewards Table (Records which candidate received which reward and why)
+CREATE TABLE IF NOT EXISTS public.pro_room_rewards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES public.pro_rooms(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    reward_type TEXT NOT NULL CHECK (reward_type IN ('rank_1', 'rank_2', 'rank_3', 'participation')),
+    rank INTEGER,
+    gbits_awarded INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT pro_room_rewards_room_user_reward_key UNIQUE(room_id, user_id, reward_type)
+);
+
+ALTER TABLE public.pro_room_rewards ENABLE ROW LEVEL SECURITY;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anyone can view pro_room_rewards') THEN
+        CREATE POLICY "Anyone can view pro_room_rewards"
+            ON public.pro_room_rewards FOR SELECT
+            USING (true);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can insert pro_room_rewards') THEN
+        CREATE POLICY "Authenticated users can insert pro_room_rewards"
+            ON public.pro_room_rewards FOR INSERT
+            WITH CHECK (auth.uid() IS NOT NULL);
+    END IF;
+END $$;
+
+--- Pro Room Certificates Table (Verifiable digital certificates)
+CREATE TABLE IF NOT EXISTS public.pro_room_certificates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    certificate_number TEXT UNIQUE NOT NULL,
+    room_id UUID NOT NULL REFERENCES public.pro_rooms(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('winner_1', 'winner_2', 'winner_3', 'participation')),
+    recipient_name TEXT NOT NULL,
+    event_name TEXT NOT NULL,
+    organization_name TEXT NOT NULL,
+    score NUMERIC NOT NULL DEFAULT 0,
+    percentage NUMERIC NOT NULL DEFAULT 0,
+    rank INTEGER,
+    issued_at TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT pro_room_certificates_room_user_type_key UNIQUE(room_id, user_id, type)
+);
+
+ALTER TABLE public.pro_room_certificates ENABLE ROW LEVEL SECURITY;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anyone can view pro_room_certificates') THEN
+        CREATE POLICY "Anyone can view pro_room_certificates"
+            ON public.pro_room_certificates FOR SELECT
+            USING (true);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can insert pro_room_certificates') THEN
+        CREATE POLICY "Authenticated users can insert pro_room_certificates"
+            ON public.pro_room_certificates FOR INSERT
+            WITH CHECK (auth.uid() IS NOT NULL);
+    END IF;
+END $$;

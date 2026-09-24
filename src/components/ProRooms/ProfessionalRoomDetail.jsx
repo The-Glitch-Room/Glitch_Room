@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlitchBackground from "../GlitchBackground";
@@ -48,6 +48,11 @@ import {
   Plus,
   Send,
   LogOut,
+  Sparkles,
+  Gift,
+  Medal,
+  Copy,
+  Printer,
 } from "lucide-react";
 import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
 import ProRoomHelpModal from "./ProRoomHelpModal";
@@ -150,6 +155,208 @@ const ProfessionalRoomDetail = () => {
   const [resFileType, setResFileType] = useState("ZIP");
   const [resFileSize, setResFileSize] = useState("");
   const [savingResource, setSavingResource] = useState(false);
+
+  // Rewards & Certificates States
+  const [userRewards, setUserRewards] = useState([]);
+  const [userCertificates, setUserCertificates] = useState([]);
+  const [roomRewards, setRoomRewards] = useState([]);
+  const [selectedCertificate, setSelectedCertificate] = useState(null);
+  const [showCertModal, setShowCertModal] = useState(false);
+  const certCanvasRef = useRef(null);
+
+  // Canvas Certificate Generator
+  const renderCertificateToCanvas = (cert, canvas) => {
+    if (!canvas || !cert) return;
+    const ctx = canvas.getContext("2d");
+    const width = 1200;
+    const height = 800;
+    canvas.width = width;
+    canvas.height = height;
+
+    // Background gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, "#05050d");
+    bgGrad.addColorStop(0.5, "#0d0c1d");
+    bgGrad.addColorStop(1, "#070714");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    const isWinner = cert.type && cert.type.startsWith("winner");
+    const primaryColor = isWinner ? "#FFD700" : "#00F0FF";
+
+    // Grid effect
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+    ctx.lineWidth = 1;
+    for (let x = 0; x < width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < height; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    // Outer Neon Cyber Borders
+    ctx.strokeStyle = primaryColor;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(32, 32, width - 64, height - 64);
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(42, 42, width - 84, height - 84);
+
+    // Corner Accents
+    const cornerSize = 45;
+    ctx.fillStyle = primaryColor;
+    ctx.fillRect(28, 28, cornerSize, 6);
+    ctx.fillRect(28, 28, 6, cornerSize);
+    ctx.fillRect(width - 28 - cornerSize, 28, cornerSize, 6);
+    ctx.fillRect(width - 34, 28, 6, cornerSize);
+    ctx.fillRect(28, height - 34, cornerSize, 6);
+    ctx.fillRect(28, height - 28 - cornerSize, 6, cornerSize);
+    ctx.fillRect(width - 28 - cornerSize, height - 34, cornerSize, 6);
+    ctx.fillRect(width - 34, height - 28 - cornerSize, 6, cornerSize);
+
+    // Header Branding
+    ctx.fillStyle = primaryColor;
+    ctx.font = "bold 15px 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("GLITCH ROOM ARENA • OFFICIAL VERIFIED CREDENTIAL", width / 2, 90);
+
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "900 40px sans-serif";
+    const titleText = isWinner
+      ? "CERTIFICATE OF EXCELLENCE"
+      : "CERTIFICATE OF PARTICIPATION";
+    ctx.fillText(titleText, width / 2, 148);
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+    ctx.font = "italic 18px sans-serif";
+    ctx.fillText("This official cyber-credential is proudly awarded to", width / 2, 205);
+
+    // Candidate Name
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 48px sans-serif";
+    ctx.fillText(cert.recipient_name || "Candidate", width / 2, 275);
+
+    // Glowing divider
+    const nameWidth = ctx.measureText(cert.recipient_name || "Candidate").width;
+    const lineGrad = ctx.createLinearGradient((width - nameWidth) / 2, 0, (width + nameWidth) / 2, 0);
+    lineGrad.addColorStop(0, "transparent");
+    lineGrad.addColorStop(0.5, primaryColor);
+    lineGrad.addColorStop(1, "transparent");
+    ctx.fillStyle = lineGrad;
+    ctx.fillRect((width - nameWidth - 80) / 2, 298, nameWidth + 80, 3);
+
+    // Reason
+    ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.font = "18px sans-serif";
+    ctx.fillText("for demonstrating high proficiency and achieving verified placement in", width / 2, 350);
+
+    ctx.fillStyle = primaryColor;
+    ctx.font = "bold 30px sans-serif";
+    ctx.fillText(cert.event_name || "Pro Arena Assessment", width / 2, 395);
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.font = "16px sans-serif";
+    ctx.fillText(`Issued by ${cert.organization_name || "Glitch Room Arena"}`, width / 2, 430);
+
+    // Performance Metric Boxes
+    const boxY = 480;
+    const boxW = 220;
+    const boxH = 95;
+    const startX = (width - (3 * boxW + 2 * 30)) / 2;
+
+    const metrics = [
+      { label: "OFFICIAL STANDING", value: cert.rank ? `Rank #${cert.rank}` : "Top Performer" },
+      { label: "TOTAL SCORE", value: `${cert.score ?? 0} Pts` },
+      { label: "PERCENTAGE", value: `${cert.percentage ?? 0}%` },
+    ];
+
+    metrics.forEach((m, i) => {
+      const x = startX + i * (boxW + 30);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+      ctx.fillRect(x, boxY, boxW, boxH);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, boxY, boxW, boxH);
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+      ctx.font = "11px 'Courier New', monospace";
+      ctx.fillText(m.label, x + boxW / 2, boxY + 32);
+
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "bold 26px sans-serif";
+      ctx.fillText(m.value, x + boxW / 2, boxY + 70);
+    });
+
+    // Footer / Verification Bar
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.font = "12px 'Courier New', monospace";
+    ctx.fillText(`CREDENTIAL ID: ${cert.certificate_number || "GR-PRO-VERIFIED"}`, 60, height - 75);
+    ctx.fillText(`ISSUED AT: ${new Date(cert.issued_at || Date.now()).toLocaleDateString()}`, 60, height - 55);
+
+    ctx.textAlign = "right";
+    ctx.fillText("DIGITALLY SIGNED & VERIFIED", width - 60, height - 75);
+    ctx.fillStyle = primaryColor;
+    ctx.fillText("GLITCH ROOM VERIFICATION NETWORK", width - 60, height - 55);
+  };
+
+  const handleOpenCertificate = (cert) => {
+    setSelectedCertificate(cert);
+    setShowCertModal(true);
+    setTimeout(() => {
+      if (certCanvasRef.current) {
+        renderCertificateToCanvas(cert, certCanvasRef.current);
+      }
+    }, 120);
+  };
+
+  const handleDownloadCertificate = () => {
+    if (!certCanvasRef.current || !selectedCertificate) return;
+    const canvas = certCanvasRef.current;
+    const url = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    const safeName = (selectedCertificate.recipient_name || "candidate").replace(/[^a-zA-Z0-9]/g, "_");
+    link.download = `Certificate_${safeName}_${selectedCertificate.certificate_number || "verified"}.png`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("✓ Certificate PNG downloaded!");
+  };
+
+  const handlePrintCertificate = () => {
+    if (!certCanvasRef.current) return;
+    const dataUrl = certCanvasRef.current.toDataURL("image/png");
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Print Certificate - ${selectedCertificate?.recipient_name || "Certificate"}</title>
+            <style>
+              body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+              img { max-width: 100%; height: auto; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+              @media print {
+                body { background: #fff; }
+                img { width: 100%; height: auto; }
+              }
+            </style>
+          </head>
+          <body>
+            <img src="${dataUrl}" onload="window.print(); window.close();" />
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
 
   // Toast State
   const [toastMsg, setToastMsg] = useState("");
@@ -536,6 +743,37 @@ const ProfessionalRoomDetail = () => {
         }
       }
 
+      // 11. Fetch User Rewards & Certificates, and Room Rewards
+      if (uid) {
+        try {
+          const { data: uRewards } = await supabase
+            .from("pro_room_rewards")
+            .select("*")
+            .eq("room_id", id)
+            .eq("user_id", uid);
+          setUserRewards(uRewards || []);
+
+          const { data: uCerts } = await supabase
+            .from("pro_room_certificates")
+            .select("*")
+            .eq("room_id", id)
+            .eq("user_id", uid);
+          setUserCertificates(uCerts || []);
+        } catch (e) {
+          console.warn("Error fetching user rewards/certificates:", e);
+        }
+      }
+
+      try {
+        const { data: allRewards } = await supabase
+          .from("pro_room_rewards")
+          .select("*")
+          .eq("room_id", id);
+        setRoomRewards(allRewards || []);
+      } catch (e) {
+        console.warn("Error fetching all room rewards:", e);
+      }
+
       setNotifications(dynamicNotifs);
     } catch (err) {
       console.error("Error loading room data:", err);
@@ -911,6 +1149,9 @@ const ProfessionalRoomDetail = () => {
           supabase.from("pro_room_registrations").delete().eq("room_id", id),
         () =>
           supabase.from("pro_room_announcements").delete().eq("room_id", id),
+        () => supabase.from("pro_room_notifications").delete().eq("room_id", id),
+        () => supabase.from("pro_room_rewards").delete().eq("room_id", id),
+        () => supabase.from("pro_room_certificates").delete().eq("room_id", id),
         () => supabase.from("pro_room_resources").delete().eq("room_id", id),
         () => supabase.from("pro_room_questions").delete().eq("room_id", id),
         () => supabase.from("pro_room_sections").delete().eq("room_id", id),
@@ -2814,6 +3055,73 @@ const ProfessionalRoomDetail = () => {
                   )
                 )}
 
+                {/* CANDIDATE WINNER / REWARDS / CERTIFICATION BANNER */}
+                {userSubmission && canViewResults && (
+                  <div className="space-y-4">
+                    {userRewards && userRewards.length > 0 ? (
+                      <div className="bg-gradient-to-r from-yellow-500/15 via-purple-900/20 to-black/40 border border-yellow-500/40 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-yellow-400/20 border border-yellow-400/50 flex items-center justify-center text-2xl shadow-lg shadow-yellow-500/20 shrink-0">
+                              {userRewards[0].rank === 1 ? "🥇" : userRewards[0].rank === 2 ? "🥈" : userRewards[0].rank === 3 ? "🥉" : "🎖️"}
+                            </div>
+                            <div>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[10px] font-mono font-bold uppercase tracking-wider mb-1">
+                                <Sparkles size={11} /> Official Award Winner
+                              </div>
+                              <h3 className="text-base sm:text-lg font-black text-white">
+                                Congratulations! You Placed Rank #{userRewards[0].rank || actualRank}
+                              </h3>
+                              <p className="text-xs text-gray-300 mt-0.5">
+                                You earned <strong className="text-yellow-400 font-mono">+{userRewards[0].gbits_awarded.toLocaleString()} gBits</strong> in platform prizes for this assessment.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+                            {userCertificates.length > 0 && (
+                              <button
+                                onClick={() => handleOpenCertificate(userCertificates[0])}
+                                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black text-xs transition shadow-lg shadow-yellow-500/20 cursor-pointer flex items-center gap-2"
+                              >
+                                <Award size={15} />
+                                <span>View Certificate</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : userCertificates && userCertificates.length > 0 ? (
+                      <div className="bg-gradient-to-r from-[#00F0FF]/15 via-purple-900/20 to-black/40 border border-[#00F0FF]/40 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-[#00F0FF]/20 border border-[#00F0FF]/50 flex items-center justify-center text-[#00F0FF] shadow-lg shadow-[#00F0FF]/20 shrink-0">
+                              <Award size={28} />
+                            </div>
+                            <div>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF]/40 text-[#00F0FF] text-[10px] font-mono font-bold uppercase tracking-wider mb-1">
+                                <CheckCircle size={11} /> Verified Credential
+                              </div>
+                              <h3 className="text-base sm:text-lg font-black text-white">
+                                Official Certificate of Completion Issued
+                              </h3>
+                              <p className="text-xs text-gray-300 mt-0.5">
+                                Your assessment performance ({actualPercentage} • Score: {actualScore} pts) has been verified.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleOpenCertificate(userCertificates[0])}
+                            className="px-5 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00F0FF]/90 text-black font-black text-xs transition shadow-lg shadow-[#00F0FF]/20 cursor-pointer flex items-center gap-2 self-start md:self-auto shrink-0"
+                          >
+                            <Award size={15} />
+                            <span>View Certificate</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
                 <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
                   <div className="space-y-3">
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -3440,7 +3748,36 @@ const ProfessionalRoomDetail = () => {
                             ).toLocaleString()}
                           </span>
                         </div>
+
+                        {canViewResults && userRewards.length > 0 && (
+                          <div className="flex justify-between text-gray-400 border-t border-white/5 pt-2">
+                            <span className="text-yellow-400 font-bold flex items-center gap-1">
+                              <Gift size={13} /> Prize Won:
+                            </span>
+                            <span className="text-yellow-400 font-mono font-bold">
+                              +{userRewards[0].gbits_awarded.toLocaleString()} gBits
+                            </span>
+                          </div>
+                        )}
                       </div>
+
+                      {canViewResults && userCertificates.length > 0 && (
+                        <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Award size={16} className="text-purple-400" />
+                            <span className="text-xs text-purple-200">
+                              Official Certificate Available
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleOpenCertificate(userCertificates[0])}
+                            className="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition"
+                          >
+                            <Award size={13} />
+                            <span>View Certificate</span>
+                          </button>
+                        </div>
+                      )}
 
                       {!canViewResults && (
                         <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-start gap-2.5">
@@ -3548,49 +3885,82 @@ const ProfessionalRoomDetail = () => {
                     evaluated.
                   </p>
                 ) : (
-                  <div className="divide-y divide-white/5">
-                    {leaderboard.map((lb, idx) => {
-                      const isMe = lb.user_id === currentUserId;
-                      return (
-                        <div
-                          key={lb.id || idx}
-                          className={`py-3 px-4 rounded-xl flex items-center justify-between text-xs transition ${
-                            isMe
-                              ? "bg-[#FF00C8]/15 border border-[#FF00C8]/30 font-bold"
-                              : "hover:bg-white/[0.02]"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            {/* FIXED: was `#{idx + 1}` — computed its own
-                                rank from array position instead of reading
-                                the same persisted `rank` column Room
-                                Overview and the bottom stat bar use. That's
-                                why this list happened to look right while
-                                the other two didn't: same underlying data,
-                                different code path. All three now read the
-                                one value grade_pro_room_submission computes.
-                                idx + 1 stays only as a defensive fallback in
-                                case rank is ever null. */}
-                            <span className="font-mono text-gray-400 w-6">
-                              #{lb.rank ?? idx + 1}
-                            </span>
-                            <span className="text-white font-bold">
-                              {lb.profiles?.full_name ||
-                                lb.profiles?.username ||
-                                "Candidate"}
-                            </span>
-                            {isMe && (
-                              <span className="text-[10px] text-[#FF00C8] font-mono">
-                                (You)
-                              </span>
-                            )}
-                          </div>
-                          <span className="font-mono font-bold text-amber-400">
-                            {lb.total_score} Pts
+                  <div className="space-y-4">
+                    {/* User Certificate Quick Action */}
+                    {userCertificates && userCertificates.length > 0 && (
+                      <div className="p-3.5 bg-gradient-to-r from-purple-500/10 to-[#00F0FF]/10 border border-[#00F0FF]/30 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <Award size={18} className="text-[#00F0FF]" />
+                          <span className="text-xs text-white">
+                            You have an official verified credential available for this assessment!
                           </span>
                         </div>
-                      );
-                    })}
+                        <button
+                          onClick={() => handleOpenCertificate(userCertificates[0])}
+                          className="px-3 py-1.5 rounded-xl bg-[#00F0FF]/20 hover:bg-[#00F0FF]/30 border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Award size={13} /> View Certificate
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {leaderboard.map((lb, idx) => {
+                        const isMe = lb.user_id === currentUserId;
+                        const rankNum = lb.rank ?? (idx + 1);
+                        const candReward = roomRewards.find((r) => r.user_id === lb.user_id);
+                        const isTop3 = rankNum <= 3;
+
+                        return (
+                          <div
+                            key={lb.id || idx}
+                            className={`py-3 px-4 rounded-xl flex items-center justify-between text-xs transition border ${
+                              isMe
+                                ? "bg-[#FF00C8]/15 border-[#FF00C8]/40 font-bold"
+                                : rankNum === 1
+                                ? "bg-gradient-to-r from-yellow-500/15 to-transparent border-yellow-500/30"
+                                : rankNum === 2
+                                ? "bg-gradient-to-r from-slate-400/10 to-transparent border-slate-400/20"
+                                : rankNum === 3
+                                ? "bg-gradient-to-r from-amber-700/10 to-transparent border-amber-700/20"
+                                : "bg-white/[0.01] border-white/5 hover:bg-white/[0.03]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-gray-400 w-7 flex items-center">
+                                {rankNum === 1 ? (
+                                  <span className="text-base">🥇</span>
+                                ) : rankNum === 2 ? (
+                                  <span className="text-base">🥈</span>
+                                ) : rankNum === 3 ? (
+                                  <span className="text-base">🥉</span>
+                                ) : (
+                                  `#${rankNum}`
+                                )}
+                              </span>
+                              <span className="text-white font-bold">
+                                {lb.profiles?.full_name ||
+                                  lb.profiles?.username ||
+                                  "Candidate"}
+                              </span>
+                              {isMe && (
+                                <span className="text-[10px] text-[#FF00C8] font-mono">
+                                  (You)
+                                </span>
+                              )}
+                              {candReward && candReward.reward_type && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/15 border border-yellow-400/30 text-yellow-300 font-mono font-semibold">
+                                  +{candReward.gbits_awarded.toLocaleString()} gBits
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-mono font-bold text-amber-400">
+                              {lb.total_score} Pts
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -4518,6 +4888,102 @@ const ProfessionalRoomDetail = () => {
         room={room}
         showToast={showToast}
       />
+
+      {/* IN-APP DIGITAL CERTIFICATE MODAL */}
+      <AnimatePresence>
+        {showCertModal && selectedCertificate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-4xl bg-[#0c0c16] border border-[#00F0FF]/40 rounded-3xl shadow-2xl shadow-[#00F0FF]/15 overflow-hidden flex flex-col my-8"
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#121222]/80">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF]">
+                    <Award size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      Verified Cyber Credential & Certificate
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      ID: <span className="font-mono text-gray-300">{selectedCertificate.certificate_number}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCertModal(false)}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Certificate Preview Card */}
+              <div className="p-6 flex flex-col items-center space-y-6 overflow-y-auto max-h-[75vh]">
+                {/* Responsive Canvas Container */}
+                <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/15 shadow-2xl bg-black relative">
+                  <canvas
+                    ref={certCanvasRef}
+                    className="w-full h-auto block"
+                    style={{ aspectRatio: "1200 / 800" }}
+                  />
+                </div>
+
+                {/* Verification & Metadata Summary */}
+                <div className="w-full max-w-3xl grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-xs">
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-mono uppercase block">Recipient</span>
+                    <span className="text-white font-bold">{selectedCertificate.recipient_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-mono uppercase block">Verification ID</span>
+                    <span className="text-cyan-400 font-mono font-bold">{selectedCertificate.certificate_number}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-mono uppercase block">Issuing Authority</span>
+                    <span className="text-purple-300 font-semibold">{selectedCertificate.organization_name || "Glitch Room Arena"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="p-5 border-t border-white/10 bg-[#121222]/80 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedCertificate.certificate_number);
+                    showToast("📋 Credential ID copied to clipboard!");
+                  }}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Copy size={14} />
+                  <span>Copy ID</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handlePrintCertificate}
+                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Printer size={14} />
+                    <span>Print / PDF</span>
+                  </button>
+                  <button
+                    onClick={handleDownloadCertificate}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 hover:opacity-90 text-white text-xs font-bold shadow-lg shadow-[#00F0FF]/20 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Download size={14} />
+                    <span>Download PNG</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -936,6 +936,10 @@ const CreateProRoomPage = () => {
               has_winner_certificate: rData.has_winner_certificate ?? true,
               has_achievement_badge: rData.has_achievement_badge ?? true,
               prize_details: rData.prize_details || "",
+              prize_rank_1: rData.prize_distribution?.rank_1 != null ? String(rData.prize_distribution.rank_1) : "",
+              prize_rank_2: rData.prize_distribution?.rank_2 != null ? String(rData.prize_distribution.rank_2) : "",
+              prize_rank_3: rData.prize_distribution?.rank_3 != null ? String(rData.prize_distribution.rank_3) : "",
+              prize_participation: rData.prize_distribution?.participation != null ? String(rData.prize_distribution.participation) : "",
             });
           }
 
@@ -1029,6 +1033,10 @@ const CreateProRoomPage = () => {
     has_winner_certificate: true,
     has_achievement_badge: true,
     prize_details: "",
+    prize_rank_1: "",
+    prize_rank_2: "",
+    prize_rank_3: "",
+    prize_participation: "",
   });
 
   // Event Timer duration — strictly Event Start -> Event End. Registration
@@ -1435,6 +1443,19 @@ const CreateProRoomPage = () => {
         Number(evaluation.passing_score) > 100
       )
         return "Passing Score must be between 0 and 100.";
+
+      const totalPool = Number(evaluation.gbits_prize_pool) || 0;
+      const r1 = Number(evaluation.prize_rank_1) || 0;
+      const r2 = Number(evaluation.prize_rank_2) || 0;
+      const r3 = Number(evaluation.prize_rank_3) || 0;
+      const rPart = Number(evaluation.prize_participation) || 0;
+
+      if (r1 < 0 || r2 < 0 || r3 < 0 || rPart < 0) {
+        return "Reward values cannot be negative.";
+      }
+      if (r1 + r2 + r3 > totalPool && totalPool > 0) {
+        return `The sum of Rank rewards (${(r1 + r2 + r3).toLocaleString()} gBits) exceeds the total prize pool (${totalPool.toLocaleString()} gBits).`;
+      }
       return null;
     }
 
@@ -1803,6 +1824,12 @@ const CreateProRoomPage = () => {
         has_winner_certificate: evaluation.has_winner_certificate,
         has_achievement_badge: evaluation.has_achievement_badge,
         prize_details: evaluation.prize_details || null,
+        prize_distribution: {
+          rank_1: Number(evaluation.prize_rank_1) || 0,
+          rank_2: Number(evaluation.prize_rank_2) || 0,
+          rank_3: Number(evaluation.prize_rank_3) || 0,
+          participation: Number(evaluation.prize_participation) || 0,
+        },
       };
 
       let roomId = draftRoomId;
@@ -1937,6 +1964,12 @@ const CreateProRoomPage = () => {
         has_winner_certificate: evaluation.has_winner_certificate,
         has_achievement_badge: evaluation.has_achievement_badge,
         prize_details: evaluation.prize_details,
+        prize_distribution: {
+          rank_1: Number(evaluation.prize_rank_1) || 0,
+          rank_2: Number(evaluation.prize_rank_2) || 0,
+          rank_3: Number(evaluation.prize_rank_3) || 0,
+          participation: Number(evaluation.prize_participation) || 0,
+        },
       };
 
       // Reuse whichever existing room row we already have — either arrived
@@ -3334,10 +3367,11 @@ const CreateProRoomPage = () => {
 
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-1">
-                        gBits Prize Pool Reward
+                        Total gBits Prize Pool Reward
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="e.g., 2500"
                         value={evaluation.gbits_prize_pool}
                         onChange={(e) =>
@@ -3348,16 +3382,127 @@ const CreateProRoomPage = () => {
                         }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                       />
+                      <p className="text-[10px] text-cyan-400/80 mt-1 font-mono">
+                        Platform-Sponsored: max pool available for winners. Your balance is not deducted.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Structured Reward Tiers */}
+                  <div className="bg-[#040409] border border-white/10 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Trophy size={14} className="text-amber-400" /> Reward Tier Payouts
+                      </h4>
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        Sum:{" "}
+                        <strong
+                          className={
+                            (Number(evaluation.prize_rank_1) || 0) +
+                              (Number(evaluation.prize_rank_2) || 0) +
+                              (Number(evaluation.prize_rank_3) || 0) >
+                            (Number(evaluation.gbits_prize_pool) || 0)
+                              ? "text-red-400 font-bold"
+                              : "text-emerald-400 font-bold"
+                          }
+                        >
+                          {(
+                            (Number(evaluation.prize_rank_1) || 0) +
+                            (Number(evaluation.prize_rank_2) || 0) +
+                            (Number(evaluation.prize_rank_3) || 0)
+                          ).toLocaleString()}
+                        </strong>{" "}
+                        / {(Number(evaluation.gbits_prize_pool) || 0).toLocaleString()} gBits
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-amber-300 block mb-1">
+                          🥇 Rank #1 Reward (gBits)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="e.g., 1500"
+                          value={evaluation.prize_rank_1}
+                          onChange={(e) =>
+                            setEvaluation({
+                              ...evaluation,
+                              prize_rank_1: e.target.value,
+                            })
+                          }
+                          className="w-full bg-[#070712] border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-amber-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-300 block mb-1">
+                          🥈 Rank #2 Reward (gBits)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="e.g., 600"
+                          value={evaluation.prize_rank_2}
+                          onChange={(e) =>
+                            setEvaluation({
+                              ...evaluation,
+                              prize_rank_2: e.target.value,
+                            })
+                          }
+                          className="w-full bg-[#070712] border border-gray-400/30 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-gray-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-amber-600 block mb-1">
+                          🥉 Rank #3 Reward (gBits)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="e.g., 300"
+                          value={evaluation.prize_rank_3}
+                          onChange={(e) =>
+                            setEvaluation({
+                              ...evaluation,
+                              prize_rank_3: e.target.value,
+                            })
+                          }
+                          className="w-full bg-[#070712] border border-amber-700/30 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-amber-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-cyan-300 block mb-1">
+                        🎖️ Optional Passing Participation Reward (per passing candidate)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g., 10"
+                        value={evaluation.prize_participation}
+                        onChange={(e) =>
+                          setEvaluation({
+                            ...evaluation,
+                            prize_participation: e.target.value,
+                          })
+                        }
+                        className="w-full sm:w-1/3 bg-[#070712] border border-[#00F0FF]/30 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Awarded to candidates who score above the passing score.
+                      </p>
                     </div>
                   </div>
 
                   <div>
                     <label className="text-xs font-bold text-gray-300 block mb-1">
-                      Prize Breakdown & Structure
+                      Prize Breakdown & Structure Note (Optional)
                     </label>
                     <textarea
-                      rows={3}
-                      placeholder="e.g., Winner: Certificate + Winner Badge + 1,500 gBits | Runner-Up: 1,000 gBits | All: Participation Certificate"
+                      rows={2}
+                      placeholder="e.g., Winner: Certificate + Winner Badge + 1,500 gBits | Runner-Up: 600 gBits | All Passing: Participation Certificate"
                       value={evaluation.prize_details}
                       onChange={(e) =>
                         setEvaluation({
