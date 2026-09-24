@@ -478,7 +478,7 @@ const ProRoomAssessment = () => {
       if (existingSub) {
         setSubmissionId(existingSub.id);
 
-        if (existingSub.status === "submitted") {
+        if (existingSub.status === "submitted" || existingSub.status === "graded" || existingSub.status === "pending_review") {
           setAlreadySubmitted(true);
         }
 
@@ -491,7 +491,7 @@ const ProRoomAssessment = () => {
           setTimeLeftSeconds(durationMinutes * 60);
         }
 
-        if (Array.isArray(existingSub.pro_room_answers)) {
+        if (Array.isArray(existingSub.pro_room_answers) && existingSub.pro_room_answers.length > 0) {
           const hydratedAnswers = {};
           const hydratedReview = {};
           existingSub.pro_room_answers.forEach((a) => {
@@ -500,11 +500,28 @@ const ProRoomAssessment = () => {
               selected_options: a.selected_options || [],
               code_submission: a.code_submission || "",
               code_language: a.code_language || "javascript",
+              last_run_passed_count: a.last_run_passed_count,
+              last_run_results: a.last_run_results,
+              last_run_at: a.last_run_at,
             };
             if (a.marked_for_review) hydratedReview[a.question_id] = true;
           });
           setAnswers(hydratedAnswers);
           setMarkedReview(hydratedReview);
+        } else {
+          // If DB has no answers saved yet, recover from local storage backup
+          try {
+            const cached = localStorage.getItem(`glitch_assessment_answers_${id}_${uid}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+                console.log("[Assessment] Restored answers from local cache backup");
+                setAnswers(parsed);
+              }
+            }
+          } catch (e) {
+            console.warn("Could not read local answer cache:", e);
+          }
         }
       } else {
         const { data: created, error: createErr } = await supabase
@@ -523,6 +540,18 @@ const ProRoomAssessment = () => {
         } else if (created) {
           setSubmissionId(created.id);
         }
+
+        // Check local storage backup for newly initialized submission
+        try {
+          const cached = localStorage.getItem(`glitch_assessment_answers_${id}_${uid}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+              setAnswers(parsed);
+            }
+          }
+        } catch (e) {}
+
         setTimeLeftSeconds(durationMinutes * 60);
       }
 
@@ -696,6 +725,9 @@ const ProRoomAssessment = () => {
         selected_options: answerData?.selected_options || null,
         code_submission: answerData?.code_submission || null,
         code_language: answerData?.code_language || null,
+        last_run_passed_count: answerData?.last_run_passed_count != null ? answerData.last_run_passed_count : null,
+        last_run_results: answerData?.last_run_results || null,
+        last_run_at: answerData?.last_run_at || null,
       };
 
       const { error } = await supabase
@@ -720,6 +752,15 @@ const ProRoomAssessment = () => {
       pendingSaveRef.current.delete(qId);
     }
   };
+
+  // Sync answers continuously to localStorage for instant recovery across reloads
+  useEffect(() => {
+    if (!answersHydrated || !id || !currentUserId) return;
+    if (Object.keys(answers).length === 0) return;
+    try {
+      localStorage.setItem(`glitch_assessment_answers_${id}_${currentUserId}`, JSON.stringify(answers));
+    } catch (e) {}
+  }, [answers, answersHydrated, id, currentUserId]);
 
   // Debounced background autosave
   const autosaveTimeoutRef = useRef(null);
@@ -1035,9 +1076,6 @@ const ProRoomAssessment = () => {
 
   // ── Final Submission Flow ─────────────────────────────────────────────────
   const handleSubmitAssessment = async () => {
-    // Looks up a question object by id across all sections — needed to know
-    // a given answer's question_type (e.g. to decide whether it needs the
-    // pre-submit code re-verification run below).
     const findQuestionById = (qId) => {
       for (const sec of sections) {
         const q = (sec.pro_room_questions || []).find(
@@ -1067,34 +1105,134 @@ const ProRoomAssessment = () => {
         return;
       }
 
-      // Step 1: Save current active question answer first
-      if (currentQuestion.id && answers[currentQuestion.id]) {
-        const savedCurrent = await saveQuestionAnswer(
-          currentQuestion.id,
-          answers[currentQuestion.id],
-        );
-        if (!savedCurrent) {
-          setSubmitError(
-            "Failed to save your final answer. Please check your network connection and try again.",
-          );
-          setSubmitting(false);
-          return;
+      // Step 0: Ensure we have a valid, guaranteed submissionId row
+      let resolvedSubmissionId = submissionId;
+      if (!resolvedSubmissionId) {
+        const { data: existingSub } = await supabase
+          .from("pro_room_submissions")
+          .select("id")
+          .eq("room_id", id)
+          .eq("user_id", uid)
+          .maybeSingle();
+
+        if (existingSub?.id) {
+          resolvedSubmissionId = existingSub.id;
+          setSubmissionId(existingSub.id);
+        } else {
+          const { data: createdSub, error: createErr } = await supabase
+            .from("pro_room_submissions")
+            .insert({
+              room_id: id,
+              user_id: uid,
+              status: "in_progress",
+              started_at: new Date().toISOString(),
+            })
+            .select("id")
+            .single();
+
+          if (createErr || !createdSub?.id) {
+            setSubmitError(`Could not initialize submission record: ${createErr?.message || "Unknown DB error"}`);
+            setSubmitting(false);
+            return;
+          }
+          resolvedSubmissionId = createdSub.id;
+          setSubmissionId(createdSub.id);
         }
       }
 
-      // Step 2: Flush all unsaved answers cleanly to DB
-      const resolvedSubmissionId = submissionId;
-      if (resolvedSubmissionId && Object.keys(answers).length > 0) {
-        const rows = Object.entries(answers).map(([qId, a]) => ({
-          submission_id: resolvedSubmissionId,
-          room_id: id,
-          user_id: uid,
-          question_id: String(qId),
-          answer_text: a.answer_text || null,
-          selected_options: a.selected_options || null,
-          code_submission: a.code_submission || null,
-          code_language: a.code_language || null,
-        }));
+      // Step 1: Consolidate all answers (React state + localStorage cache backup)
+      let consolidatedAnswers = { ...answers };
+      try {
+        const cached = localStorage.getItem(`glitch_assessment_answers_${id}_${uid}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === "object") {
+            consolidatedAnswers = { ...parsed, ...consolidatedAnswers };
+          }
+        }
+      } catch (e) {}
+
+      // Ensure active question answer is included
+      if (currentQuestion.id && answers[currentQuestion.id]) {
+        consolidatedAnswers[currentQuestion.id] = {
+          ...consolidatedAnswers[currentQuestion.id],
+          ...answers[currentQuestion.id],
+        };
+      }
+
+      // Step 2: Format and persist answers to pro_room_answers with auto-grading fields
+      const answerEntries = Object.entries(consolidatedAnswers).filter(([qId, a]) => {
+        return (
+          a?.answer_text?.trim() ||
+          (Array.isArray(a?.selected_options) && a.selected_options.length > 0) ||
+          a?.code_submission?.trim() ||
+          a?.last_run_passed_count != null
+        );
+      });
+
+      if (answerEntries.length > 0) {
+        const rows = answerEntries.map(([qId, a]) => {
+          const q = findQuestionById(qId);
+          let is_correct = null;
+          let points_earned = null;
+          let auto_graded = false;
+
+          if (q) {
+            if (["mcq", "true_false"].includes(q.question_type)) {
+              if (q.correct_answer) {
+                const userOpt = a.selected_options?.[0] || a.answer_text;
+                is_correct = String(userOpt ?? "").trim().toLowerCase() === String(q.correct_answer ?? "").trim().toLowerCase();
+                points_earned = is_correct ? (q.points || 0) : 0;
+                auto_graded = true;
+              }
+            } else if (q.question_type === "msq") {
+              if (q.correct_answer) {
+                const userOpts = Array.isArray(a.selected_options) ? a.selected_options.map(x => String(x).trim().toLowerCase()).sort() : [];
+                let correctOpts = [];
+                try {
+                  const parsed = JSON.parse(q.correct_answer);
+                  if (Array.isArray(parsed)) correctOpts = parsed.map(x => String(x).trim().toLowerCase()).sort();
+                } catch {
+                  correctOpts = String(q.correct_answer).split(",").map(x => x.trim().toLowerCase()).sort();
+                }
+                is_correct = JSON.stringify(userOpts) === JSON.stringify(correctOpts);
+                points_earned = is_correct ? (q.points || 0) : 0;
+                auto_graded = true;
+              }
+            } else if (["short_answer", "output_pred"].includes(q.question_type)) {
+              if (q.correct_answer) {
+                is_correct = String(a.answer_text ?? "").trim().toLowerCase() === String(q.correct_answer ?? "").trim().toLowerCase();
+                points_earned = is_correct ? (q.points || 0) : 0;
+                auto_graded = true;
+              }
+            } else if (["coding", "sql", "debugging", "code_analysis"].includes(q.question_type)) {
+              const totalTC = (q.test_cases || []).length;
+              const passed = a.last_run_passed_count ?? 0;
+              if (totalTC > 0) {
+                points_earned = Math.round((passed / totalTC) * (q.points || 0));
+                is_correct = passed === totalTC;
+                auto_graded = true;
+              }
+            }
+          }
+
+          return {
+            submission_id: resolvedSubmissionId,
+            room_id: id,
+            user_id: uid,
+            question_id: String(qId),
+            answer_text: a.answer_text || null,
+            selected_options: a.selected_options || null,
+            code_submission: a.code_submission || null,
+            code_language: a.code_language || null,
+            last_run_passed_count: a.last_run_passed_count != null ? a.last_run_passed_count : null,
+            last_run_results: a.last_run_results || null,
+            last_run_at: a.last_run_at || null,
+            is_correct,
+            points_earned,
+            auto_graded,
+          };
+        });
 
         const { error: answersErr } = await supabase
           .from("pro_room_answers")
@@ -1102,39 +1240,90 @@ const ProRoomAssessment = () => {
 
         if (answersErr) {
           console.error("Final answers flush failed:", answersErr);
-          setSubmitError(`Failed to persist answers: ${answersErr.message}`);
+          setSubmitError(`Could not save your answers: ${answersErr.message}. Submission aborted to protect your work.`);
+          setSubmitting(false);
+          return;
+        }
+
+        // VERIFY that answers were successfully written into pro_room_answers
+        const { data: verifiedRows, error: verifyErr } = await supabase
+          .from("pro_room_answers")
+          .select("id")
+          .eq("submission_id", resolvedSubmissionId);
+
+        if (verifyErr || !verifiedRows || verifiedRows.length === 0) {
+          console.error("Answer verification failed:", verifyErr);
+          setSubmitError("Answers could not be verified in the database. Submission stopped to prevent submitting an empty test.");
           setSubmitting(false);
           return;
         }
       }
 
-      // Step 3 (server-side re-run) is intentionally removed.
-      // last_run_passed_count is now saved directly to pro_room_answers
-      // by handleRunCode after each browser-side Piston run. The most
-      // recent run's result is always what gets graded — the 5th run
-      // overwrites the 4th, etc. The grade_on_submit trigger reads
-      // last_run_passed_count at this point and computes the final score.
+      // Step 3: Compute grading totals
+      let autoScore = 0;
+      let totalPossible = 0;
+      let hasManualReview = false;
 
+      for (const sec of sections) {
+        for (const q of (sec.pro_room_questions || [])) {
+          totalPossible += (q.points || 0);
+          const a = consolidatedAnswers[q.id];
+          if (["file_upload", "project", "video"].includes(q.question_type)) {
+            hasManualReview = true;
+          } else if (["coding", "sql", "debugging", "code_analysis"].includes(q.question_type)) {
+            const totalTC = (q.test_cases || []).length;
+            const passed = a?.last_run_passed_count ?? 0;
+            if (totalTC > 0) {
+              autoScore += Math.round((passed / totalTC) * (q.points || 0));
+            } else if (a?.code_submission?.trim()) {
+              hasManualReview = true;
+            }
+          } else if (["mcq", "true_false"].includes(q.question_type)) {
+            const userOpt = a?.selected_options?.[0] || a?.answer_text;
+            if (q.correct_answer && String(userOpt ?? "").trim().toLowerCase() === String(q.correct_answer ?? "").trim().toLowerCase()) {
+              autoScore += (q.points || 0);
+            }
+          } else if (q.question_type === "msq") {
+            const userOpts = Array.isArray(a?.selected_options) ? a.selected_options.map(x => String(x).trim().toLowerCase()).sort() : [];
+            let correctOpts = [];
+            try {
+              const parsed = JSON.parse(q.correct_answer);
+              if (Array.isArray(parsed)) correctOpts = parsed.map(x => String(x).trim().toLowerCase()).sort();
+            } catch {
+              correctOpts = String(q.correct_answer || "").split(",").map(x => x.trim().toLowerCase()).sort();
+            }
+            if (q.correct_answer && JSON.stringify(userOpts) === JSON.stringify(correctOpts)) {
+              autoScore += (q.points || 0);
+            }
+          } else if (["short_answer", "output_pred"].includes(q.question_type)) {
+            if (q.correct_answer && String(a?.answer_text ?? "").trim().toLowerCase() === String(q.correct_answer ?? "").trim().toLowerCase()) {
+              autoScore += (q.points || 0);
+            }
+          }
+        }
+      }
 
-      // Step 4: Upsert final submission row.
-      // total_score / auto_score / percentage / status / needs_manual_review
-      // are intentionally NOT set here — grade_pro_room_submission (fired by
-      // the grade_on_submit trigger the moment status flips to 'submitted')
-      // is the single source of truth for those, using the fresh
-      // last_run_passed_count values just written above for coding
-      // questions and the existing correct-answer comparison for MCQs.
-      // Computing a score here too would just be redundant client work that
-      // gets immediately overwritten — and re-introduces the exact
-      // "full credit for any code longer than 10 characters" bug this whole
-      // thread started from if it's ever trusted instead of the trigger's.
+      const totalScore = autoScore;
+      const percentage = totalPossible > 0 ? Number(((totalScore / totalPossible) * 100).toFixed(2)) : 0;
+      const finalStatus = hasManualReview ? "pending_review" : "graded";
+
+      // Step 4: Upsert final submission row with score, status, and anti-cheat logs
       const { data: subRow, error: subErr } = await supabase
         .from("pro_room_submissions")
         .upsert(
           {
+            id: resolvedSubmissionId,
             room_id: id,
             user_id: uid,
             submitted_at: new Date().toISOString(),
-            status: "submitted",
+            status: finalStatus,
+            total_score: totalScore,
+            auto_score: autoScore,
+            manual_score: 0,
+            percentage: percentage,
+            needs_manual_review: hasManualReview,
+            auto_graded_at: new Date().toISOString(),
+            graded_at: hasManualReview ? null : new Date().toISOString(),
             anti_cheat_logs: blurEvents,
           },
           { onConflict: "room_id,user_id" },
@@ -1147,6 +1336,18 @@ const ProRoomAssessment = () => {
         setSubmitError(`Submission record error: ${subErr.message}`);
         setSubmitting(false);
         return;
+      }
+
+      // Clear local storage cache after guaranteed successful submission
+      try {
+        localStorage.removeItem(`glitch_assessment_answers_${id}_${uid}`);
+      } catch (e) {}
+
+      // Server-side fallback RPC (non-blocking)
+      try {
+        await supabase.rpc("grade_pro_room_submission", { p_submission_id: resolvedSubmissionId });
+      } catch (rpcErr) {
+        console.warn("Server trigger grade call note:", rpcErr);
       }
 
       setAlreadySubmitted(true);
