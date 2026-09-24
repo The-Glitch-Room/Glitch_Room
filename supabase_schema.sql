@@ -97,3 +97,45 @@ create table public.arena_events (
 
 --- Pro Room Discussions: Ensure title column exists
 ALTER TABLE public.pro_room_discussions ADD COLUMN IF NOT EXISTS title text;
+
+--- Pro Room Resources table
+CREATE TABLE IF NOT EXISTS public.pro_room_resources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES public.pro_rooms(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    file_url TEXT,
+    file_name TEXT,
+    file_type TEXT,
+    file_size TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.pro_room_resources ENABLE ROW LEVEL SECURITY;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anyone can view pro_room_resources') THEN
+        CREATE POLICY "Anyone can view pro_room_resources"
+            ON public.pro_room_resources FOR SELECT
+            USING (true);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can insert pro_room_resources') THEN
+        CREATE POLICY "Authenticated users can insert pro_room_resources"
+            ON public.pro_room_resources FOR INSERT
+            WITH CHECK (auth.uid() IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can update pro_room_resources') THEN
+        CREATE POLICY "Authenticated users can update pro_room_resources"
+            ON public.pro_room_resources FOR UPDATE
+            USING (auth.uid() IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can delete pro_room_resources') THEN
+        CREATE POLICY "Authenticated users can delete pro_room_resources"
+            ON public.pro_room_resources FOR DELETE
+            USING (auth.uid() IS NOT NULL);
+    END IF;
+END $$;

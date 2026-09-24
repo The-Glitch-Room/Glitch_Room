@@ -29,6 +29,9 @@ import {
   Layers,
   MessageSquare,
   Folder,
+  FolderOpen,
+  Upload,
+  Download,
   HelpCircle,
   Eye,
   Lock,
@@ -135,6 +138,18 @@ const ProfessionalRoomDetail = () => {
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [postingAnn, setPostingAnn] = useState(false);
+
+  // Resources States
+  const [resources, setResources] = useState([]);
+  const [showResourceModal, setShowResourceModal] = useState(false);
+  const [editingResource, setEditingResource] = useState(null);
+  const [resTitle, setResTitle] = useState("");
+  const [resDesc, setResDesc] = useState("");
+  const [resUrl, setResUrl] = useState("");
+  const [resFileName, setResFileName] = useState("");
+  const [resFileType, setResFileType] = useState("ZIP");
+  const [resFileSize, setResFileSize] = useState("");
+  const [savingResource, setSavingResource] = useState(false);
 
   // Toast State
   const [toastMsg, setToastMsg] = useState("");
@@ -482,6 +497,42 @@ const ProfessionalRoomDetail = () => {
             read: false,
             persistable: false,
           });
+        }
+      }
+
+      // 10. Fetch Resources
+      try {
+        const { data: resData, error: resErr } = await supabase
+          .from("pro_room_resources")
+          .select("*")
+          .eq("room_id", id)
+          .order("created_at", { ascending: true });
+
+        if (!resErr && resData) {
+          setResources(resData);
+        } else {
+          const cached = localStorage.getItem(`glitch_pro_room_resources_${id}`);
+          if (cached) {
+            try {
+              setResources(JSON.parse(cached));
+            } catch (e) {
+              setResources([]);
+            }
+          } else {
+            setResources([]);
+          }
+        }
+      } catch (rErr) {
+        console.warn("Error fetching pro_room_resources:", rErr);
+        const cached = localStorage.getItem(`glitch_pro_room_resources_${id}`);
+        if (cached) {
+          try {
+            setResources(JSON.parse(cached));
+          } catch (e) {
+            setResources([]);
+          }
+        } else {
+          setResources([]);
         }
       }
 
@@ -860,6 +911,7 @@ const ProfessionalRoomDetail = () => {
           supabase.from("pro_room_registrations").delete().eq("room_id", id),
         () =>
           supabase.from("pro_room_announcements").delete().eq("room_id", id),
+        () => supabase.from("pro_room_resources").delete().eq("room_id", id),
         () => supabase.from("pro_room_questions").delete().eq("room_id", id),
         () => supabase.from("pro_room_sections").delete().eq("room_id", id),
       ];
@@ -921,6 +973,205 @@ const ProfessionalRoomDetail = () => {
     } finally {
       setPostingAnn(false);
     }
+  };
+
+  // Resources Handlers
+  const handleOpenAddResource = () => {
+    setEditingResource(null);
+    setResTitle("");
+    setResDesc("");
+    setResUrl("");
+    setResFileName("");
+    setResFileType("ZIP");
+    setResFileSize("");
+    setShowResourceModal(true);
+  };
+
+  const handleOpenEditResource = (item) => {
+    setEditingResource(item);
+    setResTitle(item.title || "");
+    setResDesc(item.description || "");
+    setResUrl(item.file_url || "");
+    setResFileName(item.file_name || "");
+    setResFileType(item.file_type || "ZIP");
+    setResFileSize(item.file_size || "");
+    setShowResourceModal(true);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setResFileName(file.name);
+    if (!resTitle.trim()) {
+      const nameWithoutExt =
+        file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
+      setResTitle(nameWithoutExt);
+    }
+
+    let formattedSize = "";
+    if (file.size >= 1024 * 1024) {
+      formattedSize = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+    } else {
+      formattedSize = `${Math.max(1, Math.round(file.size / 1024))} KB`;
+    }
+    setResFileSize(formattedSize);
+
+    const ext = file.name.split(".").pop()?.toUpperCase() || "";
+    if (["ZIP", "TAR", "GZ", "7Z", "RAR"].includes(ext)) {
+      setResFileType("ZIP");
+    } else if (ext === "PDF") {
+      setResFileType("PDF");
+    } else if (["CSV", "JSON", "XLSX", "SQL"].includes(ext)) {
+      setResFileType("DATASET");
+    } else if (
+      ["JS", "TS", "PY", "CPP", "C", "JAVA", "HTML", "CSS"].includes(ext)
+    ) {
+      setResFileType("CODE");
+    } else if (["DOC", "DOCX", "TXT", "MD"].includes(ext)) {
+      setResFileType("DOC");
+    } else {
+      setResFileType(ext || "FILE");
+    }
+
+    if (file.size <= 10 * 1024 * 1024) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setResUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      showToast(
+        "⚠️ File is larger than 10MB. For large files, providing an external link (Google Drive, GitHub, etc.) is recommended.",
+      );
+    }
+  };
+
+  const handleSaveResource = async (e) => {
+    if (e) e.preventDefault();
+    if (!resTitle.trim()) {
+      showToast("⚠️ Please provide a resource title.");
+      return;
+    }
+
+    setSavingResource(true);
+    try {
+      const payload = {
+        room_id: id,
+        title: resTitle.trim(),
+        description: resDesc.trim(),
+        file_url: resUrl.trim(),
+        file_name: resFileName.trim() || resTitle.trim(),
+        file_type: resFileType || "FILE",
+        file_size: resFileSize.trim() || "Link",
+      };
+
+      if (editingResource?.id) {
+        try {
+          const { error } = await supabase
+            .from("pro_room_resources")
+            .update(payload)
+            .eq("id", editingResource.id);
+          if (error) console.warn("Supabase update error:", error);
+        } catch (dbErr) {
+          console.warn("DB update exception:", dbErr);
+        }
+
+        const updated = resources.map((r) =>
+          r.id === editingResource.id ? { ...r, ...payload } : r,
+        );
+        setResources(updated);
+        localStorage.setItem(
+          `glitch_pro_room_resources_${id}`,
+          JSON.stringify(updated),
+        );
+        showToast("✅ Resource updated successfully.");
+      } else {
+        let newRecord = {
+          id:
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `res_${Date.now()}`,
+          ...payload,
+          created_at: new Date().toISOString(),
+        };
+
+        try {
+          const { data, error } = await supabase
+            .from("pro_room_resources")
+            .insert([payload])
+            .select()
+            .maybeSingle();
+
+          if (!error && data) {
+            newRecord = data;
+          } else if (error) {
+            console.warn("Supabase insert error:", error);
+          }
+        } catch (dbErr) {
+          console.warn("DB insert exception:", dbErr);
+        }
+
+        const updated = [...resources, newRecord];
+        setResources(updated);
+        localStorage.setItem(
+          `glitch_pro_room_resources_${id}`,
+          JSON.stringify(updated),
+        );
+        showToast("✅ Resource added successfully.");
+      }
+      setShowResourceModal(false);
+    } catch (err) {
+      console.error("Save resource error:", err);
+      showToast("❌ Failed to save resource.");
+    } finally {
+      setSavingResource(false);
+    }
+  };
+
+  const handleDeleteResource = async (resourceId) => {
+    if (!window.confirm("Are you sure you want to delete this resource?"))
+      return;
+    try {
+      try {
+        const { error } = await supabase
+          .from("pro_room_resources")
+          .delete()
+          .eq("id", resourceId);
+        if (error) console.warn("Supabase delete error:", error);
+      } catch (dbErr) {
+        console.warn("DB delete exception:", dbErr);
+      }
+
+      const updated = resources.filter((r) => r.id !== resourceId);
+      setResources(updated);
+      localStorage.setItem(
+        `glitch_pro_room_resources_${id}`,
+        JSON.stringify(updated),
+      );
+      showToast("🗑️ Resource deleted.");
+    } catch (err) {
+      console.error("Delete resource error:", err);
+      showToast("❌ Failed to delete resource.");
+    }
+  };
+
+  const handleDownloadResource = (resource) => {
+    if (!resource.file_url) {
+      showToast("ℹ️ No download file or link attached.");
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = resource.file_url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    if (resource.file_name) {
+      link.download = resource.file_name;
+    }
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("📥 Accessing resource...");
   };
 
   const handleUpdateRegistrationStatus = async (regId, newStatus) => {
@@ -1990,7 +2241,12 @@ const ProfessionalRoomDetail = () => {
             },
             { id: "ask_doubt", label: "Ask a Doubt", icon: HelpCircle },
             { id: "organizers", label: "Organizers", icon: Building2 },
-            { id: "resources", label: "Resources", icon: Folder },
+            {
+              id: "resources",
+              label: "Resources",
+              icon: Folder,
+              count: resources.length > 0 ? resources.length : undefined,
+            },
             { id: "help", label: "Help & Support", icon: HelpCircle },
           ].map((item) => {
             const Icon = item.icon;
@@ -2118,7 +2374,12 @@ const ProfessionalRoomDetail = () => {
                 },
                 { id: "ask_doubt", label: "Ask a Doubt", icon: HelpCircle },
                 { id: "organizers", label: "Organizers", icon: Building2 },
-                { id: "resources", label: "Resources", icon: Folder },
+                {
+                  id: "resources",
+                  label: "Resources",
+                  icon: Folder,
+                  count: resources.length > 0 ? resources.length : undefined,
+                },
                 { id: "help", label: "Help & Support", icon: HelpCircle },
               ].map((item) => {
                 const Icon = item.icon;
@@ -3471,28 +3732,119 @@ const ProfessionalRoomDetail = () => {
 
             {activeSidebarTab === "resources" && (
               <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
-                <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-                  <Folder size={16} className="text-[#00F0FF]" /> Event
-                  Resources & Materials
-                </h3>
-                <div className="space-y-3 text-xs">
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                    <div>
-                      <span className="text-white font-bold block">
-                        Problem Dataset & API Specifications
+                <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-3">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Folder size={16} className="text-[#00F0FF]" /> Event
+                    Resources & Materials
+                    {resources.length > 0 && (
+                      <span className="text-xs font-mono font-normal text-gray-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
+                        {resources.length}
                       </span>
-                      <span className="text-[10px] text-gray-500 font-mono">
-                        ZIP Archive • 12 MB
-                      </span>
-                    </div>
+                    )}
+                  </h3>
+                  {isHost && (
                     <button
-                      onClick={() => showToast("📥 Download started.")}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-300 cursor-pointer"
+                      onClick={handleOpenAddResource}
+                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0080FF] hover:opacity-90 text-black font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-[#00F0FF]/15 transition"
                     >
-                      Download
+                      <Plus size={14} /> Add Resource
                     </button>
-                  </div>
+                  )}
                 </div>
+
+                {resources.length === 0 ? (
+                  <div className="text-center py-16 space-y-3 bg-[#06060c] border border-white/5 rounded-2xl p-6">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-gray-500">
+                      <FolderOpen size={24} className="text-[#00F0FF]/60" />
+                    </div>
+                    <h4 className="text-sm font-bold text-white">
+                      No resources available yet
+                    </h4>
+                    <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
+                      {isHost
+                        ? "Upload or link reference materials, problem datasets, or guides for participants."
+                        : "The host has not added any files or study materials for this event."}
+                    </p>
+                    {isHost && (
+                      <button
+                        onClick={handleOpenAddResource}
+                        className="mt-2 px-4 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#00F0FF]/90 text-black text-xs font-bold cursor-pointer transition inline-flex items-center gap-1.5"
+                      >
+                        <Plus size={13} /> Add First Resource
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {resources.map((res) => (
+                      <div
+                        key={res.id}
+                        className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/15 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-white font-bold text-xs sm:text-sm">
+                              {res.title}
+                            </span>
+                            {res.file_type && (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase font-bold">
+                                {res.file_type}
+                              </span>
+                            )}
+                          </div>
+                          {res.description && (
+                            <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">
+                              {res.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono">
+                            {res.file_name && <span>{res.file_name}</span>}
+                            {res.file_name && res.file_size && <span>•</span>}
+                            {res.file_size && <span>{res.file_size}</span>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                          {res.file_url ? (
+                            <button
+                              onClick={() => handleDownloadResource(res)}
+                              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-200 hover:text-white cursor-pointer transition flex items-center gap-1.5 border border-white/10"
+                            >
+                              <Download size={13} className="text-[#00F0FF]" />
+                              {res.file_url.startsWith("http") &&
+                              !res.file_url.includes("data:")
+                                ? "Open Link"
+                                : "Download"}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] font-mono text-gray-500 px-2 py-1">
+                              View Only
+                            </span>
+                          )}
+
+                          {isHost && (
+                            <>
+                              <button
+                                onClick={() => handleOpenEditResource(res)}
+                                title="Edit Resource"
+                                className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-[#00F0FF] transition cursor-pointer border border-white/10"
+                              >
+                                <Edit3 size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteResource(res.id)}
+                                title="Delete Resource"
+                                className="p-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition cursor-pointer border border-red-500/20"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -3990,6 +4342,159 @@ const ProfessionalRoomDetail = () => {
                 })
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD / EDIT RESOURCE MODAL (HOST ONLY) */}
+      {showResourceModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-[#0c0c16] border border-white/15 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#07070e]">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Folder size={18} className="text-[#00F0FF]" />
+                  {editingResource ? "Edit Resource" : "Add Event Resource"}
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Share reference files, problem datasets, or guides with participants.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowResourceModal(false)}
+                className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSaveResource} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-mono font-bold text-gray-300 mb-1.5">
+                  Resource Title <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Problem Dataset & API Documentation"
+                  value={resTitle}
+                  onChange={(e) => setResTitle(e.target.value)}
+                  className="w-full bg-[#030308] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono font-bold text-gray-300 mb-1.5">
+                  Description (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Short note or instruction about this resource..."
+                  value={resDesc}
+                  onChange={(e) => setResDesc(e.target.value)}
+                  className="w-full bg-[#030308] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF] resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-mono font-bold text-gray-300 mb-1.5">
+                    Resource Type
+                  </label>
+                  <select
+                    value={resFileType}
+                    onChange={(e) => setResFileType(e.target.value)}
+                    className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+                  >
+                    <option value="ZIP">ZIP Archive</option>
+                    <option value="PDF">PDF Document</option>
+                    <option value="DATASET">Dataset (CSV/JSON)</option>
+                    <option value="CODE">Code Starter</option>
+                    <option value="DOC">Document / Guide</option>
+                    <option value="LINK">External Link</option>
+                    <option value="FILE">Other File</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-mono font-bold text-gray-300 mb-1.5">
+                    File Size / Tag
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 12 MB or Online Link"
+                    value={resFileSize}
+                    onChange={(e) => setResFileSize(e.target.value)}
+                    className="w-full bg-[#030308] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                  />
+                </div>
+              </div>
+
+              {/* Direct File Upload */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-mono font-bold text-gray-300">
+                  Upload File
+                </label>
+                <label className="border border-dashed border-white/20 hover:border-[#00F0FF]/50 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer bg-white/[0.01] hover:bg-[#00F0FF]/5 transition group">
+                  <Upload
+                    size={20}
+                    className="text-gray-500 group-hover:text-[#00F0FF] transition mb-1"
+                  />
+                  <span className="text-xs text-gray-300 font-medium text-center truncate max-w-full">
+                    {resFileName ? resFileName : "Choose a file to attach"}
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-mono mt-0.5">
+                    ZIP, PDF, JSON, CSV, TXT (up to 10MB)
+                  </span>
+                  <input
+                    type="file"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Or Direct URL / Web Link */}
+              <div>
+                <label className="block text-xs font-mono font-bold text-gray-300 mb-1.5">
+                  Or External URL / Link
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://drive.google.com/... or https://github.com/..."
+                  value={resUrl && !resUrl.startsWith("data:") ? resUrl : ""}
+                  onChange={(e) => {
+                    setResUrl(e.target.value);
+                    if (!resFileName && e.target.value) {
+                      setResFileName("External Link");
+                    }
+                  }}
+                  className="w-full bg-[#030308] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-white/10 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowResourceModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-bold cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingResource}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0080FF] text-black font-bold text-xs cursor-pointer hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {savingResource
+                    ? "Saving..."
+                    : editingResource
+                    ? "Update Resource"
+                    : "Add Resource"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
