@@ -1028,6 +1028,24 @@ const ProRoomAssessment = () => {
         results.reduce((s, r) => s + (r.execution_time_ms || 0), 0) /
         results.length;
 
+      // Keep currentQuestion.test_cases populated in memory
+      if (testCases.length > 0) {
+        currentQuestion.test_cases = testCases;
+      }
+
+      // Update React answers state immediately with test run metrics
+      setAnswers((prev) => ({
+        ...prev,
+        [currentQuestion.id]: {
+          ...prev[currentQuestion.id],
+          code_submission: candidateCode,
+          code_language: language,
+          last_run_passed_count: passedCount,
+          last_run_results: results,
+          last_run_at: new Date().toISOString(),
+        },
+      }));
+
       // Persist this run to the DB so the grading trigger has a trusted
       // result at submit time. This upserts into pro_room_answers, so the
       // 5th run overwrites the 4th — only the most recent result is stored.
@@ -1159,6 +1177,27 @@ const ProRoomAssessment = () => {
           ...answers[currentQuestion.id],
         };
       }
+      if (currentQuestion.id && runResults?.passedCount != null) {
+        consolidatedAnswers[currentQuestion.id] = {
+          ...consolidatedAnswers[currentQuestion.id],
+          last_run_passed_count: runResults.passedCount,
+          last_run_results: runResults.results,
+          last_run_at: new Date().toISOString(),
+        };
+      }
+
+      // Fetch fresh question metadata (test_cases, points, correct_answer) directly from DB
+      // so grading is NEVER dependent on client-side state omissions or RPC exclusions.
+      const allQuestionIds = sections.flatMap((sec) => (sec.pro_room_questions || []).map((q) => q.id));
+      const { data: dbQuestions } = await supabase
+        .from("pro_room_questions")
+        .select("id, points, test_cases, correct_answer, question_type")
+        .in("id", allQuestionIds);
+
+      const dbQuestionsMap = {};
+      (dbQuestions || []).forEach((dq) => {
+        dbQuestionsMap[dq.id] = dq;
+      });
 
       // Step 2: Format and persist answers to pro_room_answers with auto-grading fields
       const answerEntries = Object.entries(consolidatedAnswers).filter(([qId, a]) => {
@@ -1173,48 +1212,58 @@ const ProRoomAssessment = () => {
       if (answerEntries.length > 0) {
         const rows = answerEntries.map(([qId, a]) => {
           const q = findQuestionById(qId);
+          const dq = dbQuestionsMap[qId] || q;
           let is_correct = null;
           let points_earned = null;
           let auto_graded = false;
 
-          if (q) {
-            if (["mcq", "true_false"].includes(q.question_type)) {
-              if (q.correct_answer) {
+          if (q || dq) {
+            const qType = dq?.question_type || q?.question_type;
+            const qPoints = dq?.points ?? q?.points ?? 0;
+            const qCorrectAnswer = dq?.correct_answer ?? q?.correct_answer;
+
+            if (["mcq", "true_false"].includes(qType)) {
+              if (qCorrectAnswer) {
                 const userOpt = a.selected_options?.[0] || a.answer_text;
-                is_correct = String(userOpt ?? "").trim().toLowerCase() === String(q.correct_answer ?? "").trim().toLowerCase();
-                points_earned = is_correct ? (q.points || 0) : 0;
+                is_correct = String(userOpt ?? "").trim().toLowerCase() === String(qCorrectAnswer ?? "").trim().toLowerCase();
+                points_earned = is_correct ? qPoints : 0;
                 auto_graded = true;
               }
-            } else if (q.question_type === "msq") {
-              if (q.correct_answer) {
+            } else if (qType === "msq") {
+              if (qCorrectAnswer) {
                 const userOpts = Array.isArray(a.selected_options) ? a.selected_options.map(x => String(x).trim().toLowerCase()).sort() : [];
                 let correctOpts = [];
                 try {
-                  const parsed = JSON.parse(q.correct_answer);
+                  const parsed = JSON.parse(qCorrectAnswer);
                   if (Array.isArray(parsed)) correctOpts = parsed.map(x => String(x).trim().toLowerCase()).sort();
                 } catch {
-                  correctOpts = String(q.correct_answer).split(",").map(x => x.trim().toLowerCase()).sort();
+                  correctOpts = String(qCorrectAnswer).split(",").map(x => x.trim().toLowerCase()).sort();
                 }
                 is_correct = JSON.stringify(userOpts) === JSON.stringify(correctOpts);
-                points_earned = is_correct ? (q.points || 0) : 0;
+                points_earned = is_correct ? qPoints : 0;
                 auto_graded = true;
               }
-            } else if (["short_answer", "output_pred"].includes(q.question_type)) {
-              if (q.correct_answer) {
-                is_correct = String(a.answer_text ?? "").trim().toLowerCase() === String(q.correct_answer ?? "").trim().toLowerCase();
-                points_earned = is_correct ? (q.points || 0) : 0;
+            } else if (["short_answer", "output_pred"].includes(qType)) {
+              if (qCorrectAnswer) {
+                is_correct = String(a.answer_text ?? "").trim().toLowerCase() === String(qCorrectAnswer ?? "").trim().toLowerCase();
+                points_earned = is_correct ? qPoints : 0;
                 auto_graded = true;
               }
-            } else if (["coding", "sql", "debugging", "code_analysis"].includes(q.question_type)) {
-              const totalTC = (q.test_cases || []).length;
-              const passed = a.last_run_passed_count ?? 0;
+            } else if (["coding", "sql", "debugging", "code_analysis"].includes(qType)) {
+              const testCases = Array.isArray(dq?.test_cases) ? dq.test_cases : (Array.isArray(q?.test_cases) ? q.test_cases : []);
+              const totalTC = testCases.length || (Array.isArray(a.last_run_results) ? a.last_run_results.length : (a.last_run_passed_count != null ? 3 : 0));
+              const passed = a.last_run_passed_count ?? (currentQuestion.id === qId ? runResults?.passedCount : 0) ?? 0;
+
               if (totalTC > 0) {
-                points_earned = Math.round((passed / totalTC) * (q.points || 0));
+                points_earned = Math.round((passed / totalTC) * qPoints);
                 is_correct = passed === totalTC;
                 auto_graded = true;
               }
             }
           }
+
+          const passedVal = a.last_run_passed_count != null ? a.last_run_passed_count : (currentQuestion.id === qId ? runResults?.passedCount : null);
+          const resultsVal = a.last_run_results || (currentQuestion.id === qId ? runResults?.results : null);
 
           return {
             submission_id: resolvedSubmissionId,
@@ -1225,9 +1274,9 @@ const ProRoomAssessment = () => {
             selected_options: a.selected_options || null,
             code_submission: a.code_submission || null,
             code_language: a.code_language || null,
-            last_run_passed_count: a.last_run_passed_count != null ? a.last_run_passed_count : null,
-            last_run_results: a.last_run_results || null,
-            last_run_at: a.last_run_at || null,
+            last_run_passed_count: passedVal != null ? passedVal : null,
+            last_run_results: resultsVal || null,
+            last_run_at: a.last_run_at || new Date().toISOString(),
             is_correct,
             points_earned,
             auto_graded,
@@ -1266,38 +1315,46 @@ const ProRoomAssessment = () => {
 
       for (const sec of sections) {
         for (const q of (sec.pro_room_questions || [])) {
-          totalPossible += (q.points || 0);
+          const dq = dbQuestionsMap[q.id] || q;
+          const qPoints = dq?.points ?? q?.points ?? 0;
+          totalPossible += qPoints;
           const a = consolidatedAnswers[q.id];
-          if (["file_upload", "project", "video"].includes(q.question_type)) {
+          const qType = dq?.question_type || q?.question_type;
+          const qCorrectAnswer = dq?.correct_answer ?? q?.correct_answer;
+
+          if (["file_upload", "project", "video"].includes(qType)) {
             hasManualReview = true;
-          } else if (["coding", "sql", "debugging", "code_analysis"].includes(q.question_type)) {
-            const totalTC = (q.test_cases || []).length;
-            const passed = a?.last_run_passed_count ?? 0;
+          } else if (["coding", "sql", "debugging", "code_analysis"].includes(qType)) {
+            const testCases = Array.isArray(dq?.test_cases) ? dq.test_cases : (Array.isArray(q?.test_cases) ? q.test_cases : []);
+            const totalTC = testCases.length || (Array.isArray(a?.last_run_results) ? a.last_run_results.length : (a?.last_run_passed_count != null ? 3 : 0));
+            const passed = a?.last_run_passed_count ?? (currentQuestion.id === q.id ? runResults?.passedCount : 0) ?? 0;
+
             if (totalTC > 0) {
-              autoScore += Math.round((passed / totalTC) * (q.points || 0));
+              const earned = Math.round((passed / totalTC) * qPoints);
+              autoScore += earned;
             } else if (a?.code_submission?.trim()) {
               hasManualReview = true;
             }
-          } else if (["mcq", "true_false"].includes(q.question_type)) {
+          } else if (["mcq", "true_false"].includes(qType)) {
             const userOpt = a?.selected_options?.[0] || a?.answer_text;
-            if (q.correct_answer && String(userOpt ?? "").trim().toLowerCase() === String(q.correct_answer ?? "").trim().toLowerCase()) {
-              autoScore += (q.points || 0);
+            if (qCorrectAnswer && String(userOpt ?? "").trim().toLowerCase() === String(qCorrectAnswer ?? "").trim().toLowerCase()) {
+              autoScore += qPoints;
             }
-          } else if (q.question_type === "msq") {
+          } else if (qType === "msq") {
             const userOpts = Array.isArray(a?.selected_options) ? a.selected_options.map(x => String(x).trim().toLowerCase()).sort() : [];
             let correctOpts = [];
             try {
-              const parsed = JSON.parse(q.correct_answer);
+              const parsed = JSON.parse(qCorrectAnswer);
               if (Array.isArray(parsed)) correctOpts = parsed.map(x => String(x).trim().toLowerCase()).sort();
             } catch {
-              correctOpts = String(q.correct_answer || "").split(",").map(x => x.trim().toLowerCase()).sort();
+              correctOpts = String(qCorrectAnswer || "").split(",").map(x => x.trim().toLowerCase()).sort();
             }
-            if (q.correct_answer && JSON.stringify(userOpts) === JSON.stringify(correctOpts)) {
-              autoScore += (q.points || 0);
+            if (qCorrectAnswer && JSON.stringify(userOpts) === JSON.stringify(correctOpts)) {
+              autoScore += qPoints;
             }
-          } else if (["short_answer", "output_pred"].includes(q.question_type)) {
-            if (q.correct_answer && String(a?.answer_text ?? "").trim().toLowerCase() === String(q.correct_answer ?? "").trim().toLowerCase()) {
-              autoScore += (q.points || 0);
+          } else if (["short_answer", "output_pred"].includes(qType)) {
+            if (qCorrectAnswer && String(a?.answer_text ?? "").trim().toLowerCase() === String(qCorrectAnswer ?? "").trim().toLowerCase()) {
+              autoScore += qPoints;
             }
           }
         }
