@@ -161,6 +161,7 @@ const ProRoomDashboard = () => {
   const [customP3, setCustomP3] = useState(0);
   const [customPPart, setCustomPPart] = useState(0);
   const [toastMsg, setToastMsg] = useState("");
+  const [alsoPublishResults, setAlsoPublishResults] = useState(true);
 
   // ── Grading tab state ──────────────────────────────────────────────────
   // Question content (including correct_answer) is loaded once per room via
@@ -630,6 +631,78 @@ const ProRoomDashboard = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handlePublishResultsOnly = async () => {
+    if (!isHost || publishing) return;
+    if (room?.status === "results_published") {
+      showToast("Results are already published to candidates.");
+      return;
+    }
+
+    const confirmPub = window.confirm(
+      "Publish Assessment Results to Candidates?\n\nThis will finalize deterministic rankings and make scores, percentages, and the official leaderboard visible to all participants."
+    );
+    if (!confirmPub) return;
+
+    setPublishing(true);
+    try {
+      // 1. Calculate deterministic rankings
+      const sortedSubs = [...submissions].sort((a, b) => {
+        const scoreDiff = (b.total_score ?? 0) - (a.total_score ?? 0);
+        if (scoreDiff !== 0) return scoreDiff;
+        const durA =
+          a.submitted_at && a.started_at
+            ? new Date(a.submitted_at) - new Date(a.started_at)
+            : Infinity;
+        const durB =
+          b.submitted_at && b.started_at
+            ? new Date(b.submitted_at) - new Date(b.started_at)
+            : Infinity;
+        if (durA !== durB) return durA - durB;
+        return new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0);
+      });
+
+      for (let idx = 0; idx < sortedSubs.length; idx++) {
+        const item = sortedSubs[idx];
+        const calculatedRank = idx + 1;
+        try {
+          await supabase
+            .from("pro_room_submissions")
+            .update({ rank: calculatedRank })
+            .eq("id", item.id);
+        } catch (e) {}
+
+        try {
+          await supabase.from("pro_room_leaderboard").upsert(
+            {
+              room_id: id,
+              user_id: item.user_id,
+              total_score: item.total_score ?? 0,
+              rank: calculatedRank,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "room_id,user_id" },
+          );
+        } catch (e) {}
+      }
+
+      const { error: roomErr } = await supabase
+        .from("pro_rooms")
+        .update({ status: "results_published" })
+        .eq("id", id);
+
+      if (roomErr) throw roomErr;
+
+      setRoom((prev) => ({ ...prev, status: "results_published" }));
+      showToast("✓ Results published! Scores and leaderboard are now live.");
+      await fetchDashboardData();
+    } catch (err) {
+      console.error("Error publishing results:", err);
+      showToast("Failed to publish results. Please try again.");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const handlePublishResults = () => {
     if (!isHost) return;
     const dist = room?.prize_distribution || {};
@@ -656,6 +729,7 @@ const ProRoomDashboard = () => {
     setCustomP2(d2);
     setCustomP3(d3);
     setCustomPPart(dPart);
+    setAlsoPublishResults(room?.status !== "results_published");
     setShowPublishModal(true);
   };
 
@@ -804,13 +878,15 @@ const ProRoomDashboard = () => {
             },
             { onConflict: "room_id,user_id,reward_type" },
           );
-          await updatePoints(
-            p1,
-            `🏆 1st Place Prize — ${room.name || "Pro Room"}`,
-            "reward",
-            id,
-            winner.user_id,
-          );
+          try {
+            await updatePoints(
+              p1,
+              `🏆 1st Place Prize — ${room.name || room.title || "Pro Room"}`,
+              "reward",
+              id,
+              winner.user_id,
+            );
+          } catch (e) {}
           allocatedGBits += p1;
         } catch (e) {
           console.warn("Rank 1 reward err:", e);
@@ -831,13 +907,15 @@ const ProRoomDashboard = () => {
             },
             { onConflict: "room_id,user_id,reward_type" },
           );
-          await updatePoints(
-            p2,
-            `🥈 2nd Place Prize — ${room.name || "Pro Room"}`,
-            "reward",
-            id,
-            runnerUp.user_id,
-          );
+          try {
+            await updatePoints(
+              p2,
+              `🥈 2nd Place Prize — ${room.name || room.title || "Pro Room"}`,
+              "reward",
+              id,
+              runnerUp.user_id,
+            );
+          } catch (e) {}
           allocatedGBits += p2;
         } catch (e) {
           console.warn("Rank 2 reward err:", e);
@@ -858,13 +936,15 @@ const ProRoomDashboard = () => {
             },
             { onConflict: "room_id,user_id,reward_type" },
           );
-          await updatePoints(
-            p3,
-            `🥉 3rd Place Prize — ${room.name || "Pro Room"}`,
-            "reward",
-            id,
-            third.user_id,
-          );
+          try {
+            await updatePoints(
+              p3,
+              `🥉 3rd Place Prize — ${room.name || room.title || "Pro Room"}`,
+              "reward",
+              id,
+              third.user_id,
+            );
+          } catch (e) {}
           allocatedGBits += p3;
         } catch (e) {
           console.warn("Rank 3 reward err:", e);
@@ -888,13 +968,15 @@ const ProRoomDashboard = () => {
                 },
                 { onConflict: "room_id,user_id,reward_type" },
               );
-              await updatePoints(
-                pPart,
-                `🎖️ Participation Award — ${room.name || "Pro Room"}`,
-                "reward",
-                id,
-                cand.user_id,
-              );
+              try {
+                await updatePoints(
+                  pPart,
+                  `🎖️ Participation Award — ${room.name || room.title || "Pro Room"}`,
+                  "reward",
+                  id,
+                  cand.user_id,
+                );
+              } catch (e) {}
               allocatedGBits += pPart;
             } catch (e) {
               console.warn("Participation reward err:", e);
@@ -903,7 +985,7 @@ const ProRoomDashboard = () => {
         }
       }
 
-      // 3. Digital Certificates Generation
+      // 3. Digital Certificates Generation with schema-tolerant fallback
       const roomCode = (id || "0000").slice(0, 8).toUpperCase();
 
       // Winner Certificates (Top 3) — issued by default unless explicitly disabled
@@ -921,25 +1003,39 @@ const ProRoomDashboard = () => {
             i === 0 ? "winner_1" : i === 1 ? "winner_2" : "winner_3";
           const certNumber = `GR-PRO-WIN-${roomCode}-${String(i + 1).padStart(3, "0")}`;
 
+          const certPayload = {
+            certificate_number: certNumber,
+            room_id: id,
+            user_id: cand.user_id,
+            type: certType,
+            recipient_name: candName,
+            event_name: room.name || room.title || "Pro Arena Assessment",
+            organization_name: room.org_name || room.organizer_name || "Glitch Room Arena",
+            score: cand.total_score ?? 0,
+            rank: cand.calculatedRank,
+            issued_at: new Date().toISOString(),
+          };
+
           try {
-            await supabase.from("pro_room_certificates").upsert(
-              {
-                certificate_number: certNumber,
-                room_id: id,
-                user_id: cand.user_id,
-                type: certType,
-                recipient_name: candName,
-                event_name: room.name,
-                organization_name: room.org_name || "Glitch Room Arena",
-                score: cand.total_score ?? 0,
-                percentage: cand.percentage ?? 0,
-                rank: cand.calculatedRank,
-                issued_at: new Date().toISOString(),
-              },
+            const { error: cErr } = await supabase.from("pro_room_certificates").upsert(
+              { ...certPayload, percentage: cand.percentage ?? 0 },
               { onConflict: "room_id,user_id,type" },
             );
+            if (cErr) {
+              await supabase.from("pro_room_certificates").upsert(
+                certPayload,
+                { onConflict: "room_id,user_id,type" },
+              );
+            }
           } catch (e) {
-            console.warn("Winner certificate insert err:", e);
+            try {
+              await supabase.from("pro_room_certificates").upsert(
+                certPayload,
+                { onConflict: "room_id,user_id,type" },
+              );
+            } catch (innerErr) {
+              console.warn("Winner certificate insert err:", innerErr);
+            }
           }
         }
       }
@@ -959,25 +1055,39 @@ const ProRoomDashboard = () => {
               "Candidate";
             const certNumber = `GR-PRO-PART-${roomCode}-${String(i + 1).padStart(3, "0")}`;
 
+            const certPayload = {
+              certificate_number: certNumber,
+              room_id: id,
+              user_id: cand.user_id,
+              type: "participation",
+              recipient_name: candName,
+              event_name: room.name || room.title || "Pro Arena Assessment",
+              organization_name: room.org_name || room.organizer_name || "Glitch Room Arena",
+              score: cand.total_score ?? 0,
+              rank: cand.calculatedRank,
+              issued_at: new Date().toISOString(),
+            };
+
             try {
-              await supabase.from("pro_room_certificates").upsert(
-                {
-                  certificate_number: certNumber,
-                  room_id: id,
-                  user_id: cand.user_id,
-                  type: "participation",
-                  recipient_name: candName,
-                  event_name: room.name,
-                  organization_name: room.org_name || "Glitch Room Arena",
-                  score: cand.total_score ?? 0,
-                  percentage: cand.percentage ?? 0,
-                  rank: cand.calculatedRank,
-                  issued_at: new Date().toISOString(),
-                },
+              const { error: cErr } = await supabase.from("pro_room_certificates").upsert(
+                { ...certPayload, percentage: cand.percentage ?? 0 },
                 { onConflict: "room_id,user_id,type" },
               );
+              if (cErr) {
+                await supabase.from("pro_room_certificates").upsert(
+                  certPayload,
+                  { onConflict: "room_id,user_id,type" },
+                );
+              }
             } catch (e) {
-              console.warn("Participation certificate insert err:", e);
+              try {
+                await supabase.from("pro_room_certificates").upsert(
+                  certPayload,
+                  { onConflict: "room_id,user_id,type" },
+                );
+              } catch (innerErr) {
+                console.warn("Participation certificate insert err:", innerErr);
+              }
             }
           }
         }
@@ -997,14 +1107,18 @@ const ProRoomDashboard = () => {
         } catch (e) {}
       }
 
-      // 5. Update room status to published and set rewards distributed
+      // 5. Update room status to published (if chosen) and set rewards distributed
+      const roomUpdatePayload = {
+        rewards_distributed: true,
+        rewards_distributed_at: new Date().toISOString(),
+      };
+      if (alsoPublishResults || room?.status === "results_published") {
+        roomUpdatePayload.status = "results_published";
+      }
+
       const { error: roomUpdateErr } = await supabase
         .from("pro_rooms")
-        .update({
-          status: "results_published",
-          rewards_distributed: true,
-          rewards_distributed_at: new Date().toISOString(),
-        })
+        .update(roomUpdatePayload)
         .eq("id", id);
 
       if (roomUpdateErr) {
@@ -1022,11 +1136,11 @@ const ProRoomDashboard = () => {
       } catch (notifErr) {}
 
       setShowPublishModal(false);
-      showToast("🏆 Results, Rewards & Certificates published successfully!");
-      fetchDashboardData();
+      showToast("🏆 Rewards & Certificates distributed successfully!");
+      await fetchDashboardData();
     } catch (err) {
       console.error("Publish & distribute error:", err);
-      showToast("⚠️ Could not finish publishing — please try again.");
+      showToast("⚠️ Could not finish distribution — please try again.");
     } finally {
       setPublishing(false);
     }
@@ -1232,41 +1346,74 @@ const ProRoomDashboard = () => {
             >
               View Candidate Page
             </button>
-            <button
-              onClick={handlePublishResults}
-              disabled={publishing}
-              className={`px-5 py-2 rounded-xl text-xs font-bold shadow-lg cursor-pointer transition flex items-center gap-1.5 ${
-                room?.status === "results_published"
-                  ? room?.rewards_distributed
-                    ? "bg-purple-600/30 border border-purple-500/40 text-purple-200 hover:bg-purple-600/50 shadow-purple-500/10"
-                    : "bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-extrabold shadow-yellow-500/20"
-                  : "bg-gradient-to-r from-[#00F0FF] to-purple-600 text-white hover:opacity-90 shadow-[#00F0FF]/20"
-              }`}
-            >
-              {room?.status === "results_published" ? (
-                room?.rewards_distributed ? (
-                  <>
-                    <Trophy size={14} className="text-yellow-400" />
-                    <span>Awards Distributed</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={14} />
-                    <span>Distribute Rewards & Certs 🏆</span>
-                  </>
-                )
-              ) : (
-                <>
-                  <Trophy size={14} />
-                  <span>Publish Results 🏆</span>
-                </>
-              )}
-            </button>
+
+            {/* ACTION 1: Results Publication */}
+            {room?.status !== "results_published" ? (
+              <button
+                onClick={handlePublishResultsOnly}
+                disabled={publishing}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-cyan-500 hover:from-[#00F0FF]/90 hover:to-cyan-400 text-black font-extrabold text-xs shadow-lg shadow-[#00F0FF]/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Eye size={14} />
+                <span>Publish Results</span>
+              </button>
+            ) : (
+              <div className="px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold font-mono flex items-center gap-1.5">
+                <CheckCircle size={14} />
+                <span>Results Published</span>
+              </div>
+            )}
+
+            {/* ACTION 2: Awards & Certificates Distribution */}
+            {!room?.rewards_distributed ? (
+              <button
+                onClick={handlePublishResults}
+                disabled={publishing}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-bold text-xs shadow-lg shadow-purple-600/25 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Trophy size={14} className="text-yellow-300" />
+                <span>Distribute Awards 🏆</span>
+              </button>
+            ) : (
+              <button
+                onClick={handlePublishResults}
+                className="px-3.5 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-200 hover:bg-purple-600/30 text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer transition shadow-lg shadow-purple-500/10"
+                title="Click to view or adjust prize allocation"
+              >
+                <Trophy size={14} className="text-yellow-400" />
+                <span>Awards Distributed</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Action Needed Banner if results published but rewards/certs not distributed */}
-        {room?.status === "results_published" && !room?.rewards_distributed && (
+        {/* Action Needed Banners */}
+        {room?.status !== "results_published" ? (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-[#00F0FF]/10 to-transparent border border-[#00F0FF]/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/20 border border-[#00F0FF]/40 flex items-center justify-center text-[#00F0FF] shrink-0">
+                <Eye size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Results Awaiting Publication</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] font-mono font-bold">Action Needed</span>
+                </h4>
+                <p className="text-xs text-gray-300">
+                  Submissions and automated scoring are complete. Click "Publish Results" to reveal scores, percentages, and the official leaderboard to candidates.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handlePublishResultsOnly}
+              disabled={publishing}
+              className="px-5 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black font-black text-xs transition shadow-lg shadow-[#00F0FF]/20 cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0"
+            >
+              <Eye size={14} />
+              <span>Publish Results Now</span>
+            </button>
+          </div>
+        ) : !room?.rewards_distributed ? (
           <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-transparent border border-yellow-500/40 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-yellow-400/20 border border-yellow-400/40 flex items-center justify-center text-yellow-400 shrink-0">
@@ -1278,7 +1425,7 @@ const ProRoomDashboard = () => {
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 font-mono font-bold">Action Required</span>
                 </h4>
                 <p className="text-xs text-gray-300">
-                  Rankings are recorded, but prize pool gBits and digital certificates have not been generated yet.
+                  Rankings are visible to candidates, but prize pool gBits and digital certificates have not been disbursed yet.
                 </p>
               </div>
             </div>
@@ -1290,7 +1437,7 @@ const ProRoomDashboard = () => {
               <span>Distribute Rewards & Certs Now</span>
             </button>
           </div>
-        )}
+        ) : null}
 
         {/* KPI Metrics Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -2066,61 +2213,77 @@ const ProRoomDashboard = () => {
         {/* Publish Results & Reward Distribution Modal */}
         <AnimatePresence>
           {showPublishModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pt-20 sm:pt-8 bg-black/85 backdrop-blur-md overflow-y-auto">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="w-full max-w-2xl bg-[#0c0c16] border border-[#00F0FF]/30 rounded-2xl shadow-2xl shadow-[#00F0FF]/10 overflow-hidden flex flex-col max-h-[90vh]"
+                className="w-full max-w-2xl bg-[#0c0c16] border border-[#00F0FF]/30 rounded-2xl shadow-2xl shadow-[#00F0FF]/10 overflow-hidden flex flex-col max-h-[85vh] my-auto"
               >
                 {/* Modal Header */}
-                <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#121222]/50">
+                <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#121222]/80 shrink-0">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00F0FF]/20 to-purple-600/30 border border-[#00F0FF]/40 flex items-center justify-center text-[#00F0FF]">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00F0FF]/20 to-purple-600/30 border border-[#00F0FF]/40 flex items-center justify-center text-[#00F0FF] shrink-0">
                       <Gift size={22} />
                     </div>
                     <div>
                       <h2 className="text-lg font-black text-white flex items-center gap-2">
-                        Publish Results & Distribute Awards
+                        Distribute Awards & Certificates
                       </h2>
                       <p className="text-xs text-gray-400">
-                        Finalize deterministic ranks, transfer prizes & issue digital certificates.
+                        Allocate prize-pool gBits, credit winner balances & generate official certificates.
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => setShowPublishModal(false)}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all cursor-pointer"
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all cursor-pointer shrink-0"
                   >
                     <X size={18} />
                   </button>
                 </div>
 
                 {/* Modal Body */}
-                <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 text-xs">
+                <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1 text-xs">
                   {/* Warning / Informational Alert */}
                   {room?.rewards_distributed ? (
                     <div className="p-3.5 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-start gap-3">
                       <AlertCircle className="text-yellow-400 shrink-0 mt-0.5" size={16} />
                       <div className="text-yellow-200/90 leading-relaxed">
-                        Rewards and certificates for this assessment were already distributed on{" "}
+                        Rewards and certificates for this assessment were previously distributed on{" "}
                         <span className="font-bold text-white">
                           {new Date(room.rewards_distributed_at || Date.now()).toLocaleDateString()}
                         </span>
-                        . Confirming will refresh official standings without creating duplicate payouts.
+                        . Confirming will refresh official allocations and ensure all certificates are generated.
                       </div>
                     </div>
                   ) : (
                     <div className="p-3.5 bg-[#00F0FF]/10 border border-[#00F0FF]/30 rounded-xl flex items-start gap-3">
                       <Sparkles className="text-[#00F0FF] shrink-0 mt-0.5" size={16} />
                       <div className="text-gray-300 leading-relaxed">
-                        <strong className="text-white">Platform-Sponsored Prize Distribution:</strong> gBits are paid directly from the platform prize pool to winners' accounts. Digital verification credentials and badges will be minted automatically.
+                        <strong className="text-white">Platform-Sponsored Prize Distribution:</strong> gBits will be transferred to winners' account balances. Verifiable digital credentials will be issued automatically.
                       </div>
                     </div>
                   )}
 
+                  {/* Optional Checkbox: Also Publish Results if not yet published */}
+                  {room?.status !== "results_published" && (
+                    <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-xl flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="modalAlsoPublish"
+                        checked={alsoPublishResults}
+                        onChange={(e) => setAlsoPublishResults(e.target.checked)}
+                        className="w-4 h-4 rounded text-[#00F0FF] focus:ring-[#00F0FF] bg-black/40 border-white/20 cursor-pointer"
+                      />
+                      <label htmlFor="modalAlsoPublish" className="text-xs text-cyan-200 cursor-pointer font-medium select-none">
+                        <strong>Also publish results to candidates immediately</strong> (makes final scores, ranks, and leaderboard public)
+                      </label>
+                    </div>
+                  )}
+
                   {/* Summary Bar */}
-                  <div className="grid grid-cols-3 gap-3 p-4 bg-white/5 border border-white/5 rounded-xl">
+                  <div className="grid grid-cols-3 gap-3 p-3.5 bg-white/5 border border-white/5 rounded-xl">
                     <div>
                       <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Total Prize Pool</div>
                       <div className="text-base font-black text-[#00F0FF] mt-0.5">
@@ -2214,9 +2377,9 @@ const ProRoomDashboard = () => {
 
                   {/* Top 3 Podium Winners */}
                   <div>
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2">
                       <Trophy size={14} className="text-yellow-400" />
-                      Top 3 Podium Winners
+                      Podium Winners Preview
                     </h4>
                     <div className="space-y-2">
                       {/* Rank 1 */}
@@ -2339,7 +2502,7 @@ const ProRoomDashboard = () => {
                 </div>
 
                 {/* Modal Footer */}
-                <div className="p-4 border-t border-white/10 bg-[#121222]/50 flex items-center justify-end gap-3">
+                <div className="p-4 border-t border-white/10 bg-[#121222]/80 flex items-center justify-end gap-3 shrink-0">
                   <button
                     onClick={() => setShowPublishModal(false)}
                     disabled={publishing}
@@ -2350,17 +2513,17 @@ const ProRoomDashboard = () => {
                   <button
                     onClick={executePublishAndDistribute}
                     disabled={publishing}
-                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#00F0FF] to-purple-600 hover:from-[#00F0FF]/90 hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-[#00F0FF]/25 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white text-xs font-bold shadow-lg shadow-purple-600/25 cursor-pointer disabled:opacity-50 flex items-center gap-2"
                   >
                     {publishing ? (
                       <>
                         <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                        <span>Publishing & Transferring...</span>
+                        <span>Transferring Prizes & Minting Certs...</span>
                       </>
                     ) : (
                       <>
                         <Sparkles size={14} />
-                        <span>Confirm & Distribute Rewards</span>
+                        <span>Confirm & Distribute Awards</span>
                       </>
                     )}
                   </button>

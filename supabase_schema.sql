@@ -209,3 +209,45 @@ BEGIN
             WITH CHECK (auth.uid() IS NOT NULL);
     END IF;
 END $$;
+
+-- Ensure percentage column exists on pro_room_certificates
+ALTER TABLE public.pro_room_certificates ADD COLUMN IF NOT EXISTS percentage NUMERIC DEFAULT 0;
+
+-- Function & Trigger to credit gBits atomically when rewards are distributed
+CREATE OR REPLACE FUNCTION public.fn_sync_pro_room_reward()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NEW.gbits_awarded > 0 THEN
+        -- Insert ledger row into glitch_activity
+        INSERT INTO public.glitch_activity (user_id, title, points, type, created_at)
+        VALUES (
+            NEW.user_id,
+            '🏆 Pro Room Prize — Rank ' || COALESCE(NEW.rank::text, 'Winner') || ' (' || SUBSTRING(NEW.room_id::text, 1, 8) || ')',
+            NEW.gbits_awarded,
+            'reward',
+            NOW()
+        );
+
+        -- Update user_points
+        INSERT INTO public.user_points (user_id, points)
+        VALUES (NEW.user_id, NEW.gbits_awarded)
+        ON CONFLICT (user_id)
+        DO UPDATE SET points = public.user_points.points + EXCLUDED.points;
+
+        -- Update profiles
+        UPDATE public.profiles
+        SET points = COALESCE(points, 0) + NEW.gbits_awarded
+        WHERE id = NEW.user_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_pro_room_reward ON public.pro_room_rewards;
+CREATE TRIGGER trg_sync_pro_room_reward
+    AFTER INSERT ON public.pro_room_rewards
+    FOR EACH ROW
+    EXECUTE FUNCTION public.fn_sync_pro_room_reward();

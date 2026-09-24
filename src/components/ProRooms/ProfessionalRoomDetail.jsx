@@ -58,6 +58,7 @@ import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
 import ProRoomHelpModal from "./ProRoomHelpModal";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import { supabase } from "../../supabaseClient";
+import { fetchPoints } from "../../utils/pointsHelper";
 
 // Shared date+time formatter for notifications — previously each entry
 // only showed "07:11 PM" with no date at all, so anything more than a few
@@ -164,7 +165,131 @@ const ProfessionalRoomDetail = () => {
   const [showCertModal, setShowCertModal] = useState(false);
   const certCanvasRef = useRef(null);
 
-  // Canvas Certificate Generator
+  // ── Glitch Room Official Credential Preview Component ─────────────────
+  const GlitchCertificateDOM = ({ cert, room: roomProp }) => {
+    if (!cert) return null;
+    const isWinner = cert.type && cert.type.startsWith("winner");
+    const rankNum = cert.rank || 1;
+    const rankLabel = rankNum === 1 ? "1st Place Champion" : rankNum === 2 ? "2nd Place Runner-Up" : rankNum === 3 ? "3rd Place Podium" : `Rank #${rankNum}`;
+    const accentColor = rankNum === 1 ? "#FFD700" : rankNum === 2 ? "#E2E8F0" : rankNum === 3 ? "#D97706" : "#00F0FF";
+    const accentBorder = rankNum === 1 ? "border-yellow-400" : rankNum === 2 ? "border-slate-300" : rankNum === 3 ? "border-amber-600" : "border-[#00F0FF]";
+    const accentGlow = rankNum === 1 ? "shadow-yellow-500/20" : rankNum === 2 ? "shadow-slate-300/20" : rankNum === 3 ? "shadow-amber-500/20" : "shadow-[#00F0FF]/20";
+
+    const totalMax = Number(roomProp?.total_possible_score) || 100;
+    const pct = cert.percentage !== undefined && cert.percentage !== null && cert.percentage > 0
+      ? cert.percentage
+      : Math.round(((cert.score || 0) / totalMax) * 100);
+
+    return (
+      <div className={`relative w-full max-w-3xl mx-auto rounded-3xl p-6 sm:p-10 bg-gradient-to-b from-[#080814] via-[#0c0c20] to-[#060610] border-2 ${accentBorder} shadow-2xl ${accentGlow} overflow-hidden font-sans select-none text-white`}>
+        {/* Subtle Cyber Grid Background */}
+        <div className="absolute inset-0 opacity-[0.04] pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:24px_24px]" />
+
+        {/* Corner Cyber Brackets */}
+        <div className="absolute top-3 left-3 w-8 h-8 border-t-2 border-l-2 pointer-events-none" style={{ borderColor: accentColor }} />
+        <div className="absolute top-3 right-3 w-8 h-8 border-t-2 border-r-2 pointer-events-none" style={{ borderColor: accentColor }} />
+        <div className="absolute bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 pointer-events-none" style={{ borderColor: accentColor }} />
+        <div className="absolute bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 pointer-events-none" style={{ borderColor: accentColor }} />
+
+        {/* Header */}
+        <div className="text-center relative z-10 space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] sm:text-xs font-mono tracking-widest uppercase font-bold" style={{ color: accentColor }}>
+            <Sparkles size={12} />
+            <span>GLITCH ROOM ARENA • OFFICIAL VERIFIED CREDENTIAL</span>
+          </div>
+          <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight uppercase">
+            {isWinner ? "Certificate of Excellence" : "Certificate of Achievement"}
+          </h2>
+          <p className="text-xs sm:text-sm text-gray-400 italic">
+            This digital credential is proudly conferred upon
+          </p>
+        </div>
+
+        {/* Candidate Name */}
+        <div className="text-center my-5 sm:my-6 relative z-10">
+          <div className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-wide uppercase drop-shadow-lg">
+            {cert.recipient_name || "Candidate"}
+          </div>
+          <div className="w-48 sm:w-64 h-1 mx-auto mt-2 rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)` }} />
+        </div>
+
+        {/* Achievement Context */}
+        <div className="text-center max-w-xl mx-auto space-y-1 relative z-10 text-xs sm:text-sm text-gray-300">
+          <p>for demonstrating verified technical proficiency and competitive placement in</p>
+          <div className="text-base sm:text-xl font-bold font-mono tracking-wide py-0.5" style={{ color: accentColor }}>
+            {cert.event_name || roomProp?.name || "Glitch Room Assessment"}
+          </div>
+          <p className="text-gray-400 text-[11px] sm:text-xs">
+            Organized by <strong className="text-gray-200">{cert.organization_name || roomProp?.org_name || "Glitch Room Arena"}</strong>
+          </p>
+        </div>
+
+        {/* 3 Metric Performance Badges */}
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-4 my-6 sm:my-8 relative z-10">
+          <div className="p-3 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
+            <div className="text-[9px] sm:text-[11px] font-mono text-gray-400 uppercase tracking-wider">Standing</div>
+            <div className="text-xs sm:text-base font-black text-white mt-1 flex items-center justify-center gap-1">
+              <span>{isWinner ? (rankNum === 1 ? "🥇" : rankNum === 2 ? "🥈" : "🥉") : "🎖️"}</span>
+              <span className="truncate">{rankLabel}</span>
+            </div>
+          </div>
+          <div className="p-3 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
+            <div className="text-[9px] sm:text-[11px] font-mono text-gray-400 uppercase tracking-wider">Final Score</div>
+            <div className="text-xs sm:text-base font-black text-white mt-1 font-mono">
+              {cert.score ?? 0} Pts
+            </div>
+          </div>
+          <div className="p-3 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
+            <div className="text-[9px] sm:text-[11px] font-mono text-gray-400 uppercase tracking-wider">Mastery</div>
+            <div className="text-xs sm:text-base font-black font-mono mt-1" style={{ color: accentColor }}>
+              {pct}%
+            </div>
+          </div>
+        </div>
+
+        {/* Footer: Seal, Verification ID & Signatures */}
+        <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 relative z-10 text-[11px]">
+          {/* Holographic Verification Seal */}
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 shadow-lg border-2" style={{ backgroundColor: `${accentColor}15`, borderColor: accentColor, color: accentColor }}>
+              🏆
+            </div>
+            <div>
+              <div className="font-mono font-bold text-white tracking-wide text-xs">
+                VERIFIED CREDENTIAL
+              </div>
+              <div className="font-mono text-gray-400 text-[10px]">
+                ID: <span className="text-cyan-400 font-bold">{cert.certificate_number}</span>
+              </div>
+              <div className="text-[9px] text-gray-500 font-mono">
+                Issued: {new Date(cert.issued_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </div>
+            </div>
+          </div>
+
+          {/* Dual Signatures */}
+          <div className="flex items-center gap-6 sm:gap-8 text-right sm:text-left">
+            <div className="text-center">
+              <div className="font-serif italic text-base text-gray-300 font-bold -mb-1 select-none font-signature">
+                {roomProp?.organizer_name || "Event Authority"}
+              </div>
+              <div className="w-24 h-px bg-white/20 mx-auto my-1" />
+              <div className="text-[9px] text-gray-400 font-mono uppercase">Event Organizer</div>
+            </div>
+            <div className="text-center">
+              <div className="font-serif italic text-base text-cyan-400 font-bold -mb-1 select-none font-signature">
+                GlitchProtocol
+              </div>
+              <div className="w-24 h-px bg-white/20 mx-auto my-1" />
+              <div className="text-[9px] text-gray-400 font-mono uppercase">Arena Authority</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Canvas Certificate Generator with High-Resolution Rendering
   const renderCertificateToCanvas = (cert, canvas) => {
     if (!canvas || !cert) return;
     const ctx = canvas.getContext("2d");
@@ -175,110 +300,116 @@ const ProfessionalRoomDetail = () => {
 
     // Background gradient
     const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-    bgGrad.addColorStop(0, "#05050d");
-    bgGrad.addColorStop(0.5, "#0d0c1d");
+    bgGrad.addColorStop(0, "#060610");
+    bgGrad.addColorStop(0.5, "#0b0c1e");
     bgGrad.addColorStop(1, "#070714");
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
     const isWinner = cert.type && cert.type.startsWith("winner");
-    const primaryColor = isWinner ? "#FFD700" : "#00F0FF";
+    const rankNum = cert.rank || 1;
+    const primaryColor = rankNum === 1 ? "#FFD700" : rankNum === 2 ? "#E2E8F0" : rankNum === 3 ? "#D97706" : "#00F0FF";
+    const rankTitle = rankNum === 1 ? "1st Place Champion" : rankNum === 2 ? "2nd Place Runner-Up" : rankNum === 3 ? "3rd Place Podium" : `Rank #${rankNum}`;
 
-    // Grid effect
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+    // Cyber Grid effect
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.035)";
     ctx.lineWidth = 1;
-    for (let x = 0; x < width; x += 40) {
+    for (let x = 0; x < width; x += 30) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
       ctx.stroke();
     }
-    for (let y = 0; y < height; y += 40) {
+    for (let y = 0; y < height; y += 30) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
       ctx.stroke();
     }
 
-    // Outer Neon Cyber Borders
+    // Outer Glow Border
     ctx.strokeStyle = primaryColor;
     ctx.lineWidth = 4;
-    ctx.strokeRect(32, 32, width - 64, height - 64);
+    ctx.strokeRect(36, 36, width - 72, height - 72);
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+    // Inner Delicate Border
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(42, 42, width - 84, height - 84);
+    ctx.strokeRect(46, 46, width - 92, height - 92);
 
-    // Corner Accents
-    const cornerSize = 45;
+    // Corner Ornaments
+    const cornerSize = 40;
     ctx.fillStyle = primaryColor;
-    ctx.fillRect(28, 28, cornerSize, 6);
-    ctx.fillRect(28, 28, 6, cornerSize);
-    ctx.fillRect(width - 28 - cornerSize, 28, cornerSize, 6);
-    ctx.fillRect(width - 34, 28, 6, cornerSize);
-    ctx.fillRect(28, height - 34, cornerSize, 6);
-    ctx.fillRect(28, height - 28 - cornerSize, 6, cornerSize);
-    ctx.fillRect(width - 28 - cornerSize, height - 34, cornerSize, 6);
-    ctx.fillRect(width - 34, height - 28 - cornerSize, 6, cornerSize);
+    ctx.fillRect(32, 32, cornerSize, 6);
+    ctx.fillRect(32, 32, 6, cornerSize);
+    ctx.fillRect(width - 32 - cornerSize, 32, cornerSize, 6);
+    ctx.fillRect(width - 38, 32, 6, cornerSize);
+    ctx.fillRect(32, height - 38, cornerSize, 6);
+    ctx.fillRect(32, height - 32 - cornerSize, 6, cornerSize);
+    ctx.fillRect(width - 32 - cornerSize, height - 38, cornerSize, 6);
+    ctx.fillRect(width - 38, height - 32 - cornerSize, 6, cornerSize);
 
     // Header Branding
     ctx.fillStyle = primaryColor;
-    ctx.font = "bold 15px 'Courier New', monospace";
+    ctx.font = "bold 13px 'Courier New', monospace";
     ctx.textAlign = "center";
-    ctx.fillText("GLITCH ROOM ARENA • OFFICIAL VERIFIED CREDENTIAL", width / 2, 90);
+    ctx.fillText("GLITCH ROOM ARENA • OFFICIAL VERIFIED CREDENTIAL", width / 2, 85);
 
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = "900 40px sans-serif";
-    const titleText = isWinner
-      ? "CERTIFICATE OF EXCELLENCE"
-      : "CERTIFICATE OF PARTICIPATION";
-    ctx.fillText(titleText, width / 2, 148);
+    ctx.font = "900 38px sans-serif";
+    const titleText = isWinner ? "CERTIFICATE OF EXCELLENCE" : "CERTIFICATE OF ACHIEVEMENT";
+    ctx.fillText(titleText, width / 2, 140);
 
     ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
-    ctx.font = "italic 18px sans-serif";
-    ctx.fillText("This official cyber-credential is proudly awarded to", width / 2, 205);
+    ctx.font = "italic 16px sans-serif";
+    ctx.fillText("This official cyber-credential is proudly conferred upon", width / 2, 185);
 
     // Candidate Name
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 48px sans-serif";
-    ctx.fillText(cert.recipient_name || "Candidate", width / 2, 275);
+    ctx.font = "bold 44px sans-serif";
+    ctx.fillText(cert.recipient_name || "Candidate", width / 2, 245);
 
-    // Glowing divider
+    // Glowing Divider
     const nameWidth = ctx.measureText(cert.recipient_name || "Candidate").width;
     const lineGrad = ctx.createLinearGradient((width - nameWidth) / 2, 0, (width + nameWidth) / 2, 0);
     lineGrad.addColorStop(0, "transparent");
     lineGrad.addColorStop(0.5, primaryColor);
     lineGrad.addColorStop(1, "transparent");
     ctx.fillStyle = lineGrad;
-    ctx.fillRect((width - nameWidth - 80) / 2, 298, nameWidth + 80, 3);
+    ctx.fillRect((width - nameWidth - 60) / 2, 268, nameWidth + 60, 3);
 
     // Reason
     ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
-    ctx.font = "18px sans-serif";
-    ctx.fillText("for demonstrating high proficiency and achieving verified placement in", width / 2, 350);
+    ctx.font = "16px sans-serif";
+    ctx.fillText("for demonstrating high proficiency and achieving verified placement in", width / 2, 315);
 
     ctx.fillStyle = primaryColor;
-    ctx.font = "bold 30px sans-serif";
-    ctx.fillText(cert.event_name || "Pro Arena Assessment", width / 2, 395);
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText(cert.event_name || "Pro Arena Assessment", width / 2, 355);
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-    ctx.font = "16px sans-serif";
-    ctx.fillText(`Issued by ${cert.organization_name || "Glitch Room Arena"}`, width / 2, 430);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+    ctx.font = "14px sans-serif";
+    ctx.fillText(`Organized by ${cert.organization_name || "Glitch Room Arena"}`, width / 2, 385);
 
     // Performance Metric Boxes
-    const boxY = 480;
-    const boxW = 220;
-    const boxH = 95;
-    const startX = (width - (3 * boxW + 2 * 30)) / 2;
+    const boxY = 425;
+    const boxW = 210;
+    const boxH = 85;
+    const startX = (width - (3 * boxW + 2 * 25)) / 2;
+
+    const totalMax = Number(room?.total_possible_score) || 100;
+    const pct = cert.percentage !== undefined && cert.percentage !== null && cert.percentage > 0
+      ? cert.percentage
+      : Math.round(((cert.score || 0) / totalMax) * 100);
 
     const metrics = [
-      { label: "OFFICIAL STANDING", value: cert.rank ? `Rank #${cert.rank}` : "Top Performer" },
+      { label: "OFFICIAL STANDING", value: rankTitle },
       { label: "TOTAL SCORE", value: `${cert.score ?? 0} Pts` },
-      { label: "PERCENTAGE", value: `${cert.percentage ?? 0}%` },
+      { label: "MASTERY LEVEL", value: `${pct}%` },
     ];
 
     metrics.forEach((m, i) => {
-      const x = startX + i * (boxW + 30);
+      const x = startX + i * (boxW + 25);
       ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
       ctx.fillRect(x, boxY, boxW, boxH);
       ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
@@ -286,25 +417,67 @@ const ProfessionalRoomDetail = () => {
       ctx.strokeRect(x, boxY, boxW, boxH);
 
       ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-      ctx.font = "11px 'Courier New', monospace";
-      ctx.fillText(m.label, x + boxW / 2, boxY + 32);
+      ctx.font = "10px 'Courier New', monospace";
+      ctx.fillText(m.label, x + boxW / 2, boxY + 28);
 
-      ctx.fillStyle = "#FFFFFF";
-      ctx.font = "bold 26px sans-serif";
-      ctx.fillText(m.value, x + boxW / 2, boxY + 70);
+      ctx.fillStyle = i === 2 ? primaryColor : "#FFFFFF";
+      ctx.font = "bold 22px sans-serif";
+      ctx.fillText(m.value, x + boxW / 2, boxY + 62);
     });
 
-    // Footer / Verification Bar
-    ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-    ctx.font = "12px 'Courier New', monospace";
-    ctx.fillText(`CREDENTIAL ID: ${cert.certificate_number || "GR-PRO-VERIFIED"}`, 60, height - 75);
-    ctx.fillText(`ISSUED AT: ${new Date(cert.issued_at || Date.now()).toLocaleDateString()}`, 60, height - 55);
+    // Holographic Circular Verification Seal on Left
+    const sealX = 140;
+    const sealY = 635;
+    ctx.beginPath();
+    ctx.arc(sealX, sealY, 45, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255, 215, 0, 0.08)";
+    ctx.fill();
+    ctx.strokeStyle = primaryColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
-    ctx.textAlign = "right";
-    ctx.fillText("DIGITALLY SIGNED & VERIFIED", width - 60, height - 75);
+    ctx.beginPath();
+    ctx.arc(sealX, sealY, 38, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
     ctx.fillStyle = primaryColor;
-    ctx.fillText("GLITCH ROOM VERIFICATION NETWORK", width - 60, height - 55);
+    ctx.font = "bold 24px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("🏆", sealX, sealY + 8);
+
+    // Verification details
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 13px 'Courier New', monospace";
+    ctx.fillText("VERIFIED ON-CHAIN CREDENTIAL", sealX + 60, sealY - 12);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.font = "11px 'Courier New', monospace";
+    ctx.fillText(`ID: ${cert.certificate_number || "GR-PRO-VERIFIED"}`, sealX + 60, sealY + 6);
+    ctx.fillText(`ISSUED: ${new Date(cert.issued_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} • STATUS: TAMPER-PROOF`, sealX + 60, sealY + 24);
+
+    // Signatures on Right
+    const sigX = width - 260;
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+    ctx.font = "italic bold 18px Georgia, serif";
+    ctx.fillText(room?.organizer_name || "Event Authority", sigX, sealY - 4);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+    ctx.fillRect(sigX - 60, sealY + 4, 120, 1);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.font = "10px 'Courier New', monospace";
+    ctx.fillText("ORGANIZER SIGNATURE", sigX, sealY + 18);
+
+    const sig2X = width - 120;
+    ctx.fillStyle = primaryColor;
+    ctx.font = "italic bold 18px Georgia, serif";
+    ctx.fillText("GlitchProtocol", sig2X, sealY - 4);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+    ctx.fillRect(sig2X - 50, sealY + 4, 100, 1);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.font = "10px 'Courier New', monospace";
+    ctx.fillText("CORE ARENA", sig2X, sealY + 18);
   };
 
   const handleOpenCertificate = (cert) => {
@@ -318,8 +491,12 @@ const ProfessionalRoomDetail = () => {
   };
 
   const handleDownloadCertificate = () => {
-    if (!certCanvasRef.current || !selectedCertificate) return;
-    const canvas = certCanvasRef.current;
+    if (!selectedCertificate) return;
+    let canvas = certCanvasRef.current;
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+    }
+    renderCertificateToCanvas(selectedCertificate, canvas);
     const url = canvas.toDataURL("image/png");
     const link = document.createElement("a");
     const safeName = (selectedCertificate.recipient_name || "candidate").replace(/[^a-zA-Z0-9]/g, "_");
@@ -332,8 +509,13 @@ const ProfessionalRoomDetail = () => {
   };
 
   const handlePrintCertificate = () => {
-    if (!certCanvasRef.current) return;
-    const dataUrl = certCanvasRef.current.toDataURL("image/png");
+    if (!selectedCertificate) return;
+    let canvas = certCanvasRef.current;
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+    }
+    renderCertificateToCanvas(selectedCertificate, canvas);
+    const dataUrl = canvas.toDataURL("image/png");
     const printWindow = window.open("", "_blank");
     if (printWindow) {
       printWindow.document.write(`
@@ -380,13 +562,9 @@ const ProfessionalRoomDetail = () => {
       setCurrentUserId(uid);
 
       if (uid) {
-        // Fetch User gBits Balance
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", uid)
-          .maybeSingle();
-        setUserGbits(prof?.gbits || prof?.points || prof?.gbits_balance || 0);
+        // Fetch User gBits Balance using unified helper (single source of truth)
+        const bal = await fetchPoints(uid);
+        setUserGbits(bal);
       }
 
       // 1. Fetch Room Metadata
@@ -758,7 +936,66 @@ const ProfessionalRoomDetail = () => {
             .select("*")
             .eq("room_id", id)
             .eq("user_id", uid);
-          setUserCertificates(uCerts || []);
+
+          let finalCerts = uCerts || [];
+
+          // Synthesize / fallback certificate if results are published or rewards distributed, but DB cert row is missing
+          const isPub = currentRoom?.status === "results_published" || Boolean(currentRoom?.rewards_distributed);
+          if (finalCerts.length === 0 && sub && isPub) {
+            const userRank = sub.rank || 1;
+            const userScore = Number(sub.total_score) || 0;
+            const maxScore = Number(currentRoom.total_possible_score) || 100;
+            const userPct = Number(sub.percentage) || Math.round((userScore / maxScore) * 100);
+            const passScore = Number(currentRoom.passing_score) || 50;
+            const isWinner = userRank <= 3;
+            const isEligible = isWinner || userPct >= passScore;
+
+            if (isEligible) {
+              const roomCode = (id || "0000").slice(0, 8).toUpperCase();
+              const certType = isWinner ? `winner_${userRank}` : "participation";
+              const certNumber = isWinner
+                ? `GR-PRO-WIN-${roomCode}-${String(userRank).padStart(3, "0")}`
+                : `GR-PRO-PART-${roomCode}-${String(userRank).padStart(3, "0")}`;
+
+              const candName =
+                reg?.profiles?.full_name ||
+                reg?.profiles?.username ||
+                "Candidate";
+
+              const fallbackCert = {
+                id: `cert_${id}_${uid}`,
+                certificate_number: certNumber,
+                room_id: id,
+                user_id: uid,
+                type: certType,
+                recipient_name: candName,
+                event_name: currentRoom.title || currentRoom.name || "Pro Arena Assessment",
+                organization_name: currentRoom.org_name || currentRoom.organizer_name || "Glitch Room Arena",
+                score: userScore,
+                percentage: userPct,
+                rank: userRank,
+                issued_at: sub.submitted_at || new Date().toISOString(),
+              };
+
+              finalCerts = [fallbackCert];
+
+              // Save to DB in background without percentage column to avoid PGRST204
+              supabase.from("pro_room_certificates").upsert({
+                certificate_number: certNumber,
+                room_id: id,
+                user_id: uid,
+                type: certType,
+                recipient_name: candName,
+                event_name: currentRoom.title || currentRoom.name || "Pro Arena Assessment",
+                organization_name: currentRoom.org_name || currentRoom.organizer_name || "Glitch Room Arena",
+                score: userScore,
+                rank: userRank,
+                issued_at: sub.submitted_at || new Date().toISOString(),
+              }, { onConflict: "room_id,user_id,type" }).catch(() => {});
+            }
+          }
+
+          setUserCertificates(finalCerts);
         } catch (e) {
           console.warn("Error fetching user rewards/certificates:", e);
         }
@@ -847,15 +1084,33 @@ const ProfessionalRoomDetail = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPendingApproval]);
 
-  // Poll if candidate has submitted but results are not yet published
+  // Poll if candidate has submitted but results or rewards are pending
   useEffect(() => {
-    if (isHost || room?.status === "results_published" || !userSubmission) return;
+    if (isHost || (room?.status === "results_published" && room?.rewards_distributed) || !userSubmission) return;
     const poll = setInterval(() => {
       fetchRoomData();
-    }, 15000);
+    }, 12000);
     return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, room?.status, userSubmission]);
+  }, [isHost, room?.status, room?.rewards_distributed, userSubmission]);
+
+  // Synchronize gBits balance in real-time whenever points are updated anywhere on site
+  useEffect(() => {
+    if (!currentUserId) return;
+    const handleBalUpdate = (e) => {
+      if (typeof e?.detail?.points === "number") {
+        setUserGbits(e.detail.points);
+      } else {
+        fetchPoints(currentUserId).then(setUserGbits);
+      }
+    };
+    window.addEventListener("points_updated", handleBalUpdate);
+    window.addEventListener("gbits_updated", handleBalUpdate);
+    return () => {
+      window.removeEventListener("points_updated", handleBalUpdate);
+      window.removeEventListener("gbits_updated", handleBalUpdate);
+    };
+  }, [currentUserId]);
 
   useEffect(() => {
     if (!loading && room && !isHost && activeSidebarTab.startsWith("host_")) {
@@ -4034,7 +4289,7 @@ const ProfessionalRoomDetail = () => {
                                     : "Certificate of Completion"}
                                 </span>
                                 <h4 className="text-base font-bold text-white">
-                                  {isWinner ? "Certificate of Excellence" : "Certificate of Participation"}
+                                  {isWinner ? "Certificate of Excellence" : "Certificate of Achievement"}
                                 </h4>
                                 <p className="text-xs text-gray-400">
                                   Awarded to <strong className="text-white">{cert.recipient_name}</strong> • Placement:{" "}
@@ -4043,17 +4298,34 @@ const ProfessionalRoomDetail = () => {
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => handleOpenCertificate(cert)}
-                              className={`px-5 py-2.5 rounded-xl font-bold text-xs cursor-pointer transition flex items-center gap-2 self-start sm:self-auto shrink-0 shadow-lg ${
-                                isWinner
-                                  ? "bg-gradient-to-r from-yellow-400 to-amber-500 text-black shadow-yellow-500/20 hover:opacity-90"
-                                  : "bg-[#00F0FF] text-black shadow-[#00F0FF]/20 hover:opacity-90"
-                              }`}
-                            >
-                              <Award size={15} />
-                              <span>View & Download Certificate</span>
-                            </button>
+                            <div className="flex items-center gap-2.5 self-start sm:self-auto shrink-0">
+                              <button
+                                onClick={() => handleOpenCertificate(cert)}
+                                className={`px-4 py-2.5 rounded-xl font-bold text-xs cursor-pointer transition flex items-center gap-2 shadow-lg ${
+                                  isWinner
+                                    ? "bg-gradient-to-r from-yellow-400 to-amber-500 text-black shadow-yellow-500/20 hover:opacity-90"
+                                    : "bg-[#00F0FF] text-black shadow-[#00F0FF]/20 hover:opacity-90"
+                                }`}
+                              >
+                                <Award size={15} />
+                                <span>Fullscreen View</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedCertificate(cert);
+                                  setTimeout(() => handleDownloadCertificate(), 50);
+                                }}
+                                className="px-4 py-2.5 rounded-xl font-bold text-xs cursor-pointer transition flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white"
+                              >
+                                <Download size={14} />
+                                <span>Download PNG</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Official Glitch Room Certificate Design */}
+                          <div className="mt-4 pt-4 border-t border-white/10">
+                            <GlitchCertificateDOM cert={cert} room={room} />
                           </div>
 
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-black/40 rounded-xl border border-white/5 text-xs">
@@ -5030,7 +5302,7 @@ const ProfessionalRoomDetail = () => {
       {/* IN-APP DIGITAL CERTIFICATE MODAL */}
       <AnimatePresence>
         {showCertModal && selectedCertificate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pt-20 sm:pt-8 bg-black/85 backdrop-blur-md overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -5048,7 +5320,7 @@ const ProfessionalRoomDetail = () => {
                       Verified Cyber Credential & Certificate
                     </h3>
                     <p className="text-xs text-gray-400">
-                      ID: <span className="font-mono text-gray-300">{selectedCertificate.certificate_number}</span>
+                      ID: <span className="font-mono text-cyan-300">{selectedCertificate.certificate_number}</span>
                     </p>
                   </div>
                 </div>
@@ -5061,15 +5333,17 @@ const ProfessionalRoomDetail = () => {
               </div>
 
               {/* Certificate Preview Card */}
-              <div className="p-6 flex flex-col items-center space-y-6 overflow-y-auto max-h-[75vh]">
-                {/* Responsive Canvas Container */}
-                <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/15 shadow-2xl bg-black relative">
-                  <canvas
-                    ref={certCanvasRef}
-                    className="w-full h-auto block"
-                    style={{ aspectRatio: "1200 / 800" }}
-                  />
-                </div>
+              <div className="p-4 sm:p-6 flex flex-col items-center space-y-6 overflow-y-auto max-h-[75vh]">
+                {/* Modern Vector Certificate View */}
+                <GlitchCertificateDOM cert={selectedCertificate} room={room} />
+
+                {/* Canvas element for high-res PNG export & printing */}
+                <canvas
+                  ref={certCanvasRef}
+                  className="hidden"
+                  width={1200}
+                  height={800}
+                />
 
                 {/* Verification & Metadata Summary */}
                 <div className="w-full max-w-3xl grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-xs">
@@ -5083,7 +5357,7 @@ const ProfessionalRoomDetail = () => {
                   </div>
                   <div>
                     <span className="text-[10px] text-gray-400 font-mono uppercase block">Issuing Authority</span>
-                    <span className="text-purple-300 font-semibold">{selectedCertificate.organization_name || "Glitch Room Arena"}</span>
+                    <span className="text-purple-300 font-semibold">{selectedCertificate.organization_name || room?.org_name || room?.organizer_name || "Glitch Room Arena"}</span>
                   </div>
                 </div>
               </div>

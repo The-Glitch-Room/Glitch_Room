@@ -120,9 +120,82 @@ export const fetchPoints = async (userId) => {
       supabase.from("profiles").select("points").eq("id", userId).maybeSingle(),
     ]);
 
-    const userPts = ptsRes.data?.points ?? 0;
-    const profPts = profRes.data?.points ?? 0;
-    return Math.max(userPts, profPts);
+    let userPts = ptsRes.data?.points ?? 0;
+    let profPts = profRes.data?.points ?? 0;
+    let currentBalance = Math.max(userPts, profPts);
+
+    // Auto-sync uncredited Pro Room Rewards for currently logged-in user
+    try {
+      const { data: authUser } = await supabase.auth.getUser();
+      if (authUser?.user?.id === userId) {
+        const { data: rewards } = await supabase
+          .from("pro_room_rewards")
+          .select("id, room_id, reward_type, rank, gbits_awarded, created_at")
+          .eq("user_id", userId);
+
+        if (rewards && rewards.length > 0) {
+          const { data: existingActs } = await supabase
+            .from("glitch_activity")
+            .select("id, title, points")
+            .eq("user_id", userId)
+            .eq("type", "reward");
+
+          let pendingDelta = 0;
+          for (const rew of rewards) {
+            if (rew.gbits_awarded > 0) {
+              const roomCode = (rew.room_id || "").slice(0, 8);
+              const alreadyCredited = existingActs?.some(
+                (a) =>
+                  a.title?.includes(roomCode) ||
+                  (a.points === rew.gbits_awarded && a.title?.includes("Pro Room"))
+              );
+
+              if (!alreadyCredited) {
+                pendingDelta += rew.gbits_awarded;
+                const activityTitle = `🏆 Pro Room Prize — Rank ${rew.rank || 1} (${roomCode})`;
+                await supabase.from("glitch_activity").insert({
+                  user_id: userId,
+                  title: activityTitle,
+                  points: rew.gbits_awarded,
+                  type: "reward",
+                  created_at: new Date().toISOString(),
+                });
+              }
+            }
+          }
+
+          if (pendingDelta > 0) {
+            const nextBalance = currentBalance + pendingDelta;
+            await supabase
+              .from("profiles")
+              .update({ points: nextBalance })
+              .eq("id", userId);
+            try {
+              await supabase
+                .from("user_points")
+                .upsert(
+                  { user_id: userId, points: nextBalance },
+                  { onConflict: "user_id" }
+                );
+            } catch (e) {}
+            currentBalance = nextBalance;
+
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(
+                new CustomEvent("points_updated", { detail: { points: nextBalance } })
+              );
+              window.dispatchEvent(
+                new CustomEvent("gbits_updated", { detail: { points: nextBalance } })
+              );
+            }
+          }
+        }
+      }
+    } catch (syncErr) {
+      console.warn("fetchPoints reward sync warning:", syncErr);
+    }
+
+    return currentBalance;
   } catch (error) {
     console.error("fetchPoints error:", error);
     return 0;
