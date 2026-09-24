@@ -838,17 +838,11 @@ const ProRoomAssessment = () => {
     };
   };
 
-  // ── Test Case Runner (browser → Piston directly) ─────────────────────────
-  // "Run Test Cases" calls Piston directly from the browser — NOT through the
-  // Edge Function. The Piston public instance (emkc.org) rate-limits requests
-  // from data-center IPs like Supabase's server infrastructure, which causes
-  // HTTP 401 / 429 errors for every test case when routing through the Edge
-  // Function. Browser IPs are dynamic and not subject to this block.
-  //
-  // Security note: this path is only for real-time candidate feedback.
-  // The final grade comes from the Edge Function's fresh re-run at submission
-  // time (handleSubmitAssessment → Step 3), which uses the service-role key
-  // to fetch test cases server-side — candidates cannot tamper with that path.
+  // ── Test Case Runner ──────────────────────────────────────────────────────
+  // Calls the "run-code" Supabase Edge Function, which uses Judge0 CE via
+  // RapidAPI to execute the candidate's code server-side. Test cases are
+  // fetched inside the Edge Function using the service-role key, so the
+  // candidate can never see or tamper with expected_output from devtools.
   const handleRunCode = async () => {
     const candidateCode = answers[currentQuestion.id]?.code_submission || "";
     const language = answers[currentQuestion.id]?.code_language || "javascript";
@@ -862,111 +856,45 @@ const ProRoomAssessment = () => {
     setRunResults(null);
 
     try {
-      // Fetch test cases fresh from DB — the RPC used during assessment load
-      // (get_pro_room_questions_safe) may omit test_cases for security.
-      // A direct select here uses the candidate's own session JWT, so RLS
-      // controls access. The "safe" aspect of submission grading (hiding
-      // expected_output from the final grade path) is handled server-side
-      // at submission time, not here.
-      let testCases = Array.isArray(currentQuestion.test_cases)
-        ? currentQuestion.test_cases
-        : [];
+      // supabase.functions.invoke() automatically attaches the signed-in
+      // user's JWT as the Authorization header — the Edge Function verifies
+      // the candidate is authenticated before executing anything.
+      const { data, error } = await supabase.functions.invoke("run-code", {
+        body: {
+          question_id: currentQuestion.id,
+          code: candidateCode,
+          language,
+          submission_id: submissionId,
+        },
+      });
 
-      if (testCases.length === 0) {
-        const { data: qData } = await supabase
-          .from("pro_room_questions")
-          .select("test_cases")
-          .eq("id", currentQuestion.id)
-          .single();
-        testCases = qData?.test_cases || [];
-      }
-
-      if (testCases.length === 0) {
-        setRunResults({ error: "No test cases configured for this question." });
-        setRunningCode(false);
+      if (error) {
+        console.error("[Code Execution] Edge Function error:", error);
+        setRunResults({ error: `Execution failed: ${error.message}` });
         return;
       }
 
-      // Piston language identifiers — "c++" not "cpp", must match the runtime
-      // list at https://emkc.org/api/v2/piston/runtimes
-      const PISTON_LANG = {
-        python:     { language: "python",     version: "3.10.0" },
-        javascript: { language: "javascript", version: "18.15.0" },
-        cpp:        { language: "c++",        version: "10.2.0" },
-        java:       { language: "java",       version: "15.0.2" },
-      };
-      const pistonLang = PISTON_LANG[language] ?? PISTON_LANG.python;
-
-      const results = [];
-      let passedCount = 0;
-
-      for (let i = 0; i < testCases.length; i++) {
-        const tc = testCases[i];
-        const t0 = performance.now();
-        let actual_output = "";
-        let stderr = "";
-        let passed = false;
-        let execError = null;
-
-        try {
-          const res = await fetch("https://emkc.org/api/v2/piston/execute", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              language: pistonLang.language,
-              version:  pistonLang.version,
-              files:    [{ content: candidateCode }],
-              stdin:    String(tc.input ?? ""),
-            }),
-          });
-
-          if (!res.ok) {
-            execError = `Piston error: HTTP ${res.status}`;
-          } else {
-            const json = await res.json();
-            actual_output = (json.run?.stdout ?? "").trim();
-            stderr        = (json.run?.stderr  ?? "").trim();
-            const expected = String(tc.expected_output ?? "").replace(/\s+/g, " ").trim();
-            const actual   = actual_output.replace(/\s+/g, " ").trim();
-            // Also treat a non-zero exit code as a failure
-            passed = !json.run?.code && actual === expected;
-          }
-        } catch (fetchErr) {
-          execError = `Network error: ${fetchErr.message}`;
-        }
-
-        const execution_time_ms = Math.round(performance.now() - t0);
-        if (passed) passedCount++;
-
-        results.push({
-          index:           i + 1,
-          input:           tc.input,
-          expected_output: tc.expected_output,
-          actual_output,
-          stderr:          execError ?? stderr,
-          passed,
-          execution_time_ms,
-        });
+      if (data?.error) {
+        console.error("[Code Execution] API error:", data.error);
+        setRunResults({ error: data.error });
+        return;
       }
 
+      const { passedCount, totalCount, results } = data;
+
       console.log("[Code Execution]", {
-        questionId:    currentQuestion.id,
+        questionId: currentQuestion.id,
         language,
-        testCaseCount: testCases.length,
+        testCaseCount: totalCount,
         passedCount,
-        failedCount:   testCases.length - passedCount,
+        failedCount: totalCount - passedCount,
       });
 
       const avgTimeMs =
         results.reduce((s, r) => s + (r.execution_time_ms || 0), 0) /
         results.length;
 
-      setRunResults({
-        passedCount,
-        totalCount: testCases.length,
-        results,
-        avgTimeMs,
-      });
+      setRunResults({ passedCount, totalCount, results, avgTimeMs });
     } catch (err) {
       console.error("[Code Execution] exception:", err);
       setRunResults({ error: `Failed to run your code: ${err.message}` });
