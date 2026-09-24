@@ -955,12 +955,44 @@ const ProRoomAssessment = () => {
         results.reduce((s, r) => s + (r.execution_time_ms || 0), 0) /
         results.length;
 
+      // Persist this run to the DB so the grading trigger has a trusted
+      // result at submit time. This upserts into pro_room_answers, so the
+      // 5th run overwrites the 4th — only the most recent result is stored.
+      // Errors here are non-fatal: the display results are shown regardless.
+      if (submissionId) {
+        supabase
+          .from("pro_room_answers")
+          .upsert(
+            {
+              submission_id: submissionId,
+              room_id:       id,
+              user_id:       (await supabase.auth.getUser()).data?.user?.id,
+              question_id:   String(currentQuestion.id),
+              last_run_passed_count: passedCount,
+              last_run_results:      results,
+              last_run_at:           new Date().toISOString(),
+            },
+            { onConflict: "submission_id,question_id" },
+          )
+          .then(({ error: saveErr }) => {
+            if (saveErr) {
+              console.warn("[Code Execution] Could not save run results to DB:", saveErr.message);
+            } else {
+              console.log("[Code Execution] Run results saved →", {
+                passedCount,
+                totalCount: testCases.length,
+              });
+            }
+          });
+      }
+
       setRunResults({
         passedCount,
         totalCount: testCases.length,
         results,
         avgTimeMs,
       });
+
     } catch (err) {
       console.error("[Code Execution] exception:", err);
       setRunResults({ error: `Failed to run your code: ${err.message}` });
@@ -1044,76 +1076,13 @@ const ProRoomAssessment = () => {
         }
       }
 
-      // Step 3: Force a fresh, server-side re-run of every coding-type
-      // answer against the host's test cases — using exactly the code
-      // currently in code_submission, right now, not whatever the candidate
-      // last clicked "Run Test Cases" on. This is what makes auto-grading
-      // coding questions safe to trust: without it, a candidate could test
-      // a correct draft, then paste in something broken, and still get
-      // credited off the old passing run.
-      //
-      // Each question's last_run_passed_count is explicitly cleared FIRST,
-      // before the re-run — so if the re-run itself fails (network issue,
-      // execution service down), grade_pro_room_submission sees NULL rather
-      // than a stale prior result, and correctly leaves that one question
-      // for manual review instead of trusting old data. A failed re-run
-      // does not block submission; it just means that question won't be
-      // auto-graded this time.
-      const codingAnswers = Object.entries(answers).filter(([qId, a]) => {
-        const q = findQuestionById(qId);
-        return (
-          q &&
-          ["coding", "sql", "debugging", "code_analysis"].includes(
-            q.question_type,
-          ) &&
-          a?.code_submission?.trim()
-        );
-      });
+      // Step 3 (server-side re-run) is intentionally removed.
+      // last_run_passed_count is now saved directly to pro_room_answers
+      // by handleRunCode after each browser-side Piston run. The most
+      // recent run's result is always what gets graded — the 5th run
+      // overwrites the 4th, etc. The grade_on_submit trigger reads
+      // last_run_passed_count at this point and computes the final score.
 
-      for (const [qId, a] of codingAnswers) {
-        try {
-          await supabase
-            .from("pro_room_answers")
-            .update({ last_run_passed_count: null, last_run_results: null })
-            .eq("submission_id", resolvedSubmissionId)
-            .eq("question_id", String(qId));
-
-          const { data: runData, error: runError } =
-            await supabase.functions.invoke("run-code", {
-              body: {
-                question_id: qId,
-                code: a.code_submission,
-                language: a.code_language || "javascript",
-                submission_id: resolvedSubmissionId,
-              },
-            });
-
-          if (runError || runData?.error) {
-            console.error(
-              "[Final Submission] Pre-submit verification run failed:",
-              {
-                questionId: qId,
-                error: runError?.message || runData?.error,
-                note: "This question will fall to manual review instead of being auto-graded, since its result could not be freshly verified.",
-              },
-            );
-          } else {
-            console.log("[Final Submission] Pre-submit verification run:", {
-              questionId: qId,
-              passedCount: runData.passedCount,
-              totalCount: runData.totalCount,
-            });
-          }
-        } catch (err) {
-          console.error(
-            "[Final Submission] Pre-submit verification run threw:",
-            {
-              questionId: qId,
-              error: err.message,
-            },
-          );
-        }
-      }
 
       // Step 4: Upsert final submission row.
       // total_score / auto_score / percentage / status / needs_manual_review
