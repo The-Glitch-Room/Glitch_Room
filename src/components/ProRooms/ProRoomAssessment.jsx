@@ -894,6 +894,33 @@ const ProRoomAssessment = () => {
         preparedCode = preparedCode.replace(/public\s+class\s+/g, "class ");
       }
 
+      // Prepare stdin: if the configured test case input is a JSON or bracketed array
+      // like "[4, 2, 4, 3, 2, 4, 2]", format it as space-separated values "4 2 4 3 2 4 2"
+      // so standard stdin readers (sys.stdin.read().split(), cin >> x, Scanner.nextInt())
+      // can parse integers cleanly without throwing ValueError on "[" or ",".
+      const formatStdin = (raw) => {
+        if (raw == null) return "";
+        const s = String(raw).trim();
+        try {
+          const parsed = JSON.parse(s);
+          if (
+            Array.isArray(parsed) &&
+            parsed.every(
+              (x) =>
+                typeof x === "number" ||
+                (typeof x === "string" && !isNaN(Number(x))),
+            )
+          ) {
+            return parsed.join(" ");
+          }
+        } catch {
+          if (/^\s*\[[\s\d,.-]+\]\s*$/.test(s)) {
+            return s.replace(/[\[\],]/g, " ").replace(/\s+/g, " ").trim();
+          }
+        }
+        return s;
+      };
+
       const results = [];
       let passedCount = 0;
 
@@ -912,7 +939,7 @@ const ProRoomAssessment = () => {
             body: JSON.stringify({
               compiler,
               code:  preparedCode,
-              stdin: String(tc.input ?? ""),
+              stdin: formatStdin(tc.input),
             }),
           });
 
