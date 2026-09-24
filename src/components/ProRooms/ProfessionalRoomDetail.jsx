@@ -2533,7 +2533,7 @@ const ProfessionalRoomDetail = () => {
                     onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
                     className="w-full py-3 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center justify-between px-4"
                   >
-                    <span>Go to Current Section</span>
+                    <span>Start Assessment</span>
                     <ArrowRight size={14} />
                   </button>
                   <button
@@ -3346,7 +3346,7 @@ const ProfessionalRoomDetail = () => {
                 onClick={() => navigate(`/pro-rooms/${id}/assessment`)}
                 className="w-full py-3 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white text-xs font-bold transition shadow-lg shadow-[#FF00C8]/25 cursor-pointer flex items-center justify-between px-4"
               >
-                <span>Go to Current Section</span>
+                <span>Start Assessment</span>
                 <ArrowRight size={14} />
               </button>
 
