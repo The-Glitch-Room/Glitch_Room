@@ -78,10 +78,10 @@ export const AuthProvider = ({ children }) => {
 
           if (!alreadyOnboarded) {
             const createdAt = new Date(currentUser.created_at).getTime();
-            const lastSignIn = new Date(currentUser.last_sign_in_at).getTime();
-            const isNewUser = Math.abs(createdAt - lastSignIn) < 5000;
+            // Show onboarding tour for newly created accounts (within 24 hours) that have not completed it
+            const isNewUser = Date.now() - createdAt < 24 * 60 * 60 * 1000;
 
-            if (isNewUser && !window.location.pathname.includes("create-profile")) {
+            if (isNewUser) {
               setTimeout(() => setShowOnboarding(true), 600);
             }
           }

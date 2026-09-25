@@ -54,7 +54,6 @@ import ArenaVotingFeed from "./components/ArenaVotingFeed";
 import DailyFactBubble from "./components/DailyFactBubble";
 import AdminDashboard from "./components/AdminDashboard";
 import EarnRules from "./components/EarnRules";
-import CreateProfile from "./components/CreateProfile";
 import GBitsToast from "./components/GBitsToast";
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
@@ -159,7 +158,9 @@ const AnimatedRoutes = () => {
         <Route path="/ai-challenge/:id" element={<FixAIChallenge />} />
         <Route path="/bug-challenges" element={<DebugModeChallenges />} />
         <Route path="/fixbug/:id" element={<FixBug />} />
+        <Route path="/fix-bug/:id" element={<FixBug />} />
         <Route path="/fix-spark/:id" element={<FixCreativeSpark />} />
+        <Route path="/fixspark/:id" element={<FixCreativeSpark />} />
         <Route path="/glitch/:id" element={<FixGlitch />} />
         <Route path="/game-arena" element={<GameArena />} />
         <Route path="/find-glitch" element={<GameArena />} />
@@ -224,11 +225,7 @@ const AnimatedRoutes = () => {
         />
         <Route
           path="/create-profile"
-          element={
-            <ProtectedRoute>
-              <CreateProfile />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/profile" replace />}
         />
         <Route
           path="/profile"

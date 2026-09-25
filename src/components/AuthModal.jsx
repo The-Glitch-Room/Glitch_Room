@@ -176,11 +176,6 @@ const AuthModal = ({ isOpen, onClose }) => {
         if (signUpData?.session) {
           resetState();
           onClose();
-          try {
-            navigate("/create-profile");
-          } catch (navErr) {
-            window.location.href = "/create-profile";
-          }
         } else {
           // Email confirmation is required — show confirm_email view
           setConfirmedEmail(email);

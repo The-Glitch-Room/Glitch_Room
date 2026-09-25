@@ -13,14 +13,25 @@ import {
 } from "lucide-react";
 import PageHeading from "./PageHeading";
 
+import { useAuth } from "./AuthContext";
+
 const HostRoom = () => {
   const navigate = useNavigate();
+  const { user, openAuth } = useAuth();
 
   const handleCreateCreatorRoom = () => {
+    if (!user) {
+      openAuth();
+      return;
+    }
     navigate("/creator-rooms?create=true", { state: { openCreateModal: true } });
   };
 
   const handleCreateProRoom = () => {
+    if (!user) {
+      openAuth();
+      return;
+    }
     navigate("/pro-rooms/create");
   };
 

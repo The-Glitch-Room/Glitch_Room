@@ -470,15 +470,16 @@ const TerminalWall = () => {
         // cap anyway. .limit(100) is a buffer so the 0-point exclusion
         // below still leaves plenty of rows for the top-50 slice.
         const { data: userPts } = await supabase
-          .from("user_points")
-          .select("user_id, points")
+          .from("profiles")
+          .select("id, user_id, points")
           .order("points", { ascending: false })
           .limit(100);
 
         (userPts || []).forEach((row) => {
-          if (!row.user_id || (row.points || 0) <= 0) return;
-          map[row.user_id] = {
-            user_id: row.user_id,
+          const uid = row.id || row.user_id;
+          if (!uid || (row.points || 0) <= 0) return;
+          map[uid] = {
+            user_id: uid,
             total_score: row.points || 0,
             events_completed: 0,
           };
@@ -722,37 +723,25 @@ const TerminalWall = () => {
       // ── 2. Top Contributors ──
       let topUsers = [];
       if (timeFilter === "alltime") {
-        const { data: ptsData } = await supabase
-          .from("user_points")
-          .select("user_id, points")
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, user_id, username, full_name, avatar_url, points")
           .order("points", { ascending: false })
           .limit(20);
 
-        const uIds = (ptsData || []).map((p) => p.user_id).filter(Boolean);
-        let profMap = {};
-        if (uIds.length > 0) {
-          const { data: profs } = await supabase
-            .from("profiles")
-            .select("id, user_id, username, full_name, avatar_url")
-            .in("id", uIds);
-
-          (profs || []).forEach((p) => {
-            const uId = p.id || p.user_id;
-            if (uId) profMap[uId] = p;
+        topUsers = (profs || [])
+          .filter((p) => (p.points || 0) > 0)
+          .map((p) => {
+            const uid = p.id || p.user_id;
+            return {
+              user_id: uid,
+              full_name: p.full_name,
+              username: p.username || "Glitcher",
+              avatar_url: p.avatar_url,
+              points: p.points || 0,
+              total_score: p.points || 0,
+            };
           });
-        }
-
-        topUsers = (ptsData || []).map((row) => {
-          const prof = profMap[row.user_id];
-          return {
-            user_id: row.user_id,
-            full_name: prof?.full_name,
-            username: prof?.username || "Glitcher",
-            avatar_url: prof?.avatar_url,
-            points: row.points || 0,
-            total_score: row.points || 0,
-          };
-        });
       } else {
         // Weekly Top Contributors — points from glitch_activity ONLY.
         // Same double-counting bug as fetchLiveRankings: every challenge

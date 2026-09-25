@@ -18,6 +18,7 @@ import GlitchBackground from "./GlitchBackground";
 import SharedSidebar from "./SharedSidebar";
 import Footer from "./Footer";
 import { getLevelFromXP, fetchPoints } from "../utils/pointsHelper";
+import GlitchCertificateModal from "./ProRooms/GlitchCertificateModal";
 
 // ── Preset Banners Config ───────────────────────────────────────────────────
 const PRESET_BANNERS = [
@@ -320,6 +321,9 @@ export default function YourProfile() {
 
   const [userPosts, setUserPosts] = useState([]);
   const [solvedGlitches, setSolvedGlitches] = useState([]);
+  const [certificates, setCertificates] = useState([]);
+  const [selectedCert, setSelectedCert] = useState(null);
+  const [showCertModal, setShowCertModal] = useState(false);
   const [inspectModalItem, setInspectModalItem] = useState(null);
 
   const [solvedLimit, setSolvedLimit] = useState(4);
@@ -375,7 +379,7 @@ export default function YourProfile() {
       setAuthUser(userData?.user);
       if (!userId) return;
 
-      const [profileRes, totalPoints, postsRes, commentsRes, submissionsRes, activityRes] =
+      const [profileRes, totalPoints, postsRes, commentsRes, submissionsRes, activityRes, certsRes] =
         await Promise.all([
           supabase.from("profiles").select("*").eq("id", userId).single(),
           fetchPoints(userId),
@@ -399,7 +403,14 @@ export default function YourProfile() {
             .select("*")
             .eq("user_id", userId)
             .order("created_at", { ascending: false }),
+          supabase
+            .from("pro_room_certificates")
+            .select("*")
+            .eq("user_id", userId)
+            .order("issued_at", { ascending: false }),
         ]);
+
+      setCertificates(certsRes?.data || []);
 
       const pd = profileRes.data;
       const userMeta = userData?.user?.user_metadata;
@@ -1399,6 +1410,7 @@ export default function YourProfile() {
               {[
                 { id: "creations", label: "My Solved Glitches & Showcase", icon: FiCode },
                 { id: "community", label: "Forum Discussions", icon: FiMessageSquare },
+                { id: "certificates", label: `Certificates (${certificates.length})`, icon: FiAward },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.id;
@@ -1574,6 +1586,106 @@ export default function YourProfile() {
               )}
             </div>
           )}
+
+          {/* Tab 3: Verified Certificates */}
+          {activeTab === "certificates" && (
+            <div>
+              {certificates.length === 0 ? (
+                <div className="p-8 text-center bg-[#0d0d14] border border-white/10 rounded-2xl">
+                  <FiAward className="mx-auto text-amber-500/80 mb-3" size={32} />
+                  <h3 className="text-sm font-bold text-white mb-1">
+                    No Certificates Issued Yet
+                  </h3>
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto mb-4 leading-relaxed font-sans">
+                    Complete assessments and competitions in Pro Rooms to earn official verified certificates and credentials!
+                  </p>
+                  <a
+                    href="/pro-rooms"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#f59e0b] text-black hover:bg-[#d97706] transition shadow-md"
+                  >
+                    Explore Pro Rooms <ArrowRight size={13} />
+                  </a>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {certificates.map((cert) => {
+                    const rankColor =
+                      cert.rank === 1
+                        ? "#FFD700"
+                        : cert.rank === 2
+                        ? "#E2E8F0"
+                        : cert.rank === 3
+                        ? "#D97706"
+                        : "#00F0FF";
+                    const formattedDate = cert.issued_at
+                      ? new Date(cert.issued_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "Recently";
+
+                    return (
+                      <motion.div
+                        key={cert.id}
+                        whileHover={{ y: -2 }}
+                        className="p-4 rounded-2xl bg-[#0c0d16] border border-white/10 hover:border-amber-500/30 transition-all flex flex-col justify-between relative overflow-hidden group shadow-lg"
+                      >
+                        <div
+                          className="absolute -top-12 -right-12 w-28 h-28 rounded-full blur-2xl opacity-15 pointer-events-none"
+                          style={{ background: rankColor }}
+                        />
+
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <span
+                              className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider"
+                              style={{
+                                color: rankColor,
+                                background: `${rankColor}15`,
+                                border: `1px solid ${rankColor}35`,
+                              }}
+                            >
+                              {cert.rank ? `#${cert.rank} Rank` : cert.type?.toUpperCase()}
+                            </span>
+                            <span className="text-[11px] font-mono text-gray-500">
+                              {formattedDate}
+                            </span>
+                          </div>
+
+                          <h3 className="text-sm font-bold text-white mb-1 group-hover:text-amber-400 transition-colors line-clamp-1">
+                            {cert.event_name || "Pro Room Competition"}
+                          </h3>
+                          <p className="text-xs text-gray-400 mb-3 flex items-center gap-1.5 font-mono">
+                            <span className="text-gray-500">Issued by:</span>
+                            <span className="text-gray-300 font-semibold truncate">
+                              {cert.organization_name || "Glitch Room"}
+                            </span>
+                          </p>
+                        </div>
+
+                        <div className="pt-3 border-t border-white/5 flex items-center justify-between">
+                          <div className="text-[11px] font-mono text-gray-400">
+                            Score: <span className="text-white font-bold">{cert.score} pts</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedCert(cert);
+                              setShowCertModal(true);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-white font-mono text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                          >
+                            <FiAward size={13} />
+                            <span>View Certificate</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
 
@@ -1640,6 +1752,18 @@ export default function YourProfile() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Glitch Certificate Modal */}
+      {selectedCert && (
+        <GlitchCertificateModal
+          isOpen={showCertModal}
+          onClose={() => {
+            setShowCertModal(false);
+            setSelectedCert(null);
+          }}
+          certificate={selectedCert}
+        />
+      )}
 
       <Footer />
     </div>

@@ -255,8 +255,8 @@ const Console = () => {
         .order("created_at", { ascending: false })
         .limit(20),
       supabase
-        .from("user_points")
-        .select("user_id, points")
+        .from("profiles")
+        .select("id, points")
         .order("points", { ascending: false }),
       supabase
         .from("user_badges")
@@ -296,7 +296,7 @@ const Console = () => {
     setStreak(calcStreak(recentActivities));
 
     if (allUsersRes.data) {
-      const idx = allUsersRes.data.findIndex((u) => u.user_id === userId);
+      const idx = allUsersRes.data.findIndex((u) => (u.id || u.user_id) === userId);
       setRank(idx >= 0 ? `#${idx + 1}` : "—");
     }
 

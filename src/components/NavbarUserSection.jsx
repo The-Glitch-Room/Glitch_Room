@@ -9,6 +9,7 @@ import {
   FiLogOut,
   FiSettings,
   FiHelpCircle,
+  FiThumbsUp,
 } from "react-icons/fi";
 import { Zap } from "lucide-react";
 import { supabase } from "../supabaseClient";
@@ -18,6 +19,7 @@ const dropdownLinks = [
   { to: "/profile", icon: FiUser, label: "Your Profile" },
   { to: "/console", icon: FiGrid, label: "Console" },
   { to: "/terminal-wall", icon: FiTerminal, label: "Terminal Wall" },
+  { to: "/arena-voting", icon: FiThumbsUp, label: "Arena Voting Feed" },
   { to: "/earn-rules", icon: FiGift, label: "Earn gBits" },
   { to: "/settings", icon: FiSettings, label: "Settings" },
   { to: "/help", icon: FiHelpCircle, label: "Help & Support" },

@@ -59,6 +59,14 @@ const GameArena = () => {
               <Swords size={18} /> Enter Live Arena Events →
             </motion.button>
             <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate("/arena-voting")}
+              className="px-6 py-3.5 rounded-xl font-bold text-sm text-[#00F0FF] bg-[#00F0FF]/10 border border-[#00F0FF]/30 hover:border-[#00F0FF]/60 hover:bg-[#00F0FF]/20 flex items-center gap-2 cursor-pointer transition-all shadow-md"
+            >
+              <Users size={18} className="text-[#00F0FF]" /> Community Pitch Voting
+            </motion.button>
+            <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => navigate("/terminal-wall")}
@@ -190,9 +198,15 @@ const GameArena = () => {
                     </p>
                   </div>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans">
+                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-sans mb-4">
                   Craft your final solution pitch abiding by the Twist Card. Graded by AI + open to community voting!
                 </p>
+                <button
+                  onClick={() => navigate("/arena-voting")}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#FF00C8] hover:text-[#00F0FF] transition font-mono cursor-pointer"
+                >
+                  Browse & Vote on Pitches →
+                </button>
               </div>
             </motion.div>
           </div>

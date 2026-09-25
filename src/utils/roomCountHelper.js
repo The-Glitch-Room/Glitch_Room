@@ -182,3 +182,16 @@ export const fetchActiveRoomsStats = async () => {
     };
   }
 };
+
+/**
+ * Normalizes user-facing room status badge text across Creator Rooms and Pro Rooms.
+ */
+export const formatRoomBadgeStatus = (status) => {
+  const s = (status || "").toLowerCase().trim();
+  if (["active", "ongoing", "open", "in_progress"].includes(s)) return "Active";
+  if (["evaluating", "reviewing", "grading"].includes(s)) return "Evaluating";
+  if (["completed", "ended", "closed"].includes(s)) return "Completed";
+  if (["archived"].includes(s)) return "Archived";
+  if (["draft"].includes(s)) return "Draft";
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : "Active";
+};

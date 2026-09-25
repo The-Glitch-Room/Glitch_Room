@@ -11,6 +11,7 @@ import Button from "../Button";
 import PageHeading from "../PageHeading";
 import StatCard from "../StatCard";
 import { supabase } from "../../supabaseClient";
+import { useAuth } from "../AuthContext";
 
 const formatNumber = (n) => {
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
@@ -19,6 +20,7 @@ const formatNumber = (n) => {
 
 const CreatorRooms = () => {
   const navigate = useNavigate();
+  const { user, openAuth } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [myRoomIds, setMyRoomIds] = useState(new Set());
   const [totalCommittedBuilders, setTotalCommittedBuilders] = useState(0);
@@ -27,6 +29,14 @@ const CreatorRooms = () => {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(null);
   const [search, setSearch] = useState("");
+
+  const handleOpenCreateModal = () => {
+    if (!user) {
+      openAuth();
+      return;
+    }
+    setOpenModal(true);
+  };
 
   const fetchRooms = async () => {
     setLoading(true);
@@ -126,15 +136,19 @@ const CreatorRooms = () => {
       location.state?.openCreateModal ||
       location.search.includes("create=true")
     ) {
-      setOpenModal(true);
+      if (!user) {
+        openAuth();
+      } else {
+        setOpenModal(true);
+      }
     }
-  }, [location]);
+  }, [location, user]);
 
   const handleJoin = async (room) => {
     const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
-    if (!user) {
-      navigate("/");
+    const currentUser = userRes?.user || user;
+    if (!currentUser) {
+      openAuth();
       return;
     }
 
@@ -199,8 +213,11 @@ const CreatorRooms = () => {
 
   const handleCreateRoom = async (roomData) => {
     const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
-    if (!user) return;
+    const currentUser = userRes?.user || user;
+    if (!currentUser) {
+      openAuth();
+      return;
+    }
 
     try {
       // NOTE: CreateRoomModal builds its payload as nested objects
@@ -218,10 +235,10 @@ const CreatorRooms = () => {
         category: roomData.category || "General",
         cover_icon: roomData.cover_icon || "⚡",
         visibility: roomData.visibility || "Public",
-        created_by: user.id,
+        created_by: currentUser.id,
         host:
-          user.user_metadata?.full_name ||
-          user.email?.split("@")[0] ||
+          currentUser.user_metadata?.full_name ||
+          currentUser.email?.split("@")[0] ||
           "Creator",
         goal_pledge: roomData.goal_pledge,
         duration_type: roomData.duration_type,
@@ -470,7 +487,7 @@ const CreatorRooms = () => {
 
             <div
               className="flex justify-center"
-              onClick={() => setOpenModal(true)}
+              onClick={handleOpenCreateModal}
             >
               <Button
                 content="+ Start an Accountability Room"
@@ -520,7 +537,7 @@ const CreatorRooms = () => {
                 Be the first to create a goal-driven squad and invite peers to
                 stay consistent together!
               </p>
-              <div className="inline-block" onClick={() => setOpenModal(true)}>
+              <div className="inline-block" onClick={handleOpenCreateModal}>
                 <Button
                   content="+ Create an Accountability Room"
                   accent="purple"

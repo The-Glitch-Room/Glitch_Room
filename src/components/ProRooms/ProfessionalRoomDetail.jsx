@@ -85,8 +85,9 @@ const formatNotificationTimestamp = (input) => {
   return `${d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}, ${time}`;
 };
 
-const ProfessionalRoomDetail = () => {
-  const { id } = useParams();
+const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
+  const { id: paramId } = useParams();
+  const id = propRoomId || paramId;
   const navigate = useNavigate();
 
   // Database States
