@@ -451,7 +451,7 @@ const ArenaVotingFeed = () => {
       <Navbar />
 
       {/* Hero */}
-      <section className="relative pt-36 pb-12 px-6 text-center overflow-hidden">
+      <section className="relative pt-44 md:pt-52 pb-16 md:pb-20 px-6 text-center overflow-hidden">
         <div
           className="absolute inset-0 opacity-[0.06]"
           style={{
@@ -473,7 +473,7 @@ const ArenaVotingFeed = () => {
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-6 pb-24 w-full">
+      <section className="max-w-6xl mx-auto px-6 pb-24 w-full pt-4 md:pt-6">
         {!userId ? (
           <div className="text-center py-24 border border-dashed border-white/10 rounded-3xl">
             <p className="text-4xl mb-4">🔐</p>
