@@ -32,6 +32,7 @@ import GlitchBackground from "./GlitchBackground";
 import Footer from "./Footer";
 import ActivityHeatmap from "./ActivityHeatmap";
 import BadgesSection from "./BadgesSection";
+import { GlitchCertificateModal } from "./ProRooms/GlitchCertificateModal";
 import { getLevelFromXP, getLevelProgressDetails, fetchPoints } from "../utils/pointsHelper";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
@@ -217,6 +218,9 @@ const Console = () => {
   const [rank, setRank] = useState("—");
   const [streak, setStreak] = useState(0);
   const [earnedBadgesCount, setEarnedBadgesCount] = useState(0);
+  const [certificates, setCertificates] = useState([]);
+  const [selectedCert, setSelectedCert] = useState(null);
+  const [showCertModal, setShowCertModal] = useState(false);
   const [character, setCharacter] = useState(() => {
     try {
       const saved = localStorage.getItem("gr_character");
@@ -241,7 +245,7 @@ const Console = () => {
       return;
     }
 
-    const [profRes, totalPoints, recentRes, allUsersRes, badgesRes] = await Promise.all([
+    const [profRes, totalPoints, recentRes, allUsersRes, badgesRes, certsRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).single(),
       fetchPoints(userId),
       supabase
@@ -258,6 +262,11 @@ const Console = () => {
         .from("user_badges")
         .select("*", { count: "exact", head: true })
         .eq("user_id", userId),
+      supabase
+        .from("pro_room_certificates")
+        .select("*")
+        .eq("user_id", userId)
+        .order("issued_at", { ascending: false }),
     ]);
 
     const { monday, sunday } = getCurrentWeekRange();
@@ -280,6 +289,7 @@ const Console = () => {
     setProfile(profRes.data);
     setUserData({ points: totalPoints });
     setEarnedBadgesCount(badgesRes?.count || 0);
+    setCertificates(certsRes?.data || []);
 
     const recentActivities = recentRes.data || [];
     setActivities(recentActivities);
@@ -295,6 +305,11 @@ const Console = () => {
 
   useEffect(() => {
     fetchAll();
+
+    const handleSync = () => fetchAll();
+    window.addEventListener("points_updated", handleSync);
+    window.addEventListener("gbits_updated", handleSync);
+    window.addEventListener("certificates_updated", handleSync);
 
     let channel;
     supabase.auth.getUser().then(({ data: au }) => {
@@ -322,10 +337,23 @@ const Console = () => {
           },
           () => fetchAll(),
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "pro_room_certificates",
+            filter: `user_id=eq.${userId}`,
+          },
+          () => fetchAll(),
+        )
         .subscribe();
     });
 
     return () => {
+      window.removeEventListener("points_updated", handleSync);
+      window.removeEventListener("gbits_updated", handleSync);
+      window.removeEventListener("certificates_updated", handleSync);
       if (channel) supabase.removeChannel(channel);
     };
   }, []);
@@ -623,6 +651,121 @@ const Console = () => {
                 </TerminalWindow>
               </motion.div>
 
+              {/* ── Collected Certificates Section (certificates.sh) ── */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.34 }}
+                className="mb-5"
+              >
+                <TerminalWindow title="certificates.sh" accent="#00F0FF">
+                  <div className="flex items-center justify-between mb-4">
+                    <PromptLabel icon={Medal} color="#00F0FF">
+                      ./certificates --list
+                    </PromptLabel>
+                    {certificates.length > 0 && (
+                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF]">
+                        {certificates.length} Earned Credential{certificates.length > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+
+                  {certificates.length === 0 ? (
+                    <div className="text-center py-6 px-4 rounded-xl bg-white/[0.01] border border-white/5 space-y-2">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-gray-500">
+                        <Award size={20} />
+                      </div>
+                      <p className="text-xs font-bold text-gray-300 font-mono">
+                        No Certificates Earned Yet
+                      </p>
+                      <p className="text-[11px] text-gray-500 max-w-sm mx-auto leading-relaxed">
+                        Compete in Pro Arena assessments and qualify in top rankings or pass benchmarks to unlock verified cyber credentials.
+                      </p>
+                      <button
+                        onClick={() => navigate("/pro-rooms")}
+                        className="mt-2 px-4 py-1.5 rounded-xl bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 border border-[#00F0FF]/30 text-[#00F0FF] text-[11px] font-bold font-mono transition cursor-pointer"
+                      >
+                        Explore Pro Rooms →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {certificates.map((cert) => {
+                        const rankNum =
+                          cert.rank ||
+                          (cert.type === "winner" ? 1 : cert.type === "runner_up" ? 2 : cert.type === "top_3" ? 3 : 1);
+
+                        const badgeTitle =
+                          cert.type === "winner" || rankNum === 1
+                            ? "🥇 1st Place Winner"
+                            : cert.type === "runner_up" || rankNum === 2
+                            ? "🥈 2nd Place Runner-Up"
+                            : cert.type === "top_3" || rankNum === 3
+                            ? "🥉 3rd Place Podium"
+                            : "🎖️ Verified Finisher";
+
+                        const cardBorder =
+                          rankNum === 1
+                            ? "border-yellow-500/30 hover:border-yellow-500/60 bg-gradient-to-br from-yellow-500/10 via-[#0e0e18] to-transparent"
+                            : rankNum === 2
+                            ? "border-slate-300/30 hover:border-slate-300/60 bg-gradient-to-br from-slate-300/10 via-[#0e0e18] to-transparent"
+                            : rankNum === 3
+                            ? "border-amber-600/30 hover:border-amber-600/60 bg-gradient-to-br from-amber-600/10 via-[#0e0e18] to-transparent"
+                            : "border-[#00F0FF]/25 hover:border-[#00F0FF]/50 bg-gradient-to-br from-[#00F0FF]/10 via-[#0e0e18] to-transparent";
+
+                        return (
+                          <motion.div
+                            key={cert.id}
+                            whileHover={{ y: -2 }}
+                            className={`p-4 rounded-xl border transition-all shadow-lg flex flex-col justify-between ${cardBorder}`}
+                          >
+                            <div className="space-y-2.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono font-bold text-gray-200">
+                                  {badgeTitle}
+                                </span>
+                                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-cyan-300 font-bold">
+                                  {cert.score ?? 0} Pts
+                                </span>
+                              </div>
+
+                              <div>
+                                <h4 className="text-xs font-bold text-white truncate" title={cert.event_name}>
+                                  {cert.event_name || "Pro Arena Assessment"}
+                                </h4>
+                                <p className="text-[10px] text-gray-400 font-mono truncate mt-0.5">
+                                  ID: <span className="text-gray-300">{cert.certificate_number}</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="pt-3 mt-3 border-t border-white/5 flex items-center justify-between text-[10px]">
+                              <span className="text-gray-500 font-mono">
+                                {new Date(cert.issued_at || Date.now()).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setSelectedCert(cert);
+                                  setShowCertModal(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-[#00F0FF]/20 border border-white/10 hover:border-[#00F0FF]/40 text-cyan-300 hover:text-white font-mono text-[10px] font-bold transition cursor-pointer flex items-center gap-1"
+                              >
+                                <Award size={11} />
+                                <span>View Cert</span>
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </TerminalWindow>
+              </motion.div>
+
               {/* ── 365-Day Contribution Heatmap ── */}
               <div className="mb-5">
                 <TerminalWindow title="activity_heatmap.sh" accent="#00F0FF">
@@ -708,6 +851,15 @@ const Console = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* FULLSCREEN CERTIFICATE MODAL */}
+      <GlitchCertificateModal
+        isOpen={showCertModal}
+        onClose={() => setShowCertModal(false)}
+        certificate={selectedCert}
+        room={null}
+      />
+
       <Footer />
       </div>
     </div>
