@@ -2285,6 +2285,14 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                     className={`text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${
                       lifecycle.isLive
                         ? "bg-red-500/20 text-red-400 border-red-500/40 animate-pulse"
+                        : lifecycle.color === "emerald"
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                        : lifecycle.color === "purple"
+                        ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                        : lifecycle.color === "amber"
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                        : lifecycle.color === "gray"
+                        ? "bg-zinc-800/80 text-zinc-300 border-zinc-600/50"
                         : "bg-[#00F0FF]/15 text-[#00F0FF] border-[#00F0FF]/30"
                     }`}
                   >

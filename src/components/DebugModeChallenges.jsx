@@ -211,7 +211,7 @@ const DebugModeChallenges = () => {
                     {challenge.difficulty}
                   </span>
                   <button
-                    onClick={() => navigate(`/fixbug/${challenge.id}`)}
+                    onClick={() => navigate(`/fix-bug/${challenge.id}`)}
                     className="flex items-center gap-1.5 text-xs font-bold opacity-60 group-hover:opacity-100 transition-all cursor-pointer hover:gap-2.5"
                     style={{ color: COLOR }}
                   >

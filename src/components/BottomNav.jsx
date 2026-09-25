@@ -82,11 +82,14 @@ const MORE_ITEMS = [
 ];
 
 // ── More Sheet ────────────────────────────────────────────────────────────────
-const MoreSheet = ({ onClose, navigate }) => {
+const MoreSheet = ({ onClose, navigate, currentPath = "" }) => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/";
   };
+
+  const isCreatorActive = currentPath.startsWith("/creator-rooms");
+  const isProActive = currentPath.startsWith("/pro-rooms");
 
   return (
     <>
@@ -128,7 +131,7 @@ const MoreSheet = ({ onClose, navigate }) => {
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-white/5">
-          <h3 className="text-white font-black text-base">More</h3>
+          <h3 className="text-white font-black text-base">More Navigation</h3>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition cursor-pointer"
@@ -137,37 +140,83 @@ const MoreSheet = ({ onClose, navigate }) => {
           </button>
         </div>
 
+        {/* Quick Rooms Access Switcher */}
+        <div className="px-4 pt-3.5 pb-1">
+          <div className="p-1 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                navigate("/creator-rooms");
+                onClose();
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                isCreatorActive
+                  ? "bg-purple-600/30 text-purple-300 border border-purple-500/50 shadow-md shadow-purple-900/30"
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Users size={14} className={isCreatorActive ? "text-purple-300" : "text-purple-400"} />
+              <span>Creator Rooms</span>
+              {isCreatorActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+              )}
+            </button>
+            <button
+              onClick={() => {
+                navigate("/pro-rooms");
+                onClose();
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                isProActive
+                  ? "bg-blue-600/30 text-blue-300 border border-blue-500/50 shadow-md shadow-blue-900/30"
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <ShieldCheck size={14} className={isProActive ? "text-blue-300" : "text-blue-400"} />
+              <span>Pro Rooms</span>
+              {isProActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              )}
+            </button>
+          </div>
+        </div>
+
         {/* Grid of items */}
-        <div className="px-4 py-4 grid grid-cols-4 gap-3">
+        <div className="px-4 py-3.5 grid grid-cols-4 gap-2.5">
           {MORE_ITEMS.map((item, i) => {
             const Icon = item.icon;
+            const isItemActive = currentPath.startsWith(item.path);
             return (
               <motion.button
                 key={i}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.04 }}
+                transition={{ delay: i * 0.03 }}
                 whileTap={{ scale: 0.93 }}
                 onClick={() => {
                   navigate(item.path);
                   onClose();
                 }}
-                className="flex flex-col items-center gap-2 p-3 rounded-2xl cursor-pointer transition-all hover:bg-white/5"
+                className={`flex flex-col items-center gap-1.5 p-2.5 rounded-2xl cursor-pointer transition-all ${
+                  isItemActive ? "bg-white/10 ring-1 ring-[#00F0FF]/40" : "hover:bg-white/5"
+                }`}
                 style={{
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.06)",
+                  background: isItemActive ? "rgba(0,240,255,0.08)" : "rgba(255,255,255,0.03)",
+                  border: isItemActive ? "1px solid rgba(0,240,255,0.3)" : "1px solid rgba(255,255,255,0.06)",
                 }}
               >
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  className="relative w-9 h-9 rounded-xl flex items-center justify-center"
                   style={{
                     background: `${item.color}18`,
                     border: `1px solid ${item.color}30`,
                   }}
                 >
-                  <Icon size={18} style={{ color: item.color }} />
+                  <Icon size={17} style={{ color: item.color }} />
+                  {isItemActive && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00F0FF] shadow-sm shadow-[#00F0FF]" />
+                  )}
                 </div>
-                <span className="text-[10px] text-gray-400 font-semibold text-center leading-tight">
+                <span className={`text-[10px] text-center leading-tight ${isItemActive ? "text-white font-bold" : "text-gray-400 font-semibold"}`}>
                   {item.label}
                 </span>
               </motion.button>
@@ -210,6 +259,10 @@ const BottomNav = () => {
 
   if (location.pathname.startsWith("/admin")) return null;
 
+  const isMoreActive = MORE_ITEMS.some((m) =>
+    location.pathname.startsWith(m.path)
+  );
+
   const isActive = (path) => {
     if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
@@ -240,7 +293,9 @@ const BottomNav = () => {
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active =
-              item.path === "__more__" ? showMore : isActive(item.path);
+              item.path === "__more__"
+                ? showMore || isMoreActive
+                : isActive(item.path);
 
             return (
               <button
@@ -295,7 +350,11 @@ const BottomNav = () => {
       {/* More sheet */}
       <AnimatePresence>
         {showMore && (
-          <MoreSheet onClose={() => setShowMore(false)} navigate={navigate} />
+          <MoreSheet
+            onClose={() => setShowMore(false)}
+            navigate={navigate}
+            currentPath={location.pathname}
+          />
         )}
       </AnimatePresence>
     </>

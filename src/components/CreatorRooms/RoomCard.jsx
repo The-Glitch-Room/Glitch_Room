@@ -245,12 +245,12 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
           </span>
 
           {isCompleted ? (
-            <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 font-bold shrink-0">
+            <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800/80 border border-zinc-600/50 text-zinc-300 font-bold shrink-0">
               <CheckCircle size={13} /> Completed
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 font-bold shrink-0">
-              <Zap size={13} className="fill-amber-400/30" /> Active
+            <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-bold shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active
             </span>
           )}
         </div>

@@ -240,6 +240,10 @@ const ProRoomCard = ({ room, isRegistered, userRegStatus, isHost, onSelect }) =>
                   ? "bg-emerald-500/80 border-emerald-400 text-white"
                   : lifecycle.color === "purple"
                   ? "bg-purple-600/80 border-purple-400 text-white"
+                  : lifecycle.color === "amber"
+                  ? "bg-amber-500/80 border-amber-400 text-black font-extrabold"
+                  : lifecycle.color === "gray"
+                  ? "bg-zinc-800/90 border-zinc-600 text-zinc-300"
                   : "bg-cyan-500/80 border-cyan-400 text-white"
               }`}
             >
