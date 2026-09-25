@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { getCanonicalUser, getFallbackAvatar } from "../utils/userProfileHelper";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 import PageHeading from "./PageHeading";
@@ -31,25 +32,18 @@ const getWeekStart = () => {
 };
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
-const Avatar = ({ url, name }) => {
-  const initials = (name || "?").slice(0, 2).toUpperCase();
-  return url ? (
+const Avatar = ({ url, name, username }) => {
+  const fallbackUrl = getFallbackAvatar(username || name || "glitcher");
+  return (
     <img
-      src={url}
-      alt={name}
+      src={url || fallbackUrl}
+      alt={name || username || "avatar"}
+      onError={(e) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.src = fallbackUrl;
+      }}
       className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10 shrink-0"
     />
-  ) : (
-    <div
-      className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ring-1 ring-white/10"
-      style={{
-        background:
-          "linear-gradient(135deg,rgba(0,240,255,0.15),rgba(255,0,200,0.15))",
-        color: "#00F0FF",
-      }}
-    >
-      {initials}
-    </div>
   );
 };
 
@@ -59,10 +53,8 @@ const PitchCard = ({ submission, userId, myReaction, onReact, index }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [reacting, setReacting] = useState(false);
 
-  const name =
-    submission.profiles?.username ||
-    submission.profiles?.full_name ||
-    "Anonymous";
+  const author = submission.profiles || getCanonicalUser({}, submission.user_id);
+  const name = author.full_name || author.username || "Anonymous";
 
   const pitch = submission.pitch_text || "";
   const isLong = pitch.length > 200;
@@ -101,7 +93,11 @@ const PitchCard = ({ submission, userId, myReaction, onReact, index }) => {
 
       {/* Header: avatar + name + time */}
       <div className="flex items-center gap-3 mb-4">
-        <Avatar url={submission.profiles?.avatar_url} name={name} />
+        <Avatar
+          url={author.avatar_url}
+          name={author.full_name}
+          username={author.username}
+        />
         <div className="flex-1 min-w-0">
           <p className="text-white text-sm font-bold truncate">{name}</p>
           <p className="text-gray-600 text-[10px]">
@@ -354,10 +350,11 @@ const ArenaVotingFeed = () => {
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, username, full_name, avatar_url")
+        .select("id, user_id, username, full_name, avatar_url")
         .in("id", userIds);
       (profiles || []).forEach((p) => {
-        profileMap[p.id] = p;
+        const uId = p.id || p.user_id;
+        if (uId) profileMap[uId] = getCanonicalUser(p, uId);
       });
     }
 

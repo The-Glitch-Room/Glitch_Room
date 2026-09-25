@@ -6,6 +6,7 @@ import Footer from "./Footer";
 import PageHeading from "./PageHeading";
 import GlitchBackground from "./GlitchBackground";
 import { supabase } from "../supabaseClient";
+import { getCanonicalUser, getFallbackAvatar } from "../utils/userProfileHelper";
 import { FaMedal, FaCrown, FaBolt, FaFire } from "react-icons/fa";
 import { FiClock, FiZap, FiAward, FiUsers } from "react-icons/fi";
 
@@ -72,6 +73,23 @@ const PromptLabel = ({ icon: Icon, children, color = "#00F0FF" }) => (
   </div>
 );
 
+// ── Canonical Avatar Component (Used across all Podium and List views) ──────
+const Avatar = ({ url, name, username, size = 10, className = "" }) => {
+  const fallbackUrl = getFallbackAvatar(username || name || "glitcher");
+  return (
+    <img
+      src={url || fallbackUrl}
+      alt={name || username || "avatar"}
+      onError={(e) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.src = fallbackUrl;
+      }}
+      className={`w-${size} h-${size} rounded-full object-cover shrink-0 ${className}`}
+      style={{ border: "2px solid rgba(255,255,255,0.08)" }}
+    />
+  );
+};
+
 // ── Top 3 Podium (Live Rankings tab) ──────────────────────────────────────────
 const Podium = ({ top3 }) => {
   const order = [top3[1], top3[0], top3[2]].filter(Boolean);
@@ -93,17 +111,16 @@ const Podium = ({ top3 }) => {
       {order.map((entry, i) => (
         <div key={entry.user_id} className="flex flex-col items-center gap-3">
           <div className="relative">
-            <img
-              src={
-                entry.avatar_url ||
-                `https://api.dicebear.com/7.x/identicon/svg?seed=${entry.username}`
-              }
-              alt={entry.username}
-              className={`w-14 h-14 rounded-full border-2 object-cover ${
+            <Avatar
+              url={entry.avatar_url}
+              name={entry.full_name}
+              username={entry.username}
+              size={14}
+              className={
                 i === 1
-                  ? "border-yellow-400 ring-2 ring-yellow-400/30"
-                  : "border-white/20"
-              }`}
+                  ? "border-2 border-yellow-400 ring-2 ring-yellow-400/30"
+                  : "border-2 border-white/20"
+              }
             />
             {i === 1 && (
               <FaCrown className="absolute -top-4 left-1/2 -translate-x-1/2 text-yellow-400 text-xl" />
@@ -111,8 +128,8 @@ const Podium = ({ top3 }) => {
           </div>
 
           <div className="text-center">
-            <p className="text-white text-xs font-bold truncate max-w-[80px] font-mono">
-              {entry.username}
+            <p className="text-white text-xs font-bold truncate max-w-[100px] font-mono">
+              {entry.full_name || entry.username}
             </p>
             <p className="text-cyan-400 text-xs font-semibold mt-0.5 font-mono">
               {entry.total_score} gBits
@@ -183,34 +200,6 @@ const RankBadge = ({ rank }) => {
   );
 };
 
-const Avatar = ({ url, name, size = 10 }) => {
-  const initials = (name || "?")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-  return url ? (
-    <img
-      src={url}
-      alt={name}
-      className={`w-${size} h-${size} rounded-full object-cover`}
-      style={{ border: "2px solid rgba(255,255,255,0.08)" }}
-    />
-  ) : (
-    <div
-      className={`w-${size} h-${size} rounded-full flex items-center justify-center text-xs font-black`}
-      style={{
-        background: "linear-gradient(135deg,#00F0FF22,#FF00C822)",
-        border: "2px solid rgba(255,255,255,0.08)",
-        color: "#00F0FF",
-      }}
-    >
-      {initials}
-    </div>
-  );
-};
-
 const LegendsPodium = ({ entries, metricLabel = "gBits" }) => {
   if (!entries || entries.length < 1) return null;
   const [first, second, third] = entries;
@@ -229,7 +218,8 @@ const LegendsPodium = ({ entries, metricLabel = "gBits" }) => {
       >
         <Avatar
           url={entry.avatar_url}
-          name={entry.full_name || entry.username}
+          name={entry.full_name}
+          username={entry.username}
           size={rank === 1 ? 14 : 10}
         />
         <p className="text-white font-bold text-sm mt-2 text-center truncate w-full px-1">
@@ -311,16 +301,17 @@ const LegendRow = ({ entry, rank, index, metric, metricLabel }) => {
       <RankBadge rank={rank} />
       <Avatar
         url={entry.avatar_url}
-        name={entry.full_name || entry.username}
+        name={entry.full_name}
+        username={entry.username}
         size={9}
       />
       <div className="flex-1 min-w-0">
         <p className="text-white font-bold text-sm truncate">
-          {entry.full_name || entry.username || "Anonymous"}
+          {entry.full_name || entry.username}
         </p>
-        {entry.username && (
-          <p className="text-gray-600 text-xs font-mono">@{entry.username}</p>
-        )}
+        <p className="text-gray-600 text-xs font-mono">
+          @{entry.username}
+        </p>
       </div>
 
       <div className="text-right shrink-0">
@@ -471,15 +462,19 @@ const TerminalWall = () => {
         // below still leaves plenty of rows for the top-50 slice.
         const { data: userPts } = await supabase
           .from("profiles")
-          .select("id, user_id, points")
+          .select("id, user_id, username, full_name, avatar_url, points")
           .order("points", { ascending: false })
           .limit(100);
 
         (userPts || []).forEach((row) => {
           const uid = row.id || row.user_id;
           if (!uid || (row.points || 0) <= 0) return;
+          const canonical = getCanonicalUser(row, uid);
           map[uid] = {
             user_id: uid,
+            username: canonical.username,
+            full_name: canonical.full_name,
+            avatar_url: canonical.avatar_url,
             total_score: row.points || 0,
             events_completed: 0,
           };
@@ -620,12 +615,18 @@ const TerminalWall = () => {
           .select("id, user_id, username, full_name, avatar_url")
           .in("id", userIds);
 
+        const profMap = {};
         (profs || []).forEach((p) => {
           const uId = p.id || p.user_id;
-          if (uId && map[uId]) {
-            map[uId].username = p.username || p.full_name || "Anonymous";
-            map[uId].full_name = p.full_name || "";
-            map[uId].avatar_url = p.avatar_url || null;
+          if (uId) profMap[uId] = p;
+        });
+
+        userIds.forEach((uId) => {
+          if (map[uId]) {
+            const canonical = getCanonicalUser(profMap[uId] || {}, uId);
+            map[uId].username = canonical.username;
+            map[uId].full_name = canonical.full_name;
+            map[uId].avatar_url = canonical.avatar_url;
           }
         });
       }
@@ -696,13 +697,13 @@ const TerminalWall = () => {
       const arenaMap = {};
       (arenaRaw || []).forEach((row) => {
         const uid = row.user_id;
-        const prof = arenaProfilesMap[uid];
+        const canonical = getCanonicalUser(arenaProfilesMap[uid] || {}, uid);
         if (!arenaMap[uid]) {
           arenaMap[uid] = {
             user_id: uid,
-            full_name: prof?.full_name,
-            username: prof?.username,
-            avatar_url: prof?.avatar_url,
+            full_name: canonical.full_name,
+            username: canonical.username,
+            avatar_url: canonical.avatar_url,
             total_score: 0,
             completions: 0,
           };
@@ -733,11 +734,12 @@ const TerminalWall = () => {
           .filter((p) => (p.points || 0) > 0)
           .map((p) => {
             const uid = p.id || p.user_id;
+            const canonical = getCanonicalUser(p, uid);
             return {
               user_id: uid,
-              full_name: p.full_name,
-              username: p.username || "Glitcher",
-              avatar_url: p.avatar_url,
+              full_name: canonical.full_name,
+              username: canonical.username,
+              avatar_url: canonical.avatar_url,
               points: p.points || 0,
               total_score: p.points || 0,
             };
@@ -784,12 +786,12 @@ const TerminalWall = () => {
 
         topUsers = Object.entries(weeklyMap)
           .map(([uid, score]) => {
-            const prof = profMap[uid];
+            const canonical = getCanonicalUser(profMap[uid] || {}, uid);
             return {
               user_id: uid,
-              full_name: prof?.full_name,
-              username: prof?.username || "Glitcher",
-              avatar_url: prof?.avatar_url,
+              full_name: canonical.full_name,
+              username: canonical.username,
+              avatar_url: canonical.avatar_url,
               points: score,
               total_score: score,
             };
@@ -936,13 +938,12 @@ const TerminalWall = () => {
                                 {rankIcon(rank)}
                               </div>
 
-                              <img
-                                src={
-                                  entry.avatar_url ||
-                                  `https://api.dicebear.com/7.x/identicon/svg?seed=${entry.username}`
-                                }
-                                alt={entry.username}
-                                className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0"
+                              <Avatar
+                                url={entry.avatar_url}
+                                name={entry.full_name}
+                                username={entry.username}
+                                size={9}
+                                className="border border-white/10 shrink-0"
                               />
 
                               <div className="min-w-0">
