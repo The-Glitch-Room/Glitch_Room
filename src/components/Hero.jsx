@@ -17,6 +17,7 @@ const Hero = () => {
     creators: 0,
     challenges: 0,
     roomsActive: 0,
+    roomsHosted: 0,
   });
 
   const fetchStats = async () => {
@@ -56,18 +57,27 @@ const Hero = () => {
     // 2. Dynamically calculate combined total challenges across Explore + Arena
     const totalChallenges = await fetchTotalChallengeCount();
 
-    // 3. Dynamic total active rooms count across Creator Rooms + Pro Rooms combined
+    // 3. Dynamic total active and hosted rooms count across Creator Rooms + Pro Rooms combined
     const roomStats = await fetchActiveRoomsStats();
 
     setStats({
       creators: totalCreators,
       challenges: totalChallenges,
       roomsActive: roomStats.totalActiveRooms,
+      roomsHosted: roomStats.totalHostedRooms,
     });
   };
 
   useEffect(() => {
     fetchStats();
+
+    // Periodic check (every 30s) to automatically transition time-based expirations
+    const interval = setInterval(() => {
+      fetchStats();
+    }, 30000);
+
+    const handleFocus = () => fetchStats();
+    window.addEventListener("focus", handleFocus);
 
     const roomsChannel = supabase
       .channel("hero-rooms")
@@ -97,6 +107,8 @@ const Hero = () => {
       .subscribe();
 
     return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
       supabase.removeChannel(roomsChannel);
       supabase.removeChannel(proRoomsChannel);
       supabase.removeChannel(profilesChannel);
@@ -114,6 +126,11 @@ const Hero = () => {
       value: formatNumber(stats.roomsActive),
       label: "Rooms Active",
       accent: "purple",
+    },
+    {
+      value: formatNumber(stats.roomsHosted),
+      label: "Rooms Hosted",
+      accent: "gold",
     },
   ];
 
@@ -175,7 +192,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.2, duration: 0.8 }}
-          className="relative z-10 mt-10 grid grid-cols-3 gap-2.5 sm:gap-4 w-full max-w-xl mx-auto"
+          className="relative z-10 mt-10 grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 w-full max-w-2xl sm:max-w-3xl mx-auto"
         >
           {statItems.map((stat, i) => (
             <StatCard
