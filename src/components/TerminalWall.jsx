@@ -816,16 +816,21 @@ const TerminalWall = () => {
       <Navbar />
 
       <div className="relative z-10 flex-1 flex flex-col">
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-36 sm:pt-40 pb-16 flex-1 w-full">
-          {/* Header */}
-          <div className="mb-10 text-center">
+        {/* HERO HEADER SECTION (Matching The Glitch Lounge Spacing & Structure) */}
+        <section className="relative pt-36 md:pt-44 pb-6 px-6 text-center">
+          <div className="max-w-4xl mx-auto">
             <PageHeading
-              badge="Terminal Wall"
+              eyebrow="TERMINAL WALL"
               title="Rankings & Legends"
-              description="Real-time leaderboard & all-time hall of fame of top Glitch Room contributors."
+              subtitle="Real-time leaderboard & all-time hall of fame of top Glitch Room contributors."
+              align="center"
+              accent="cyan"
+              size="xl"
             />
           </div>
+        </section>
 
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 flex-1 w-full">
           {/* Sub-nav switcher: Live Rankings vs All-Time Legends */}
           <div className="flex items-center justify-center gap-3 mb-10">
             <button

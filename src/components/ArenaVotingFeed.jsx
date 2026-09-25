@@ -450,8 +450,8 @@ const ArenaVotingFeed = () => {
     <div className="min-h-screen bg-[#080810] text-white flex flex-col">
       <Navbar />
 
-      {/* Hero */}
-      <section className="relative pt-44 md:pt-52 pb-16 md:pb-20 px-6 text-center overflow-hidden">
+      {/* Hero (Matching The Glitch Lounge Spacing & Structure) */}
+      <section className="relative pt-36 md:pt-44 pb-6 px-6 text-center overflow-hidden">
         <div
           className="absolute inset-0 opacity-[0.06]"
           style={{
@@ -462,18 +462,19 @@ const ArenaVotingFeed = () => {
         />
         <div className="absolute top-16 left-1/2 -translate-x-1/2 w-[500px] h-[200px] bg-cyan-500/8 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-3xl mx-auto">
+        <div className="relative z-10 max-w-4xl mx-auto">
           <PageHeading
-            eyebrow="🗳️ Community Pitches"
+            eyebrow="COMMUNITY PITCHES"
             title="How Others Solved It"
             subtitle="You solved it your way. Now see how everyone else approached the same challenge. React with emojis, discover new methods, and level up your thinking."
+            align="center"
             accent="cyan"
             size="xl"
           />
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-6 pb-24 w-full pt-4 md:pt-6">
+      <section className="max-w-6xl mx-auto px-6 pb-24 w-full">
         {!userId ? (
           <div className="text-center py-24 border border-dashed border-white/10 rounded-3xl">
             <p className="text-4xl mb-4">🔐</p>
