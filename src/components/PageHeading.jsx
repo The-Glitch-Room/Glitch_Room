@@ -30,9 +30,9 @@ const PageHeading = ({
 
   // Tuned sizes: balanced between old huge sizes and recent tiny sizes
   const sizeClass = {
-    md: "text-2xl md:text-3xl",
-    lg: "text-3xl md:text-4xl",
-    xl: "text-4xl md:text-5xl",
+    md: "text-xl sm:text-2xl md:text-3xl",
+    lg: "text-2xl sm:text-3xl md:text-4xl",
+    xl: "text-3xl sm:text-4xl md:text-5xl",
   }[size];
 
   const titleEl = (

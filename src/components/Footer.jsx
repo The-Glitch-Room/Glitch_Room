@@ -60,7 +60,7 @@ const Footer = () => {
         }}
       />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-16 pb-12">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-12 sm:pt-16 pb-24 md:pb-12">
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-14 pb-12 border-b border-white/10">
           {/* Brand Column (5 cols) */}

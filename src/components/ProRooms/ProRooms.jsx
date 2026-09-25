@@ -258,7 +258,7 @@ const ProRooms = () => {
         <Navbar />
 
         {/* ── HERO HEADER ── */}
-        <section className="relative pt-36 md:pt-44 pb-12 px-6 mb-8 md:mb-12 text-center">
+        <section className="relative pt-36 md:pt-44 pb-12 px-4 sm:px-6 mb-8 md:mb-12 text-center">
           <div className="relative z-10 max-w-4xl mx-auto text-center">
             <PageHeading
               eyebrow="COMPETE • EVALUATE • PROVE"
@@ -269,7 +269,7 @@ const ProRooms = () => {
             />
 
             {/* Dynamic Hero Stats */}
-            <div className="flex justify-center gap-10 flex-wrap my-8">
+            <div className="flex justify-center gap-4 sm:gap-10 flex-wrap my-8">
               {statItems.map((s, i) => (
                 <StatCard
                   key={i}
@@ -302,7 +302,7 @@ const ProRooms = () => {
         </section>
 
         {/* ── SEARCH & DROPDOWN FILTERS CONTAINER ── */}
-        <section className="max-w-6xl mx-auto px-6 w-full mb-8">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 w-full mb-8">
           <div className="bg-[#0c0c16]/80 backdrop-blur-md border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl">
             {/* SEARCH & DROPDOWN FILTERS */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">

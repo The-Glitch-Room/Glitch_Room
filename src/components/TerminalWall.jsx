@@ -834,10 +834,10 @@ const TerminalWall = () => {
 
         <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 flex-1 w-full">
           {/* Sub-nav switcher: Live Rankings vs All-Time Legends */}
-          <div className="flex items-center justify-center gap-3 mb-10">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-10 flex-wrap">
             <button
               onClick={() => setView("live")}
-              className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-mono font-bold transition cursor-pointer border ${
+              className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl text-xs font-mono font-bold transition cursor-pointer border ${
                 view === "live"
                   ? "bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40 shadow-[0_0_20px_rgba(0,240,255,0.2)]"
                   : "bg-[#0c0c14] text-gray-500 border-white/5 hover:text-gray-300"
@@ -849,7 +849,7 @@ const TerminalWall = () => {
 
             <button
               onClick={() => setView("legends")}
-              className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-mono font-bold transition cursor-pointer border ${
+              className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl text-xs font-mono font-bold transition cursor-pointer border ${
                 view === "legends"
                   ? "bg-amber-500/10 text-amber-400 border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
                   : "bg-[#0c0c14] text-gray-500 border-white/5 hover:text-gray-300"
@@ -872,7 +872,7 @@ const TerminalWall = () => {
               className="max-w-6xl mx-auto px-4 sm:px-6 pb-20 w-full"
             >
               {/* Filter pills */}
-              <div className="flex justify-center gap-2 mb-8">
+              <div className="flex justify-center gap-2 mb-8 flex-wrap">
                 {[
                   { id: "all", label: "All Time", icon: FiAward },
                   { id: "weekly", label: "This Week", icon: FiClock },
@@ -983,7 +983,7 @@ const TerminalWall = () => {
             >
               {/* Category tabs */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap justify-center">
                   {[
                     { id: "arena", label: "Arena Champions", icon: FaBolt },
                     { id: "users", label: "Top Contributors", icon: FaFire },
@@ -994,7 +994,7 @@ const TerminalWall = () => {
                       <button
                         key={t.id}
                         onClick={() => setLegendsTab(t.id)}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-mono font-bold transition cursor-pointer border ${
+                        className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-mono font-bold transition cursor-pointer border ${
                           active
                             ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
                             : "bg-[#0f0f13] text-gray-500 border-white/5 hover:text-gray-300"

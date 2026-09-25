@@ -448,7 +448,7 @@ const ArenaVotingFeed = () => {
       <Navbar />
 
       {/* Hero (Matching The Glitch Lounge Spacing & Structure) */}
-      <section className="relative pt-36 md:pt-44 pb-6 px-6 text-center overflow-hidden">
+      <section className="relative pt-36 md:pt-44 pb-6 px-4 sm:px-6 text-center overflow-hidden">
         <div
           className="absolute inset-0 opacity-[0.06]"
           style={{
@@ -471,7 +471,7 @@ const ArenaVotingFeed = () => {
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-6 pb-24 w-full">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 w-full">
         {!userId ? (
           <div className="text-center py-24 border border-dashed border-white/10 rounded-3xl">
             <p className="text-4xl mb-4">🔐</p>
