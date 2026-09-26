@@ -322,18 +322,34 @@ const ProRoomAssessment = () => {
     };
   }, [id]);
 
+  // Absolute deadline ref to prevent timer drift on backgrounded / throttled tabs
+  const endTimeMsRef = useRef(null);
+
+  // Drift-proof timer synchronization based on absolute deadline
+  const syncTimerCountdown = () => {
+    if (!endTimeMsRef.current) return;
+    const remaining = Math.max(0, Math.ceil((endTimeMsRef.current - Date.now()) / 1000));
+    setTimeLeftSeconds(remaining);
+  };
+
   // Timer Countdown
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeLeftSeconds((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
+    const interval = setInterval(syncTimerCountdown, 1000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === "visible") {
+        syncTimerCountdown();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+    };
   }, []);
 
   // Auto-submit on timer expiry.
@@ -462,6 +478,7 @@ const ProRoomAssessment = () => {
       const durationMinutes = roomData?.duration_minutes || 120;
 
       if (isHostUser) {
+        endTimeMsRef.current = Date.now() + durationMinutes * 60 * 1000;
         setTimeLeftSeconds(durationMinutes * 60);
         setAnswersHydrated(true);
         setLoading(false);
@@ -484,11 +501,13 @@ const ProRoomAssessment = () => {
         }
 
         if (existingSub.started_at) {
-          const elapsedSec = Math.floor(
-            (Date.now() - new Date(existingSub.started_at).getTime()) / 1000,
-          );
-          setTimeLeftSeconds(Math.max(0, durationMinutes * 60 - elapsedSec));
+          const deadlineMs =
+            new Date(existingSub.started_at).getTime() + durationMinutes * 60 * 1000;
+          endTimeMsRef.current = deadlineMs;
+          const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+          setTimeLeftSeconds(remaining);
         } else {
+          endTimeMsRef.current = Date.now() + durationMinutes * 60 * 1000;
           setTimeLeftSeconds(durationMinutes * 60);
         }
 
@@ -553,6 +572,7 @@ const ProRoomAssessment = () => {
           }
         } catch (e) {}
 
+        endTimeMsRef.current = Date.now() + durationMinutes * 60 * 1000;
         setTimeLeftSeconds(durationMinutes * 60);
       }
 

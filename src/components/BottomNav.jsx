@@ -257,7 +257,10 @@ const BottomNav = () => {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
 
-  if (location.pathname.startsWith("/admin")) return null;
+  if (
+    location.pathname.startsWith("/admin") ||
+    location.pathname.includes("/assessment")
+  ) return null;
 
   const isMoreActive = MORE_ITEMS.some((m) =>
     location.pathname.startsWith(m.path)

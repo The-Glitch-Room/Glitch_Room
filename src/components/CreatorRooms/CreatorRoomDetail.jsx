@@ -3817,11 +3817,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                             </span>
                           ) : (
                             <button
-                              disabled={pairingBuddy}
-                              onClick={() => handlePairBuddyWithUser(m.user_id)}
+                              disabled={pairingBuddyId === m.user_id}
+                              onClick={() => handleSendPairRequest(m.user_id)}
                               className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-[11px] font-bold transition cursor-pointer"
                             >
-                              {pairingBuddy ? "Pairing..." : "Pair Buddy"}
+                              {pairingBuddyId === m.user_id ? "Pairing..." : "Pair Buddy"}
                             </button>
                           )}
                         </div>
@@ -4067,7 +4067,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                 </button>
                 <button
                   onClick={() => {
-                    toast.success("Notification preferences saved");
+                    showToast("Notification preferences saved");
                     setShowEmailPrefsModal(false);
                   }}
                   className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition cursor-pointer"

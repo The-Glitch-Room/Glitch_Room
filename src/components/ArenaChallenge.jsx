@@ -359,7 +359,7 @@ const Stage1 = ({ event, onComplete }) => {
     } catch (err) {
       console.error("AI feedback error:", err);
       setError("Couldn't load AI feedback right now. You can still continue.");
-      setTimeout(() => onComplete(0), 1500);
+      setTimeout(() => onComplete(0, answer), 1500);
     } finally {
       setLoading(false);
     }
@@ -471,7 +471,7 @@ const Stage1 = ({ event, onComplete }) => {
           </div>
           <AIFeedbackPanel
             feedback={feedback}
-            onContinue={() => onComplete(feedback?.score || 0)}
+            onContinue={() => onComplete(feedback?.score || 0, answer)}
             buttonLabel="Got it — Move to Stage 2 →"
           />
         </>
@@ -1158,6 +1158,7 @@ const ArenaChallenge = () => {
   const [completedAt, setCompletedAt] = useState(null);
   const [retrying, setRetrying] = useState(false);
   const [stage1Score, setStage1Score] = useState(0);
+  const [stage1Answer, setStage1Answer] = useState("");
   const [stage3Score, setStage3Score] = useState(0);
   const [earnedArenaXP, setEarnedArenaXP] = useState(0);
 
@@ -1203,8 +1204,9 @@ const ArenaChallenge = () => {
     fetchEvent();
   }, [eventId]);
 
-  const handleStage1Complete = (score = 0) => {
+  const handleStage1Complete = (score = 0, answerText = "") => {
     setStage1Score(score);
+    if (answerText) setStage1Answer(answerText);
     setCurrentStage(2);
   };
 

@@ -674,8 +674,8 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
           const isPub = currentRoom?.status === "results_published" || Boolean(currentRoom?.rewards_distributed) || isResultsPublished;
           if (finalCerts.length === 0 && sub && isPub) {
             let userRank = sub.rank;
-            if (!userRank && leaderboardData && leaderboardData.length > 0) {
-              const lbEntry = leaderboardData.find((l) => l.user_id === uid);
+            if (!userRank && leaderboard && leaderboard.length > 0) {
+              const lbEntry = leaderboard.find((l) => l.user_id === uid);
               if (lbEntry?.rank) userRank = lbEntry.rank;
             }
             if (!userRank) userRank = 1;
@@ -1039,8 +1039,8 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         content: insertedDisc.content || contentText,
         profiles: authorProf || {
           id: userId,
-          full_name: currentUserProfile?.full_name || "You",
-          username: currentUserProfile?.username || "You",
+          full_name: "You",
+          username: "You",
         },
         replies: [],
       };

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -8,53 +8,62 @@ import {
 } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider, useAuth } from "./components/AuthContext";
-import { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 
+// Core static components
 import Home from "./components/Home";
-import About from "./components/About";
-import Explore from "./components/Explore";
-import Process from "./components/Process";
-import Features from "./components/Features";
-import HelpCenter from "./components/HelpCenter";
 import ScrollToHashElement from "./components/ScrollToHashElement";
-import GlitchesChallenges from "./components/GlitchesChallenges";
-import CreativeSparksChallenges from "./components/CreativeSparksChallenges";
-import AIPoweredChallenge from "./components/AIPoweredChallenge";
-import DebugModeChallenges from "./components/DebugModeChallenges";
-import Console from "./components/Console";
-import JoinRoom from "./components/JoinRoom";
-import HostRoom from "./components/HostRoom";
-import FixGlitch from "./components/FixGlitch";
-import GameArena from "./components/GameArena";
-import ResetPassword from "./components/ResetPassword";
-import YourProfile from "./components/YourProfile";
-import HelpPage from "./components/HelpPage";
-import Settings from "./components/Settings";
-import FixBug from "./components/FixBug";
-import CreatorRooms from "./components/CreatorRooms/CreatorRooms";
-import ErrorBoundary from "./components/ErrorBoundary";
-import ProRooms from "./components/ProRooms/ProRooms";
-import CreateProRoomPage from "./components/ProRooms/CreateProRoomPage";
-import ProfessionalRoomDetail from "./components/ProRooms/ProfessionalRoomDetail";
-import ProRoomAssessment from "./components/ProRooms/ProRoomAssessment";
-import ProRoomDashboard from "./components/ProRooms/ProRoomDashboard";
-import FixCreativeSpark from "./components/FixCreativeSpark";
-import FixAIChallenge from "./components/FixAIChallenge";
-import ArenaEvents from "./components/ArenaEvents";
-import ArenaChallenge from "./components/ArenaChallenge";
-import TerminalWall from "./components/TerminalWall";
-import Community from "./components/Community";
-import CommunityPost from "./components/CommunityPost";
-import RoomDetail from "./components/CreatorRooms/RoomDetail";
 import SplashScreen from "./components/SplashScreen";
-import NotFound from "./components/NotFound";
 import BottomNav from "./components/BottomNav";
-import ArenaVotingFeed from "./components/ArenaVotingFeed";
 import DailyFactBubble from "./components/DailyFactBubble";
-import AdminDashboard from "./components/AdminDashboard";
-import EarnRules from "./components/EarnRules";
 import GBitsToast from "./components/GBitsToast";
+import ErrorBoundary from "./components/ErrorBoundary";
+
+// Code-split dynamic routes for optimal bundle performance
+const About = lazy(() => import("./components/About"));
+const Explore = lazy(() => import("./components/Explore"));
+const Process = lazy(() => import("./components/Process"));
+const Features = lazy(() => import("./components/Features"));
+const HelpCenter = lazy(() => import("./components/HelpCenter"));
+const GlitchesChallenges = lazy(() => import("./components/GlitchesChallenges"));
+const CreativeSparksChallenges = lazy(() => import("./components/CreativeSparksChallenges"));
+const AIPoweredChallenge = lazy(() => import("./components/AIPoweredChallenge"));
+const DebugModeChallenges = lazy(() => import("./components/DebugModeChallenges"));
+const Console = lazy(() => import("./components/Console"));
+const JoinRoom = lazy(() => import("./components/JoinRoom"));
+const HostRoom = lazy(() => import("./components/HostRoom"));
+const FixGlitch = lazy(() => import("./components/FixGlitch"));
+const GameArena = lazy(() => import("./components/GameArena"));
+const ResetPassword = lazy(() => import("./components/ResetPassword"));
+const YourProfile = lazy(() => import("./components/YourProfile"));
+const HelpPage = lazy(() => import("./components/HelpPage"));
+const Settings = lazy(() => import("./components/Settings"));
+const FixBug = lazy(() => import("./components/FixBug"));
+const CreatorRooms = lazy(() => import("./components/CreatorRooms/CreatorRooms"));
+const ProRooms = lazy(() => import("./components/ProRooms/ProRooms"));
+const CreateProRoomPage = lazy(() => import("./components/ProRooms/CreateProRoomPage"));
+const ProfessionalRoomDetail = lazy(() => import("./components/ProRooms/ProfessionalRoomDetail"));
+const ProRoomAssessment = lazy(() => import("./components/ProRooms/ProRoomAssessment"));
+const ProRoomDashboard = lazy(() => import("./components/ProRooms/ProRoomDashboard"));
+const FixCreativeSpark = lazy(() => import("./components/FixCreativeSpark"));
+const FixAIChallenge = lazy(() => import("./components/FixAIChallenge"));
+const ArenaEvents = lazy(() => import("./components/ArenaEvents"));
+const ArenaChallenge = lazy(() => import("./components/ArenaChallenge"));
+const TerminalWall = lazy(() => import("./components/TerminalWall"));
+const Community = lazy(() => import("./components/Community"));
+const CommunityPost = lazy(() => import("./components/CommunityPost"));
+const RoomDetail = lazy(() => import("./components/CreatorRooms/RoomDetail"));
+const NotFound = lazy(() => import("./components/NotFound"));
+const ArenaVotingFeed = lazy(() => import("./components/ArenaVotingFeed"));
+const AdminDashboard = lazy(() => import("./components/AdminDashboard"));
+const EarnRules = lazy(() => import("./components/EarnRules"));
+
+// Route loading fallback with Glitch Room glowing spinner
+const RouteLoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-[70vh] bg-transparent">
+    <div className="w-10 h-10 border-2 border-t-transparent border-[#FF00C8] rounded-full animate-spin shadow-[0_0_25px_rgba(255,0,200,0.4)]" />
+  </div>
+);
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 const ProtectedRoute = ({ children }) => {
@@ -142,9 +151,58 @@ const AnimatedRoutes = () => {
     });
   }, []);
 
+  // Update browser tab document title dynamically on route navigation
+  useEffect(() => {
+    const titles = {
+      "/": "Glitch Room | Gamified Coding Arena",
+      "/explore": "Explore Challenges | Glitch Room",
+      "/console": "Console | Glitch Room",
+      "/community": "The Glitch Lounge | Glitch Room",
+      "/profile": "Your Profile | Glitch Room",
+      "/pro-rooms": "Pro Rooms | Glitch Room",
+      "/pro-rooms/create": "Host a Pro Room | Glitch Room",
+      "/creator-rooms": "Creator Rooms | Glitch Room",
+      "/join-room": "Join Room | Glitch Room",
+      "/host-room": "Host Room | Glitch Room",
+      "/game-arena": "Game Arena | Glitch Room",
+      "/arena-events": "Arena Events | Glitch Room",
+      "/arena-voting": "Arena Voting | Glitch Room",
+      "/terminal-wall": "Terminal Wall | Glitch Room",
+      "/glitches": "Find the Glitch | Glitch Room",
+      "/bug-challenges": "Debug Mode | Glitch Room",
+      "/sparks": "Creative Sparks | Glitch Room",
+      "/ai-challenges": "AI Challenges | Glitch Room",
+      "/settings": "Settings | Glitch Room",
+      "/about": "About | Glitch Room",
+      "/features": "Features | Glitch Room",
+      "/process": "How It Works | Glitch Room",
+      "/helpCenter": "Help Center | Glitch Room",
+      "/help": "Help & Support | Glitch Room",
+      "/earn-rules": "Earn Rules | Glitch Room",
+      "/admin": "Admin Dashboard | Glitch Room",
+      "/reset-password": "Reset Password | Glitch Room",
+    };
+
+    let title = titles[location.pathname];
+    if (!title) {
+      if (location.pathname.startsWith("/community/")) title = "Discussion | Glitch Room";
+      else if (location.pathname.includes("/assessment")) title = "Assessment | Glitch Room";
+      else if (location.pathname.startsWith("/pro-rooms/")) title = "Pro Room | Glitch Room";
+      else if (location.pathname.startsWith("/creator-rooms/") || location.pathname.startsWith("/room/")) title = "Creator Room | Glitch Room";
+      else if (location.pathname.startsWith("/arena/")) title = "Arena Challenge | Glitch Room";
+      else if (location.pathname.startsWith("/glitch/")) title = "Fix Glitch | Glitch Room";
+      else if (location.pathname.startsWith("/fixbug/") || location.pathname.startsWith("/fix-bug/")) title = "Fix Bug | Glitch Room";
+      else if (location.pathname.startsWith("/fixspark/") || location.pathname.startsWith("/fix-spark/")) title = "Creative Spark | Glitch Room";
+      else if (location.pathname.startsWith("/ai-challenge/")) title = "AI Challenge | Glitch Room";
+      else title = "Glitch Room | Gamified Coding Arena";
+    }
+    document.title = title;
+  }, [location.pathname]);
+
   return (
     <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes location={location} key={location.pathname}>
         {/* ── Public routes ── */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
@@ -273,7 +331,8 @@ const AnimatedRoutes = () => {
         {/* ── 404 fallback ── */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </AnimatePresence>
+    </Suspense>
+  </AnimatePresence>
   );
 };
 

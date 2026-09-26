@@ -5,7 +5,7 @@ import { supabase } from "../supabaseClient";
 import { MASTER_BADGES, RARITY_THEMES } from "../data/badgesMaster";
 import { checkAndAwardBadges } from "../utils/badgeEngine";
 import { fetchPoints } from "../utils/pointsHelper";
-import { X, Lock, CheckCircle2, Trophy, ShieldCheck, Sparkles, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Lock, CheckCircle2, Trophy, ShieldCheck, Sparkles, AlertCircle, ChevronDown, ChevronUp, Zap } from "lucide-react";
 
 export default function BadgesSection({ userId }) {
   const [earnedMap, setEarnedMap] = useState({}); // badgeId -> earned_at

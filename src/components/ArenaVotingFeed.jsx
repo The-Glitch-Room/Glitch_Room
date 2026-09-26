@@ -483,12 +483,14 @@ const ArenaVotingFeed = () => {
             </p>
           </div>
         ) : completedEvents.length === 0 ? (
-          <div className="text-center py-24 border border-dashed border-white/10 rounded-3xl">
-            <p className="text-5xl mb-5">🎯</p>
-            <p className="text-white text-xl font-black mb-2">
+          <div className="text-center py-20 px-6 bg-[#0c0c14]/50 border border-white/10 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+            <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mx-auto mb-5 text-3xl">
+              🎯
+            </div>
+            <p className="text-white text-xl font-bold mb-2">
               Complete a challenge first
             </p>
-            <p className="text-gray-500 text-sm max-w-sm mx-auto mb-8 leading-relaxed">
+            <p className="text-gray-400 text-sm max-w-sm mx-auto mb-6 leading-relaxed">
               You haven't completed any Arena challenges yet. Solve one first —
               then you'll unlock the community submissions for that challenge.
             </p>
@@ -496,7 +498,7 @@ const ArenaVotingFeed = () => {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => navigate("/arena-events")}
-              className="px-6 py-3 rounded-xl font-bold text-sm text-black cursor-pointer"
+              className="px-6 py-3 rounded-xl font-bold text-sm text-black cursor-pointer shadow-[0_0_20px_rgba(0,240,255,0.3)] transition-all"
               style={{ background: "linear-gradient(90deg,#00F0FF,#FF00C8)" }}
             >
               ⚡ Enter the Arena
@@ -598,13 +600,15 @@ const ArenaVotingFeed = () => {
                   />
                 </div>
               ) : submissions.length === 0 ? (
-                <div className="text-center py-20 border border-dashed border-white/8 rounded-3xl">
-                  <p className="text-4xl mb-4">🫙</p>
-                  <p className="text-gray-400 text-base font-semibold mb-2">
-                    No pitches this week yet
+                <div className="text-center py-16 px-6 bg-[#0c0c14]/50 border border-white/10 rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.4)]">
+                  <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto mb-4 text-2xl">
+                    💡
+                  </div>
+                  <p className="text-white text-base font-bold mb-1">
+                    No pitches submitted yet
                   </p>
-                  <p className="text-gray-600 text-sm">
-                    You're the first one here. Others are still solving it!
+                  <p className="text-gray-400 text-sm max-w-xs mx-auto">
+                    You're the first one here! As other builders complete this challenge, their pitches will appear here.
                   </p>
                 </div>
               ) : (
