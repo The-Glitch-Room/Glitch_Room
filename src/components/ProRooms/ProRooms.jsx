@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import ProRoomCard, { getProRoomLifecycleState } from "./ProRoomCard";
 import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
+import CustomSelect from "../CustomSelect";
 import { supabase } from "../../supabaseClient";
 
 const CATEGORIES = [
@@ -320,51 +321,30 @@ const ProRooms = () => {
 
               {/* Dropdown Filters */}
               <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <select
+                <CustomSelect
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedCategory}
+                  options={CATEGORIES}
+                />
 
-                <select
+                <CustomSelect
                   value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-                >
-                  {EVENT_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedType}
+                  options={EVENT_TYPES}
+                />
 
-                <select
+                <CustomSelect
                   value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedStatus}
+                  options={STATUSES}
+                />
 
-                <select
+                <CustomSelect
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-[#06060c] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-                >
-                  <option value="Newest">Newest</option>
-                  <option value="Starting Soon">Starting Soon</option>
-                  <option value="Highest Reward">Highest Reward</option>
-                </select>
+                  onChange={setSortBy}
+                  options={["Newest", "Starting Soon", "Highest Reward"]}
+                  menuAlign="right"
+                />
               </div>
             </div>
 

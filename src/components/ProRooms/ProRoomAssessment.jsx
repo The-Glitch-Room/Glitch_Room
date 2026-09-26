@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { getProRoomLifecycleState } from "./ProRoomCard";
+import CustomSelect from "../CustomSelect";
 
 // Real code editor — replaces the plain <textarea>. Requires:
 //   npm install @uiw/react-codemirror @uiw/codemirror-theme-vscode
@@ -2043,25 +2044,27 @@ const ProRoomAssessment = () => {
                           Solution Editor
                         </span>
                         <div className="flex items-center gap-2">
-                          <select
+                          <CustomSelect
                             value={
                               answers[currentQuestion.id]?.code_language ||
                               "javascript"
                             }
-                            onChange={(e) =>
+                            onChange={(lang) =>
                               handleLanguageChange(
                                 currentQuestion.id,
-                                e.target.value,
+                                lang,
                               )
                             }
                             disabled={interactionLocked}
-                            className="bg-[#07070e] border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 outline-none focus:border-[#00F0FF] disabled:opacity-50 cursor-pointer"
-                          >
-                            <option value="javascript">JavaScript</option>
-                            <option value="python">Python</option>
-                            <option value="cpp">C++</option>
-                            <option value="java">Java</option>
-                          </select>
+                            size="sm"
+                            options={[
+                              { value: "javascript", label: "JavaScript" },
+                              { value: "python", label: "Python" },
+                              { value: "cpp", label: "C++" },
+                              { value: "java", label: "Java" },
+                            ]}
+                            className="min-w-[125px]"
+                          />
                           <button
                             onClick={handleRunCode}
                             disabled={runningCode || interactionLocked}

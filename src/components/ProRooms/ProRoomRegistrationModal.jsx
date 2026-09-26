@@ -15,93 +15,10 @@ import {
   Check,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
+import CustomSelect from "../CustomSelect";
 
-import { ChevronDown } from "lucide-react";
-
-// Reusable custom themed dropdown matching CreateProRoomPage
-const GlitchSelect = ({
-  value,
-  onChange,
-  options,
-  placeholder = "Select...",
-  className = "",
-}) => {
-  const [open, setOpen] = useState(false);
-  const wrapRef = React.useRef(null);
-
-  const normalized = options.map((o) =>
-    typeof o === "string" ? { value: o, label: o } : o,
-  );
-  const selected = normalized.find((o) => o.value === value);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDocClick = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
-
-  return (
-    <div ref={wrapRef} className={`relative ${className}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={`w-full bg-[#030308] border rounded-xl px-3 py-2 text-xs text-left flex items-center justify-between gap-2 outline-none transition cursor-pointer ${
-          open
-            ? "border-[#00F0FF] ring-1 ring-[#00F0FF]/30"
-            : "border-white/10 hover:border-white/20"
-        } ${selected ? "text-white font-medium" : "text-gray-500"}`}
-      >
-        <span className="truncate">
-          {selected ? selected.label : placeholder}
-        </span>
-        <ChevronDown
-          size={13}
-          className={`shrink-0 text-gray-400 transition-transform ${
-            open ? "rotate-180 text-[#00F0FF]" : ""
-          }`}
-        />
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.12 }}
-            className="absolute z-50 mt-1.5 w-full max-h-48 overflow-y-auto bg-[#0c0c16] border border-white/10 rounded-xl shadow-2xl shadow-black/80 p-1.5"
-          >
-            {normalized.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition cursor-pointer flex items-center justify-between gap-2 ${
-                  o.value === value
-                    ? "bg-[#00F0FF]/15 text-[#00F0FF] font-bold"
-                    : "text-gray-300 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <span className="truncate">{o.label}</span>
-                {o.value === value && (
-                  <Check size={12} className="shrink-0 text-[#00F0FF]" />
-                )}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
+// Uses canonical CustomSelect component for complete Glitch Room UI consistency across all dropdowns.
+const GlitchSelect = CustomSelect;
 
 const ProRoomRegistrationModal = ({
   isOpen,

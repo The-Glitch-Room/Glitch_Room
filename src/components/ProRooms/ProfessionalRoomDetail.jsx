@@ -58,6 +58,7 @@ import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
 import ProRoomHelpModal from "./ProRoomHelpModal";
 import { GlitchCertificateModal, GlitchCertificateDOM, renderCertificateToCanvas } from "./GlitchCertificateModal";
 import { getProRoomLifecycleState } from "./ProRoomCard";
+import CustomSelect from "../CustomSelect";
 import { supabase } from "../../supabaseClient";
 import { fetchPoints } from "../../utils/pointsHelper";
 
@@ -4990,22 +4991,20 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-mono font-bold text-gray-300 mb-1.5">
-                    Resource Type
-                  </label>
-                  <select
+                  <CustomSelect
+                    label="Resource Type"
                     value={resFileType}
-                    onChange={(e) => setResFileType(e.target.value)}
-                    className="w-full bg-[#030308] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
-                  >
-                    <option value="ZIP">ZIP Archive</option>
-                    <option value="PDF">PDF Document</option>
-                    <option value="DATASET">Dataset (CSV/JSON)</option>
-                    <option value="CODE">Code Starter</option>
-                    <option value="DOC">Document / Guide</option>
-                    <option value="LINK">External Link</option>
-                    <option value="FILE">Other File</option>
-                  </select>
+                    onChange={setResFileType}
+                    options={[
+                      { value: "ZIP", label: "ZIP Archive" },
+                      { value: "PDF", label: "PDF Document" },
+                      { value: "DATASET", label: "Dataset (CSV/JSON)" },
+                      { value: "CODE", label: "Code Starter" },
+                      { value: "DOC", label: "Document / Guide" },
+                      { value: "LINK", label: "External Link" },
+                      { value: "FILE", label: "Other File" },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-mono font-bold text-gray-300 mb-1.5">

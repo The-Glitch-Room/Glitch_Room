@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { updatePoints } from "../../utils/pointsHelper";
+import CustomSelect from "../CustomSelect";
 
 // Shows what a candidate actually submitted for one answer, shaped by the
 // question's type — a code block for coding-family questions, a link for
@@ -1765,17 +1766,20 @@ const ProRoomDashboard = () => {
                 ))}
 
                 <div className="ml-auto flex items-center gap-2">
-                  <select
+                  <CustomSelect
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-[#12121e] border border-white/10 rounded-lg px-2.5 py-1.5 text-[10px] text-gray-300 outline-none cursor-pointer"
-                  >
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="score_desc">Highest Score</option>
-                    <option value="score_asc">Lowest Score</option>
-                    <option value="name_asc">Name A–Z</option>
-                  </select>
+                    onChange={setSortBy}
+                    size="sm"
+                    options={[
+                      { value: "newest", label: "Newest First" },
+                      { value: "oldest", label: "Oldest First" },
+                      { value: "score_desc", label: "Highest Score" },
+                      { value: "score_asc", label: "Lowest Score" },
+                      { value: "name_asc", label: "Name A–Z" },
+                    ]}
+                    menuAlign="right"
+                    className="min-w-[130px]"
+                  />
                   <button
                     type="button"
                     onClick={() => handleExportCsv(visibleSubmissions)}
