@@ -303,7 +303,7 @@ const ProRooms = () => {
         </section>
 
         {/* ── SEARCH & DROPDOWN FILTERS CONTAINER ── */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 w-full mb-8">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 w-full mb-8 relative z-30">
           <div className="bg-[#0c0c16]/80 backdrop-blur-md border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl">
             {/* SEARCH & DROPDOWN FILTERS */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">

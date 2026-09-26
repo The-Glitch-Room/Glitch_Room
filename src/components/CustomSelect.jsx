@@ -1,11 +1,20 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Check } from "lucide-react";
 
 /**
- * CustomSelect — Canonical Glitch Room Cyberpunk / Dark Dropdown Component
- * Replaces native <select> elements across the entire application to prevent
- * OS-level styling (blue highlight, system font, native popup menus).
+ * CustomSelect — Canonical Glitch Room Floating Dropdown Component
+ *
+ * Features:
+ * 1. Portalled to document.body (position: fixed) so it NEVER gets cut off or clipped
+ *    by parent containers, modals, overflow:hidden, or stacking contexts.
+ * 2. Intelligent direction detection: opens downward if space permits, or flips
+ *    upward if near the bottom of the viewport.
+ * 3. Hidden native scrollbars (both Webkit and Firefox) while maintaining full native
+ *    scrolling capability (wheel, trackpad, touch, keyboard).
+ * 4. Responsive viewport clamping to prevent clipping at screen edges.
+ * 5. Dynamic tracking on window resize and scroll events.
  */
 const CustomSelect = ({
   label,
@@ -21,10 +30,14 @@ const CustomSelect = ({
   menuAlign = "left", // "left" | "right"
   disabled = false,
   icon: Icon,
-  accentColor = "#00F0FF",
 }) => {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState(null);
+  const [direction, setDirection] = useState("down"); // "down" | "up"
+
   const wrapRef = useRef(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
 
   // Normalize options array into { value, label } format
   const normalized = options.map((o) =>
@@ -34,14 +47,90 @@ const CustomSelect = ({
     (o) => String(o.value) === (value !== undefined && value !== null ? String(value) : "")
   );
 
-  // Close on click outside & Escape key
+  // Calculate fixed viewport coordinates and flip direction
+  const updatePosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+
+    // If trigger button is completely scrolled off screen, close
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      setOpen(false);
+      return;
+    }
+
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+
+    // Intelligently open upward if space below is tight and space above is larger
+    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+    setDirection(openUp ? "up" : "down");
+
+    const availableSpace = openUp ? spaceAbove : spaceBelow;
+    const maxHeight = Math.min(260, Math.max(140, availableSpace));
+
+    // Calculate left/right and width bounds
+    const minWidth = rect.width;
+    const maxWidth = Math.min(320, window.innerWidth - 32);
+
+    let left = rect.left;
+    let right = "auto";
+
+    if (menuAlign === "right") {
+      right = Math.max(16, window.innerWidth - rect.right);
+      left = "auto";
+    } else {
+      // Ensure left doesn't push menu beyond right viewport edge
+      if (left + minWidth > window.innerWidth - 16) {
+        left = Math.max(16, window.innerWidth - minWidth - 16);
+      }
+    }
+
+    setCoords({
+      top: openUp ? "auto" : rect.bottom + 6,
+      bottom: openUp ? window.innerHeight - rect.top + 6 : "auto",
+      left,
+      right,
+      minWidth,
+      maxWidth,
+      maxHeight,
+    });
+  }, [menuAlign]);
+
+  // Recalculate position when opened or when window events fire
+  useLayoutEffect(() => {
+    if (open) {
+      updatePosition();
+    }
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [open, updatePosition]);
+
+  // Close on outside click or Escape key
   useEffect(() => {
     if (!open) return undefined;
 
     const onDocClick = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
-        setOpen(false);
+      if (
+        (wrapRef.current && wrapRef.current.contains(e.target)) ||
+        (menuRef.current && menuRef.current.contains(e.target))
+      ) {
+        return;
       }
+      setOpen(false);
     };
 
     const onKeyDown = (e) => {
@@ -52,6 +141,7 @@ const CustomSelect = ({
 
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKeyDown);
+
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKeyDown);
@@ -97,6 +187,7 @@ const CustomSelect = ({
 
       {/* Trigger Button */}
       <button
+        ref={buttonRef}
         type="button"
         role="combobox"
         aria-expanded={open}
@@ -135,56 +226,78 @@ const CustomSelect = ({
         />
       </button>
 
-      {/* Dropdown Menu Panel */}
-      <AnimatePresence>
-        {open && !disabled && (
-          <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 4, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            role="listbox"
-            className={`absolute top-full mt-1.5 max-h-60 overflow-y-auto rounded-xl bg-[#0c0c16]/95 border border-white/15 p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.85),0_0_20px_rgba(0,240,255,0.08)] backdrop-blur-2xl custom-scrollbar z-50 ${
-              menuAlign === "right"
-                ? "right-0 min-w-full w-max max-w-[calc(100vw-32px)] sm:max-w-xs"
-                : "left-0 min-w-full w-max max-w-[calc(100vw-32px)] sm:max-w-xs"
-            } ${menuClassName}`}
-          >
-            {normalized.map((opt) => {
-              const isSelected =
-                selected && String(opt.value) === String(selected.value);
-              return (
-                <button
-                  key={String(opt.value)}
-                  type="button"
-                  role="option"
-                  title={opt.label}
-                  aria-selected={isSelected}
-                  onClick={() => {
-                    if (onChange) onChange(opt.value);
-                    setOpen(false);
-                  }}
-                  className={`w-full text-left rounded-lg font-medium flex items-center justify-between gap-2 transition-colors duration-150 cursor-pointer ${
-                    currentSize.option
-                  } ${
-                    isSelected
-                      ? "bg-[#00F0FF]/15 text-[#00F0FF] font-bold border-l-2 border-[#00F0FF]"
-                      : "text-gray-300 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <span className="truncate">{opt.label}</span>
-                  {isSelected && (
-                    <Check
-                      size={currentSize.icon}
-                      className="text-[#00F0FF] shrink-0 ml-1.5"
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </motion.div>
+      {/* Portalled Floating Dropdown Menu */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && !disabled && coords && (
+              <motion.div
+                ref={menuRef}
+                role="listbox"
+                initial={{
+                  opacity: 0,
+                  y: direction === "up" ? 6 : -6,
+                  scale: 0.98,
+                }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{
+                  opacity: 0,
+                  y: direction === "up" ? 6 : -6,
+                  scale: 0.98,
+                }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                style={{
+                  position: "fixed",
+                  top: coords.top !== "auto" ? `${coords.top}px` : "auto",
+                  bottom: coords.bottom !== "auto" ? `${coords.bottom}px` : "auto",
+                  left: coords.left !== "auto" ? `${coords.left}px` : "auto",
+                  right: coords.right !== "auto" ? `${coords.right}px` : "auto",
+                  minWidth: `${coords.minWidth}px`,
+                  maxWidth: `${coords.maxWidth}px`,
+                  maxHeight: `${coords.maxHeight}px`,
+                  zIndex: 99999,
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none",
+                }}
+                className={`overflow-y-auto rounded-xl bg-[#0c0c16]/98 border border-white/15 p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_25px_rgba(0,240,255,0.12)] backdrop-blur-3xl [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${menuClassName}`}
+              >
+                {normalized.map((opt) => {
+                  const isSelected =
+                    selected && String(opt.value) === String(selected.value);
+                  return (
+                    <button
+                      key={String(opt.value)}
+                      type="button"
+                      role="option"
+                      title={opt.label}
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        if (onChange) onChange(opt.value);
+                        setOpen(false);
+                      }}
+                      className={`w-full text-left rounded-lg font-medium flex items-center justify-between gap-2 transition-colors duration-150 cursor-pointer ${
+                        currentSize.option
+                      } ${
+                        isSelected
+                          ? "bg-[#00F0FF]/15 text-[#00F0FF] font-bold border-l-2 border-[#00F0FF]"
+                          : "text-gray-300 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className="truncate">{opt.label}</span>
+                      {isSelected && (
+                        <Check
+                          size={currentSize.icon}
+                          className="text-[#00F0FF] shrink-0 ml-1.5"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </div>
   );
 };

@@ -147,7 +147,7 @@ const CategoryDropdown = ({
             </div>
 
             {/* Options */}
-            <div className="py-1.5 max-h-72 overflow-y-auto custom-scroll">
+            <div className="py-1.5 max-h-72 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {categories.map((cat, i) => {
                 const isSelected = cat === selected;
                 const isAll = cat === "All";
