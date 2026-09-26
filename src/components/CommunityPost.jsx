@@ -21,15 +21,8 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useAuth } from "./AuthContext";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
 import { Bold, Italic, Heading, Quote, List, ListOrdered, Link, Eye, X } from "lucide-react";
-
-const CATEGORIES = [
-  { id: "general", label: "General", color: "#00F0FF", emoji: "💬" },
-  { id: "glitch", label: "Glitch Help", color: "#FF00C8", emoji: "⚡" },
-  { id: "ai", label: "AI & ML", color: "#a855f7", emoji: "🤖" },
-  { id: "webdev", label: "Web Dev", color: "#10b981", emoji: "🌐" },
-  { id: "creative", label: "Creative", color: "#f59e0b", emoji: "🎨" },
-  { id: "offtopic", label: "Off-Topic", color: "#6b7280", emoji: "😂" },
-];
+import DeveloperConnectModal from "./DeveloperConnectModal";
+import { POST_TYPES, getPostType, REACTIONS } from "./Community";
 
 const timeAgo = (iso) => {
   const diff = (Date.now() - new Date(iso)) / 1000;
@@ -137,12 +130,20 @@ const MarkdownBody = ({ content }) => (
 );
 
 // ── Comment Component ─────────────────────────────────────────────────────────
-const Comment = ({ comment, onReply, user }) => {
+const Comment = ({ comment, onReply, user, postAuthorId, onAuthorClick }) => {
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showReplies, setShowReplies] = useState(true);
   const [replyError, setReplyError] = useState("");
+
+  const handleOpenReply = () => {
+    if (!showReply && !replyText) {
+      const targetUser = (comment.username || "dev").replace(/^@/, "");
+      setReplyText(`@${targetUser} `);
+    }
+    setShowReply(!showReply);
+  };
 
   const handleReply = async () => {
     if (!replyText.trim() || !user) return;
@@ -181,8 +182,13 @@ const Comment = ({ comment, onReply, user }) => {
   return (
     <div className="group">
       <div className="flex gap-3">
-        {/* Avatar */}
-        <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/8 mt-0.5">
+        {/* Avatar (Click to connect) */}
+        <button
+          type="button"
+          onClick={() => onAuthorClick && onAuthorClick(comment.authorProfile || comment)}
+          className="w-8 h-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/10 mt-0.5 cursor-pointer hover:ring-[#00F0FF]/50 transition bg-[#121220]"
+          title="Click to view developer profile & socials"
+        >
           {comment.avatar_url ? (
             <img
               src={comment.avatar_url}
@@ -191,20 +197,30 @@ const Comment = ({ comment, onReply, user }) => {
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-[#FF00C8]/40 to-[#00F0FF]/40 flex items-center justify-center text-xs font-black text-white">
-              {comment.username?.slice(0, 2).toUpperCase()}
+              {comment.username?.replace(/^@/, "").slice(0, 2).toUpperCase() || "GL"}
             </div>
           )}
-        </div>
+        </button>
 
         <div className="flex-1 min-w-0">
           {/* Bubble */}
           <div className="bg-[#0f0f13] border border-white/5 rounded-2xl rounded-tl-sm px-4 py-3 mb-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-white text-xs font-bold">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onAuthorClick && onAuthorClick(comment.authorProfile || comment)}
+                className="text-white text-xs font-bold hover:text-[#00F0FF] transition cursor-pointer"
+                title="Click to view developer profile"
+              >
                 {comment.username}
-              </span>
-              <span className="text-gray-600 text-[10px]">
-                {timeAgo(comment.created_at)}
+              </button>
+              {comment.user_id === postAuthorId && (
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
+                  OP
+                </span>
+              )}
+              <span className="text-gray-600 text-[10px] font-mono">
+                • {timeAgo(comment.created_at)}
               </span>
             </div>
             {comment.code ? (
@@ -224,8 +240,8 @@ const Comment = ({ comment, onReply, user }) => {
           <div className="flex items-center gap-4 px-1 mb-2">
             {user && (
               <button
-                onClick={() => setShowReply(!showReply)}
-                className="text-[10px] text-gray-600 hover:text-[#FF00C8] transition font-semibold cursor-pointer"
+                onClick={handleOpenReply}
+                className="text-[10px] text-gray-500 hover:text-[#00F0FF] transition font-semibold cursor-pointer"
               >
                 Reply
               </button>
@@ -294,6 +310,8 @@ const Comment = ({ comment, onReply, user }) => {
                     comment={reply}
                     onReply={onReply}
                     user={user}
+                    postAuthorId={postAuthorId}
+                    onAuthorClick={onAuthorClick}
                   />
                 ))}
               </motion.div>
@@ -477,26 +495,47 @@ const EditPostModal = ({ post, onClose, onUpdated }) => {
             })}
           </div>
 
-          <div className="mb-4">
-            <label className="text-gray-400 text-xs font-mono mb-1.5 block uppercase tracking-wider">
-              Category
+          {/* Post Type Selector */}
+          <div className="mb-5">
+            <label className="text-gray-400 text-xs font-mono mb-2 block uppercase tracking-wider">
+              Post Type
             </label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                    category === cat.id
-                      ? "border-purple-500/60 bg-purple-500/15 text-white"
-                      : "border-white/8 bg-white/[0.02] text-gray-400 hover:border-white/20"
-                  }`}
-                >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {POST_TYPES.filter((c) => c.id !== "all").map((cat) => {
+                const isSelected = category === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.id)}
+                    className={`flex flex-col items-start p-3 rounded-2xl text-left border transition cursor-pointer ${
+                      isSelected
+                        ? "shadow-lg"
+                        : "border-white/8 bg-white/[0.02] text-gray-400 hover:border-white/20 hover:text-white"
+                    }`}
+                    style={
+                      isSelected
+                        ? {
+                            borderColor: `${cat.color}70`,
+                            backgroundColor: `${cat.color}15`,
+                            boxShadow: `0 0 15px ${cat.color}18`,
+                          }
+                        : {}
+                    }
+                  >
+                    <div
+                      className="flex items-center gap-1.5 font-bold text-xs"
+                      style={{ color: isSelected ? cat.color : "#d1d5db" }}
+                    >
+                      <span className="text-sm">{cat.emoji}</span>
+                      <span>{cat.label}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-500 line-clamp-1 mt-1 font-mono">
+                      {cat.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -693,15 +732,23 @@ const CommunityPost = () => {
   const [commentBody, setCommentBody] = useState("");
   const [commentMode, setCommentMode] = useState("text");
   const [submitting, setSubmitting] = useState(false);
-  const [liked, setLiked] = useState(false);
   const [commentError, setCommentError] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selectedDev, setSelectedDev] = useState(null);
+  const [userReactions, setUserReactions] = useState({});
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data?.user || null));
     fetchPost();
+
+    try {
+      const stored = JSON.parse(localStorage.getItem("glitch_community_reactions") || "{}");
+      setUserReactions(stored);
+    } catch {
+      setUserReactions({});
+    }
   }, [postId]);
 
   const fetchPost = async () => {
@@ -715,18 +762,15 @@ const CommunityPost = () => {
     if (postData?.user_id) {
       const { data: authorProfile, error: authorErr } = await supabase
         .from("profiles")
-        .select("id, username, full_name, avatar_url")
+        .select("id, username, full_name, avatar_url, bio, github_url, twitter_url, discord_url, linkedin_url")
         .eq("id", postData.user_id)
         .maybeSingle();
 
       if (authorErr) console.error("author profile fetch error:", authorErr);
 
-      // Same source of truth the post card list uses (Community.jsx) —
-      // the current profile row, not whatever was snapshotted on the post
-      // at creation time. This is what fixes the avatar/username mismatch
-      // between the card and this full-post view.
       setPost({
         ...postData,
+        authorProfile: authorProfile || null,
         username:
           authorProfile?.username ||
           authorProfile?.full_name ||
@@ -744,15 +788,40 @@ const CommunityPost = () => {
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
 
+    const commentUserIds = Array.from(
+      new Set((allComments || []).map((c) => c.user_id))
+    ).filter(Boolean);
+
+    let commentProfiles = {};
+    if (commentUserIds.length > 0) {
+      const { data: cProfs } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, avatar_url, bio, github_url, twitter_url, discord_url, linkedin_url")
+        .in("id", commentUserIds);
+
+      (cProfs || []).forEach((p) => {
+        commentProfiles[p.id] = p;
+      });
+    }
+
+    const enrichComment = (c) => {
+      const prof = commentProfiles[c.user_id];
+      return {
+        ...c,
+        authorProfile: prof || null,
+        username: prof?.username || prof?.full_name || c.username || "Anonymous",
+        avatar_url: prof?.avatar_url || c.avatar_url || null,
+      };
+    };
+
     const top = (allComments || []).filter((c) => !c.parent_id);
     const nested = top.map((c) => ({
-      ...c,
-      replies: (allComments || []).filter((r) => r.parent_id === c.id),
+      ...enrichComment(c),
+      replies: (allComments || [])
+        .filter((r) => r.parent_id === c.id)
+        .map(enrichComment),
     }));
     setComments(nested);
-
-    const stored = JSON.parse(localStorage.getItem("liked_posts") || "[]");
-    setLiked(stored.includes(postId));
     setLoading(false);
   };
 
@@ -772,20 +841,44 @@ const CommunityPost = () => {
     }
   };
 
-  const handleLike = async () => {
-    if (!user) return;
-    const stored = JSON.parse(localStorage.getItem("liked_posts") || "[]");
-    const newLiked = liked
-      ? stored.filter((id) => id !== postId)
-      : [...stored, postId];
-    localStorage.setItem("liked_posts", JSON.stringify(newLiked));
-    setLiked(!liked);
-    const delta = liked ? -1 : 1;
-    await supabase
-      .from("community_posts")
-      .update({ likes: Math.max(0, (post.likes || 0) + delta) })
-      .eq("id", postId);
-    setPost((p) => ({ ...p, likes: Math.max(0, (p.likes || 0) + delta) }));
+  const handleReaction = async (reactionId) => {
+    if (!user) {
+      navigate("/");
+      return;
+    }
+    const currentReaction = userReactions[postId];
+    const isRemoving = currentReaction === reactionId;
+    const isChanging = currentReaction && currentReaction !== reactionId;
+
+    let delta = 0;
+    const newReactions = { ...userReactions };
+
+    if (isRemoving) {
+      delete newReactions[postId];
+      delta = -1;
+    } else if (isChanging) {
+      newReactions[postId] = reactionId;
+      delta = 0;
+    } else {
+      newReactions[postId] = reactionId;
+      delta = 1;
+    }
+
+    setUserReactions(newReactions);
+    try {
+      localStorage.setItem("glitch_community_reactions", JSON.stringify(newReactions));
+    } catch (e) {
+      console.warn("Could not save reaction to localStorage", e);
+    }
+
+    if (delta !== 0) {
+      const newCount = Math.max(0, (post.likes || 0) + delta);
+      await supabase
+        .from("community_posts")
+        .update({ likes: newCount })
+        .eq("id", postId);
+      setPost((p) => ({ ...p, likes: newCount }));
+    }
   };
 
   const handleComment = async () => {
@@ -820,7 +913,7 @@ const CommunityPost = () => {
     fetchPost();
   };
 
-  const cat = CATEGORIES.find((c) => c.id === post?.category) || CATEGORIES[0];
+  const type = getPostType(post?.category);
 
   if (loading) {
     return (
@@ -839,12 +932,12 @@ const CommunityPost = () => {
       <div className="min-h-screen bg-[#080810] flex items-center justify-center text-white">
         <div className="text-center">
           <p className="text-4xl mb-3">🔍</p>
-          <p className="text-gray-400">Post not found.</p>
+          <p className="text-gray-400">Discussion not found.</p>
           <button
             onClick={() => navigate("/community")}
             className="mt-4 text-[#FF00C8] text-sm hover:underline cursor-pointer"
           >
-            ← Back to Community
+            ← Back to The Glitch Lounge
           </button>
         </div>
       </div>
@@ -852,17 +945,17 @@ const CommunityPost = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#080810] text-white flex flex-col">
+    <div className="min-h-screen bg-[#080810] text-white flex flex-col font-sans">
       <Navbar />
 
-      <main className="max-w-3xl mx-auto w-full px-6 py-32 flex-1">
+      <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-32 flex-1">
         {/* Back */}
         <div className="flex items-center justify-between mb-8">
           <button
             onClick={() => navigate("/community")}
-            className="flex items-center gap-2 text-gray-500 hover:text-white text-sm transition cursor-pointer"
+            className="flex items-center gap-2 text-gray-400 hover:text-white text-xs sm:text-sm transition cursor-pointer font-semibold"
           >
-            <ArrowLeft size={15} /> Back to Community
+            <ArrowLeft size={15} /> Back to Lounge
           </button>
 
           {user?.id === post?.user_id && (
@@ -870,7 +963,7 @@ const CommunityPost = () => {
               <button
                 type="button"
                 onClick={() => setShowEditModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-300 border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-purple-300 border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 transition cursor-pointer"
               >
                 <Edit3 size={13} />
                 Edit Post
@@ -878,7 +971,7 @@ const CommunityPost = () => {
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition cursor-pointer"
               >
                 <Trash2 size={13} />
                 Delete
@@ -887,58 +980,74 @@ const CommunityPost = () => {
           )}
         </div>
 
-        {/* Post */}
-        <motion.div
+        {/* Main Post Card */}
+        <motion.article
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-[#0f0f13] border border-white/5 rounded-3xl p-6 lg:p-8 mb-8 relative overflow-hidden"
+          className="bg-[#0f0f16] border border-white/10 rounded-3xl p-6 sm:p-8 mb-8 relative overflow-hidden shadow-2xl"
         >
           <div
             className="absolute top-0 left-0 right-0 h-[2px]"
             style={{
-              background: `linear-gradient(90deg, transparent, ${cat.color}, transparent)`,
+              background: `linear-gradient(90deg, transparent, ${type.color}, transparent)`,
             }}
           />
 
-          {/* Author */}
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-xl overflow-hidden ring-1 ring-white/8">
-              {post.avatar_url ? (
-                <img
-                  src={post.avatar_url}
-                  alt={post.username}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-[#FF00C8]/40 to-[#00F0FF]/40 flex items-center justify-center text-sm font-black text-white">
-                  {post.username?.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-            </div>
-            <div>
-              <p className="text-white text-sm font-bold">{post.username}</p>
-              <p className="text-gray-600 text-[10px]">
-                {timeAgo(post.created_at)}
-              </p>
-            </div>
+          {/* Author Capsule & Post Type Badge */}
+          <div className="flex items-center justify-between gap-3 mb-6">
+            <button
+              type="button"
+              onClick={() => setSelectedDev(post.authorProfile || post)}
+              className="flex items-center gap-3 text-left group/author hover:opacity-90 transition cursor-pointer p-1 -m-1 rounded-2xl hover:bg-white/[0.04]"
+              title="Click to view developer profile & socials"
+            >
+              <div className="w-11 h-11 rounded-2xl overflow-hidden ring-1 ring-white/15 bg-[#121220] flex items-center justify-center shrink-0">
+                {post.avatar_url ? (
+                  <img
+                    src={post.avatar_url}
+                    alt={post.username}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-sm font-black text-white"
+                    style={{
+                      background: `linear-gradient(135deg, ${type.color}40, #00F0FF40)`,
+                    }}
+                  >
+                    {post.username?.replace(/^@/, "").slice(0, 2).toUpperCase() || "GL"}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-white text-sm font-bold group-hover/author:text-[#00F0FF] transition">
+                  {post.username}
+                </p>
+                <p className="text-gray-500 text-[10px] font-mono">
+                  {timeAgo(post.created_at)}
+                </p>
+              </div>
+            </button>
+
             <span
-              className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-bold border shadow-sm"
               style={{
-                color: cat.color,
-                background: `${cat.color}15`,
-                borderColor: `${cat.color}25`,
+                color: type.color,
+                background: `${type.color}15`,
+                borderColor: `${type.color}35`,
               }}
             >
-              {cat.emoji} {cat.label}
+              <span>{type.emoji}</span>
+              <span>{type.label}</span>
             </span>
           </div>
 
-          <h1 className="text-2xl md:text-3xl font-black text-white mb-4">
+          <h1 className="text-2xl sm:text-3xl font-black text-white mb-4 leading-tight">
             {post.title}
           </h1>
 
           {post.code ? (
-            <div className="bg-[#080810] border border-white/5 rounded-xl p-5 mb-4 overflow-x-auto">
+            <div className="bg-[#080810] border border-white/8 rounded-2xl p-5 mb-5 overflow-x-auto">
               <div className="flex items-center gap-2 mb-3">
                 <Code size={12} className="text-green-400" />
                 <span className="text-xs text-gray-500 font-mono">
@@ -953,36 +1062,54 @@ const CommunityPost = () => {
             <img
               src={post.image_url}
               alt=""
-              className="w-full rounded-xl mb-4 border border-white/5 max-h-96 object-cover"
+              className="w-full rounded-2xl mb-5 border border-white/8 max-h-96 object-cover"
               onError={(e) => (e.target.style.display = "none")}
             />
           ) : post.body ? (
-            <div className="mb-4">
+            <div className="mb-5 leading-relaxed text-gray-200">
               <MarkdownBody content={post.body} />
             </div>
           ) : null}
 
-          {/* Like */}
-          <div className="flex items-center gap-4 pt-4 border-t border-white/5">
-            <button
-              onClick={handleLike}
-              className={`flex items-center gap-2 text-sm font-semibold transition-all cursor-pointer ${liked ? "text-[#FF00C8]" : "text-gray-500 hover:text-[#FF00C8]"}`}
-            >
-              <Heart size={16} fill={liked ? "#FF00C8" : "none"} />
-              {post.likes || 0} likes
-            </button>
-            <span className="flex items-center gap-2 text-sm text-gray-500">
-              <MessageSquare size={16} />
-              {comments.length} comments
+          {/* Multi-Reaction Bar & Comments Count */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-5 border-t border-white/8">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              {REACTIONS.map((r) => {
+                const isActive = userReactions[postId] === r.id;
+                return (
+                  <motion.button
+                    key={r.id}
+                    whileTap={{ scale: 0.85 }}
+                    onClick={() => handleReaction(r.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                      isActive
+                        ? "bg-[#00F0FF]/15 border-[#00F0FF]/40 text-cyan-300 shadow-sm shadow-cyan-500/25"
+                        : "bg-white/[0.03] border-white/8 text-gray-400 hover:text-white hover:border-white/20"
+                    }`}
+                    title={`React with ${r.label}`}
+                  >
+                    <span className="text-sm">{r.emoji}</span>
+                    <span className="text-[11px] font-mono hidden sm:inline">{r.label}</span>
+                  </motion.button>
+                );
+              })}
+              <span className="text-gray-500 text-xs font-mono ml-1 font-semibold">
+                {post.likes || 0} reaction{post.likes === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            <span className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
+              <MessageSquare size={14} className="text-[#00F0FF]" />
+              {comments.length} comment{comments.length === 1 ? "" : "s"}
             </span>
           </div>
-        </motion.div>
+        </motion.article>
 
-        {/* Comment input */}
+        {/* Add Comment Box */}
         {user ? (
-          <div className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 mb-8">
-            <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">
-              Add a Comment
+          <div className="bg-[#0f0f16] border border-white/8 rounded-3xl p-5 sm:p-6 mb-8 shadow-xl">
+            <p className="text-xs font-mono text-gray-400 uppercase tracking-widest font-bold mb-3">
+              Add to the Discussion
             </p>
             <div className="flex gap-2 mb-3">
               {[
@@ -992,10 +1119,10 @@ const CommunityPost = () => {
                 <button
                   key={m.id}
                   onClick={() => setCommentMode(m.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                     commentMode === m.id
-                      ? "bg-[#FF00C8]/15 border-[#FF00C8]/30 text-[#FF00C8]"
-                      : "bg-white/[0.03] border-white/8 text-gray-500"
+                      ? "bg-[#00F0FF]/15 border-[#00F0FF]/30 text-cyan-300"
+                      : "bg-white/[0.03] border-white/8 text-gray-500 hover:text-gray-300"
                   }`}
                 >
                   {m.label}
@@ -1011,17 +1138,17 @@ const CommunityPost = () => {
               placeholder={
                 commentMode === "code"
                   ? "Paste your code..."
-                  : "Write a comment... (supports **bold**, *italic*, ## headings)"
+                  : "Write a comment or answer... (supports markdown, @mentions, code)"
               }
               rows={3}
-              className={`w-full border border-white/8 rounded-xl px-4 py-3 text-sm placeholder-gray-600 focus:outline-none focus:border-[#FF00C8]/30 transition resize-none mb-1 ${
+              className={`w-full border border-white/8 rounded-2xl px-4 py-3 text-sm placeholder-gray-600 focus:outline-none focus:border-[#00F0FF]/40 transition resize-none mb-1 font-sans ${
                 commentMode === "code"
-                  ? "bg-[#080810] text-green-300 font-mono"
+                  ? "bg-[#080810] text-green-300 font-mono text-xs"
                   : "bg-white/[0.03] text-white"
               }`}
             />
             {commentMode === "text" && (
-              <p className="text-[10px] text-gray-600 mb-3">
+              <p className="text-[10px] text-gray-600 mb-3 font-mono">
                 Supports **bold**, *italic*, ## headings, `code`, and - lists
               </p>
             )}
@@ -1034,46 +1161,51 @@ const CommunityPost = () => {
                 disabled={submitting || !commentBody.trim()}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-sm font-bold disabled:opacity-40 cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-purple-500/20"
               >
-                <Send size={13} /> {submitting ? "Posting..." : "Comment"}
+                <Send size={13} /> {submitting ? "Posting..." : "Reply to Discussion"}
               </motion.button>
             </div>
           </div>
         ) : (
-          <div className="bg-[#0f0f13] border border-white/5 rounded-2xl p-5 mb-8 text-center">
-            <p className="text-gray-500 text-sm mb-3">
-              Sign in to leave a comment
+          <div className="bg-[#0f0f16] border border-white/8 rounded-2xl p-6 mb-8 text-center">
+            <p className="text-gray-400 text-sm mb-3">
+              Sign in to join the discussion and share your thoughts
             </p>
             <button
               onClick={() => navigate("/")}
-              className="px-4 py-2 rounded-xl border border-[#FF00C8]/30 text-[#FF00C8] text-sm font-semibold cursor-pointer hover:bg-[#FF00C8]/5 transition"
+              className="px-5 py-2 rounded-xl border border-[#00F0FF]/30 text-cyan-300 text-xs font-bold cursor-pointer hover:bg-[#00F0FF]/10 transition"
             >
-              Sign In
+              Sign In to Participate
             </button>
           </div>
         )}
 
-        {/* Comments */}
+        {/* Discussion Comments List */}
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-5">
-            {comments.length} Comment{comments.length !== 1 ? "s" : ""}
+          <p className="text-xs text-gray-400 uppercase tracking-widest font-bold mb-5 font-mono">
+            {comments.length} Discussion Response{comments.length !== 1 ? "s" : ""}
           </p>
           {comments.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-white/8 rounded-2xl">
+            <div className="text-center py-12 border border-dashed border-white/8 rounded-2xl bg-white/[0.01]">
               <p className="text-3xl mb-2">💬</p>
-              <p className="text-gray-600 text-sm">
-                No comments yet — be the first!
+              <p className="text-gray-400 text-sm font-semibold">
+                No replies yet.
+              </p>
+              <p className="text-gray-600 text-xs mt-1">
+                Be the first to share an answer or perspective!
               </p>
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {comments.map((comment) => (
                 <Comment
                   key={comment.id}
                   comment={comment}
                   onReply={fetchPost}
                   user={user}
+                  postAuthorId={post.user_id}
+                  onAuthorClick={(dev) => setSelectedDev(dev)}
                 />
               ))}
             </div>
@@ -1099,6 +1231,18 @@ const CommunityPost = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Developer Connect & Social Discovery Modal */}
+      <DeveloperConnectModal
+        developer={selectedDev}
+        isOpen={Boolean(selectedDev)}
+        onClose={() => setSelectedDev(null)}
+        currentUser={user}
+        onFilterByAuthor={() => {
+          setSelectedDev(null);
+          navigate("/community");
+        }}
+      />
     </div>
   );
 };

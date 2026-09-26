@@ -39,17 +39,70 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useAuth } from "./AuthContext";
 import { containsProfanity, PROFANITY_ERROR_MSG } from "../utils/profanityFilter";
+import DeveloperConnectModal from "./DeveloperConnectModal";
 
-// ── Categories ────────────────────────────────────────────────────────────────
-const CATEGORIES = [
-  { id: "all", label: "All Topics", color: "#ffffff", emoji: "🌐" },
-  { id: "general", label: "General", color: "#00F0FF", emoji: "💬" },
-  { id: "glitch", label: "Glitch Help", color: "#FF00C8", emoji: "⚡" },
-  { id: "ai", label: "AI & ML", color: "#a855f7", emoji: "🤖" },
-  { id: "webdev", label: "Web Dev", color: "#10b981", emoji: "🌐" },
-  { id: "creative", label: "Creative", color: "#f59e0b", emoji: "🎨" },
-  { id: "offtopic", label: "Off-Topic", color: "#6b7280", emoji: "😂" },
+// ── Purposeful Post Types (The Glitch Lounge MVP) ─────────────────────────────
+export const POST_TYPES = [
+  {
+    id: "all",
+    label: "All Discussions",
+    emoji: "🌐",
+    color: "#FFFFFF",
+    description: "Everything happening in The Glitch Lounge",
+  },
+  {
+    id: "need_help",
+    label: "Need Help",
+    emoji: "🐛",
+    color: "#EF4444",
+    legacy: ["glitch", "need_help"],
+    description: "Bugs, blockers & debugging questions",
+  },
+  {
+    id: "showcase",
+    label: "Showcase",
+    emoji: "🚀",
+    color: "#00F0FF",
+    legacy: ["showcase", "creative", "webdev"],
+    description: "Projects, tools, demos & creative builds",
+  },
+  {
+    id: "discussion",
+    label: "Discussion",
+    emoji: "💡",
+    color: "#A855F7",
+    legacy: ["discussion", "general", "offtopic"],
+    description: "Architecture, frameworks & developer thoughts",
+  },
+  {
+    id: "learning",
+    label: "Learning",
+    emoji: "📚",
+    color: "#10B981",
+    legacy: ["learning", "ai"],
+    description: "Tutorials, cheat-sheets & technical insights",
+  },
 ];
+
+export const REACTIONS = [
+  { id: "heart", label: "Love", emoji: "❤️" },
+  { id: "fire", label: "Fire", emoji: "🔥" },
+  { id: "clever", label: "Clever", emoji: "💡" },
+  { id: "rocket", label: "Ship it", emoji: "🚀" },
+];
+
+export const getPostType = (category) => {
+  const cat = (category || "").toLowerCase();
+  for (const type of POST_TYPES) {
+    if (type.id !== "all" && (type.id === cat || (type.legacy && type.legacy.includes(cat)))) {
+      return type;
+    }
+  }
+  return POST_TYPES[3]; // default to Discussion
+};
+
+// Legacy fallback helper for existing code referencing CATEGORIES
+export const CATEGORIES = POST_TYPES;
 
 const SORT_OPTIONS = [
   { id: "new", label: "Newest", icon: Clock },
@@ -290,27 +343,47 @@ const CreatePostModal = ({ onClose, onCreated, user }) => {
             })}
           </div>
 
-          {/* Category Dropdown */}
-          <div className="mb-4">
-            <label className="text-gray-400 text-xs font-mono mb-1.5 block uppercase tracking-wider">
-              Category
+          {/* Post Type Selector */}
+          <div className="mb-5">
+            <label className="text-gray-400 text-xs font-mono mb-2 block uppercase tracking-wider">
+              Post Type
             </label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.filter((c) => c.id !== "all").map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                    category === cat.id
-                      ? "border-purple-500/60 bg-purple-500/15 text-white"
-                      : "border-white/8 bg-white/[0.02] text-gray-400 hover:border-white/20"
-                  }`}
-                >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {POST_TYPES.filter((c) => c.id !== "all").map((cat) => {
+                const isSelected = category === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.id)}
+                    className={`flex flex-col items-start p-3 rounded-2xl text-left border transition cursor-pointer ${
+                      isSelected
+                        ? "shadow-lg"
+                        : "border-white/8 bg-white/[0.02] text-gray-400 hover:border-white/20 hover:text-white"
+                    }`}
+                    style={
+                      isSelected
+                        ? {
+                            borderColor: `${cat.color}70`,
+                            backgroundColor: `${cat.color}15`,
+                            boxShadow: `0 0 15px ${cat.color}18`,
+                          }
+                        : {}
+                    }
+                  >
+                    <div
+                      className="flex items-center gap-1.5 font-bold text-xs"
+                      style={{ color: isSelected ? cat.color : "#d1d5db" }}
+                    >
+                      <span className="text-sm">{cat.emoji}</span>
+                      <span>{cat.label}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-500 line-clamp-1 mt-1 font-mono">
+                      {cat.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -678,26 +751,47 @@ const EditPostModal = ({ post, onClose, onUpdated }) => {
             })}
           </div>
 
-          <div className="mb-4">
-            <label className="text-gray-400 text-xs font-mono mb-1.5 block uppercase tracking-wider">
-              Category
+          {/* Post Type Selector */}
+          <div className="mb-5">
+            <label className="text-gray-400 text-xs font-mono mb-2 block uppercase tracking-wider">
+              Post Type
             </label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.filter((c) => c.id !== "all").map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                    category === cat.id
-                      ? "border-purple-500/60 bg-purple-500/15 text-white"
-                      : "border-white/8 bg-white/[0.02] text-gray-400 hover:border-white/20"
-                  }`}
-                >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {POST_TYPES.filter((c) => c.id !== "all").map((cat) => {
+                const isSelected = category === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.id)}
+                    className={`flex flex-col items-start p-3 rounded-2xl text-left border transition cursor-pointer ${
+                      isSelected
+                        ? "shadow-lg"
+                        : "border-white/8 bg-white/[0.02] text-gray-400 hover:border-white/20 hover:text-white"
+                    }`}
+                    style={
+                      isSelected
+                        ? {
+                            borderColor: `${cat.color}70`,
+                            backgroundColor: `${cat.color}15`,
+                            boxShadow: `0 0 15px ${cat.color}18`,
+                          }
+                        : {}
+                    }
+                  >
+                    <div
+                      className="flex items-center gap-1.5 font-bold text-xs"
+                      style={{ color: isSelected ? cat.color : "#d1d5db" }}
+                    >
+                      <span className="text-sm">{cat.emoji}</span>
+                      <span>{cat.label}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-500 line-clamp-1 mt-1 font-mono">
+                      {cat.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -884,10 +978,19 @@ const EditPostModal = ({ post, onClose, onUpdated }) => {
 };
 
 // ── Post Card ─────────────────────────────────────────────────────────────────
-const PostCard = ({ post, onLike, onClick, likedIds, user, onEdit, onDelete }) => {
+const PostCard = ({
+  post,
+  onReaction,
+  userReaction,
+  onClick,
+  onAuthorClick,
+  user,
+  onEdit,
+  onDelete,
+}) => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const cat = CATEGORIES.find((c) => c.id === post.category) || CATEGORIES[1];
-  const liked = likedIds.has(post.id);
+  const type = getPostType(post.category);
+
   const timeAgo = (iso) => {
     if (!iso) return "just now";
     const diff = (Date.now() - new Date(iso)) / 1000;
@@ -897,61 +1000,80 @@ const PostCard = ({ post, onLike, onClick, likedIds, user, onEdit, onDelete }) =
     return `${Math.floor(diff / 86400)}d ago`;
   };
 
+  const authorName = post.username || "Anonymous";
+  const authorInitials = authorName.replace(/^@/, "").slice(0, 2).toUpperCase() || "GL";
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
+    <motion.article
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4 }}
-      transition={{ duration: 0.2 }}
-      className="group relative bg-[#0f0f18] border border-white/10 rounded-2xl p-6 cursor-pointer hover:border-white/25 transition-all shadow-xl overflow-hidden flex flex-col justify-between"
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.18 }}
+      className="group relative bg-[#0d0d16] border border-white/10 hover:border-white/20 rounded-2xl p-5 sm:p-6 cursor-pointer transition-all shadow-xl hover:shadow-cyan-950/20 overflow-hidden flex flex-col justify-between"
       onClick={() => onClick(post)}
     >
+      {/* Type Accent Top Highlight Line */}
       <div
-        className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-0 left-0 right-0 h-[2px] opacity-70 group-hover:opacity-100 transition-opacity"
         style={{
-          background: `linear-gradient(90deg, transparent, ${cat.color}, transparent)`,
+          background: `linear-gradient(90deg, transparent, ${type.color}, transparent)`,
         }}
       />
 
       <div>
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/10">
+        {/* Top Bar: Author capsule & Post Type pill & Menu */}
+        <div className="flex items-center justify-between gap-3 mb-3">
+          {/* Author Capsule (Click to open DeveloperConnectModal) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAuthorClick(post.authorProfile || post);
+            }}
+            className="flex items-center gap-2.5 min-w-0 text-left group/author hover:opacity-90 transition cursor-pointer p-1 -m-1 rounded-xl hover:bg-white/[0.04]"
+            title="Click to view developer profile & socials"
+          >
+            <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-white/15 bg-[#121220] flex items-center justify-center">
               {post.avatar_url ? (
                 <img
                   src={post.avatar_url}
-                  alt={post.username}
+                  alt={authorName}
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-[#FF00C8]/40 to-[#00F0FF]/40 flex items-center justify-center text-xs font-black text-white">
-                  {post.username?.slice(0, 2).toUpperCase()}
+                <div
+                  className="w-full h-full flex items-center justify-center text-xs font-black text-white"
+                  style={{
+                    background: `linear-gradient(135deg, ${type.color}40, #00F0FF40)`,
+                  }}
+                >
+                  {authorInitials}
                 </div>
               )}
             </div>
-            <div className="min-w-0">
-              <span className="text-white text-xs font-semibold truncate block">
-                {post.username}
+            <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
+              <span className="text-white text-xs font-bold truncate group-hover/author:text-[#00F0FF] transition">
+                {authorName}
               </span>
-              <span className="text-gray-500 text-[10px]">
-                {timeAgo(post.created_at)}
-              </span>
+              <span className="text-gray-500 text-[10px] font-mono">• {timeAgo(post.created_at)}</span>
             </div>
-          </div>
+          </button>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Purposeful Post Type Badge */}
             <span
-              className="flex items-center gap-1 text-[10px] font-mono font-semibold px-2.5 py-1 rounded-full border"
+              className="flex items-center gap-1 text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full border shadow-sm"
               style={{
-                color: cat.color,
-                borderColor: `${cat.color}30`,
-                background: `${cat.color}0c`,
+                color: type.color,
+                borderColor: `${type.color}35`,
+                backgroundColor: `${type.color}10`,
               }}
             >
-              <span>{cat.emoji}</span>
-              <span>{cat.label}</span>
+              <span>{type.emoji}</span>
+              <span>{type.label}</span>
             </span>
 
+            {/* Author Menu */}
             {user?.id === post.user_id && (
               <div className="relative">
                 <button
@@ -1002,26 +1124,30 @@ const PostCard = ({ post, onLike, onClick, likedIds, user, onEdit, onDelete }) =
           </div>
         </div>
 
-        <h3 className="text-white font-bold text-base leading-snug mb-2 group-hover:text-[#00F0FF] transition-colors">
+        {/* Title */}
+        <h3 className="text-white font-bold text-base sm:text-lg leading-snug mb-2 group-hover:text-[#00F0FF] transition-colors">
           {post.title}
         </h3>
 
+        {/* Excerpt / Markdown */}
         {post.body && (
-          <div className="line-clamp-3 text-gray-400 text-xs leading-relaxed mb-4">
+          <div className="line-clamp-2 text-gray-400 text-xs sm:text-sm leading-relaxed mb-3">
             <MarkdownBody content={post.body} />
           </div>
         )}
 
+        {/* Code Snippet preview */}
         {post.code && (
-          <div className="bg-[#080810] border border-white/6 rounded-xl p-3 my-3 overflow-hidden">
+          <div className="bg-[#080810] border border-white/8 rounded-xl p-3 my-2.5 overflow-hidden">
             <pre className="text-green-400 text-xs font-mono line-clamp-3">
               {post.code}
             </pre>
           </div>
         )}
 
+        {/* Image Attachment Preview */}
         {post.image_url && (
-          <div className="rounded-xl overflow-hidden mb-4 border border-white/6 max-h-48">
+          <div className="rounded-xl overflow-hidden mb-3 border border-white/8 max-h-48">
             <img
               src={post.image_url}
               alt="post attachment"
@@ -1031,42 +1157,52 @@ const PostCard = ({ post, onLike, onClick, likedIds, user, onEdit, onDelete }) =
         )}
       </div>
 
-      <div className="flex items-center gap-4 text-xs font-medium text-gray-500 pt-3 border-t border-white/5 mt-4">
-        <motion.button
-          whileTap={{ scale: 0.75 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onLike(post);
-          }}
-          className={`flex items-center gap-1.5 transition cursor-pointer ${
-            liked ? "text-[#FF00C8]" : "hover:text-white"
-          }`}
-        >
-          <motion.div
-            animate={liked ? { scale: [1, 1.4, 1], rotate: [0, -12, 12, 0] } : {}}
-            transition={{ duration: 0.3 }}
-          >
-            <Heart size={14} className={liked ? "fill-[#FF00C8]" : ""} />
-          </motion.div>
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={post.likes}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.15 }}
-            >
-              {post.likes || 0}
-            </motion.span>
-          </AnimatePresence>
-        </motion.button>
+      {/* Discussion & Reaction Footer Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3.5 border-t border-white/5 mt-3 text-xs">
+        {/* Multi-Reaction Bar (❤️, 🔥, 💡, 🚀) */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {REACTIONS.map((r) => {
+            const isActive = userReaction === r.id;
+            return (
+              <motion.button
+                key={r.id}
+                whileTap={{ scale: 0.85 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReaction(post, r.id);
+                }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                  isActive
+                    ? "bg-[#00F0FF]/15 border-[#00F0FF]/40 text-cyan-300 shadow-sm shadow-cyan-500/20"
+                    : "bg-white/[0.03] border-white/8 text-gray-400 hover:text-white hover:border-white/20"
+                }`}
+                title={`React with ${r.label}`}
+              >
+                <span className="text-xs">{r.emoji}</span>
+              </motion.button>
+            );
+          })}
 
-        <div className="flex items-center gap-1.5 hover:text-white transition">
-          <MessageSquare size={14} />
-          <span>{post.comment_count || 0} comments</span>
+          <span className="text-gray-500 text-[11px] font-mono ml-1 font-semibold">
+            {post.likes || 0}
+          </span>
+        </div>
+
+        {/* Discussion comments count & Join Discussion CTA */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-gray-400 font-medium">
+            <MessageSquare size={13} className="text-gray-500 group-hover:text-purple-400 transition" />
+            <span>
+              {post.comment_count || 0} {post.comment_count === 1 ? "reply" : "replies"}
+            </span>
+          </div>
+
+          <span className="text-[11px] font-semibold text-[#00F0FF] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+            Discuss <ChevronRight size={13} />
+          </span>
         </div>
       </div>
-    </motion.div>
+    </motion.article>
   );
 };
 
@@ -1085,7 +1221,18 @@ const Community = () => {
   const [editingPost, setEditingPost] = useState(null);
   const [deletingPost, setDeletingPost] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [likedIds, setLikedIds] = useState(new Set());
+  const [selectedDev, setSelectedDev] = useState(null);
+  const [authorFilter, setAuthorFilter] = useState(null);
+  const [userReactions, setUserReactions] = useState({});
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("glitch_community_reactions") || "{}");
+      setUserReactions(stored);
+    } catch {
+      setUserReactions({});
+    }
+  }, []);
 
   const handleConfirmDelete = async () => {
     if (!deletingPost) return;
@@ -1118,7 +1265,17 @@ const Community = () => {
 
     // 1. Fetch base community posts safely
     let query = supabase.from("community_posts").select("*");
-    if (category !== "all") query = query.eq("category", category);
+
+    // Post Type filtering with legacy compatibility
+    if (category !== "all") {
+      const activeType = POST_TYPES.find((t) => t.id === category);
+      if (activeType?.legacy && activeType.legacy.length > 0) {
+        query = query.in("category", activeType.legacy);
+      } else {
+        query = query.eq("category", category);
+      }
+    }
+
     if (sort === "new") query = query.order("created_at", { ascending: false });
     else if (sort === "top") query = query.order("likes", { ascending: false });
     else query = query.order("created_at", { ascending: false });
@@ -1131,12 +1288,11 @@ const Community = () => {
       return;
     }
 
-    // Filter out Daily Standup check-in logs so Community ONLY displays discussions created via Create Post
-    const validCategories = ["general", "glitch", "ai", "webdev", "creative", "offtopic"];
+    // Filter out standup check-ins & room categories
     let results = (rawPosts || []).filter((p) => {
       const cat = (p.category || "").toLowerCase();
       const title = (p.title || "").toLowerCase();
-      const isRoomCategory = cat.startsWith("room_") || !validCategories.includes(cat);
+      const isRoomCategory = cat.startsWith("room_");
       const isStandupTitle = title.includes("daily standup");
       return !isRoomCategory && !isStandupTitle;
     });
@@ -1169,7 +1325,7 @@ const Community = () => {
     if (userIds.length > 0) {
       const { data: profs, error: profErr } = await supabase
         .from("profiles")
-        .select("id, username, full_name, avatar_url")
+        .select("id, username, full_name, avatar_url, bio, github_url, twitter_url, discord_url, linkedin_url")
         .in("id", userIds);
 
       if (profErr) console.error("profiles fetch error:", profErr);
@@ -1179,7 +1335,7 @@ const Community = () => {
       });
     }
 
-    // Enrich posts with dynamic profile info & comment count
+    // Enrich posts with dynamic profile info, social links & comment count
     results = results.map((p) => {
       const prof = profilesMap[p.user_id];
       return {
@@ -1187,54 +1343,78 @@ const Community = () => {
         username: prof?.username || prof?.full_name || p.username || "Anonymous",
         avatar_url: prof?.avatar_url || p.avatar_url || null,
         comment_count: commentCountsMap[p.id] || 0,
+        authorProfile: prof || null,
       };
     });
 
-    setPosts(results);
+    // 4. Author filter (if developer profile clicked "View all posts")
+    if (authorFilter) {
+      const cleanFilter = authorFilter.toLowerCase().replace(/^@/, "");
+      results = results.filter((p) => {
+        const u = (p.username || "").toLowerCase().replace(/^@/, "");
+        return u === cleanFilter;
+      });
+    }
 
-    const stored = JSON.parse(localStorage.getItem("liked_posts") || "[]");
-    setLikedIds(new Set(stored));
+    setPosts(results);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchPosts();
-  }, [category, sort]);
+  }, [category, sort, authorFilter]);
 
   const handleSearch = (e) => {
     if (e.key === "Enter") fetchPosts();
   };
 
-  const handleLike = async (post) => {
-    if (!user) {
+  const handleReaction = async (post, reactionId) => {
+    if (!activeUser) {
       navigate("/");
       return;
     }
-    const already = likedIds.has(post.id);
-    const newLiked = new Set(likedIds);
-    const delta = already ? -1 : 1;
 
-    if (already) newLiked.delete(post.id);
-    else newLiked.add(post.id);
+    const currentReaction = userReactions[post.id];
+    const isRemoving = currentReaction === reactionId;
+    const isChanging = currentReaction && currentReaction !== reactionId;
 
-    setLikedIds(newLiked);
-    localStorage.setItem("liked_posts", JSON.stringify([...newLiked]));
+    let delta = 0;
+    const newReactions = { ...userReactions };
 
-    await supabase
-      .from("community_posts")
-      .update({ likes: Math.max(0, (post.likes || 0) + delta) })
-      .eq("id", post.id);
+    if (isRemoving) {
+      delete newReactions[post.id];
+      delta = -1;
+    } else if (isChanging) {
+      newReactions[post.id] = reactionId;
+      delta = 0;
+    } else {
+      newReactions[post.id] = reactionId;
+      delta = 1;
+    }
 
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === post.id ? { ...p, likes: Math.max(0, (p.likes || 0) + delta) } : p
-      )
-    );
+    setUserReactions(newReactions);
+    try {
+      localStorage.setItem("glitch_community_reactions", JSON.stringify(newReactions));
+    } catch (e) {
+      console.warn("Could not save reaction to localStorage", e);
+    }
+
+    if (delta !== 0) {
+      const newCount = Math.max(0, (post.likes || 0) + delta);
+      await supabase
+        .from("community_posts")
+        .update({ likes: newCount })
+        .eq("id", post.id);
+
+      setPosts((prev) =>
+        prev.map((p) => (p.id === post.id ? { ...p, likes: newCount } : p))
+      );
+    }
   };
 
   return (
     <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans">
-      {/* Dynamic Moving Glitch Background Particles (Explore & Home Page Treatment) */}
+      {/* Dynamic Moving Glitch Background Particles */}
       <GlitchBackground />
 
       {/* Smooth Seamless Top Cyber Grid with Vertical Fade Gradient */}
@@ -1261,7 +1441,7 @@ const Community = () => {
       <div className="relative z-10 flex flex-col flex-1">
         <Navbar />
 
-        {/* HERO HEADER SECTION (Matching Explore Page Spacing & Entrance Animation) */}
+        {/* HERO HEADER SECTION */}
         <section className="relative pt-36 md:pt-44 pb-12 px-6 mb-8 md:mb-16 text-center">
           <div className="max-w-4xl mx-auto">
             <PageHeading
@@ -1283,13 +1463,13 @@ const Community = () => {
             transition={{ duration: 0.6, ease: "easeOut" }}
             className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start"
           >
-            {/* LEFT SIDEBAR: Topics & Search */}
+            {/* LEFT SIDEBAR: Purposeful Post Types & Search */}
             <div className="lg:col-span-1 space-y-6">
-              {/* Topics/Categories Box (Horizontal slider on mobile, vertical sidebar on desktop) */}
+              {/* Post Types Box */}
               <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3 sm:space-y-4">
                 <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-2.5 sm:pb-3 border-b border-white/10">
-                  <Tag size={14} className="text-[#FF00C8]" />
-                  <span>Topics & Categories</span>
+                  <Tag size={14} className="text-[#00F0FF]" />
+                  <span>Discussion Types</span>
                 </h3>
 
                 <motion.div 
@@ -1298,12 +1478,15 @@ const Community = () => {
                     dragElastic={0.1}
                     className="flex lg:flex-col gap-2 lg:gap-0 overflow-x-auto no-scrollbar pb-1 lg:pb-0 lg:space-y-1.5 cursor-grab active:cursor-grabbing"
                   >
-                  {CATEGORIES.map((cat) => {
+                  {POST_TYPES.map((cat) => {
                     const active = category === cat.id;
                     return (
                       <button
                         key={cat.id}
-                        onClick={() => setCategory(cat.id)}
+                        onClick={() => {
+                          setCategory(cat.id);
+                          if (authorFilter) setAuthorFilter(null);
+                        }}
                         className={`shrink-0 lg:w-full flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border whitespace-nowrap ${
                           active
                             ? "bg-white/10 text-white border-white/20 shadow-sm"
@@ -1315,7 +1498,10 @@ const Community = () => {
                           <span>{cat.label}</span>
                         </div>
                         {active && (
-                          <span className="w-2 h-2 rounded-full bg-[#00F0FF] shrink-0" />
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: cat.color }}
+                          />
                         )}
                       </button>
                     );
@@ -1327,7 +1513,7 @@ const Community = () => {
               <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-5 shadow-xl space-y-3">
                 <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-white/10">
                   <Search size={14} className="text-[#00F0FF]" />
-                  <span>Search Community</span>
+                  <span>Search Lounge</span>
                 </h3>
                 <div className="relative">
                   <input
@@ -1335,7 +1521,7 @@ const Community = () => {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyDown={handleSearch}
-                    placeholder="Search posts..."
+                    placeholder="Search posts or code..."
                     className="w-full bg-[#07070d] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#00F0FF]/50 transition font-sans"
                   />
                 </div>
@@ -1385,17 +1571,36 @@ const Community = () => {
                   }}
                 >
                   <Plus size={15} />
-                  <span>Create Post</span>
+                  <span>Start Discussion</span>
                 </motion.button>
               </div>
 
-              {/* Posts Feed Grid */}
+              {/* Active Author Filter Pill */}
+              {authorFilter && (
+                <div className="flex items-center justify-between bg-cyan-950/30 border border-cyan-500/30 rounded-2xl px-4 py-2.5 text-xs">
+                  <div className="flex items-center gap-2 text-cyan-300">
+                    <span>
+                      Filtering discussions by <strong className="text-white">@{authorFilter.replace(/^@/, "")}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAuthorFilter(null)}
+                    className="flex items-center gap-1 text-gray-400 hover:text-white px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition cursor-pointer"
+                  >
+                    <X size={12} />
+                    <span>Clear Filter</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Discussion Stream */}
               {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {[1, 2, 3, 4].map((n) => (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((n) => (
                     <div
                       key={n}
-                      className="bg-[#0f0f18] border border-white/5 rounded-2xl p-5 h-48 animate-pulse"
+                      className="bg-[#0f0f18] border border-white/5 rounded-2xl p-6 h-36 animate-pulse"
                     />
                   ))}
                 </div>
@@ -1403,29 +1608,40 @@ const Community = () => {
                 <div className="text-center py-20 bg-[#0f0f18] border border-white/10 rounded-3xl p-8">
                   <p className="text-4xl mb-3">💬</p>
                   <p className="text-white font-bold text-base mb-1">
-                    No posts found
+                    No discussions found
                   </p>
                   <p className="text-gray-400 text-xs mb-6">
-                    Be the first to share something in this topic!
+                    {authorFilter
+                      ? `No posts found from @${authorFilter.replace(/^@/, "")}.`
+                      : "Be the first to share something in this topic!"}
                   </p>
+                  {authorFilter && (
+                    <button
+                      onClick={() => setAuthorFilter(null)}
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition cursor-pointer mr-2"
+                    >
+                      Clear Filter
+                    </button>
+                  )}
                   {user && (
                     <button
                       onClick={() => setShowCreate(true)}
                       className="px-5 py-2.5 rounded-xl bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold hover:bg-purple-600/40 transition cursor-pointer"
                     >
-                      Create a Post
+                      Start Discussion
                     </button>
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
                   {posts.map((post) => (
                     <PostCard
                       key={post.id}
                       post={post}
-                      onLike={handleLike}
-                      likedIds={likedIds}
+                      onReaction={handleReaction}
+                      userReaction={userReactions[post.id]}
                       onClick={(p) => navigate(`/community/${p.id}`)}
+                      onAuthorClick={(dev) => setSelectedDev(dev)}
                       user={activeUser}
                       onEdit={setEditingPost}
                       onDelete={setDeletingPost}
@@ -1463,6 +1679,18 @@ const Community = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Developer Connect & Profile Discovery Modal */}
+      <DeveloperConnectModal
+        developer={selectedDev}
+        isOpen={Boolean(selectedDev)}
+        onClose={() => setSelectedDev(null)}
+        currentUser={activeUser}
+        onFilterByAuthor={(authorUsername) => {
+          setAuthorFilter(authorUsername);
+          setSelectedDev(null);
+        }}
+      />
     </div>
   );
 };
