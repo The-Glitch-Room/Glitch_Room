@@ -11,9 +11,25 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+// Helper to draw rounded rectangles on HTML5 Canvas across all browser engines
+const drawRoundRect = (ctx, x, y, w, h, r) => {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+};
+
 /**
  * High-resolution 1200x800 HTML5 Canvas certificate renderer.
  * Used for exporting crisp PNG files and print-ready document images.
+ * Perfectly calibrated with generous spacing so signatures and footer elements never collide.
  */
 export const renderCertificateToCanvas = (cert, canvas) => {
   if (!canvas || !cert) return;
@@ -100,66 +116,95 @@ export const renderCertificateToCanvas = (cert, canvas) => {
   ctx.fillRect(width - 32 - cornerSize, height - 38, cornerSize, 6);
   ctx.fillRect(width - 38, height - 32 - cornerSize, 6, cornerSize);
 
-  // Header Subtitle
+  // Header Subtitle Badge Pill (Matching on-screen badge style)
+  const pillW = 490;
+  const pillH = 28;
+  const pillX = (width - pillW) / 2;
+  const pillY = 74;
+  drawRoundRect(ctx, pillX, pillY, pillW, pillH, 14);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
   ctx.fillStyle = primaryColor;
-  ctx.font = "bold 13px 'Courier New', monospace";
+  ctx.font = "bold 11px 'Courier New', monospace";
   ctx.textAlign = "center";
-  ctx.letterSpacing = "3px";
-  ctx.fillText("GLITCH ROOM ARENA • OFFICIAL VERIFIED CREDENTIAL", width / 2, 95);
+  ctx.letterSpacing = "2px";
+  ctx.fillText("GLITCH ROOM ARENA • OFFICIAL VERIFIED CREDENTIAL", width / 2, pillY + 18);
+  ctx.letterSpacing = "0px";
 
   // Certificate Main Heading
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = "900 38px 'Segoe UI', system-ui, sans-serif";
+  ctx.font = "900 36px 'Segoe UI', system-ui, sans-serif";
   ctx.fillText(
     isWinner ? "CERTIFICATE OF EXCELLENCE" : "CERTIFICATE OF ACHIEVEMENT",
     width / 2,
-    155,
+    145,
   );
 
   // Conferred statement
   ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
-  ctx.font = "italic 16px Georgia, serif";
-  ctx.fillText("This digital credential is proudly conferred upon", width / 2, 195);
+  ctx.font = "italic 15px Georgia, serif";
+  ctx.fillText("This digital credential is proudly conferred upon", width / 2, 182);
 
-  // Recipient Name
+  // Recipient Name with dynamic font scaling to prevent overflow on long names
+  let nameText = (cert.recipient_name || "Candidate").toUpperCase();
+  let nameSize = 44;
+  ctx.font = `900 ${nameSize}px 'Segoe UI', system-ui, sans-serif`;
+  while (ctx.measureText(nameText).width > 840 && nameSize > 22) {
+    nameSize -= 2;
+    ctx.font = `900 ${nameSize}px 'Segoe UI', system-ui, sans-serif`;
+  }
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = "900 44px 'Segoe UI', system-ui, sans-serif";
-  ctx.fillText((cert.recipient_name || "Candidate").toUpperCase(), width / 2, 255);
+  ctx.fillText(nameText, width / 2, 245);
 
-  // Underline beneath candidate name
-  const nameGrad = ctx.createLinearGradient(width / 2 - 180, 0, width / 2 + 180, 0);
+  // Underline beneath candidate name proportional to name length
+  const measuredNameW = ctx.measureText(nameText).width;
+  const underlineW = Math.min(Math.max(measuredNameW + 60, 220), 720);
+  const nameGrad = ctx.createLinearGradient(width / 2 - underlineW / 2, 0, width / 2 + underlineW / 2, 0);
   nameGrad.addColorStop(0, "transparent");
   nameGrad.addColorStop(0.5, primaryColor);
   nameGrad.addColorStop(1, "transparent");
   ctx.fillStyle = nameGrad;
-  ctx.fillRect(width / 2 - 180, 275, 360, 3);
+  ctx.fillRect(width / 2 - underlineW / 2, 268, underlineW, 3);
 
   // Reason
   ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
-  ctx.font = "15px sans-serif";
+  ctx.font = "14px sans-serif";
   ctx.fillText(
     "for demonstrating high technical proficiency and competitive placement in",
     width / 2,
-    315,
+    305,
   );
 
+  // Event Name with dynamic scaling
+  let eventText = cert.event_name || "Pro Arena Assessment";
+  let eventSize = 24;
+  ctx.font = `bold ${eventSize}px sans-serif`;
+  while (ctx.measureText(eventText).width > 850 && eventSize > 15) {
+    eventSize -= 1;
+    ctx.font = `bold ${eventSize}px sans-serif`;
+  }
   ctx.fillStyle = primaryColor;
-  ctx.font = "bold 24px sans-serif";
-  ctx.fillText(cert.event_name || "Pro Arena Assessment", width / 2, 352);
+  ctx.fillText(eventText, width / 2, 338);
 
+  // Organized by
   ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
   ctx.font = "13px sans-serif";
   ctx.fillText(
-    `Organized by ${cert.organization_name || "Glitch Room Arena"}`,
+    `Organized by ${cert.organization_name || "Glitch Room"}`,
     width / 2,
-    380,
+    365,
   );
 
   // Performance Metric Boxes
-  const boxY = 420;
-  const boxW = 210;
-  const boxH = 85;
-  const startX = (width - (3 * boxW + 2 * 25)) / 2;
+  const boxY = 405;
+  const boxW = 220;
+  const boxH = 84;
+  const boxGap = 24;
+  const startX = (width - (3 * boxW + 2 * boxGap)) / 2;
 
   const pct =
     cert.percentage !== undefined && cert.percentage !== null && cert.percentage > 0
@@ -173,27 +218,44 @@ export const renderCertificateToCanvas = (cert, canvas) => {
   ];
 
   metrics.forEach((m, i) => {
-    const x = startX + i * (boxW + 25);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
-    ctx.fillRect(x, boxY, boxW, boxH);
+    const x = startX + i * (boxW + boxGap);
+    drawRoundRect(ctx, x, boxY, boxW, boxH, 14);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.035)";
+    ctx.fill();
     ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(x, boxY, boxW, boxH);
+    ctx.stroke();
 
     ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-    ctx.font = "10px 'Courier New', monospace";
+    ctx.font = "bold 10px 'Courier New', monospace";
     ctx.fillText(m.label, x + boxW / 2, boxY + 28);
 
+    // Dynamic value font scaling
+    let valSize = 20;
+    ctx.font = `bold ${valSize}px sans-serif`;
+    while (ctx.measureText(m.value).width > (boxW - 18) && valSize > 13) {
+      valSize -= 1;
+      ctx.font = `bold ${valSize}px sans-serif`;
+    }
     ctx.fillStyle = i === 2 ? primaryColor : "#FFFFFF";
-    ctx.font = "bold 21px sans-serif";
-    ctx.fillText(m.value, x + boxW / 2, boxY + 62);
+    ctx.fillText(m.value, x + boxW / 2, boxY + 60);
   });
 
-  // Holographic Circular Verification Seal on Left
-  const sealX = 140;
-  const sealY = 635;
+  // Footer subtle horizontal divider line
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(sealX, sealY, 45, 0, Math.PI * 2);
+  ctx.moveTo(60, 525);
+  ctx.lineTo(width - 60, 525);
+  ctx.stroke();
+
+  // Footer Baseline
+  const sealY = 635;
+
+  // Holographic Circular Verification Seal on Left
+  const sealX = 135;
+  ctx.beginPath();
+  ctx.arc(sealX, sealY, 44, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(255, 215, 0, 0.08)";
   ctx.fill();
   ctx.strokeStyle = primaryColor;
@@ -201,55 +263,93 @@ export const renderCertificateToCanvas = (cert, canvas) => {
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.arc(sealX, sealY, 38, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+  ctx.arc(sealX, sealY, 37, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
   ctx.lineWidth = 1;
   ctx.stroke();
 
   ctx.fillStyle = primaryColor;
-  ctx.font = "bold 24px sans-serif";
+  ctx.font = "24px sans-serif";
   ctx.textAlign = "center";
   ctx.fillText("🏆", sealX, sealY + 8);
 
-  // Verification details
+  // Verification details on Left
   ctx.textAlign = "left";
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = "bold 13px 'Courier New', monospace";
-  ctx.fillText("VERIFIED ON-CHAIN CREDENTIAL", sealX + 60, sealY - 12);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-  ctx.font = "11px 'Courier New', monospace";
-  ctx.fillText(`ID: ${cert.certificate_number || "GR-PRO-VERIFIED"}`, sealX + 60, sealY + 6);
+  ctx.font = "bold 12px 'Courier New', monospace";
+  ctx.letterSpacing = "0.5px";
+  ctx.fillText("VERIFIED ON-CHAIN CREDENTIAL", sealX + 58, sealY - 14);
+
+  ctx.fillStyle = "#00F0FF";
+  ctx.font = "bold 11px 'Courier New', monospace";
+  ctx.fillText(`ID: ${cert.certificate_number || "GR-PRO-VERIFIED"}`, sealX + 58, sealY + 4);
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+  ctx.font = "10px 'Courier New', monospace";
   ctx.fillText(
     `ISSUED: ${new Date(cert.issued_at || Date.now()).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     })} • STATUS: TAMPER-PROOF`,
-    sealX + 60,
-    sealY + 24,
+    sealX + 58,
+    sealY + 22,
   );
+  ctx.letterSpacing = "0px";
 
-  // Signatures on Right
-  const sigX = width - 260;
+  // ── Dual Signatures on Right (Spaced cleanly with 110px+ gap so they never overlap) ──
+  const sig1X = 780;
+  const sig2X = 1040;
+  const sigLineWidth = 150;
+
+  // Signature 1: Event Organizer
+  let orgText = (cert.organization_name || "Glitch Room").trim();
+  let orgSize = 17;
+  ctx.font = `italic bold ${orgSize}px Georgia, serif`;
+  while (ctx.measureText(orgText).width > 170 && orgSize > 11) {
+    orgSize -= 1;
+    ctx.font = `italic bold ${orgSize}px Georgia, serif`;
+  }
+  if (ctx.measureText(orgText).width > 170) {
+    while (ctx.measureText(orgText + "…").width > 170 && orgText.length > 3) {
+      orgText = orgText.slice(0, -1);
+    }
+    orgText += "…";
+  }
+
   ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-  ctx.font = "italic bold 17px Georgia, serif";
-  ctx.fillText(cert.organization_name || "Event Authority", sigX, sealY - 4);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-  ctx.fillRect(sigX - 60, sealY + 4, 120, 1);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.font = "10px 'Courier New', monospace";
-  ctx.fillText("ORGANIZER SIGNATURE", sigX, sealY + 18);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.fillText(orgText, sig1X, sealY - 5);
 
-  const sig2X = width - 120;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(sig1X - sigLineWidth / 2, sealY + 5);
+  ctx.lineTo(sig1X + sigLineWidth / 2, sealY + 5);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+  ctx.font = "bold 9px 'Courier New', monospace";
+  ctx.letterSpacing = "1px";
+  ctx.fillText("ORGANIZER SIGNATURE", sig1X, sealY + 21);
+
+  // Signature 2: Core Arena Authority (Glitch Protocol)
   ctx.fillStyle = primaryColor;
   ctx.font = "italic bold 17px Georgia, serif";
-  ctx.fillText("GlitchProtocol", sig2X, sealY - 4);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-  ctx.fillRect(sig2X - 50, sealY + 4, 100, 1);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.font = "10px 'Courier New', monospace";
-  ctx.fillText("CORE ARENA", sig2X, sealY + 18);
+  ctx.fillText("Glitch Protocol", sig2X, sealY - 5);
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(sig2X - sigLineWidth / 2, sealY + 5);
+  ctx.lineTo(sig2X + sigLineWidth / 2, sealY + 5);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+  ctx.font = "bold 9px 'Courier New', monospace";
+  ctx.letterSpacing = "1px";
+  ctx.fillText("CORE ARENA", sig2X, sealY + 21);
+  ctx.letterSpacing = "0px";
 };
 
 /**
@@ -392,7 +492,7 @@ export const GlitchCertificateDOM = ({ cert, room: roomProp, compact = false }) 
       <div className="grid grid-cols-3 gap-2 sm:gap-3.5 my-4 sm:my-6 relative z-10">
         <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
           <div className="text-[8px] sm:text-[10px] font-mono text-gray-400 uppercase tracking-wider">
-            Standing
+            OFFICIAL STANDING
           </div>
           <div className="text-xs sm:text-sm font-black text-white mt-1 flex items-center justify-center gap-1">
             <span>{isWinner ? (rankNum === 1 ? "🥇" : rankNum === 2 ? "🥈" : "🥉") : "🎖️"}</span>
@@ -401,7 +501,7 @@ export const GlitchCertificateDOM = ({ cert, room: roomProp, compact = false }) 
         </div>
         <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
           <div className="text-[8px] sm:text-[10px] font-mono text-gray-400 uppercase tracking-wider">
-            Final Score
+            TOTAL SCORE
           </div>
           <div className="text-xs sm:text-sm font-black text-white mt-1 font-mono">
             {cert.score ?? 0} Pts
@@ -409,7 +509,7 @@ export const GlitchCertificateDOM = ({ cert, room: roomProp, compact = false }) 
         </div>
         <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
           <div className="text-[8px] sm:text-[10px] font-mono text-gray-400 uppercase tracking-wider">
-            Mastery
+            MASTERY LEVEL
           </div>
           <div
             className="text-xs sm:text-sm font-black font-mono mt-1"
@@ -436,40 +536,44 @@ export const GlitchCertificateDOM = ({ cert, room: roomProp, compact = false }) 
           </div>
           <div>
             <div className="font-mono font-bold text-white tracking-wide text-[10px] sm:text-xs">
-              VERIFIED CREDENTIAL
+              VERIFIED ON-CHAIN CREDENTIAL
             </div>
-            <div className="font-mono text-gray-400 text-[9px] sm:text-[10px]">
-              ID: <span className="text-cyan-400 font-bold">{cert.certificate_number}</span>
+            <div className="font-mono text-cyan-400 font-bold text-[9px] sm:text-[10px]">
+              ID: <span>{cert.certificate_number}</span>
             </div>
-            <div className="text-[8px] sm:text-[9px] text-gray-500 font-mono">
-              Issued:{" "}
+            <div className="text-[8px] sm:text-[9px] text-gray-400 font-mono">
+              ISSUED:{" "}
               {new Date(cert.issued_at || Date.now()).toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
                 year: "numeric",
-              })}
+              })}{" "}
+              • STATUS: TAMPER-PROOF
             </div>
           </div>
         </div>
 
-        {/* Dual Signatures */}
-        <div className="flex items-center gap-6 sm:gap-8 text-right sm:text-left">
-          <div className="text-center">
-            <div className="font-serif italic text-sm sm:text-base text-gray-300 font-bold -mb-1 select-none font-signature">
-              {cert.organization_name || roomProp?.organizer_name || "Event Authority"}
+        {/* Dual Signatures - cleanly separated so they never collide */}
+        <div className="flex items-center gap-8 sm:gap-12 text-center shrink-0">
+          <div className="text-center min-w-[110px] max-w-[150px]">
+            <div className="font-serif italic text-sm sm:text-base text-gray-200 font-bold -mb-1 select-none font-signature truncate">
+              {cert.organization_name || roomProp?.org_name || roomProp?.organizer_name || "Glitch Room"}
             </div>
-            <div className="w-20 sm:w-24 h-px bg-white/20 mx-auto my-1" />
-            <div className="text-[8px] sm:text-[9px] text-gray-400 font-mono uppercase">
-              Event Organizer
+            <div className="w-24 sm:w-28 h-px bg-white/25 mx-auto my-1" />
+            <div className="text-[8px] sm:text-[9px] text-gray-400 font-mono uppercase tracking-wider">
+              ORGANIZER SIGNATURE
             </div>
           </div>
-          <div className="text-center">
-            <div className="font-serif italic text-sm sm:text-base text-cyan-400 font-bold -mb-1 select-none font-signature">
-              GlitchProtocol
+          <div className="text-center min-w-[110px]">
+            <div
+              className="font-serif italic text-sm sm:text-base font-bold -mb-1 select-none font-signature"
+              style={{ color: accentColor }}
+            >
+              Glitch Protocol
             </div>
-            <div className="w-20 sm:w-24 h-px bg-white/20 mx-auto my-1" />
-            <div className="text-[8px] sm:text-[9px] text-gray-400 font-mono uppercase">
-              Arena Authority
+            <div className="w-24 sm:w-28 h-px bg-white/25 mx-auto my-1" />
+            <div className="text-[8px] sm:text-[9px] text-gray-400 font-mono uppercase tracking-wider">
+              CORE ARENA
             </div>
           </div>
         </div>
@@ -521,20 +625,53 @@ export const GlitchCertificateModal = ({
     const printWindow = window.open("", "_blank");
     if (printWindow) {
       printWindow.document.write(`
+        <!DOCTYPE html>
         <html>
           <head>
-            <title>Print Certificate - ${certificate?.recipient_name || "Certificate"}</title>
+            <title>Print Certificate - ${(certificate?.recipient_name || "Certificate").replace(/[^a-zA-Z0-9]/g, "_")}</title>
             <style>
-              body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
-              img { max-width: 100%; height: auto; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+              @page {
+                size: landscape;
+                margin: 0;
+              }
+              html, body {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+                background: #060610;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              img {
+                width: 100%;
+                max-width: 1200px;
+                height: auto;
+                aspect-ratio: 1200 / 800;
+                display: block;
+                box-shadow: 0 0 30px rgba(0,0,0,0.8);
+              }
               @media print {
-                body { background: #fff; }
-                img { width: 100%; height: auto; }
+                html, body {
+                  background: #060610;
+                  width: 100vw;
+                  height: 100vh;
+                  overflow: hidden;
+                }
+                img {
+                  width: 100vw;
+                  height: 100vh;
+                  object-fit: contain;
+                  box-shadow: none;
+                }
               }
             </style>
           </head>
           <body>
-            <img src="${dataUrl}" onload="window.print(); window.close();" />
+            <img src="${dataUrl}" onload="setTimeout(() => { window.print(); window.close(); }, 250);" />
           </body>
         </html>
       `);
