@@ -39,7 +39,7 @@ const HostRoom = () => {
     "Custom goals & commitments",
     "Daily check-ins & Proof of Work",
     "Participant accountability",
-    "Streaks, verification & rewards",
+    "Uptime, verification & rewards",
   ];
 
   const proFeatures = [

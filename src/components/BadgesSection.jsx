@@ -312,7 +312,7 @@ export default function BadgesSection({ userId }) {
           <div className="p-6 text-center bg-[#0d0d14] border border-white/10 rounded-2xl">
             <AlertCircle className="mx-auto text-gray-500 mb-2" size={24} />
             <p className="text-xs text-gray-400 font-mono">No badges earned in this category yet.</p>
-            <p className="text-[11px] text-gray-600 mt-1">Complete glitch challenges and daily streaks to earn badges!</p>
+            <p className="text-[11px] text-gray-600 mt-1">Complete glitch challenges and maintain daily uptime to earn badges!</p>
           </div>
         ) : (
           <>

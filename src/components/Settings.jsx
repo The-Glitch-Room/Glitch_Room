@@ -757,7 +757,7 @@ const Settings = () => {
 
             <SettingRow
               label="Weekly Digest"
-              desc="Receive a weekly summary of your gBits, streaks & badges"
+              desc="Receive a weekly summary of your gBits, uptime & badges"
             >
               <Toggle
                 enabled={toggles.weeklyDigest}

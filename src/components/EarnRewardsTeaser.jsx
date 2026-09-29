@@ -28,9 +28,9 @@ const REWARD_CARDS = [
   },
   {
     icon: Flame,
-    title: "7-Day Uptime Streak",
+    title: "7-Day Uptime Milestone",
     reward: "+150 gBits",
-    description: "Log in continuously for 7 days to maintain your uptime streak and claim bonus payout multipliers.",
+    description: "Log in continuously for 7 days to maintain your uptime and claim bonus payout multipliers.",
     accent: "#22c55e",
   },
 ];

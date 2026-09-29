@@ -2052,11 +2052,11 @@ const CreatorRoomDetail = ({ roomId }) => {
 
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex items-center gap-2 text-xs font-bold text-white mb-2">
-                <Flame size={15} className="text-amber-400" /> Streak System
+                <Flame size={15} className="text-amber-400" /> Uptime System
               </div>
               <p className="text-xs text-gray-400 font-mono leading-relaxed">
-                Your streak is part of your global uptime. Missed check-ins
-                reset streak count.
+                Your daily check-in is part of your global uptime. Missed check-ins
+                reset your uptime.
               </p>
             </div>
 
@@ -2302,7 +2302,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       What did you accomplish today?
                     </h4>
                     <p className="text-[11px] text-gray-400">
-                      Share your progress, add proof, and keep your streak
+                      Share your progress, add proof, and keep your uptime
                       alive!
                     </p>
                   </div>
@@ -2957,7 +2957,7 @@ const CreatorRoomDetail = ({ roomId }) => {
               </div>
               <div>
                 <div className="text-[11px] text-gray-400 font-sans font-medium">
-                  Check-in Streak
+                  Check-in Uptime
                 </div>
                 <div className="text-sm font-black text-white font-mono">
                   {userStreak} Days
@@ -3767,7 +3767,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
               <p className="text-xs text-white/60 mb-4">
                 Choose a squad member to pair with for mutual accountability,
-                daily check-ins, and buddy streak tracking.
+                daily check-ins, and buddy uptime tracking.
               </p>
 
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -3931,9 +3931,9 @@ const CreatorRoomDetail = ({ roomId }) => {
                         className="text-amber-400 shrink-0 mt-0.5"
                       />
                       <p>
-                        <strong className="text-white/90">Streaks</strong> —
+                        <strong className="text-white/90">Uptime</strong> —
                         submitting a standup on consecutive days builds your
-                        streak. Missing a day resets it.
+                        uptime. Missing a day resets it.
                       </p>
                     </div>
                     {Number(room?.entry_stake || 0) > 0 && (
@@ -3976,7 +3976,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                         <strong className="text-white/90">
                           Squad Leaderboard
                         </strong>{" "}
-                        — ranks members by standups submitted and streak, so you
+                        — ranks members by standups submitted and uptime, so you
                         can see how you stack up against the rest of the squad.
                       </p>
                     </div>
@@ -4381,7 +4381,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       : `${totalSprintDays}-Day Sprint Calendar`}
                   </h3>
                   <p className="text-xs text-gray-400 font-mono">
-                    Track your daily check-in streak & proof of work progress
+                    Track your daily check-in uptime & proof of work progress
                   </p>
                 </div>
 
@@ -4453,7 +4453,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
                       <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
                         <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
-                          🔥 Current Streak
+                          🔥 Current Uptime
                         </div>
                         <div className="text-base font-black text-amber-400">
                           {userStreak} Days
@@ -4641,7 +4641,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 </p>
                                 <p>
                                   <strong className="text-white">
-                                    Streak:
+                                    Uptime:
                                   </strong>{" "}
                                   🔥 {getStreakEndingAt(userDateKeySet, dayKey)}{" "}
                                   days
@@ -5129,7 +5129,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 @{m.username}
                               </h5>
                               <span className="text-[10px] text-gray-400 font-mono">
-                                🔥 {getUserStreak(m.user_id)}d streak
+                                🔥 {getUserStreak(m.user_id)}d uptime
                               </span>
                             </div>
                           </div>
@@ -5245,7 +5245,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                       <div className="grid grid-cols-3 gap-2.5">
                         <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
                           <div className="text-[10px] text-gray-400 uppercase">
-                            Current Streak
+                            Current Uptime
                           </div>
                           <div className="text-sm font-black text-amber-400">
                             🔥 {bStreak} Days
@@ -5396,7 +5396,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                             Logged: {formatStandupTimestamp(latest.created_at)}
                           </span>
                           <span className="text-emerald-400 font-bold">
-                            🔥 {getUserStreak(buddyUserId)}d Streak
+                            🔥 {getUserStreak(buddyUserId)}d Uptime
                           </span>
                         </div>
 

@@ -55,9 +55,9 @@ const BONUS_RULES = [
   {
     icon: Calendar,
     color: "#a855f7",
-    title: "7-Day Uptime Streak",
+    title: "7-Day Uptime Milestone",
     reward: "+150 gBits",
-    desc: "Keep your Uptime streak active for 7 consecutive days. Repeats every new 7-day milestone.",
+    desc: "Keep your Uptime active for 7 consecutive days. Repeats every new 7-day milestone.",
   },
   {
     icon: CheckCircle2,

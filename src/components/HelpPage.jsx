@@ -72,7 +72,7 @@ const faqs = [
       },
       {
         q: "How do badges work?",
-        a: "Badges are earned automatically when you hit specific milestones — like solving 10 challenges, maintaining a streak, or completing an Arena event. Check Points & Achievements to see all available badges.",
+        a: "Badges are earned automatically when you hit specific milestones — like solving 10 challenges, maintaining your uptime, or completing an Arena event. Check Points & Achievements to see all available badges.",
       },
     ],
   },

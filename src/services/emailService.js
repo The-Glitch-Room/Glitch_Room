@@ -69,7 +69,7 @@ export const sendStandupDigestEmail = async ({ toEmail, username, roomTitle, acc
           }
         </div>
         <p style="margin-top: 24px; font-size: 11px; color: #666; font-family: monospace;">
-          Glitch Room Accountability Network · Protecting builder streaks
+          Glitch Room Accountability Network · Protecting builder uptime
         </p>
       </div>
     `,

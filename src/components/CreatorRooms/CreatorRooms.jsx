@@ -465,7 +465,7 @@ const CreatorRooms = () => {
             <PageHeading
               eyebrow="CONSISTENCY & GOAL TRACKING"
               title="Creator Rooms"
-              subtitle="Join accountability squads, set goal pledges, submit daily Proof of Work, track consistency streaks, and hold each other accountable."
+              subtitle="Join accountability squads, set goal pledges, submit daily Proof of Work, track consistency uptime, and hold each other accountable."
               accent="purple"
               size="xl"
             />

@@ -270,7 +270,7 @@ const CreateRoomModal = ({ close, create }) => {
                     onChange={setCoverIcon}
                     options={[
                       { value: "⚡", label: "⚡ Lightning" },
-                      { value: "🔥", label: "🔥 Fire Streak" },
+                      { value: "🔥", label: "🔥 Fire Uptime" },
                       { value: "🎯", label: "🎯 Target Goal" },
                       { value: "🚀", label: "🚀 Rocket Sprint" },
                       { value: "💻", label: "💻 Code Builder" },
@@ -582,7 +582,7 @@ const CreateRoomModal = ({ close, create }) => {
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 leading-relaxed font-sans">
-                  On-time room standups feed directly into your website profile's global uptime streak. No duplicate streak calculations!
+                  On-time room standups feed directly into your website profile's global uptime. No duplicate uptime calculations!
                 </p>
               </div>
             </motion.div>

@@ -190,7 +190,7 @@ export default function ActivityHeatmap({ userId }) {
             {streak}
           </p>
           <p className="text-[9px] text-gray-600 uppercase tracking-widest">
-            Day streak
+            Day uptime
           </p>
         </div>
       </div>

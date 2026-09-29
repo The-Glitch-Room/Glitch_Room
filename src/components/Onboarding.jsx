@@ -26,7 +26,7 @@ const slides = [
     highlights: [
       "100 gBits Welcome Bonus Credited to your profile",
       "Daily Fact Bubble bonuses (+10 gBits every 24h)",
-      "Real-time XP, Level progression & Uptime Streaks",
+      "Real-time XP, Level progression & Uptime Tracking",
     ],
   },
   {

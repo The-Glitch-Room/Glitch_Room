@@ -373,7 +373,7 @@ export const checkAndAwardStreakBonus = async (userId) => {
     .select("id")
     .eq("user_id", userId)
     .eq("type", "bonus")
-    .ilike("title", `%${milestone}-Day Uptime Streak%`)
+    .or(`title.ilike.%${milestone}-Day Uptime Milestone%,title.ilike.%${milestone}-Day Uptime Streak%`)
     .limit(1);
 
   if (existingBonus && existingBonus.length > 0) {
@@ -382,7 +382,7 @@ export const checkAndAwardStreakBonus = async (userId) => {
 
   const nextPoints = await updatePoints(
     100,
-    `⚡ 7-Day Uptime Streak Milestone (${milestone} Days)`,
+    `⚡ 7-Day Uptime Milestone (${milestone} Days)`,
     "bonus",
     null,
     userId,
