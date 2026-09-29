@@ -25,9 +25,10 @@ const PANELS = [
     icon: Code2,
     accent: "#00F0FF",
     accentRgb: "0, 240, 255",
-    terminalLabel: "Creator Room #42 · Live Standup",
-    codeSnippet: 'git commit -m "feat: ship proof of work engine"',
-    statText: "+142 verified proof lines · 3 peers watching",
+    terminalLabel: "Creator Room · Live Standup",
+    headerTag: "IN PUBLIC",
+    codeSnippet: 'git commit -m "feat: ship core engine updates"',
+    footerText: "Daily progress and proof of work shared with developers",
   },
   {
     id: "02",
@@ -38,9 +39,10 @@ const PANELS = [
     icon: Bug,
     accent: "#FF00C8",
     accentRgb: "255, 0, 200",
-    terminalLabel: "Arena Debugger · Real Glitch #108",
-    codeSnippet: "Runtime isolate fix verified (4/4 tests passed)",
-    statText: "Zero fluff · Pure hands-on problem solving",
+    terminalLabel: "Arena Debugger · Real Bug",
+    headerTag: "RUNTIME",
+    codeSnippet: "Runtime isolate fix confirmed across all test suites",
+    footerText: "Hands-on problem solving with real failure cases",
   },
   {
     id: "03",
@@ -51,9 +53,10 @@ const PANELS = [
     icon: Users,
     accent: "#a855f7",
     accentRgb: "168, 85, 247",
-    terminalLabel: "Builder Squad Lounge · Pair Buddies",
-    codeSnippet: "Active architecture review & pair debugging",
-    statText: "Peer-to-peer dev network · Learn by building",
+    terminalLabel: "Builder Squad · Peer Learning",
+    headerTag: "COMMUNITY",
+    codeSnippet: "Live architectural review and pair problem solving",
+    footerText: "Collaborative feedback and peer learning from other devs",
   },
   {
     id: "04",
@@ -64,9 +67,10 @@ const PANELS = [
     icon: Flame,
     accent: "#FF6B00",
     accentRgb: "255, 107, 0",
-    terminalLabel: "Daily Uptime Matrix · Consistency Tracker",
-    codeSnippet: "14-Day Uptime Run · Standup Verified",
-    statText: "Compound your progress with daily uptime",
+    terminalLabel: "Consistency · Daily Proof of Work",
+    headerTag: "PROGRESS",
+    codeSnippet: "Daily standup logged and progress tracker updated",
+    footerText: "Building consistent habits that compound over time",
   },
   {
     id: "05",
@@ -77,9 +81,10 @@ const PANELS = [
     icon: Award,
     accent: "#00FF88",
     accentRgb: "0, 255, 136",
-    terminalLabel: "Verified Developer Profile · Tier 3",
-    codeSnippet: "Skill credentials & onchain proof verified",
-    statText: "Verifiable reputation built on real code",
+    terminalLabel: "Developer Profile · Skill Progress",
+    headerTag: "PORTFOLIO",
+    codeSnippet: "Public showcase and skill achievements displayed",
+    footerText: "Showcase what you build to the entire developer community",
   },
 ];
 
@@ -298,10 +303,10 @@ const WhyChooseUs = () => {
                               {panel.terminalLabel}
                             </span>
                             <span
-                              className="text-[10px] font-bold tracking-wider uppercase"
+                              className="text-[10px] font-bold tracking-wider uppercase opacity-80"
                               style={{ color: panel.accent }}
                             >
-                              VERIFIED
+                              {panel.headerTag}
                             </span>
                           </div>
 
@@ -314,7 +319,7 @@ const WhyChooseUs = () => {
 
                           <div className="flex items-center gap-2 mt-3 pt-2 border-t border-white/5 text-[11px] text-gray-400">
                             <CheckCircle2 size={13} style={{ color: panel.accent }} />
-                            <span>{panel.statText}</span>
+                            <span>{panel.footerText}</span>
                           </div>
                         </div>
 
@@ -427,19 +432,27 @@ const WhyChooseUs = () => {
                             className="mt-4 p-3 rounded-xl bg-black/50 border font-mono text-[11px]"
                             style={{ borderColor: `${panel.accent}25` }}
                           >
-                            <div className="text-gray-400 mb-1 flex items-center gap-1.5">
+                            <div className="text-gray-400 mb-1 flex items-center justify-between">
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full"
+                                  style={{ backgroundColor: panel.accent }}
+                                />
+                                {panel.terminalLabel}
+                              </span>
                               <span
-                                className="w-1.5 h-1.5 rounded-full"
-                                style={{ backgroundColor: panel.accent }}
-                              />
-                              {panel.terminalLabel}
+                                className="text-[9px] font-bold tracking-wider uppercase opacity-80"
+                                style={{ color: panel.accent }}
+                              >
+                                {panel.headerTag}
+                              </span>
                             </div>
-                            <div className="text-white text-xs">
+                            <div className="text-white text-xs py-0.5">
                               $ {panel.codeSnippet}
                             </div>
-                            <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-1.5">
+                            <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-1.5 pt-1.5 border-t border-white/5">
                               <CheckCircle2 size={11} style={{ color: panel.accent }} />
-                              {panel.statText}
+                              <span>{panel.footerText}</span>
                             </div>
                           </div>
                         </motion.div>
