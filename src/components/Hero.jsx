@@ -5,7 +5,6 @@ import { Code2, Bug, Users, TrendingUp } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { fetchTotalChallengeCount } from "../utils/challengeCountHelper";
 import { fetchActiveRoomsStats } from "../utils/roomCountHelper";
-import StatCard from "./StatCard";
 import Button from "./Button";
 
 const formatNumber = (n) => {
@@ -13,42 +12,26 @@ const formatNumber = (n) => {
   return String(n);
 };
 
-const ECOSYSTEM_PILLARS = [
+const FLOW_STEPS = [
   {
-    tag: "BUILD",
-    title: "Projects & Proof of Work",
-    subtitle: "Creator Rooms · Daily Standups",
+    label: "BUILD",
     icon: Code2,
     color: "#00F0FF",
-    border: "rgba(0,240,255,0.22)",
-    bg: "rgba(0,240,255,0.03)",
   },
   {
-    tag: "DEBUG",
-    title: "Broken Code & Challenges",
-    subtitle: "Interactive Arenas · Real Bugs",
+    label: "DEBUG",
     icon: Bug,
     color: "#FF00C8",
-    border: "rgba(255,0,200,0.22)",
-    bg: "rgba(255,0,200,0.03)",
   },
   {
-    tag: "CONNECT",
-    title: "Builder Squads & Lounge",
-    subtitle: "Peer Discussions · Pair Buddies",
+    label: "CONNECT",
     icon: Users,
     color: "#a855f7",
-    border: "rgba(168,85,247,0.22)",
-    bg: "rgba(168,85,247,0.03)",
   },
   {
-    tag: "GROW",
-    title: "Daily Uptime & Credentials",
-    subtitle: "Skill Badges · Verifiable Proof",
+    label: "GROW",
     icon: TrendingUp,
     color: "#FFD700",
-    border: "rgba(255,215,0,0.22)",
-    bg: "rgba(255,215,0,0.03)",
   },
 ];
 
@@ -142,22 +125,12 @@ const Hero = () => {
   }, []);
 
   const statItems = [
-    { value: formatNumber(stats.creators), label: "Creators", accent: "cyan" },
-    {
-      value: formatNumber(stats.challenges),
-      label: "Challenges",
-      accent: "pink",
-    },
-    {
-      value: formatNumber(stats.roomsActive),
-      label: "Rooms Active",
-      accent: "purple",
-    },
-    {
-      value: formatNumber(stats.roomsHosted),
-      label: "Rooms Hosted",
-      accent: "gold",
-    },
+    { value: formatNumber(stats.creators), label: "Creators" },
+    { value: formatNumber(stats.challenges), label: "Challenges" },
+    ...(stats.roomsActive > 0
+      ? [{ value: formatNumber(stats.roomsActive), label: "Rooms Active" }]
+      : []),
+    { value: formatNumber(stats.roomsHosted), label: "Rooms Hosted" },
   ];
 
   return (
@@ -185,9 +158,9 @@ const Hero = () => {
           THE DEVELOPER PLATFORM
         </motion.div>
 
-        {/* Main Heading */}
+        {/* Main Heading - reduced font size as requested */}
         <motion.h1
-          className="glitchh-text text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-center max-w-5xl leading-tight tracking-tight"
+          className="glitchh-text text-3xl sm:text-4xl md:text-5xl lg:text-[52px] font-black text-center max-w-4xl leading-tight tracking-tight"
           data-text="BUILD. DEBUG. CONNECT. GROW."
           initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
@@ -198,7 +171,7 @@ const Hero = () => {
 
         {/* Supporting text */}
         <motion.p
-          className="text-base sm:text-lg text-gray-300 max-w-2xl mt-6 mb-9 leading-relaxed font-sans"
+          className="text-base sm:text-lg text-gray-300 max-w-2xl mt-5 mb-8 leading-relaxed font-sans"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.7 }}
@@ -212,7 +185,7 @@ const Hero = () => {
 
         {/* Action Buttons */}
         <motion.div
-          className="flex flex-wrap gap-4 sm:gap-6 justify-center items-center"
+          className="flex flex-wrap gap-4 sm:gap-6 justify-center items-center mb-10 sm:mb-12"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.5, duration: 0.6 }}
@@ -226,74 +199,63 @@ const Hero = () => {
           </Link>
         </motion.div>
 
-        {/* Subtle Visual Ecosystem: 4 Platform Pillars */}
+        {/* Lightweight Horizontal Visual Flow */}
         <motion.div
-          initial={{ opacity: 0, y: 25 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 0.8 }}
-          className="relative z-10 mt-12 mb-10 w-full max-w-4xl mx-auto"
+          transition={{ delay: 0.65, duration: 0.6 }}
+          className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 select-none mb-6 sm:mb-7"
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {ECOSYSTEM_PILLARS.map((pillar) => {
-              const Icon = pillar.icon;
-              return (
-                <motion.div
-                  key={pillar.tag}
-                  whileHover={{ y: -3, scale: 1.02 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className="relative rounded-2xl p-4 text-left border backdrop-blur-md transition-all duration-300 group"
-                  style={{
-                    backgroundColor: pillar.bg,
-                    borderColor: pillar.border,
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span
-                      className="text-[10px] font-mono font-bold tracking-widest uppercase flex items-center gap-1.5"
-                      style={{ color: pillar.color }}
-                    >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: pillar.color }}
-                      />
-                      {pillar.tag}
-                    </span>
-                    <Icon
-                      size={15}
-                      style={{ color: pillar.color }}
-                      className="opacity-70 group-hover:opacity-100 transition-opacity"
-                    />
+          {FLOW_STEPS.map((step, idx) => {
+            const Icon = step.icon;
+            return (
+              <React.Fragment key={step.label}>
+                <div className="inline-flex items-center gap-2 group cursor-default">
+                  <Icon
+                    size={14}
+                    style={{ color: step.color }}
+                    className="shrink-0 transition-transform duration-200 group-hover:scale-110"
+                  />
+                  <span
+                    className="text-xs sm:text-sm font-mono font-bold tracking-widest transition-colors duration-200"
+                    style={{ color: step.color }}
+                  >
+                    {step.label}
+                  </span>
+                </div>
+
+                {idx < FLOW_STEPS.length - 1 && (
+                  <div className="flex items-center text-gray-600/70 select-none">
+                    <span className="hidden sm:inline-block w-4 md:w-6 h-[1px] bg-gradient-to-r from-gray-700 via-gray-500 to-gray-700" />
+                    <span className="text-xs sm:text-sm text-gray-500 font-mono">→</span>
                   </div>
-
-                  <h3 className="text-xs sm:text-sm font-bold text-white mb-1 transition-colors">
-                    {pillar.title}
-                  </h3>
-
-                  <p className="text-[11px] text-gray-400 font-mono leading-relaxed">
-                    {pillar.subtitle}
-                  </p>
-                </motion.div>
-              );
-            })}
-          </div>
+                )}
+              </React.Fragment>
+            );
+          })}
         </motion.div>
 
-        {/* Dynamic platform stats */}
+        {/* Minimal Statistics Strip */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.9, duration: 0.8 }}
-          className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 w-full max-w-2xl sm:max-w-3xl mx-auto"
+          transition={{ delay: 0.8, duration: 0.6 }}
+          className="flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs sm:text-sm text-gray-400 font-mono"
         >
           {statItems.map((stat, i) => (
-            <StatCard
-              key={i}
-              value={stat.value}
-              label={stat.label}
-              accent={stat.accent}
-              variant="boxed"
-              delay={1.0 + i * 0.1}
-            />
+            <React.Fragment key={stat.label}>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="font-bold text-gray-100 text-xs sm:text-sm">
+                  {stat.value}
+                </span>
+                <span className="text-gray-400 text-xs sm:text-sm">
+                  {stat.label}
+                </span>
+              </span>
+              {i < statItems.length - 1 && (
+                <span className="text-gray-600 select-none text-xs sm:text-sm">•</span>
+              )}
+            </React.Fragment>
           ))}
         </motion.div>
       </div>
