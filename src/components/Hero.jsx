@@ -174,11 +174,7 @@ const Hero = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.7 }}
         >
-          Glitch Room is a space for developers to{" "}
-          <span className="text-[#FF00C8] font-semibold">solve problems</span>,{" "}
-          <span className="text-[#00F0FF] font-semibold">build in public</span>, share their work,{" "}
-          <span className="text-[#00F0FF] font-semibold">learn from each other</span>, and{" "}
-          <span className="text-[#FF00C8] font-semibold">grow together</span>.
+          Glitch Room is a space for developers to solve problems, build in public, share their work, learn from each other, and grow together.
         </motion.p>
 
         {/* Action Buttons */}
