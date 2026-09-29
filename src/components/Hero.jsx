@@ -127,9 +127,7 @@ const Hero = () => {
   const statItems = [
     { value: formatNumber(stats.creators), label: "Creators" },
     { value: formatNumber(stats.challenges), label: "Challenges" },
-    ...(stats.roomsActive > 0
-      ? [{ value: formatNumber(stats.roomsActive), label: "Rooms Active" }]
-      : []),
+    { value: formatNumber(stats.roomsActive), label: "Active Rooms" },
     { value: formatNumber(stats.roomsHosted), label: "Rooms Hosted" },
   ];
 
@@ -240,20 +238,20 @@ const Hero = () => {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8, duration: 0.6 }}
-          className="flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs sm:text-sm text-gray-400 font-mono"
+          className="flex flex-wrap items-center justify-center gap-x-4 sm:gap-x-6 md:gap-x-8 gap-y-2.5 font-mono"
         >
           {statItems.map((stat, i) => (
             <React.Fragment key={stat.label}>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="font-bold text-gray-100 text-xs sm:text-sm">
+              <span className="inline-flex items-center gap-2">
+                <span className="font-bold text-white text-base sm:text-lg md:text-xl tracking-tight">
                   {stat.value}
                 </span>
-                <span className="text-gray-400 text-xs sm:text-sm">
+                <span className="text-gray-300 text-sm sm:text-base font-medium">
                   {stat.label}
                 </span>
               </span>
               {i < statItems.length - 1 && (
-                <span className="text-gray-600 select-none text-xs sm:text-sm">•</span>
+                <span className="text-gray-600 select-none text-sm sm:text-base md:text-lg">•</span>
               )}
             </React.Fragment>
           ))}
