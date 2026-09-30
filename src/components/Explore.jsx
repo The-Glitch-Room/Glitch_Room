@@ -796,6 +796,10 @@ const TimeBoundChallengeCard = ({ item, isCompleted, onSolve, accent }) => (
   </div>
 );
 
+// ── Feature flags for Explore sections (temporarily deactivated for current product focus; flip to true to re-enable) ──
+const ENABLE_DAILY_WEEKLY_SECTION = false;
+const ENABLE_LIVE_UPCOMING_SECTION = false;
+
 // ── Main Explore Page Component ───────────────────────────────────────────────
 const Explore = () => {
   const [authUser, setAuthUser] = useState(null);
@@ -1181,7 +1185,11 @@ const Explore = () => {
             <PageHeading
               eyebrow="CHALLENGE DISCOVERY ENGINE"
               title="The Glitch Explore Hub"
-              subtitle="Discover time-bounded battles, daily refreshes, featured picks, core challenge modes, and historical vaults."
+              subtitle={
+                ENABLE_DAILY_WEEKLY_SECTION
+                  ? "Discover time-bounded battles, daily refreshes, featured picks, core challenge modes, and historical vaults."
+                  : "Discover featured picks, core challenge modes, and historical problem vaults."
+              }
               accent="cyan"
               size="xl"
             />
@@ -1215,288 +1223,294 @@ const Explore = () => {
 
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 1: LIMITED-TIME & DAILY / WEEKLY GLITCHES
+              (Temporarily deactivated; flip ENABLE_DAILY_WEEKLY_SECTION to true to re-enable)
           ───────────────────────────────────────────────────────────────── */}
-          <motion.section
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-            className="space-y-6"
-          >
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <Flame size={20} className="text-[#00F0FF]" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-extrabold text-white">
-                    1. Limited-Time & Daily / Weekly Glitches
-                  </h2>
-                  <p className="text-xs text-gray-400 font-mono mt-0.5">
-                    Recurring time-bound challenges with auto-reset schedules
-                  </p>
-                </div>
-              </div>
-              <span className="hidden sm:inline-block text-xs font-mono text-gray-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
-                ⚡ Unified Uptime System
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Daily Glitches Column */}
-              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
-                  <div className="flex items-center gap-2.5">
-                    <Flame size={18} className="text-[#FF00C8]" />
-                    <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
-                      Daily Glitches
-                    </h3>
+          {ENABLE_DAILY_WEEKLY_SECTION && (
+            <motion.section
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                    <Flame size={20} className="text-[#00F0FF]" />
                   </div>
-                  {dailyItems.length > 0 && (
-                    <span className="text-xs font-mono text-[#FF00C8] font-bold bg-[#FF00C8]/10 border border-[#FF00C8]/20 px-3 py-1 rounded-full">
-                      Active
-                    </span>
+                  <div>
+                    <h2 className="text-xl font-extrabold text-white">
+                      1. Limited-Time & Daily / Weekly Glitches
+                    </h2>
+                    <p className="text-xs text-gray-400 font-mono mt-0.5">
+                      Recurring time-bound challenges with auto-reset schedules
+                    </p>
+                  </div>
+                </div>
+                <span className="hidden sm:inline-block text-xs font-mono text-gray-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
+                  ⚡ Unified Uptime System
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Daily Glitches Column */}
+                <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
+                  <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <Flame size={18} className="text-[#FF00C8]" />
+                      <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
+                        Daily Glitches
+                      </h3>
+                    </div>
+                    {dailyItems.length > 0 && (
+                      <span className="text-xs font-mono text-[#FF00C8] font-bold bg-[#FF00C8]/10 border border-[#FF00C8]/20 px-3 py-1 rounded-full">
+                        Active
+                      </span>
+                    )}
+                  </div>
+
+                  {dailyItems.length === 0 ? (
+                    <ComingSoonBanner message="No active Daily challenges right now. Tag one in from the Admin Panel to feature it here!" />
+                  ) : (
+                    <div className="space-y-4">
+                      {dailyItems.map((item) => (
+                        <TimeBoundChallengeCard
+                          key={item.id}
+                          item={item}
+                          isCompleted={completedIds.has(item.id)}
+                          onSolve={() => setActiveSolverChallenge(item)}
+                          accent="#FF00C8"
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
 
-                {dailyItems.length === 0 ? (
-                  <ComingSoonBanner message="No active Daily challenges right now. Tag one in from the Admin Panel to feature it here!" />
-                ) : (
-                  <div className="space-y-4">
-                    {dailyItems.map((item) => (
-                      <TimeBoundChallengeCard
-                        key={item.id}
-                        item={item}
-                        isCompleted={completedIds.has(item.id)}
-                        onSolve={() => setActiveSolverChallenge(item)}
-                        accent="#FF00C8"
-                      />
-                    ))}
+                {/* Weekly Glitches Column */}
+                <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
+                  <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <Calendar size={18} className="text-[#00F0FF]" />
+                      <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
+                        Weekly Glitches
+                      </h3>
+                    </div>
+                    {weeklyItems.length > 0 && (
+                      <span className="text-xs font-mono text-[#00F0FF] font-bold bg-[#00F0FF]/10 border border-[#00F0FF]/20 px-3 py-1 rounded-full">
+                        Active
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Weekly Glitches Column */}
-              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
-                  <div className="flex items-center gap-2.5">
-                    <Calendar size={18} className="text-[#00F0FF]" />
-                    <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
-                      Weekly Glitches
-                    </h3>
-                  </div>
-                  {weeklyItems.length > 0 && (
-                    <span className="text-xs font-mono text-[#00F0FF] font-bold bg-[#00F0FF]/10 border border-[#00F0FF]/20 px-3 py-1 rounded-full">
-                      Active
-                    </span>
+                  {weeklyItems.length === 0 ? (
+                    <ComingSoonBanner message="No active Weekly challenges right now. Tag one in from the Admin Panel to feature it here!" />
+                  ) : (
+                    <div className="space-y-4">
+                      {weeklyItems.map((item) => (
+                        <TimeBoundChallengeCard
+                          key={item.id}
+                          item={item}
+                          isCompleted={completedIds.has(item.id)}
+                          onSolve={() => setActiveSolverChallenge(item)}
+                          accent="#00F0FF"
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
-
-                {weeklyItems.length === 0 ? (
-                  <ComingSoonBanner message="No active Weekly challenges right now. Tag one in from the Admin Panel to feature it here!" />
-                ) : (
-                  <div className="space-y-4">
-                    {weeklyItems.map((item) => (
-                      <TimeBoundChallengeCard
-                        key={item.id}
-                        item={item}
-                        isCompleted={completedIds.has(item.id)}
-                        onSolve={() => setActiveSolverChallenge(item)}
-                        accent="#00F0FF"
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
-            </div>
-          </motion.section>
+            </motion.section>
+          )}
 
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 2: LIVE CHALLENGES & UPCOMING CHALLENGES
+              (Temporarily deactivated; flip ENABLE_LIVE_UPCOMING_SECTION to true to re-enable)
           ───────────────────────────────────────────────────────────────── */}
-          <motion.section
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-            className="space-y-6"
-          >
-            <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-              <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                <Activity size={20} className="text-[#00F0FF]" />
+          {ENABLE_LIVE_UPCOMING_SECTION && (
+            <motion.section
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <Activity size={20} className="text-[#00F0FF]" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-white">
+                    2. Live Challenges & Upcoming Battles
+                  </h2>
+                  <p className="text-xs text-gray-400 font-mono mt-0.5">
+                    Active live windows & scheduled future events
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-extrabold text-white">
-                  2. Live Challenges & Upcoming Battles
-                </h2>
-                <p className="text-xs text-gray-400 font-mono mt-0.5">
-                  Active live windows & scheduled future events
-                </p>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Live Challenges Column */}
-              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
-                  <div className="flex items-center gap-2.5">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-                    </span>
-                    <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
-                      Live Challenges (Active Now)
-                    </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Live Challenges Column */}
+                <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
+                  <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                      </span>
+                      <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
+                        Live Challenges (Active Now)
+                      </h3>
+                    </div>
+                    {liveItems.length > 0 && (
+                      <span className="text-xs font-mono text-red-400 font-bold bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">
+                        {liveItems.length} Live Now
+                      </span>
+                    )}
                   </div>
-                  {liveItems.length > 0 && (
-                    <span className="text-xs font-mono text-red-400 font-bold bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">
-                      {liveItems.length} Live Now
-                    </span>
+
+                  {liveItems.length === 0 ? (
+                    <ComingSoonBanner message="No active Live Battles right now. Stay tuned!" />
+                  ) : (
+                    <div className="space-y-4">
+                      {liveItems.map((ch) => {
+                        const isDone = completedIds.has(ch.id);
+                        const remaining = secondsUntil(ch.end_time);
+                        return (
+                          <div
+                            key={ch.id}
+                            className="bg-[#07070d] border border-white/5 rounded-2xl p-6 hover:border-white/15 transition flex flex-col justify-between"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-3 mb-4">
+                                <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md font-bold flex items-center gap-1.5 shrink-0">
+                                  <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                                  </span>
+                                  LIVE NOW
+                                </span>
+                                <span className="text-xs font-mono text-amber-400 font-semibold shrink-0">
+                                  <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
+                                  {Math.min(ch.points, 100)} gBits
+                                </span>
+                              </div>
+
+                              <h4 className="text-base font-bold text-white mb-2">{ch.title}</h4>
+                              <p className="text-xs text-gray-400 leading-relaxed mb-5 line-clamp-3">
+                                {ch.description}
+                              </p>
+                            </div>
+
+                            <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-3">
+                              <span className="text-[11px] font-mono text-red-300 flex items-center gap-1.5 min-w-0 truncate">
+                                <Clock size={12} className="shrink-0" />
+                                {ch.end_time ? `Ends in ${formatTimer(remaining)}` : "Active Live Battle"}
+                              </span>
+
+                              {isDone ? (
+                                <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl shrink-0">
+                                  <Check size={14} /> Done
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveSolverChallenge(ch)}
+                                  className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md shrink-0"
+                                  style={{ background: "linear-gradient(90deg, #ef4444, #a855f7)" }}
+                                >
+                                  Solve <ChevronRight size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
-                {liveItems.length === 0 ? (
-                  <ComingSoonBanner message="No active Live Battles right now. Stay tuned!" />
-                ) : (
-                  <div className="space-y-4">
-                    {liveItems.map((ch) => {
-                      const isDone = completedIds.has(ch.id);
-                      const remaining = secondsUntil(ch.end_time);
-                      return (
-                        <div
-                          key={ch.id}
-                          className="bg-[#07070d] border border-white/5 rounded-2xl p-6 hover:border-white/15 transition flex flex-col justify-between"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between gap-3 mb-4">
-                              <span className="text-[10px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 rounded-md font-bold flex items-center gap-1.5 shrink-0">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                {/* Upcoming Challenges Column */}
+                <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
+                  <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <Clock size={18} className="text-[#38BDF8]" />
+                      <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
+                        Upcoming Challenges (Opening Soon)
+                      </h3>
+                    </div>
+                    {upcomingItems.length > 0 && (
+                      <span className="text-xs font-mono text-[#38BDF8] font-bold bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-3 py-1 rounded-full">
+                        {upcomingItems.length} Scheduled
+                      </span>
+                    )}
+                  </div>
+
+                  {upcomingItems.length === 0 ? (
+                    <ComingSoonBanner message="No upcoming battles scheduled yet." />
+                  ) : (
+                    <div className="space-y-4">
+                      {upcomingItems.map((ch) => {
+                        const isSet = reminders.has(ch.id);
+                        const untilStart = secondsUntil(ch.start_time);
+                        return (
+                          <div
+                            key={ch.id}
+                            className="bg-[#07070d] border border-white/5 rounded-2xl p-6 hover:border-white/15 transition flex flex-col justify-between"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-3 mb-4">
+                                <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 shrink-0">
+                                  UPCOMING BATTLE
                                 </span>
-                                LIVE NOW
-                              </span>
-                              <span className="text-xs font-mono text-amber-400 font-semibold shrink-0">
-                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
-                                {Math.min(ch.points, 100)} gBits
-                              </span>
+                                <span className="text-xs font-mono text-amber-400 font-semibold shrink-0">
+                                  <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
+                                  {Math.min(ch.points, 100)} gBits
+                                </span>
+                              </div>
+
+                              <h4 className="text-base font-bold text-white mb-2">{ch.title}</h4>
+                              <p className="text-xs text-gray-400 leading-relaxed mb-5 line-clamp-3">
+                                {ch.description}
+                              </p>
                             </div>
 
-                            <h4 className="text-base font-bold text-white mb-2">{ch.title}</h4>
-                            <p className="text-xs text-gray-400 leading-relaxed mb-5 line-clamp-3">
-                              {ch.description}
-                            </p>
-                          </div>
-
-                          <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-3">
-                            <span className="text-[11px] font-mono text-red-300 flex items-center gap-1.5 min-w-0 truncate">
-                              <Clock size={12} className="shrink-0" />
-                              {ch.end_time ? `Ends in ${formatTimer(remaining)}` : "Active Live Battle"}
-                            </span>
-
-                            {isDone ? (
-                              <span className="flex items-center gap-1 text-xs font-mono text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-3.5 py-1.5 rounded-xl shrink-0">
-                                <Check size={14} /> Done
+                            <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-3">
+                              <span className="text-[11px] font-mono text-[#38BDF8] flex items-center gap-1.5 min-w-0 truncate">
+                                <Clock size={12} className="shrink-0" />
+                                {ch.start_time ? `Opens in ${formatTimer(untilStart)}` : "Opening Soon"}
                               </span>
-                            ) : (
+
                               <button
                                 type="button"
-                                onClick={() => setActiveSolverChallenge(ch)}
-                                className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2 rounded-xl cursor-pointer transition hover:opacity-90 shadow-md shrink-0"
-                                style={{ background: "linear-gradient(90deg, #ef4444, #a855f7)" }}
+                                onClick={() =>
+                                  handleToggleReminder(ch.id, ch.title)
+                                }
+                                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
+                                  isSet
+                                    ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
+                                    : "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
+                                }`}
                               >
-                                Solve <ChevronRight size={14} />
+                                {isSet ? (
+                                  <>
+                                    <Check size={14} /> Saved
+                                  </>
+                                ) : (
+                                  <>
+                                    <Bell size={14} /> Remind Me
+                                  </>
+                                )}
                               </button>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Upcoming Challenges Column */}
-              <div className="bg-[#0f0f18] border border-white/10 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-4">
-                  <div className="flex items-center gap-2.5">
-                    <Clock size={18} className="text-[#38BDF8]" />
-                    <h3 className="font-bold text-white text-sm uppercase tracking-wider font-mono">
-                      Upcoming Challenges (Opening Soon)
-                    </h3>
-                  </div>
-                  {upcomingItems.length > 0 && (
-                    <span className="text-xs font-mono text-[#38BDF8] font-bold bg-[#38BDF8]/10 border border-[#38BDF8]/20 px-3 py-1 rounded-full">
-                      {upcomingItems.length} Scheduled
-                    </span>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
-
-                {upcomingItems.length === 0 ? (
-                  <ComingSoonBanner message="No upcoming battles scheduled yet." />
-                ) : (
-                  <div className="space-y-4">
-                    {upcomingItems.map((ch) => {
-                      const isSet = reminders.has(ch.id);
-                      const untilStart = secondsUntil(ch.start_time);
-                      return (
-                        <div
-                          key={ch.id}
-                          className="bg-[#07070d] border border-white/5 rounded-2xl p-6 hover:border-white/15 transition flex flex-col justify-between"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between gap-3 mb-4">
-                              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/20 shrink-0">
-                                UPCOMING BATTLE
-                              </span>
-                              <span className="text-xs font-mono text-amber-400 font-semibold shrink-0">
-                                <GBitIcon className="w-3.5 h-3.5 inline mr-1 text-[#00F0FF]" />+
-                                {Math.min(ch.points, 100)} gBits
-                              </span>
-                            </div>
-
-                            <h4 className="text-base font-bold text-white mb-2">{ch.title}</h4>
-                            <p className="text-xs text-gray-400 leading-relaxed mb-5 line-clamp-3">
-                              {ch.description}
-                            </p>
-                          </div>
-
-                          <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-3">
-                            <span className="text-[11px] font-mono text-[#38BDF8] flex items-center gap-1.5 min-w-0 truncate">
-                              <Clock size={12} className="shrink-0" />
-                              {ch.start_time ? `Opens in ${formatTimer(untilStart)}` : "Opening Soon"}
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleToggleReminder(ch.id, ch.title)
-                              }
-                              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
-                                isSet
-                                  ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
-                                  : "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
-                              }`}
-                            >
-                              {isSet ? (
-                                <>
-                                  <Check size={14} /> Saved
-                                </>
-                              ) : (
-                                <>
-                                  <Bell size={14} /> Remind Me
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
-            </div>
-          </motion.section>
+            </motion.section>
+          )}
 
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 3: FEATURED & EDITOR'S CHOICE
@@ -1515,7 +1529,7 @@ const Explore = () => {
                 </div>
                 <div>
                   <h2 className="text-xl font-extrabold text-white">
-                    3. Featured & Editor's Choice
+                    {ENABLE_DAILY_WEEKLY_SECTION ? "3. Featured & Editor's Choice" : "Featured & Editor's Choice"}
                   </h2>
                   <p className="text-xs text-gray-400 font-mono mt-0.5">
                     Handpicked top-tier challenges worth discovering
@@ -1610,7 +1624,9 @@ const Explore = () => {
                 </div>
                 <div>
                   <h2 className="text-xl font-extrabold text-white">
-                    4. Core Challenge Modes
+                    {ENABLE_DAILY_WEEKLY_SECTION
+                      ? "4. Core Challenge Modes"
+                      : "Core Challenge Modes"}
                   </h2>
                   <p className="text-xs text-gray-400 font-mono mt-0.5">
                     Our 4 primary challenge platforms & problem domains
@@ -1688,7 +1704,9 @@ const Explore = () => {
                 </div>
                 <div>
                   <h2 className="text-xl font-extrabold text-white">
-                    5. Past Challenges & Vault Archive
+                    {ENABLE_DAILY_WEEKLY_SECTION
+                      ? "5. Past Challenges & Vault Archive"
+                      : "Past Challenges & Vault Archive"}
                   </h2>
                   <p className="text-xs text-gray-400 font-mono mt-0.5">
                     Completed historical battles & hall of fame solution
