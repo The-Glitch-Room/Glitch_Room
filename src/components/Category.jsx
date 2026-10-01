@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Zap, Shuffle, Megaphone, ArrowRight, ChevronRight, ChevronDown } from "lucide-react";
+import PageHeading from "./PageHeading";
 
 const STAGES = [
   {
@@ -60,39 +61,13 @@ const Category = () => {
     <section className="py-20 bg-transparent text-white overflow-hidden border-t border-white/5 relative">
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* ── SECTION HEADER ── */}
-        <div className="text-center max-w-2xl mx-auto mb-14 md:mb-18">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4 }}
-          >
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1 text-[11px] font-mono font-bold tracking-widest uppercase bg-[#00F0FF]/10 border border-[#00F0FF]/30 rounded-full text-[#00F0FF] mb-3">
-              THE ARENA
-            </span>
-          </motion.div>
-
-          <motion.h2
-            initial={{ opacity: 0, y: 15 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight glitch-text"
-            data-text="Step Into the Chaos"
-          >
-            Step Into the Chaos
-          </motion.h2>
-
-          <motion.p
-            initial={{ opacity: 0, y: 15 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-sm md:text-base text-gray-400 font-mono mt-3 leading-relaxed"
-          >
-            Three stages. One continuous challenge. Only the most creative make it to the end.
-          </motion.p>
-        </div>
+        <PageHeading
+          eyebrow="The Arena"
+          title="Step Into the Chaos"
+          subtitle="Three stages. One continuous challenge. Only the most creative make it to the end."
+          accent="cyan"
+          layout="inline"
+        />
 
         {/* ── CONTINUOUS 3-STAGE JOURNEY (Desktop: Horizontal | Mobile: Vertical) ── */}
         <div className="relative">
