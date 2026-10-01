@@ -6,7 +6,7 @@ import { NavLink, Link, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import NavbarUserSection from "./NavbarUserSection";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Menu, X, Users, ShieldCheck, BookOpen } from "lucide-react";
+import { ChevronDown, Menu, X, Users, ShieldCheck } from "lucide-react";
 
 const ROOM_OPTIONS = [
   { to: "/creator-rooms", label: "Creator Rooms", icon: Users },
@@ -266,10 +266,7 @@ const Navbar = () => {
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
-                <span className="relative z-10 flex items-center gap-1.5">
-                  <BookOpen size={14} className="shrink-0" />
-                  <span>Handbook</span>
-                </span>
+                <span className="relative z-10">Handbook</span>
               </NavLink>
             </li>
 
@@ -429,14 +426,13 @@ const Navbar = () => {
               <NavLink
                 to="/handbook"
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+                className={`block px-3 py-2 rounded-xl text-sm font-semibold transition ${
                   isHandbookActive
                     ? "bg-[#00F0FF]/15 text-[#00F0FF]"
                     : "text-gray-300 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <BookOpen size={15} />
-                <span>Handbook</span>
+                Handbook
               </NavLink>
 
               {/* Community */}
