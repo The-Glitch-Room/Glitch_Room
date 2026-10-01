@@ -57,6 +57,7 @@ const NotFound = lazy(() => import("./components/NotFound"));
 const ArenaVotingFeed = lazy(() => import("./components/ArenaVotingFeed"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard"));
 const EarnRules = lazy(() => import("./components/EarnRules"));
+const HandbookPage = lazy(() => import("./components/HandbookPage"));
 
 // Route loading fallback with Glitch Room glowing spinner
 const RouteLoadingFallback = () => (
@@ -179,6 +180,7 @@ const AnimatedRoutes = () => {
       "/helpCenter": "Help Center | Glitch Room",
       "/help": "Help & Support | Glitch Room",
       "/earn-rules": "Earn Rules | Glitch Room",
+      "/handbook": "Debugging Handbook | Glitch Room",
       "/admin": "Admin Dashboard | Glitch Room",
       "/reset-password": "Reset Password | Glitch Room",
     };
@@ -207,6 +209,7 @@ const AnimatedRoutes = () => {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/explore" element={<Explore />} />
+        <Route path="/handbook" element={<HandbookPage />} />
         <Route path="/process" element={<Process />} />
         <Route path="/helpCenter" element={<HelpCenter />} />
         <Route path="/features" element={<Features />} />

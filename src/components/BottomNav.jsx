@@ -18,6 +18,7 @@ import {
   HelpCircle,
   LogOut,
   X,
+  BookOpen,
 } from "lucide-react";
 
 // ── Bottom Nav Items ──────────────────────────────────────────────────────────
@@ -54,6 +55,12 @@ const MORE_ITEMS = [
     icon: ShieldCheck,
     label: "Pro Rooms",
     color: "#3b82f6",
+  },
+  {
+    path: "/handbook",
+    icon: BookOpen,
+    label: "Handbook",
+    color: "#00F0FF",
   },
   {
     path: "/community",

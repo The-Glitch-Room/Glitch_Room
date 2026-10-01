@@ -7,7 +7,6 @@ import Navbar from "./Navbar";
 import Footer from "./Footer";
 import PageHeading from "./PageHeading";
 import GlitchBackground from "./GlitchBackground";
-import DebuggingHandbook from "./DebuggingHandbook";
 import { supabase } from "../supabaseClient";
 import { fetchDatabaseCategoryCounts } from "../utils/challengeCountHelper";
 import {
@@ -1512,11 +1511,6 @@ const Explore = () => {
               </div>
             </motion.section>
           )}
-
-          {/* ─────────────────────────────────────────────────────────────────
-              DEBUGGING HANDBOOK: PHASE 1 (Foundations of Debugging)
-          ───────────────────────────────────────────────────────────────── */}
-          <DebuggingHandbook />
 
           {/* ─────────────────────────────────────────────────────────────────
               SECTION 3: FEATURED & EDITOR'S CHOICE
