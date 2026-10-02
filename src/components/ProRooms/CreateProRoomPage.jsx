@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import GlitchBackground from "../GlitchBackground";
@@ -656,6 +656,103 @@ const CreateProRoomPage = () => {
   // silently showing nothing (see the onError handlers below).
   const [logoLoadError, setLogoLoadError] = useState(false);
   const [bannerLoadError, setBannerLoadError] = useState(false);
+
+  // File upload state & refs for device uploads
+  const logoFileInputRef = useRef(null);
+  const bannerFileInputRef = useRef(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+
+  const uploadImageFile = async (file, folder = "logos") => {
+    if (!file) return null;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("⚠️ Please upload a valid image file (PNG, JPG, SVG, WEBP).");
+      return null;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("⚠️ Image size exceeds 5MB limit. Please choose a smaller file.");
+      return null;
+    }
+
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id || "organizer";
+      const fileExt = file.name.split(".").pop() || "png";
+      const cleanFileName = `pro-rooms/${folder}/${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+
+      let uploadSuccess = false;
+      let publicUrl = null;
+
+      try {
+        const { error: uploadErr } = await supabase.storage
+          .from("avatars")
+          .upload(cleanFileName, file, { upsert: true });
+
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(cleanFileName);
+          if (urlData?.publicUrl) {
+            publicUrl = urlData.publicUrl;
+            uploadSuccess = true;
+          }
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload failed, falling back to data URL:", storageErr);
+      }
+
+      if (!uploadSuccess || !publicUrl) {
+        publicUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      return publicUrl;
+    } catch (err) {
+      console.error("Error processing image upload:", err);
+      showToast("⚠️ Failed to process image file. Please try again or paste a URL.");
+      return null;
+    }
+  };
+
+  const handleLogoFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const uploadedUrl = await uploadImageFile(file, "logos");
+      if (uploadedUrl) {
+        setLogoLoadError(false);
+        setBasicInfo((prev) => ({ ...prev, org_logo: uploadedUrl }));
+        showToast("Organization logo uploaded successfully!");
+      }
+    } finally {
+      setUploadingLogo(false);
+      if (logoFileInputRef.current) logoFileInputRef.current.value = "";
+    }
+  };
+
+  const handleBannerFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBanner(true);
+    try {
+      const uploadedUrl = await uploadImageFile(file, "banners");
+      if (uploadedUrl) {
+        setBannerLoadError(false);
+        setBasicInfo((prev) => ({ ...prev, cover_image: uploadedUrl }));
+        showToast("Cover banner uploaded successfully!");
+      }
+    } finally {
+      setUploadingBanner(false);
+      if (bannerFileInputRef.current) bannerFileInputRef.current.value = "";
+    }
+  };
 
   // Saved Drafts panel — lets a host jump straight into resuming an
   // existing draft from the create page itself, instead of having to
@@ -2437,58 +2534,106 @@ const CreateProRoomPage = () => {
                   </h3>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Logo Box — always shows a preview square (fallback
-                        icon when empty/broken), matching the Banner box's
-                        behavior below. Previously this only rendered an
-                        <img> when org_logo was set, so an empty or invalid
-                        URL left no preview at all. */}
+                    {/* Hidden File Inputs for Device Upload */}
+                    <input
+                      type="file"
+                      ref={logoFileInputRef}
+                      accept="image/*"
+                      onChange={handleLogoFileUpload}
+                      className="hidden"
+                    />
+                    <input
+                      type="file"
+                      ref={bannerFileInputRef}
+                      accept="image/*"
+                      onChange={handleBannerFileUpload}
+                      className="hidden"
+                    />
+
+                    {/* Logo Box — supports both URL input and upload from device */}
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-2">
                         Organization Logo *
                       </label>
-                      <div className="flex items-center gap-3">
-                        {basicInfo.org_logo && !logoLoadError ? (
-                          <img
-                            key={basicInfo.org_logo}
-                            src={basicInfo.org_logo}
-                            alt="Logo"
-                            onError={() => setLogoLoadError(true)}
-                            className="w-14 h-14 rounded-2xl object-cover border border-[#FF00C8] shrink-0"
-                          />
-                        ) : (
-                          <div className="w-14 h-14 rounded-2xl border border-white/10 shrink-0 flex items-center justify-center bg-[#12121e]">
-                            <Building2 size={16} className="text-white/40" />
+                      <div className="flex items-start gap-3">
+                        <button
+                          type="button"
+                          onClick={() => logoFileInputRef.current?.click()}
+                          disabled={uploadingLogo}
+                          title="Click to upload logo from device"
+                          className="w-14 h-14 rounded-2xl border border-white/10 shrink-0 flex items-center justify-center bg-[#12121e] hover:border-[#00F0FF]/50 transition cursor-pointer relative group overflow-hidden"
+                        >
+                          {basicInfo.org_logo && !logoLoadError ? (
+                            <img
+                              key={basicInfo.org_logo}
+                              src={basicInfo.org_logo}
+                              alt="Logo"
+                              onError={() => setLogoLoadError(true)}
+                              className="w-full h-full rounded-2xl object-cover border border-[#FF00C8]"
+                            />
+                          ) : (
+                            <Building2 size={16} className="text-white/40 group-hover:text-[#00F0FF] transition" />
+                          )}
+                          <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition">
+                            <FiUpload size={12} className="text-[#00F0FF]" />
+                            <span className="text-[8px] text-white font-medium mt-0.5">Upload</span>
                           </div>
-                        )}
-                        <input
-                          type="text"
-                          placeholder="Paste Logo Image URL..."
-                          value={basicInfo.org_logo}
-                          onChange={(e) => {
-                            setLogoLoadError(false);
-                            setBasicInfo({
-                              ...basicInfo,
-                              org_logo: e.target.value,
-                            });
-                          }}
-                          className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
-                        />
+                        </button>
+
+                        <div className="flex-1 space-y-2">
+                          <input
+                            type="text"
+                            placeholder="Paste Logo Image URL..."
+                            value={basicInfo.org_logo}
+                            onChange={(e) => {
+                              setLogoLoadError(false);
+                              setBasicInfo({
+                                ...basicInfo,
+                                org_logo: e.target.value,
+                              });
+                            }}
+                            className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => logoFileInputRef.current?.click()}
+                              disabled={uploadingLogo}
+                              className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-gray-300 hover:text-white flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                            >
+                              <FiUpload size={12} className="text-[#00F0FF]" />
+                              {uploadingLogo ? "Uploading..." : "Upload from device"}
+                            </button>
+                            {basicInfo.org_logo && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBasicInfo({ ...basicInfo, org_logo: "" });
+                                  setLogoLoadError(false);
+                                }}
+                                className="text-[11px] text-gray-500 hover:text-red-400 px-1 py-0.5 transition cursor-pointer"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Banner Box — optional, falls back to a themed gradient
-                        banner (no external URL, nothing written to the DB)
-                        anywhere this room's cover_image is rendered. Preview
-                        is now a full-width horizontal strip (same width as
-                        the input, stacked above it) instead of a small
-                        square, so the host can actually see how a wide
-                        banner will look. */}
+                    {/* Banner Box — supports both URL input and upload from device */}
                     <div>
                       <label className="text-xs font-bold text-gray-300 block mb-2">
                         Event Banner / Cover Image (Optional)
                       </label>
                       <div className="space-y-2">
-                        <div className="w-full h-20 rounded-xl border border-white/10 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => bannerFileInputRef.current?.click()}
+                          disabled={uploadingBanner}
+                          title="Click to upload banner from device"
+                          className="w-full h-20 rounded-xl border border-white/10 overflow-hidden relative group text-left cursor-pointer hover:border-[#00F0FF]/50 transition block"
+                        >
                           {basicInfo.cover_image && !bannerLoadError ? (
                             <img
                               key={basicInfo.cover_image}
@@ -2501,10 +2646,15 @@ const CreateProRoomPage = () => {
                             <div
                               className={`w-full h-full flex items-center justify-center ${DEFAULT_BANNER_GRADIENT}`}
                             >
-                              <Building2 size={18} className="text-white/60" />
+                              <Building2 size={18} className="text-white/60 group-hover:text-white transition" />
                             </div>
                           )}
-                        </div>
+                          <div className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 transition">
+                            <FiUpload size={14} className="text-[#00F0FF]" />
+                            <span className="text-xs text-white font-medium">Click to upload banner</span>
+                          </div>
+                        </button>
+
                         <input
                           type="text"
                           placeholder="Paste Cover Banner URL — leave blank for a default banner"
@@ -2518,6 +2668,30 @@ const CreateProRoomPage = () => {
                           }}
                           className="w-full bg-[#06060c] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
                         />
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => bannerFileInputRef.current?.click()}
+                            disabled={uploadingBanner}
+                            className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-gray-300 hover:text-white flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                          >
+                            <FiUpload size={12} className="text-[#00F0FF]" />
+                            {uploadingBanner ? "Uploading..." : "Upload from device"}
+                          </button>
+                          {basicInfo.cover_image && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBasicInfo({ ...basicInfo, cover_image: "" });
+                                setBannerLoadError(false);
+                              }}
+                              className="text-[11px] text-gray-500 hover:text-red-400 px-1 py-0.5 transition cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
