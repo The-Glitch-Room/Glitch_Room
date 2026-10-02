@@ -879,6 +879,9 @@ const ProRoomAssessment = () => {
     let descContent = text;
     if (titleMatch)
       descContent = descContent.replace(/Problem Title:\s*.*?\n/i, "");
+    descContent = descContent
+      .replace(/\/\*---GLITCH_META---[\s\S]*?---GLITCH_META---\*\//g, "")
+      .trim();
     const firstExIdx = descContent.search(/Example\s*\d*:/i);
     if (firstExIdx !== -1) {
       description = descContent.substring(0, firstExIdx).trim();

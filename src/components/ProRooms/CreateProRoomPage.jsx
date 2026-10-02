@@ -1649,6 +1649,29 @@ const QuestionAnswerEditor = ({ question, onChange }) => {
   );
 };
 
+const getQuestionLabel = (q, qIdx) => {
+  if (!q) return `Question #${qIdx + 1}`;
+  if (q.question_text) {
+    const meta = parseMetaFromText(q.question_text, q.question_type);
+    if (meta?.title && meta.title.trim()) {
+      return `"${meta.title.trim()}"`;
+    }
+    const titleMatch = q.question_text.match(/Problem Title:\s*(.*?)(?=\n|$)/i);
+    if (titleMatch && titleMatch[1].trim()) {
+      return `"${titleMatch[1].trim()}"`;
+    }
+    const firstLine = q.question_text.split("\n")[0].trim();
+    if (
+      firstLine &&
+      firstLine.length <= 40 &&
+      !firstLine.includes("/*---GLITCH_META")
+    ) {
+      return `"${firstLine}"`;
+    }
+  }
+  return `Question #${qIdx + 1}`;
+};
+
 const CreateProRoomPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -2467,9 +2490,56 @@ const CreateProRoomPage = () => {
           return "Every section needs a name.";
         if (!sec.questions || sec.questions.length === 0)
           return `"${sec.section_name}" needs at least one question.`;
-        for (const q of sec.questions) {
+        for (let qIdx = 0; qIdx < (sec.questions || []).length; qIdx++) {
+          const q = sec.questions[qIdx];
+          const qLabel = getQuestionLabel(q, qIdx);
+
           if (!q.question_text || !q.question_text.trim())
-            return `A question in "${sec.section_name}" is missing its question text.`;
+            return `${qLabel} in "${sec.section_name}" is missing its question text.`;
+
+          if (q.question_type === "sql") {
+            const meta = parseMetaFromText(q.question_text, "sql");
+            if (!meta?.title?.trim() && !meta?.description?.trim()) {
+              return `${qLabel} in "${sec.section_name}" needs a Problem Title or Description.`;
+            }
+            if (!(q.correct_answer || "").trim()) {
+              return `${qLabel} in "${sec.section_name}" needs an Expected SQL Query / Answer Key entered.`;
+            }
+          }
+
+          if (q.question_type === "debugging") {
+            const meta = parseMetaFromText(q.question_text, "debugging");
+            if (!meta?.title?.trim() && !meta?.description?.trim()) {
+              return `${qLabel} in "${sec.section_name}" needs a Problem Title or Description.`;
+            }
+            if (!meta?.buggyCode?.trim()) {
+              return `${qLabel} in "${sec.section_name}" needs Buggy Code entered.`;
+            }
+            if (!(q.correct_answer || "").trim()) {
+              return `${qLabel} in "${sec.section_name}" needs a Correct Fix / Expected Solution entered.`;
+            }
+          }
+
+          if (q.question_type === "output_pred") {
+            const meta = parseMetaFromText(q.question_text, "output_pred");
+            if (!meta?.codeSnippet?.trim()) {
+              return `${qLabel} in "${sec.section_name}" needs a Code Snippet entered.`;
+            }
+            if (!(q.correct_answer || "").trim()) {
+              return `${qLabel} in "${sec.section_name}" needs a Correct / Expected Output entered.`;
+            }
+          }
+
+          if (q.question_type === "code_analysis") {
+            const meta = parseMetaFromText(q.question_text, "code_analysis");
+            if (!meta?.codeSnippet?.trim()) {
+              return `${qLabel} in "${sec.section_name}" needs a Code Snippet to analyze.`;
+            }
+            const aqs = (meta?.analysisQuestions || []).filter((a) => a.question?.trim());
+            if (aqs.length === 0) {
+              return `${qLabel} in "${sec.section_name}" needs at least one Analysis Question entered.`;
+            }
+          }
 
           // Objective types need a real answer key — without this the
           // grading system (fix #8/#9) has nothing to compare against and
@@ -2477,9 +2547,9 @@ const CreateProRoomPage = () => {
           if (["mcq", "msq"].includes(q.question_type)) {
             const filledOptions = (q.options || []).filter((o) => o.trim());
             if (filledOptions.length < 2)
-              return `"${q.question_text || "A question"}" in "${sec.section_name}" needs at least 2 options.`;
+              return `${qLabel} in "${sec.section_name}" needs at least 2 options.`;
             if (q.question_type === "mcq" && !q.correct_answer)
-              return `"${q.question_text}" in "${sec.section_name}" needs a correct answer selected.`;
+              return `${qLabel} in "${sec.section_name}" needs a correct answer selected.`;
             if (q.question_type === "msq") {
               let selected = [];
               try {
@@ -2488,19 +2558,19 @@ const CreateProRoomPage = () => {
                 selected = [];
               }
               if (selected.length === 0)
-                return `"${q.question_text}" in "${sec.section_name}" needs at least one correct answer checked.`;
+                return `${qLabel} in "${sec.section_name}" needs at least one correct answer checked.`;
             }
           }
           if (
             q.question_type === "true_false" &&
             !["True", "False"].includes(q.correct_answer)
           )
-            return `"${q.question_text || "A question"}" in "${sec.section_name}" needs True or False selected.`;
+            return `${qLabel} in "${sec.section_name}" needs True or False selected.`;
           if (
-            ["short_answer", "output_pred"].includes(q.question_type) &&
+            q.question_type === "short_answer" &&
             !(q.correct_answer || "").trim()
           )
-            return `"${q.question_text || "A question"}" in "${sec.section_name}" needs a correct answer entered.`;
+            return `${qLabel} in "${sec.section_name}" needs a correct answer entered.`;
         }
       }
       return null;
@@ -4402,12 +4472,14 @@ const CreateProRoomPage = () => {
                               </span>
                               <GlitchSelect
                                 value={q.question_type}
-                                onChange={(v) =>
+                                onChange={(v) => {
+                                  if (v === q.question_type) return;
                                   updateQuestion(sec.id, q.id, {
                                     question_type: v,
+                                    question_text: "",
                                     ...blankAnswerFieldsForType(v),
-                                  })
-                                }
+                                  });
+                                }}
                                 options={QUESTION_TYPES.map((qt) => ({
                                   value: qt.id,
                                   label: qt.label,
