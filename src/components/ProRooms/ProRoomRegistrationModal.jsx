@@ -96,10 +96,13 @@ const ProRoomRegistrationModal = ({
       : Array.isArray(room?.custom_questions) &&
           room.custom_questions.length > 0
         ? room.custom_questions
-        : [];
+        : Array.isArray(room?.custom_app_questions) &&
+            room.custom_app_questions.length > 0
+          ? room.custom_app_questions
+          : [];
 
   const customQuestions = rawAppQuestions.filter(
-    (q) => (q?.question || q?.text || q?.title) && !q?.is_faq,
+    (q) => (q?.question || q?.text || q?.title) && !q?.is_faq && !q?.answer,
   );
 
   const handleSubmit = async (e) => {

@@ -736,7 +736,6 @@ const CreateProRoomPage = () => {
     max_participants: "",
     participation_type: "team",
     max_team_size: "",
-    min_glitch_level: "",
     required_skills: "",
     target_college: "",
     target_degree: "",
@@ -820,12 +819,21 @@ const CreateProRoomPage = () => {
               });
             }
 
+            const loadedQuestions = Array.isArray(rData.custom_app_questions)
+              ? rData.custom_app_questions
+              : [];
+            const loadedRegQuestions = loadedQuestions.filter(
+              (q) => q && !q.answer && !q.is_faq,
+            );
+            const loadedFaqQuestions = loadedQuestions.filter(
+              (q) => q && (q.answer || q.is_faq),
+            );
+
             setEligibility({
               access_type: rData.access_type || "public",
               max_participants: rData.max_participants || "",
               participation_type: rData.participation_type || "team",
               max_team_size: rData.max_team_size || "",
-              min_glitch_level: rData.min_glitch_level || "",
               required_skills: rData.required_skills || "",
               target_college: rData.target_college || "",
               target_degree: rData.target_degree || "",
@@ -833,9 +841,8 @@ const CreateProRoomPage = () => {
               grad_years: rData.grad_years || "",
               exp_level: rData.exp_level || "All Levels",
               require_application: rData.require_application ?? true,
-              custom_app_questions: Array.isArray(rData.custom_app_questions)
-                ? rData.custom_app_questions
-                : [],
+              custom_registration_questions: loadedRegQuestions,
+              custom_app_questions: loadedFaqQuestions,
             });
 
             setEvaluation({
@@ -1662,12 +1669,27 @@ const CreateProRoomPage = () => {
         0,
       );
 
+      // Combine candidate registration questions and host FAQs into the database column custom_app_questions
+      const combinedDraftQuestions = [
+        ...(eligibility.custom_registration_questions || []).map((q) => ({
+          id: q.id || `rq-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          question: q.question || "",
+          required: q.required !== false,
+          is_faq: false,
+        })),
+        ...(eligibility.custom_app_questions || []).map((q) => ({
+          id: q.id || `faq-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          question: q.question || "",
+          answer: q.answer || "",
+          is_faq: true,
+        })),
+      ];
+
       // Draft payload mirrors the publish payload but tolerates blanks —
       // dates that haven't been filled in yet are simply omitted rather
       // than crashing on `new Date("").toISOString()`.
       const draftPayload = {
         name: basicInfo.name,
-        title: basicInfo.name,
         short_description: basicInfo.short_description || null,
         detailed_description: basicInfo.detailed_description || null,
         category: basicInfo.category || null,
@@ -1700,6 +1722,7 @@ const CreateProRoomPage = () => {
           ? new Date(schedule.submission_deadline).toISOString()
           : null,
         timezone: schedule.timezone || null,
+        mode: schedule.mode || "Online",
         allow_late_entry: schedule.allow_late_entry,
         duration_minutes: schedule.duration_minutes
           ? Number(schedule.duration_minutes)
@@ -1710,9 +1733,6 @@ const CreateProRoomPage = () => {
           ? Number(eligibility.max_participants)
           : null,
         required_skills: eligibility.required_skills || null,
-        min_glitch_level: eligibility.min_glitch_level
-          ? Number(eligibility.min_glitch_level)
-          : null,
         participation_type: eligibility.participation_type,
         max_team_size:
           eligibility.participation_type === "individual"
@@ -1721,15 +1741,15 @@ const CreateProRoomPage = () => {
               ? Number(eligibility.max_team_size)
               : 4,
         require_application: eligibility.require_application,
-        custom_app_questions: eligibility.custom_app_questions,
-        custom_registration_questions:
-          eligibility.custom_registration_questions,
+        custom_app_questions: combinedDraftQuestions,
 
+        eval_method: evaluation.eval_method || "Automatic + Manual",
         passing_score: evaluation.passing_score
           ? Number(evaluation.passing_score)
           : null,
         total_possible_score: totalPoints || null,
         negative_marking: evaluation.negative_marking,
+        partial_scoring: evaluation.partial_scoring ?? true,
         tie_breaker_rule: evaluation.tie_breaker_rule || null,
         gbits_prize_pool: evaluation.gbits_prize_pool
           ? Number(evaluation.gbits_prize_pool)
@@ -1826,9 +1846,27 @@ const CreateProRoomPage = () => {
         0,
       );
 
+      const combinedAppQuestions = [
+        ...(eligibility.custom_registration_questions || [])
+          .filter((q) => q && q.question && q.question.trim())
+          .map((q) => ({
+            id: q.id || `rq-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            question: q.question.trim(),
+            required: q.required !== false,
+            is_faq: false,
+          })),
+        ...(eligibility.custom_app_questions || [])
+          .filter((q) => q && q.question && q.question.trim())
+          .map((q) => ({
+            id: q.id || `faq-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            question: q.question.trim(),
+            answer: (q.answer || "").trim(),
+            is_faq: true,
+          })),
+      ];
+
       const roomPayload = {
         name: basicInfo.name,
-        title: basicInfo.name,
         short_description: basicInfo.short_description,
         detailed_description: basicInfo.detailed_description,
         category: basicInfo.category,
@@ -1849,6 +1887,7 @@ const CreateProRoomPage = () => {
           ? new Date(schedule.submission_deadline).toISOString()
           : null,
         timezone: schedule.timezone,
+        mode: schedule.mode || "Online",
         duration_minutes: Number(schedule.duration_minutes) || 120,
         allow_late_entry: schedule.allow_late_entry,
         status:
@@ -1859,18 +1898,19 @@ const CreateProRoomPage = () => {
         access_type: eligibility.access_type,
         max_participants: Number(eligibility.max_participants) || 500,
         required_skills: eligibility.required_skills,
-        min_glitch_level: Number(eligibility.min_glitch_level) || 1,
         participation_type: eligibility.participation_type,
         max_team_size:
           eligibility.participation_type === "individual"
             ? 1
             : Number(eligibility.max_team_size) || 4,
         require_application: eligibility.require_application,
-        custom_app_questions: eligibility.custom_app_questions,
+        custom_app_questions: combinedAppQuestions,
 
+        eval_method: evaluation.eval_method || "Automatic + Manual",
         passing_score: Number(evaluation.passing_score) || 50,
         total_possible_score: totalPoints || 300,
         negative_marking: evaluation.negative_marking,
+        partial_scoring: evaluation.partial_scoring ?? true,
         tie_breaker_rule: evaluation.tie_breaker_rule,
 
         gbits_prize_pool: Number(evaluation.gbits_prize_pool) || 2500,
