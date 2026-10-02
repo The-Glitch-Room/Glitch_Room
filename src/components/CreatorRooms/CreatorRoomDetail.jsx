@@ -598,6 +598,14 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [blockers, setBlockers] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Auto-select room's accepted proof type when check-in modal opens
+  useEffect(() => {
+    if (showCheckinModal && !proofType) {
+      const defaultType = (room?.proof_types && room.proof_types[0]) || "Screenshot";
+      setProofType(defaultType);
+    }
+  }, [showCheckinModal, room?.proof_types]);
+
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3500);
@@ -1350,7 +1358,27 @@ const CreatorRoomDetail = ({ roomId }) => {
   };
 
   const handleSubmitCheckin = async () => {
-    if (!accomplishment.trim()) return;
+    if (!accomplishment.trim()) {
+      showToast("Please describe what you accomplished today.");
+      return;
+    }
+
+    if (!proofType) {
+      showToast("Proof of Work is required. Please select a Proof of Work type.");
+      return;
+    }
+
+    const hasProofEvidence = Boolean(
+      proofFile ||
+      proofFilePreview ||
+      (proofUrl && proofUrl.trim().length > 0)
+    );
+
+    if (!hasProofEvidence) {
+      showToast(`Proof of Work is required. Please provide your ${proofType} evidence.`);
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -3336,319 +3364,383 @@ const CreatorRoomDetail = ({ roomId }) => {
       {/* 1. Daily Standup Check-in Modal */}
       <AnimatePresence>
         {showCheckinModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-6 max-w-lg w-full shadow-2xl font-sans"
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-[#0f0f1d] border border-white/15 rounded-3xl p-5 sm:p-6 max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl font-sans"
             >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Sparkles size={18} className="text-purple-400" /> Submit
-                  Daily Standup Log
-                </h3>
+              {/* Modal Header */}
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                    <Sparkles size={17} />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                      Submit Daily Standup Log
+                    </h3>
+                    <p className="text-[11px] text-gray-400 font-mono">
+                      Log daily progress, attach proof of work & claim +10 gBits
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={() => setShowCheckinModal(false)}
-                  className="text-gray-400 hover:text-white cursor-pointer"
+                  className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 cursor-pointer transition"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="space-y-4 text-xs font-mono">
-                <div>
-                  <label className="block text-gray-300 mb-1 font-bold">
-                    What did you accomplish today? *
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={accomplishment}
-                    onChange={(e) => setAccomplishment(e.target.value)}
-                    placeholder="E.g., Solved 2 LeetCode problems on Dynamic Programming and pushed fixes..."
-                    className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 mb-1.5 font-bold">
-                    Proof of Work Type (Optional)
-                  </label>
-                  <div className="flex flex-wrap gap-1.5 mb-2.5">
-                    {(room?.proof_types?.length > 0
-                      ? room.proof_types
-                      : PROOF_TYPE_OPTIONS
-                    ).map((type) => {
-                      const isSelected = proofType === type;
-                      return (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setProofType(isSelected ? "" : type)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-semibold transition flex items-center gap-1 cursor-pointer border ${
-                            isSelected
-                              ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
-                              : "bg-[#07070d] text-gray-400 border-white/10 hover:text-white"
-                          }`}
-                        >
-                          {isSelected && (
-                            <CheckCircle2
-                              size={11}
-                              className="text-purple-400"
-                            />
-                          )}
-                          {type}
-                        </button>
-                      );
-                    })}
+              {/* Modal Body - 2 Column Horizontal Layout */}
+              <div className="overflow-y-auto pr-1 grid grid-cols-1 md:grid-cols-2 gap-5 text-xs font-mono">
+                {/* LEFT COLUMN: Accomplishments & Blockers */}
+                <div className="space-y-4 flex flex-col justify-between">
+                  <div>
+                    <label className="block text-gray-200 mb-1.5 font-bold flex items-center justify-between">
+                      <span>What did you accomplish today? *</span>
+                      <span className="text-[10px] text-gray-500 font-normal">
+                        {accomplishment.length} chars
+                      </span>
+                    </label>
+                    <textarea
+                      rows={5}
+                      value={accomplishment}
+                      onChange={(e) => setAccomplishment(e.target.value)}
+                      placeholder="E.g., Solved 2 LeetCode problems on Dynamic Programming, pushed bug fix commits, and reviewed teammate's PR..."
+                      className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs leading-relaxed resize-none h-[130px]"
+                    />
                   </div>
 
-                  <label className="block text-gray-300 mb-1 font-bold flex items-center justify-between">
+                  <div>
+                    <label className="block text-gray-300 mb-1.5 font-bold">
+                      Blockers / Notes (Optional)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={blockers}
+                      onChange={(e) => setBlockers(e.target.value)}
+                      placeholder="E.g., Need help with CORS deployment issue, waiting for API key approval..."
+                      className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs leading-relaxed resize-none h-[88px]"
+                    />
+                  </div>
+
+                  <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 text-[11px] font-sans text-purple-200/90 flex items-start gap-2">
+                    <CheckCircle2 size={16} className="text-purple-400 shrink-0 mt-0.5" />
                     <span>
-                      {proofType ? `${proofType} Proof` : "Proof of Work (Optional)"}
+                      Daily standups reset every 24 hours. Maintaining streak unlocks consistency multipliers and keeps your squad uptime at 100%.
                     </span>
-                    {proofType && (
-                      <span className="text-[10px] text-purple-400 font-mono font-normal">
-                        Active: {proofType}
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN: Proof of Work Type * & Evidence Input */}
+                <div className="space-y-3 flex flex-col justify-start">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-gray-200 font-bold">
+                        Proof of Work Type *
+                      </label>
+                      <span className="text-[10px] text-purple-400 font-mono">
+                        Required
                       </span>
-                    )}
-                  </label>
-
-                  {/* 1. SCREENSHOT PROOF INPUT */}
-                  {proofType === "Screenshot" && (
-                    <div className="space-y-2">
-                      <div className="border border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-500/5 rounded-2xl p-4 text-center transition">
-                        {proofFilePreview ? (
-                          <div className="relative inline-block max-w-full">
-                            <img
-                              src={proofFilePreview}
-                              alt="Screenshot Preview"
-                              className="max-h-36 rounded-xl object-contain border border-white/20 mx-auto shadow-lg"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setProofFile(null);
-                                setProofFilePreview(null);
-                              }}
-                              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center text-xs shadow-md cursor-pointer"
-                            >
-                              <X size={13} />
-                            </button>
-                            <p className="text-[10px] text-gray-400 font-mono mt-1 truncate max-w-[200px] mx-auto">
-                              {proofFile?.name} ({(proofFile?.size / 1024).toFixed(0)} KB)
-                            </p>
-                          </div>
-                        ) : (
-                          <label className="cursor-pointer flex flex-col items-center gap-1.5 py-2">
-                            <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-0.5">
-                              <Image size={20} />
-                            </div>
-                            <span className="text-xs text-white font-bold font-sans">
-                              Upload Screenshot from Device
-                            </span>
-                            <span className="text-[10px] text-gray-400 font-mono">
-                              PNG, JPG, WEBP or GIF (Max 10MB)
-                            </span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  setProofFile(file);
-                                  const reader = new FileReader();
-                                  reader.onload = () => setProofFilePreview(reader.result);
-                                  reader.readAsDataURL(file);
-                                }
-                              }}
-                            />
-                          </label>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono">
-                        <span className="shrink-0">Or paste image URL:</span>
-                        <input
-                          type="url"
-                          value={proofUrl}
-                          onChange={(e) => setProofUrl(e.target.value)}
-                          placeholder="https://.../screenshot.png"
-                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#07070d] border border-white/10 text-white text-[11px] focus:outline-none focus:border-purple-500"
-                        />
-                      </div>
                     </div>
-                  )}
 
-                  {/* 2. FILE UPLOAD PROOF INPUT */}
-                  {proofType === "File Upload" && (
-                    <div className="space-y-2">
-                      <div className="border border-dashed border-cyan-500/40 hover:border-cyan-400 bg-cyan-500/5 rounded-2xl p-4 text-center transition">
-                        {proofFile ? (
-                          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10 text-left">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
-                                <FileText size={16} />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs text-white font-medium truncate">
-                                  {proofFile.name}
-                                </p>
-                                <p className="text-[10px] text-gray-400 font-mono">
-                                  {(proofFile.size / 1024).toFixed(0)} KB
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setProofFile(null);
-                                setProofFilePreview(null);
-                              }}
-                              className="text-gray-400 hover:text-red-400 p-1 cursor-pointer"
-                            >
-                              <X size={15} />
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="cursor-pointer flex flex-col items-center gap-1.5 py-2">
-                            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-0.5">
-                              <Upload size={20} />
-                            </div>
-                            <span className="text-xs text-white font-bold font-sans">
-                              Upload Proof Document / File
-                            </span>
-                            <span className="text-[10px] text-gray-400 font-mono">
-                              PDF, ZIP, DOC, TXT, JSON, CSV (Max 25MB)
-                            </span>
-                            <input
-                              type="file"
-                              accept=".pdf,.doc,.docx,.zip,.tar,.json,.txt,.csv,.md,.png,.jpg"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  setProofFile(file);
-                                }
-                              }}
-                            />
-                          </label>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono">
-                        <span className="shrink-0">Or paste file link:</span>
-                        <input
-                          type="url"
-                          value={proofUrl}
-                          onChange={(e) => setProofUrl(e.target.value)}
-                          placeholder="https://drive.google.com/..."
-                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#07070d] border border-white/10 text-white text-[11px] focus:outline-none focus:border-cyan-500"
-                        />
-                      </div>
+                    <div className="flex flex-wrap gap-1.5 mb-2.5">
+                      {(room?.proof_types?.length > 0
+                        ? room.proof_types
+                        : PROOF_TYPE_OPTIONS
+                      ).map((type) => {
+                        const isSelected = proofType === type;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setProofType(type)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-semibold transition flex items-center gap-1 cursor-pointer border ${
+                              isSelected
+                                ? "bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-sm shadow-purple-500/20"
+                                : "bg-[#07070d] text-gray-400 border-white/10 hover:text-white hover:border-white/20"
+                            }`}
+                          >
+                            {isSelected && (
+                              <CheckCircle2
+                                size={11}
+                                className="text-purple-400"
+                              />
+                            )}
+                            {type}
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
 
-                  {/* 3. CODE SNIPPET PROOF INPUT */}
-                  {proofType === "Code Snippet" && (
-                    <div className="space-y-1.5">
-                      <div className="bg-[#05050f] border border-cyan-500/30 rounded-2xl overflow-hidden focus-within:border-cyan-400 shadow-inner">
-                        <div className="bg-white/5 border-b border-white/5 px-3 py-1.5 flex items-center justify-between text-[10px] font-mono text-cyan-300">
-                          <span className="flex items-center gap-1.5">
-                            <Code size={12} className="text-cyan-400" /> Monospace Code Editor
-                          </span>
-                          <span className="text-gray-500">Auto-formatted</span>
+                  <div>
+                    <label className="block text-gray-200 mb-1.5 font-bold flex items-center justify-between">
+                      <span>
+                        {proofType ? `${proofType} Evidence *` : "Attach Proof of Work *"}
+                      </span>
+                      {proofType && (
+                        <span className="text-[10px] text-purple-400 font-mono font-normal">
+                          Active: {proofType}
+                        </span>
+                      )}
+                    </label>
+
+                    {/* 1. SCREENSHOT PROOF INPUT */}
+                    {proofType === "Screenshot" && (
+                      <div className="space-y-2">
+                        <div className="border border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-500/5 rounded-2xl p-3.5 text-center transition">
+                          {proofFilePreview ? (
+                            <div className="relative inline-block max-w-full">
+                              <img
+                                src={proofFilePreview}
+                                alt="Screenshot Preview"
+                                className="max-h-28 rounded-xl object-contain border border-white/20 mx-auto shadow-lg"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProofFile(null);
+                                  setProofFilePreview(null);
+                                }}
+                                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center text-xs shadow-md cursor-pointer"
+                              >
+                                <X size={13} />
+                              </button>
+                              <p className="text-[10px] text-gray-400 font-mono mt-1 truncate max-w-[200px] mx-auto">
+                                {proofFile?.name} ({(proofFile?.size / 1024).toFixed(0)} KB)
+                              </p>
+                            </div>
+                          ) : (
+                            <label className="cursor-pointer flex flex-col items-center gap-1.5 py-1.5">
+                              <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-0.5">
+                                <Image size={18} />
+                              </div>
+                              <span className="text-xs text-white font-bold font-sans">
+                                Upload Screenshot from Device *
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                PNG, JPG, WEBP or GIF (Max 10MB)
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setProofFile(file);
+                                    const reader = new FileReader();
+                                    reader.onload = () => setProofFilePreview(reader.result);
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          )}
                         </div>
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono">
+                          <span className="shrink-0">Or paste image URL:</span>
+                          <input
+                            type="url"
+                            value={proofUrl}
+                            onChange={(e) => setProofUrl(e.target.value)}
+                            placeholder="https://.../screenshot.png"
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#07070d] border border-white/10 text-white text-[11px] focus:outline-none focus:border-purple-500 font-mono"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. FILE UPLOAD PROOF INPUT */}
+                    {proofType === "File Upload" && (
+                      <div className="space-y-2">
+                        <div className="border border-dashed border-cyan-500/40 hover:border-cyan-400 bg-cyan-500/5 rounded-2xl p-3.5 text-center transition">
+                          {proofFile ? (
+                            <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/10 text-left">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                                  <FileText size={16} />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs text-white font-medium truncate">
+                                    {proofFile.name}
+                                  </p>
+                                  <p className="text-[10px] text-gray-400 font-mono">
+                                    {(proofFile.size / 1024).toFixed(0)} KB
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProofFile(null);
+                                  setProofFilePreview(null);
+                                }}
+                                className="text-gray-400 hover:text-red-400 p-1 cursor-pointer"
+                              >
+                                <X size={15} />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="cursor-pointer flex flex-col items-center gap-1.5 py-1.5">
+                              <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-0.5">
+                                <Upload size={18} />
+                              </div>
+                              <span className="text-xs text-white font-bold font-sans">
+                                Upload Proof Document / File *
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                PDF, ZIP, DOC, TXT, JSON, CSV (Max 25MB)
+                              </span>
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.zip,.tar,.json,.txt,.csv,.md,.png,.jpg"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setProofFile(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono">
+                          <span className="shrink-0">Or paste file link:</span>
+                          <input
+                            type="url"
+                            value={proofUrl}
+                            onChange={(e) => setProofUrl(e.target.value)}
+                            placeholder="https://drive.google.com/..."
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#07070d] border border-white/10 text-white text-[11px] focus:outline-none focus:border-cyan-500 font-mono"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. CODE SNIPPET PROOF INPUT */}
+                    {proofType === "Code Snippet" && (
+                      <div className="space-y-1.5">
+                        <div className="bg-[#05050f] border border-cyan-500/30 rounded-2xl overflow-hidden focus-within:border-cyan-400 shadow-inner">
+                          <div className="bg-white/5 border-b border-white/5 px-3 py-1.5 flex items-center justify-between text-[10px] font-mono text-cyan-300">
+                            <span className="flex items-center gap-1.5">
+                              <Code size={12} className="text-cyan-400" /> Monospace Code Editor *
+                            </span>
+                            <span className="text-gray-500">Auto-formatted</span>
+                          </div>
+                          <textarea
+                            rows={6}
+                            value={proofUrl}
+                            onChange={(e) => setProofUrl(e.target.value)}
+                            placeholder={`// Paste your code snippet, function, or git diff here:\nconst handleSave = async () => {\n  console.log("Proof verified!");\n};`}
+                            className="w-full p-3 bg-transparent text-cyan-200 placeholder-gray-600 focus:outline-none font-mono text-xs leading-relaxed resize-y h-[130px]"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. PROGRESS LOG PROOF INPUT */}
+                    {proofType === "Progress Log" && (
+                      <div className="space-y-1.5">
                         <textarea
                           rows={6}
                           value={proofUrl}
                           onChange={(e) => setProofUrl(e.target.value)}
-                          placeholder={`// Paste your code snippet, function, or diff here:\nconst handleSave = async () => {\n  console.log("Proof verified!");\n};`}
-                          className="w-full p-3 bg-transparent text-cyan-200 placeholder-gray-600 focus:outline-none font-mono text-xs leading-relaxed resize-y"
+                          placeholder={`• Implemented authentication workflow\n• Refactored user dashboard queries\n• Fixed 3 reported UI overflow bugs`}
+                          className="w-full p-3 rounded-2xl bg-[#07070d] border border-purple-500/30 text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 font-mono text-xs leading-relaxed h-[130px]"
                         />
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* 4. PROGRESS LOG PROOF INPUT */}
-                  {proofType === "Progress Log" && (
-                    <div className="space-y-1.5">
-                      <textarea
-                        rows={4}
-                        value={proofUrl}
-                        onChange={(e) => setProofUrl(e.target.value)}
-                        placeholder={`• Implemented authentication workflow\n• Refactored user dashboard queries\n• Fixed 3 reported UI overflow bugs`}
-                        className="w-full p-3 rounded-2xl bg-[#07070d] border border-purple-500/30 text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 font-mono text-xs leading-relaxed"
-                      />
-                    </div>
-                  )}
-
-                  {/* 5. PROJECT/DEMO LINK PROOF INPUT */}
-                  {proofType === "Project/Demo Link" && (
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-purple-400">
-                        <Globe size={15} />
+                    {/* 5. PROJECT/DEMO LINK PROOF INPUT */}
+                    {proofType === "Project/Demo Link" && (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-purple-400">
+                            <Globe size={15} />
+                          </div>
+                          <input
+                            type="url"
+                            value={proofUrl}
+                            onChange={(e) => setProofUrl(e.target.value)}
+                            placeholder="https://my-project.vercel.app or Figma demo link"
+                            className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-mono text-xs"
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-500 font-mono">
+                          Live demo, staging URL, Loom walkthrough, or Figma prototype.
+                        </p>
                       </div>
-                      <input
-                        type="url"
-                        value={proofUrl}
-                        onChange={(e) => setProofUrl(e.target.value)}
-                        placeholder="https://my-project.vercel.app or Figma demo link"
-                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-mono text-xs"
-                      />
-                    </div>
-                  )}
+                    )}
 
-                  {/* 6. CUSTOM PROOF OR UNSELECTED */}
-                  {(proofType === "Custom Proof" || !proofType) && (
-                    <div>
-                      <textarea
-                        rows={3}
-                        value={proofUrl}
-                        onChange={(e) => setProofUrl(e.target.value)}
-                        placeholder={
-                          proofType === "Custom Proof"
-                            ? "Describe or link your custom proof of work..."
-                            : "Enter proof URL or describe your work (Optional)"
-                        }
-                        className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs"
-                      />
-                    </div>
-                  )}
+                    {/* 6. CUSTOM PROOF OR FALLBACK */}
+                    {(proofType === "Custom Proof" || !proofType) && (
+                      <div>
+                        <textarea
+                          rows={5}
+                          value={proofUrl}
+                          onChange={(e) => setProofUrl(e.target.value)}
+                          placeholder={
+                            proofType === "Custom Proof"
+                              ? "Describe or link your custom proof of work..."
+                              : "Enter proof URL or describe your work *"
+                          }
+                          className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs h-[130px]"
+                        />
+                      </div>
+                    )}
 
-                  <p className="text-[9px] text-gray-500 mt-1">
-                    Leave blank if you have no proof to attach — it'll be marked
-                    as not provided, never filled in automatically.
-                  </p>
+                    <p className="text-[10px] text-amber-400/90 font-mono mt-2 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                      Proof of work is required for every daily standup submission.
+                    </p>
+                  </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-gray-300 mb-1 font-bold">
-                    Blockers / Notes (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={blockers}
-                    onChange={(e) => setBlockers(e.target.value)}
-                    placeholder="E.g., Need help with CORS deployment issue"
-                    className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs"
-                  />
+              {/* Modal Footer */}
+              <div className="pt-4 mt-3 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2 text-xs font-mono text-purple-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>
+                    Daily Reward: <strong className="text-emerald-400 font-bold">+10 gBits</strong> upon submission
+                  </span>
                 </div>
-
-                <div className="pt-3 flex justify-end gap-3">
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                   <button
+                    type="button"
                     onClick={() => setShowCheckinModal(false)}
-                    className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-xs font-bold cursor-pointer transition"
                   >
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={handleSubmitCheckin}
-                    disabled={submitting || !accomplishment.trim()}
-                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-[#FF00C8]/20"
+                    disabled={
+                      submitting ||
+                      !accomplishment.trim() ||
+                      !proofType ||
+                      (!proofFile && !proofFilePreview && !proofUrl.trim())
+                    }
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-[#FF00C8]/20 transition flex items-center gap-2"
                   >
-                    {submitting
-                      ? "Submitting..."
-                      : `Submit Standup & Claim +10 gBits `}
+                    {submitting ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} />
+                        <span>Submit Standup & Claim +10 gBits</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
