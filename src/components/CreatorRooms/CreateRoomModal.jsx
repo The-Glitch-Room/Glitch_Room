@@ -354,12 +354,12 @@ const CreateRoomModal = ({ close, create }) => {
                     value={durationType}
                     onChange={setDurationType}
                     options={[
-                      { value: "7_day", label: "7 Days Sprint", selectedLabel: "7 Days" },
-                      { value: "14_day", label: "14 Days Sprint", selectedLabel: "14 Days" },
-                      { value: "30_day", label: "30 Days Bootcamp", selectedLabel: "30 Days" },
-                      { value: "60_day", label: "60 Days Challenge", selectedLabel: "60 Days" },
-                      { value: "100_day", label: "100 Days Challenge", selectedLabel: "100 Days" },
-                      { value: "ongoing", label: "Ongoing Consistency", selectedLabel: "Ongoing" },
+                      { value: "7_day", label: "7 Days" },
+                      { value: "14_day", label: "14 Days" },
+                      { value: "30_day", label: "30 Days" },
+                      { value: "60_day", label: "60 Days" },
+                      { value: "100_day", label: "100 Days" },
+                      { value: "ongoing", label: "Ongoing" },
                     ]}
                   />
                 </div>
@@ -759,7 +759,7 @@ const CreateRoomModal = ({ close, create }) => {
                         {category}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                        {durationType.replace("_", "-")}
+                        {durationType === "7_day" ? "7 Days" : durationType === "14_day" ? "14 Days" : durationType === "30_day" ? "30 Days" : durationType === "60_day" ? "60 Days" : durationType === "100_day" ? "100 Days" : "Ongoing"}
                       </span>
                     </div>
 
@@ -789,7 +789,7 @@ const CreateRoomModal = ({ close, create }) => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-2">
                   <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
                     <span className="text-gray-500 text-[10px] block font-bold">DURATION</span>
-                    <span className="text-white capitalize">{durationType.replace("_", " ")}</span>
+                    <span className="text-white capitalize">{durationType === "7_day" ? "7 Days" : durationType === "14_day" ? "14 Days" : durationType === "30_day" ? "30 Days" : durationType === "60_day" ? "60 Days" : durationType === "100_day" ? "100 Days" : "Ongoing"}</span>
                   </div>
 
                   <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">

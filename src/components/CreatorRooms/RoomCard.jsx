@@ -57,12 +57,19 @@ const getCategoryAccent = (category) => {
 };
 
 const getDurationLabel = (d) => {
-  if (d === "7_day") return "7-Day Sprint";
-  if (d === "14_day") return "14-Day Sprint";
-  if (d === "30_day") return "30-Day Bootcamp";
-  if (d === "60_day") return "60-Day Sprint";
-  if (d === "100_day") return "100-Day Challenge";
-  return "Ongoing Squad";
+  if (d === "7_day") return "7 Days";
+  if (d === "14_day") return "14 Days";
+  if (d === "30_day") return "30 Days";
+  if (d === "60_day") return "60 Days";
+  if (d === "100_day") return "100 Days";
+  if (d === "ongoing") return "Ongoing";
+  if (typeof d === "string") {
+    return d
+      .replace(/_day/i, " Days")
+      .replace(/[-_]sprint|[-_]bootcamp|[-_]challenge|[-_]consistency|sprint|bootcamp|challenge|consistency/gi, "")
+      .trim();
+  }
+  return "Ongoing";
 };
 
 /**

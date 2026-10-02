@@ -6,12 +6,13 @@ import Footer from "../Footer";
 import CreateRoomModal from "./CreateRoomModal";
 import RoomCard from "./RoomCard";
 import GlitchBackground from "../GlitchBackground";
-import { Search, Archive, CheckCircle, Users, ArrowRight, Clock, Trophy } from "lucide-react";
+import { Search, Archive, CheckCircle, Users, ArrowRight, Clock, Trophy, Coins } from "lucide-react";
 import Button from "../Button";
 import PageHeading from "../PageHeading";
 import StatCard from "../StatCard";
 import { supabase } from "../../supabaseClient";
 import { useAuth } from "../AuthContext";
+import { fetchPoints } from "../../utils/pointsHelper";
 
 const formatNumber = (n) => {
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
@@ -29,6 +30,9 @@ const CreatorRooms = () => {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(null);
   const [search, setSearch] = useState("");
+  const [stakedRoomToJoin, setStakedRoomToJoin] = useState(null);
+  const [showJoinConfirmModal, setShowJoinConfirmModal] = useState(false);
+  const [joinConfirmBalance, setJoinConfirmBalance] = useState(null);
 
   const handleOpenCreateModal = () => {
     if (!user) {
@@ -144,48 +148,19 @@ const CreatorRooms = () => {
     }
   }, [location, user]);
 
-  const handleJoin = async (room) => {
-    const { data: userRes } = await supabase.auth.getUser();
-    const currentUser = userRes?.user || user;
-    if (!currentUser) {
-      openAuth();
-      return;
-    }
-
-    const roomEntryStake = Number(room?.entry_stake || 0);
-
-    // Staked rooms must show the "you're about to stake gBits"
-    // confirmation before any transaction happens — a member clicking
-    // this card may not realize joining requires staking. That
-    // confirmation modal lives on the room detail page, so for a
-    // staked room, just navigate there unjoined rather than staking
-    // immediately from this card with no confirmation at all. Free
-    // rooms have nothing to confirm, so they keep the previous
-    // immediate-join-then-navigate behavior.
-    if (roomEntryStake > 0) {
-      navigate(`/creator-rooms/${room.id}`);
-      return;
-    }
-
+  const executeJoin = async (room, stakeAmount, currentUser) => {
     setJoining(room.id);
     try {
-      // Route through the SAME atomic RPC the room-detail page uses
-      // (join_creator_room_with_stake) instead of inserting a bare
-      // member row here. The old direct insert never checked
-      // room.entry_stake and never deducted anything — so joining a
-      // staked room from this list page silently skipped staking
-      // entirely: 0 gBits deducted, 0 added to staked_amount, room pool
-      // stuck at 0 regardless of what the room actually required.
       const { error: joinError } = await supabase.rpc(
         "join_creator_room_with_stake",
-        { p_room_id: room.id, p_stake: roomEntryStake },
+        { p_room_id: room.id, p_stake: stakeAmount },
       );
 
       if (joinError) {
         console.error("Error joining creator room:", joinError);
         const msg = joinError.message || "";
         if (msg.includes("INSUFFICIENT_GBITS")) {
-          alert(`You need ${roomEntryStake} gBits to stake & join this room.`);
+          alert(`You need ${stakeAmount} gBits to stake & join this room.`);
         } else if (msg.includes("ROOM_ALREADY_SETTLED")) {
           alert(
             "This room's sprint has already ended and been settled — it's no longer accepting new members.",
@@ -197,7 +172,22 @@ const CreatorRooms = () => {
         return;
       }
 
+      if (stakeAmount > 0) {
+        const newBal = await fetchPoints(currentUser.id);
+        window.dispatchEvent(
+          new CustomEvent("gbits_transaction", {
+            detail: {
+              delta: -stakeAmount,
+              title: `Room Entry Stake — ${room.title || room.name || "Creator Room"}`,
+              newTotal: newBal,
+            },
+          }),
+        );
+      }
+
       setMyRoomIds((prev) => new Set(prev).add(room.id));
+      setShowJoinConfirmModal(false);
+      setStakedRoomToJoin(null);
       await fetchRooms();
       navigate(`/creator-rooms/${room.id}`);
     } catch (e) {
@@ -205,6 +195,43 @@ const CreatorRooms = () => {
     } finally {
       setJoining(null);
     }
+  };
+
+  const handleJoin = async (room) => {
+    const { data: userRes } = await supabase.auth.getUser();
+    const currentUser = userRes?.user || user;
+    if (!currentUser) {
+      openAuth();
+      return;
+    }
+
+    const roomEntryStake = Number(room?.entry_stake || 0);
+
+    // Staked room: show stake confirmation modal directly from Creator Room card!
+    if (roomEntryStake > 0) {
+      setStakedRoomToJoin(room);
+      setJoinConfirmBalance(null);
+      setShowJoinConfirmModal(true);
+      const bal = await fetchPoints(currentUser.id);
+      setJoinConfirmBalance(bal);
+      return;
+    }
+
+    // Free room: join immediately
+    await executeJoin(room, 0, currentUser);
+  };
+
+  const handleConfirmStakeJoin = async () => {
+    if (!stakedRoomToJoin) return;
+    const { data: userRes } = await supabase.auth.getUser();
+    const currentUser = userRes?.user || user;
+    if (!currentUser) {
+      setShowJoinConfirmModal(false);
+      openAuth();
+      return;
+    }
+    const stake = Number(stakedRoomToJoin.entry_stake || 0);
+    await executeJoin(stakedRoomToJoin, stake, currentUser);
   };
 
   const handleEnter = (roomId) => {
@@ -653,6 +680,114 @@ const CreatorRooms = () => {
             close={() => setOpenModal(false)}
             create={handleCreateRoom}
           />
+        )}
+
+        {/* Stake Confirmation Modal (Directly from Creator Room Card) */}
+        {showJoinConfirmModal && stakedRoomToJoin && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f0f1d] border border-amber-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <Coins size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Staked Creator Room</h3>
+                  <p className="text-[11px] text-gray-400 font-mono">Joining this room requires a gBits stake</p>
+                </div>
+              </div>
+
+              {/* Stake info box */}
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 mb-4 space-y-2 text-xs font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Entry Stake</span>
+                  <span className="text-amber-300 font-bold text-sm">
+                    {stakedRoomToJoin.entry_stake} gBits
+                  </span>
+                </div>
+                <div className="h-px bg-white/10" />
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Your current balance</span>
+                  <span className="text-white font-bold">
+                    {joinConfirmBalance === null ? "…" : `${joinConfirmBalance} gBits`}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Amount deducted</span>
+                  <span className="text-red-400 font-bold">
+                    − {stakedRoomToJoin.entry_stake} gBits
+                  </span>
+                </div>
+                <div className="h-px bg-white/10" />
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 font-bold">Balance after joining</span>
+                  <span
+                    className={`font-bold text-sm ${
+                      joinConfirmBalance !== null &&
+                      joinConfirmBalance < Number(stakedRoomToJoin.entry_stake || 0)
+                        ? "text-red-400"
+                        : "text-emerald-400"
+                    }`}
+                  >
+                    {joinConfirmBalance === null
+                      ? "…"
+                      : `${Math.max(
+                          0,
+                          joinConfirmBalance - Number(stakedRoomToJoin.entry_stake || 0),
+                        )} gBits`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Rules reminder */}
+              <div className="text-[11px] text-gray-400 font-mono space-y-1 mb-4 leading-relaxed">
+                <p>• Your {stakedRoomToJoin.entry_stake} gBits will be added to the Room Pool.</p>
+                <p>• Complete with ≥80% standups → stake returned + reward.</p>
+                <p>• Below 80% or early exit → stake is forfeited to the pool.</p>
+              </div>
+
+              {joinConfirmBalance !== null &&
+                joinConfirmBalance < Number(stakedRoomToJoin.entry_stake || 0) && (
+                  <p className="text-[11px] text-red-400 font-mono mb-4 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                    ⚠ Insufficient balance. You need {stakedRoomToJoin.entry_stake} gBits to join this room.
+                  </p>
+                )}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowJoinConfirmModal(false);
+                    setStakedRoomToJoin(null);
+                  }}
+                  disabled={joining !== null}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 cursor-pointer disabled:opacity-40 hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmStakeJoin}
+                  disabled={
+                    joining !== null ||
+                    joinConfirmBalance === null ||
+                    joinConfirmBalance < Number(stakedRoomToJoin.entry_stake || 0)
+                  }
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-amber-500/20 flex items-center gap-2 transition"
+                >
+                  <Coins size={14} />
+                  {joining === stakedRoomToJoin.id
+                    ? "Joining…"
+                    : `Confirm & Stake ${stakedRoomToJoin.entry_stake} gBits`}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
