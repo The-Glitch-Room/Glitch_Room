@@ -34,6 +34,10 @@ import {
   FileText,
   CheckCircle2,
   Calendar,
+  Database,
+  Bug,
+  Terminal,
+  FileCode,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import CustomSelect from "../CustomSelect";
@@ -342,6 +346,1051 @@ const CodingQuestionEditor = ({ questionText, onChange }) => {
   );
 };
 
+// ── Shared Helpers & Parsing for Specialized Question Types ─────────────────
+
+const parseMetaFromText = (text, kind) => {
+  if (!text) return null;
+  const metaMatch = text.match(
+    /\/\*---GLITCH_META---\n([\s\S]*?)\n---GLITCH_META---\*\//,
+  );
+  if (metaMatch) {
+    try {
+      const data = JSON.parse(metaMatch[1]);
+      if (data && data.kind === kind) return data;
+    } catch (e) {
+      console.warn("Failed to parse GLITCH_META JSON:", e);
+    }
+  }
+  return null;
+};
+
+const codeFieldClass =
+  "w-full bg-[#090912] border border-white/10 rounded-lg p-2.5 text-xs text-cyan-300 font-mono placeholder-gray-600 outline-none focus:border-[#00F0FF] resize-y leading-relaxed";
+
+// ── 1. SQL Query Assessment Editor ──────────────────────────────────────────
+
+const parseSqlText = (text, initialCorrectAnswer = "") => {
+  const meta = parseMetaFromText(text, "sql");
+  if (meta) {
+    return {
+      title: meta.title || "",
+      description: meta.description || "",
+      tables: meta.tables || [],
+      sampleData: meta.sampleData || "",
+      expectedQuery: meta.expectedQuery || initialCorrectAnswer || "",
+      expectedResult: meta.expectedResult || "",
+      evaluationMethod: meta.evaluationMethod || "Automatic + Manual",
+    };
+  }
+
+  const titleMatch = (text || "").match(/Problem Title:\s*(.*?)(?=\n|$)/i);
+  const title = titleMatch ? titleMatch[1].trim() : "";
+  let description = text || "";
+  if (titleMatch)
+    description = description.replace(/Problem Title:\s*.*?\n/i, "");
+  description = description
+    .replace(/\/\*---GLITCH_META---[\s\S]*?---GLITCH_META---\*\//g, "")
+    .trim();
+
+  return {
+    title,
+    description,
+    tables: [
+      {
+        id: `tbl-${Date.now()}`,
+        tableName: "customers",
+        columns: [
+          {
+            id: "col-1",
+            columnName: "id",
+            dataType: "INT",
+            description: "Primary Key",
+          },
+          {
+            id: "col-2",
+            columnName: "name",
+            dataType: "VARCHAR(100)",
+            description: "Customer Name",
+          },
+        ],
+      },
+    ],
+    sampleData: "",
+    expectedQuery: initialCorrectAnswer || "",
+    expectedResult: "",
+    evaluationMethod: "Automatic + Manual",
+  };
+};
+
+const composeSqlText = (fields) => {
+  let out = `Problem Title:\n${fields.title || ""}\n\n`;
+  out += `${fields.description || ""}\n\n`;
+  if (fields.tables && fields.tables.length > 0) {
+    out += `Database Schema:\n`;
+    fields.tables.forEach((t) => {
+      out += `Table: ${t.tableName || "table_name"}\n`;
+      (t.columns || []).forEach((c) => {
+        out += `- ${c.columnName || "column"} (${c.dataType || "VARCHAR"})${c.description ? `: ${c.description}` : ""}\n`;
+      });
+      out += `\n`;
+    });
+  }
+  if (fields.sampleData?.trim()) {
+    out += `Sample Data:\n${fields.sampleData.trim()}\n\n`;
+  }
+  if (fields.expectedResult?.trim()) {
+    out += `Expected Result:\n${fields.expectedResult.trim()}\n\n`;
+  }
+  if (fields.evaluationMethod?.trim()) {
+    out += `Evaluation Method:\n${fields.evaluationMethod.trim()}\n\n`;
+  }
+  out += `/*---GLITCH_META---\n${JSON.stringify({ kind: "sql", ...fields })}\n---GLITCH_META---*/`;
+  return out;
+};
+
+const SqlQueryQuestionEditor = ({ question, onChange }) => {
+  const [fields, setFields] = useState(() =>
+    parseSqlText(question.question_text, question.correct_answer),
+  );
+
+  const patch = (partial) => {
+    const next = { ...fields, ...partial };
+    setFields(next);
+    onChange({
+      question_text: composeSqlText(next),
+      correct_answer: next.expectedQuery || "",
+    });
+  };
+
+  const addTable = () => {
+    const newTable = {
+      id: `tbl-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      tableName: "",
+      columns: [
+        {
+          id: `col-${Date.now()}-1`,
+          columnName: "",
+          dataType: "INT",
+          description: "",
+        },
+      ],
+    };
+    patch({ tables: [...fields.tables, newTable] });
+  };
+
+  const removeTable = (tId) => {
+    patch({ tables: fields.tables.filter((t) => t.id !== tId) });
+  };
+
+  const updateTable = (tId, key, val) => {
+    patch({
+      tables: fields.tables.map((t) =>
+        t.id === tId ? { ...t, [key]: val } : t,
+      ),
+    });
+  };
+
+  const addColumn = (tId) => {
+    patch({
+      tables: fields.tables.map((t) => {
+        if (t.id === tId) {
+          return {
+            ...t,
+            columns: [
+              ...(t.columns || []),
+              {
+                id: `col-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                columnName: "",
+                dataType: "VARCHAR(255)",
+                description: "",
+              },
+            ],
+          };
+        }
+        return t;
+      }),
+    });
+  };
+
+  const removeColumn = (tId, colId) => {
+    patch({
+      tables: fields.tables.map((t) => {
+        if (t.id === tId) {
+          return {
+            ...t,
+            columns: (t.columns || []).filter((c) => c.id !== colId),
+          };
+        }
+        return t;
+      }),
+    });
+  };
+
+  const updateColumn = (tId, colId, key, val) => {
+    patch({
+      tables: fields.tables.map((t) => {
+        if (t.id === tId) {
+          return {
+            ...t,
+            columns: (t.columns || []).map((c) =>
+              c.id === colId ? { ...c, [key]: val } : c,
+            ),
+          };
+        }
+        return t;
+      }),
+    });
+  };
+
+  return (
+    <div className="space-y-3.5">
+      <div className="space-y-1">
+        <label className={labelClass}>Problem Title</label>
+        <input
+          type="text"
+          value={fields.title}
+          placeholder="e.g., Query Top 5 Spending Customers"
+          onChange={(e) => patch({ title: e.target.value })}
+          className={fieldClass}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className={labelClass}>Description / Instructions</label>
+        <textarea
+          rows={3}
+          value={fields.description}
+          placeholder="Write an SQL query to find the top 5 customers with the highest cumulative purchase total in 2026. Order results by total spending descending."
+          onChange={(e) => patch({ description: e.target.value })}
+          className={fieldClass + " resize-y"}
+        />
+      </div>
+
+      {/* Database Schema Builder */}
+      <div className="space-y-2.5 p-3 rounded-xl bg-[#090912] border border-white/10">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+            <Database size={13} className="text-[#00F0FF]" /> Database Schema
+          </label>
+          <button
+            type="button"
+            onClick={addTable}
+            className="text-[11px] font-bold text-purple-300 hover:text-purple-200 flex items-center gap-1 px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 cursor-pointer"
+          >
+            <FiPlus size={11} /> Add Table
+          </button>
+        </div>
+
+        {fields.tables.length === 0 ? (
+          <p className="text-[11px] text-gray-500 text-center py-2 bg-[#12121e] rounded-lg border border-white/5">
+            No tables added yet. Click "+ Add Table" to specify database tables.
+          </p>
+        ) : (
+          fields.tables.map((tbl, tIdx) => (
+            <div
+              key={tbl.id || tIdx}
+              className="p-2.5 rounded-lg bg-[#12121e] border border-white/10 space-y-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="text-[10px] font-mono text-[#00F0FF] font-bold uppercase">
+                    Table #{tIdx + 1}
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Table Name (e.g. customers)"
+                    value={tbl.tableName}
+                    onChange={(e) =>
+                      updateTable(tbl.id, "tableName", e.target.value)
+                    }
+                    className="flex-1 bg-[#090912] border border-white/10 rounded px-2.5 py-1 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF] font-mono"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeTable(tbl.id)}
+                  title="Remove Table"
+                  className="text-gray-500 hover:text-red-400 p-1 cursor-pointer"
+                >
+                  <FiTrash2 size={12} />
+                </button>
+              </div>
+
+              {/* Columns list */}
+              <div className="space-y-1.5 pl-2 border-l border-white/10">
+                <span className="text-[9px] font-mono uppercase text-gray-500 tracking-wider">
+                  Columns
+                </span>
+                {(tbl.columns || []).map((col, cIdx) => (
+                  <div
+                    key={col.id || cIdx}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Column Name"
+                      value={col.columnName}
+                      onChange={(e) =>
+                        updateColumn(
+                          tbl.id,
+                          col.id,
+                          "columnName",
+                          e.target.value,
+                        )
+                      }
+                      className="w-1/3 bg-[#090912] border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF] font-mono"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Data Type (INT, VARCHAR...)"
+                      value={col.dataType}
+                      onChange={(e) =>
+                        updateColumn(tbl.id, col.id, "dataType", e.target.value)
+                      }
+                      className="w-1/3 bg-[#090912] border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF] font-mono"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Optional Description"
+                      value={col.description}
+                      onChange={(e) =>
+                        updateColumn(
+                          tbl.id,
+                          col.id,
+                          "description",
+                          e.target.value,
+                        )
+                      }
+                      className="flex-1 bg-[#090912] border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF]"
+                    />
+                    {(tbl.columns || []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeColumn(tbl.id, col.id)}
+                        className="text-gray-600 hover:text-red-400 cursor-pointer p-0.5"
+                      >
+                        <FiTrash2 size={11} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addColumn(tbl.id)}
+                  className="text-[10px] text-purple-300 hover:text-purple-200 flex items-center gap-1 font-bold pt-1 cursor-pointer"
+                >
+                  <FiPlus size={10} /> Add Column
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="space-y-1">
+        <label className={labelClass}>Sample Data (optional)</label>
+        <textarea
+          rows={3}
+          value={fields.sampleData}
+          placeholder={
+            "-- Example sample records:\nINSERT INTO customers (id, name, total_spent) VALUES (1, 'Alice', 1200);\nINSERT INTO customers (id, name, total_spent) VALUES (2, 'Bob', 3400);"
+          }
+          onChange={(e) => patch({ sampleData: e.target.value })}
+          className={codeFieldClass}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-[10px] font-bold text-[#00F0FF] uppercase tracking-wider flex items-center gap-1">
+          Expected SQL Query / Answer Key *
+        </label>
+        <textarea
+          rows={4}
+          value={fields.expectedQuery}
+          placeholder={
+            "SELECT id, name, SUM(amount) AS total_spent\nFROM customers c\nJOIN orders o ON c.id = o.customer_id\nGROUP BY id, name\nORDER BY total_spent DESC\nLIMIT 5;"
+          }
+          onChange={(e) => patch({ expectedQuery: e.target.value })}
+          className={codeFieldClass}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className={labelClass}>Expected Result (optional)</label>
+          <textarea
+            rows={3}
+            value={fields.expectedResult}
+            placeholder={
+              "e.g.,\n| id | name  | total_spent |\n| 10 | Bob   | 4200.00     |\n| 14 | Alice | 3900.00     |"
+            }
+            onChange={(e) => patch({ expectedResult: e.target.value })}
+            className={codeFieldClass}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className={labelClass}>Evaluation Method</label>
+          <GlitchSelect
+            value={fields.evaluationMethod}
+            onChange={(v) => patch({ evaluationMethod: v })}
+            options={[
+              { value: "Automatic + Manual", label: "Automatic + Manual" },
+              {
+                value: "Execution Result Match",
+                label: "Execution Result Match",
+              },
+              { value: "Exact Query Match", label: "Exact Query Match" },
+              { value: "Manual Review Only", label: "Manual Review Only" },
+            ]}
+            placeholder="Select Evaluation Method"
+          />
+          <p className="text-[10px] text-gray-500 mt-1">
+            Defines how candidate SQL queries are reviewed and scored.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── 2. Debugging Challenge Editor ──────────────────────────────────────────
+
+const BUG_TYPES = [
+  "Logic Error",
+  "Syntax Error",
+  "Runtime Error",
+  "Performance Issue",
+  "Edge Case",
+  "Other",
+];
+
+const parseDebuggingText = (
+  text,
+  initialCorrectAnswer = "",
+  initialTestCases = [],
+) => {
+  const meta = parseMetaFromText(text, "debugging");
+  if (meta) {
+    return {
+      title: meta.title || "",
+      description: meta.description || "",
+      buggyCode: meta.buggyCode || "",
+      expectedBehavior: meta.expectedBehavior || "",
+      expectedOutput: meta.expectedOutput || "",
+      bugType: meta.bugType || "Logic Error",
+      correctFix: meta.correctFix || initialCorrectAnswer || "",
+      rootCause: meta.rootCause || "",
+      testCases: meta.testCases || initialTestCases || [],
+    };
+  }
+
+  const titleMatch = (text || "").match(/Problem Title:\s*(.*?)(?=\n|$)/i);
+  const title = titleMatch ? titleMatch[1].trim() : "";
+  let description = text || "";
+  if (titleMatch)
+    description = description.replace(/Problem Title:\s*.*?\n/i, "");
+  description = description
+    .replace(/\/\*---GLITCH_META---[\s\S]*?---GLITCH_META---\*\//g, "")
+    .trim();
+
+  return {
+    title,
+    description,
+    buggyCode: "",
+    expectedBehavior: "",
+    expectedOutput: "",
+    bugType: "Logic Error",
+    correctFix: initialCorrectAnswer || "",
+    rootCause: "",
+    testCases: initialTestCases || [],
+  };
+};
+
+const composeDebuggingText = (fields) => {
+  let out = `Problem Title:\n${fields.title || ""}\n\n`;
+  out += `${fields.description || ""}\n\n`;
+  out += `Bug Type:\n${fields.bugType || "Logic Error"}\n\n`;
+  if (fields.buggyCode?.trim()) {
+    out += `Buggy Code:\n\`\`\`\n${fields.buggyCode.trim()}\n\`\`\`\n\n`;
+  }
+  if (fields.expectedBehavior?.trim()) {
+    out += `Expected Behavior:\n${fields.expectedBehavior.trim()}\n\n`;
+  }
+  if (fields.expectedOutput?.trim()) {
+    out += `Expected Output:\n${fields.expectedOutput.trim()}\n\n`;
+  }
+  if (fields.rootCause?.trim()) {
+    out += `Root Cause / Explanation:\n${fields.rootCause.trim()}\n\n`;
+  }
+  out += `/*---GLITCH_META---\n${JSON.stringify({ kind: "debugging", ...fields })}\n---GLITCH_META---*/`;
+  return out;
+};
+
+const DebuggingQuestionEditor = ({ question, onChange }) => {
+  const [fields, setFields] = useState(() =>
+    parseDebuggingText(
+      question.question_text,
+      question.correct_answer,
+      question.test_cases,
+    ),
+  );
+
+  const patch = (partial) => {
+    const next = { ...fields, ...partial };
+    setFields(next);
+    onChange({
+      question_text: composeDebuggingText(next),
+      correct_answer: next.correctFix || "",
+      test_cases: next.testCases || [],
+    });
+  };
+
+  const addTestCase = () => {
+    patch({
+      testCases: [
+        ...(fields.testCases || []),
+        { input: "", expected_output: "" },
+      ],
+    });
+  };
+
+  const removeTestCase = (idx) => {
+    patch({
+      testCases: (fields.testCases || []).filter((_, i) => i !== idx),
+    });
+  };
+
+  const updateTestCase = (idx, key, val) => {
+    const next = [...(fields.testCases || [])];
+    next[idx] = { ...next[idx], [key]: val };
+    patch({ testCases: next });
+  };
+
+  return (
+    <div className="space-y-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="sm:col-span-2 space-y-1">
+          <label className={labelClass}>Problem Title</label>
+          <input
+            type="text"
+            value={fields.title}
+            placeholder="e.g., Fix Off-By-One Indexing in Pagination"
+            onChange={(e) => patch({ title: e.target.value })}
+            className={fieldClass}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className={labelClass}>Bug Type</label>
+          <GlitchSelect
+            value={fields.bugType}
+            onChange={(v) => patch({ bugType: v })}
+            options={BUG_TYPES.map((bt) => ({ value: bt, label: bt }))}
+            placeholder="Select Bug Type"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className={labelClass}>Problem Description</label>
+        <textarea
+          rows={3}
+          value={fields.description}
+          placeholder="Describe the bug scenario, observed malfunction, and context for candidates."
+          onChange={(e) => patch({ description: e.target.value })}
+          className={fieldClass + " resize-y"}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1">
+            <Bug size={11} /> Buggy Code *
+          </label>
+          <span className="text-[9px] text-gray-500 font-mono">
+            Code containing the defect
+          </span>
+        </div>
+        <textarea
+          rows={6}
+          value={fields.buggyCode}
+          placeholder={
+            "function paginate(items, page, pageSize) {\n  // Bug: pages are 1-indexed but offset calculation misses page 1\n  const start = page * pageSize;\n  return items.slice(start, start + pageSize);\n}"
+          }
+          onChange={(e) => patch({ buggyCode: e.target.value })}
+          className={codeFieldClass}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className={labelClass}>Expected Behavior</label>
+          <textarea
+            rows={2}
+            value={fields.expectedBehavior}
+            placeholder="e.g., Calling paginate(items, 1, 10) should return the first 10 items."
+            onChange={(e) => patch({ expectedBehavior: e.target.value })}
+            className={fieldClass + " resize-y"}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={labelClass}>Expected Output (optional)</label>
+          <textarea
+            rows={2}
+            value={fields.expectedOutput}
+            placeholder="e.g., [item1, item2, ... item10]"
+            onChange={(e) => patch({ expectedOutput: e.target.value })}
+            className={fieldClass + " resize-y"}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold text-[#00F0FF] uppercase tracking-wider flex items-center gap-1">
+            <CheckCircle2 size={11} /> Correct Fix / Expected Solution *
+          </label>
+          <span className="text-[9px] text-gray-500 font-mono">
+            Host solution key
+          </span>
+        </div>
+        <textarea
+          rows={6}
+          value={fields.correctFix}
+          placeholder={
+            "function paginate(items, page, pageSize) {\n  const start = (page - 1) * pageSize;\n  return items.slice(start, start + pageSize);\n}"
+          }
+          onChange={(e) => patch({ correctFix: e.target.value })}
+          className={codeFieldClass}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className={labelClass}>Root Cause / Explanation</label>
+        <textarea
+          rows={3}
+          value={fields.rootCause}
+          placeholder="e.g., The offset calculation multiplied `page * pageSize` directly, skipping the first page. The fix subtracts 1 from `page` to convert 1-based indexing into a 0-based offset."
+          onChange={(e) => patch({ rootCause: e.target.value })}
+          className={fieldClass + " resize-y"}
+        />
+      </div>
+
+      {/* Optional Test Cases */}
+      <div className="space-y-2 p-3 rounded-xl bg-[#090912] border border-white/10">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold text-gray-300">
+            Optional Test Cases
+          </label>
+          <button
+            type="button"
+            onClick={addTestCase}
+            className="text-[11px] font-bold text-purple-300 hover:text-purple-200 flex items-center gap-1 px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 cursor-pointer"
+          >
+            <FiPlus size={11} /> Add Test Case
+          </button>
+        </div>
+
+        {(fields.testCases || []).length === 0 ? (
+          <p className="text-[11px] text-gray-500 text-center py-2 bg-[#12121e] rounded-lg border border-white/5">
+            No test cases added. Click "+ Add Test Case" to verify candidate
+            fixes.
+          </p>
+        ) : (
+          (fields.testCases || []).map((tc, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={tc.input || ""}
+                placeholder="Input: e.g. ([1, 2, 3], 1, 2)"
+                onChange={(e) => updateTestCase(idx, "input", e.target.value)}
+                className="flex-1 bg-[#12121e] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF] font-mono"
+              />
+              <input
+                type="text"
+                value={tc.expected_output || ""}
+                placeholder="Expected Output: e.g. [1, 2]"
+                onChange={(e) =>
+                  updateTestCase(idx, "expected_output", e.target.value)
+                }
+                className="flex-1 bg-[#12121e] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-[#00F0FF] font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => removeTestCase(idx)}
+                className="text-gray-600 hover:text-red-400 p-1 cursor-pointer"
+              >
+                <FiTrash2 size={12} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── 3. Output Prediction Editor ─────────────────────────────────────────────
+
+const parseOutputPredText = (text, initialCorrectAnswer = "") => {
+  const meta = parseMetaFromText(text, "output_pred");
+  if (meta) {
+    return {
+      title: meta.title || "",
+      codeSnippet: meta.codeSnippet || "",
+      expectedOutput: meta.expectedOutput || initialCorrectAnswer || "",
+      explanation: meta.explanation || "",
+    };
+  }
+
+  const titleMatch = (text || "").match(/Problem Title:\s*(.*?)(?=\n|$)/i);
+  const title = titleMatch ? titleMatch[1].trim() : "";
+  let codeSnippet = "";
+  const codeMatch = (text || "").match(
+    /```(?:javascript|js|py|python)?\s*([\s\S]*?)```/i,
+  );
+  if (codeMatch) codeSnippet = codeMatch[1].trim();
+
+  let explanation = "";
+  const expMatch = (text || "").match(
+    /Explanation:\s*([\s\S]*?)(?=\/\*---GLITCH_META|$)/i,
+  );
+  if (expMatch) explanation = expMatch[1].trim();
+
+  return {
+    title,
+    codeSnippet,
+    expectedOutput: initialCorrectAnswer || "",
+    explanation,
+  };
+};
+
+const composeOutputPredText = (fields) => {
+  let out = `Problem Title:\n${fields.title || ""}\n\n`;
+  if (fields.codeSnippet?.trim()) {
+    out += `Code Snippet:\n\`\`\`\n${fields.codeSnippet.trim()}\n\`\`\`\n\n`;
+  }
+  if (fields.explanation?.trim()) {
+    out += `Explanation:\n${fields.explanation.trim()}\n\n`;
+  }
+  out += `/*---GLITCH_META---\n${JSON.stringify({ kind: "output_pred", ...fields })}\n---GLITCH_META---*/`;
+  return out;
+};
+
+const OutputPredictionQuestionEditor = ({ question, onChange }) => {
+  const [fields, setFields] = useState(() =>
+    parseOutputPredText(question.question_text, question.correct_answer),
+  );
+
+  const patch = (partial) => {
+    const next = { ...fields, ...partial };
+    setFields(next);
+    onChange({
+      question_text: composeOutputPredText(next),
+      correct_answer: next.expectedOutput || "",
+    });
+  };
+
+  return (
+    <div className="space-y-3.5">
+      <div className="space-y-1">
+        <label className={labelClass}>Question Title</label>
+        <input
+          type="text"
+          value={fields.title}
+          placeholder="e.g., Predict Output of Closure and Event Loop"
+          onChange={(e) => patch({ title: e.target.value })}
+          className={fieldClass}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+            <Terminal size={11} className="text-[#00F0FF]" /> Code Snippet *
+          </label>
+          <span className="text-[9px] text-gray-500 font-mono">
+            Candidate predicts the output of this code
+          </span>
+        </div>
+        <textarea
+          rows={6}
+          value={fields.codeSnippet}
+          placeholder={
+            "console.log('1');\nsetTimeout(() => console.log('2'), 0);\nPromise.resolve().then(() => console.log('3'));\nconsole.log('4');"
+          }
+          onChange={(e) => patch({ codeSnippet: e.target.value })}
+          className={codeFieldClass}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-[10px] font-bold text-[#00F0FF] uppercase tracking-wider">
+          Correct / Expected Output *
+        </label>
+        <textarea
+          rows={3}
+          value={fields.expectedOutput}
+          placeholder={"1\n4\n3\n2"}
+          onChange={(e) => patch({ expectedOutput: e.target.value })}
+          className={codeFieldClass}
+        />
+        <p className="text-[10px] text-gray-500">
+          The candidate's submission will be evaluated against this expected
+          output.
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <label className={labelClass}>Optional Explanation</label>
+        <textarea
+          rows={2}
+          value={fields.explanation}
+          placeholder="e.g., Synchronous code logs '1' and '4' first. Microtasks (Promise) run next logging '3', and macrotasks (setTimeout) execute last logging '2'."
+          onChange={(e) => patch({ explanation: e.target.value })}
+          className={fieldClass + " resize-y"}
+        />
+      </div>
+    </div>
+  );
+};
+
+// ── 4. Code Analysis Editor ─────────────────────────────────────────────────
+
+const parseCodeAnalysisText = (text, initialCorrectAnswer = "") => {
+  const meta = parseMetaFromText(text, "code_analysis");
+  if (meta) {
+    return {
+      title: meta.title || "",
+      codeSnippet: meta.codeSnippet || "",
+      analysisQuestions: meta.analysisQuestions || [
+        {
+          id: `aq-${Date.now()}-1`,
+          question: "What is the time complexity of this code and why?",
+          expectedAnswer: initialCorrectAnswer || "",
+          explanation: "",
+        },
+      ],
+    };
+  }
+
+  const titleMatch = (text || "").match(/Problem Title:\s*(.*?)(?=\n|$)/i);
+  const title = titleMatch ? titleMatch[1].trim() : "";
+  let codeSnippet = "";
+  const codeMatch = (text || "").match(
+    /```(?:javascript|js|py|python)?\s*([\s\S]*?)```/i,
+  );
+  if (codeMatch) codeSnippet = codeMatch[1].trim();
+
+  return {
+    title,
+    codeSnippet,
+    analysisQuestions: [
+      {
+        id: `aq-${Date.now()}-1`,
+        question: "What is the time complexity of this code and why?",
+        expectedAnswer: initialCorrectAnswer || "",
+        explanation: "",
+      },
+    ],
+  };
+};
+
+const composeCodeAnalysisText = (fields) => {
+  let out = `Problem Title:\n${fields.title || ""}\n\n`;
+  if (fields.codeSnippet?.trim()) {
+    out += `Code to Analyze:\n\`\`\`\n${fields.codeSnippet.trim()}\n\`\`\`\n\n`;
+  }
+  if (fields.analysisQuestions && fields.analysisQuestions.length > 0) {
+    out += `Analysis Questions:\n`;
+    fields.analysisQuestions.forEach((aq, idx) => {
+      out += `Question ${idx + 1}: ${aq.question || ""}\n`;
+      if (aq.expectedAnswer) out += `Expected Answer: ${aq.expectedAnswer}\n`;
+      if (aq.explanation) out += `Explanation: ${aq.explanation}\n`;
+      out += `\n`;
+    });
+  }
+  out += `/*---GLITCH_META---\n${JSON.stringify({ kind: "code_analysis", ...fields })}\n---GLITCH_META---*/`;
+  return out;
+};
+
+const CodeAnalysisQuestionEditor = ({ question, onChange }) => {
+  const [fields, setFields] = useState(() =>
+    parseCodeAnalysisText(question.question_text, question.correct_answer),
+  );
+
+  const patch = (partial) => {
+    const next = { ...fields, ...partial };
+    setFields(next);
+    const summaryAnswer = (next.analysisQuestions || [])
+      .map((aq) => aq.expectedAnswer)
+      .filter(Boolean)
+      .join(" | ");
+    onChange({
+      question_text: composeCodeAnalysisText(next),
+      correct_answer: summaryAnswer,
+    });
+  };
+
+  const addAnalysisQuestion = () => {
+    const newAq = {
+      id: `aq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      question: "",
+      expectedAnswer: "",
+      explanation: "",
+    };
+    patch({
+      analysisQuestions: [...(fields.analysisQuestions || []), newAq],
+    });
+  };
+
+  const removeAnalysisQuestion = (qId) => {
+    patch({
+      analysisQuestions: (fields.analysisQuestions || []).filter(
+        (aq) => aq.id !== qId,
+      ),
+    });
+  };
+
+  const updateAnalysisQuestion = (qId, key, val) => {
+    patch({
+      analysisQuestions: (fields.analysisQuestions || []).map((aq) =>
+        aq.id === qId ? { ...aq, [key]: val } : aq,
+      ),
+    });
+  };
+
+  return (
+    <div className="space-y-3.5">
+      <div className="space-y-1">
+        <label className={labelClass}>Analysis Title</label>
+        <input
+          type="text"
+          value={fields.title}
+          placeholder="e.g., Analyze Memoized Fibonacci Function"
+          onChange={(e) => patch({ title: e.target.value })}
+          className={fieldClass}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+            <FileCode size={11} className="text-[#00F0FF]" /> Code Snippet *
+          </label>
+          <span className="text-[9px] text-gray-500 font-mono">
+            Code to be reviewed / analyzed
+          </span>
+        </div>
+        <textarea
+          rows={6}
+          value={fields.codeSnippet}
+          placeholder={
+            "const memo = {};\nfunction fib(n) {\n  if (n <= 1) return n;\n  if (memo[n]) return memo[n];\n  return memo[n] = fib(n - 1) + fib(n - 2);\n}"
+          }
+          onChange={(e) => patch({ codeSnippet: e.target.value })}
+          className={codeFieldClass}
+        />
+      </div>
+
+      {/* Analysis Questions */}
+      <div className="space-y-3 p-3 rounded-xl bg-[#090912] border border-white/10">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold text-gray-300">
+            Analysis Questions
+          </label>
+          <button
+            type="button"
+            onClick={addAnalysisQuestion}
+            className="text-[11px] font-bold text-purple-300 hover:text-purple-200 flex items-center gap-1 px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 cursor-pointer"
+          >
+            <FiPlus size={11} /> Add Analysis Question
+          </button>
+        </div>
+
+        {(fields.analysisQuestions || []).length === 0 ? (
+          <p className="text-[11px] text-gray-500 text-center py-2 bg-[#12121e] rounded-lg border border-white/5">
+            No analysis questions added. Click "+ Add Analysis Question" to
+            create questions for candidates.
+          </p>
+        ) : (
+          (fields.analysisQuestions || []).map((aq, idx) => (
+            <div
+              key={aq.id || idx}
+              className="p-3 rounded-lg bg-[#12121e] border border-white/10 space-y-2 relative"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono font-bold text-purple-400 uppercase">
+                  Question #{idx + 1}
+                </span>
+                {(fields.analysisQuestions || []).length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeAnalysisQuestion(aq.id)}
+                    className="text-gray-500 hover:text-red-400 p-0.5 cursor-pointer"
+                  >
+                    <FiTrash2 size={12} />
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-gray-400 uppercase">
+                  Question / Prompt
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., What does this code do and what is its time complexity?"
+                  value={aq.question}
+                  onChange={(e) =>
+                    updateAnalysisQuestion(aq.id, "question", e.target.value)
+                  }
+                  className={fieldClass}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-[#00F0FF] uppercase">
+                  Expected Answer / Answer Key
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g., Calculates Fibonacci numbers in O(n) linear time complexity and O(n) space complexity due to caching."
+                  value={aq.expectedAnswer}
+                  onChange={(e) =>
+                    updateAnalysisQuestion(
+                      aq.id,
+                      "expectedAnswer",
+                      e.target.value,
+                    )
+                  }
+                  className={fieldClass + " resize-y"}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-gray-500 uppercase">
+                  Optional Explanation
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Without memoization, Fibonacci runs in O(2^n) exponential time."
+                  value={aq.explanation}
+                  onChange={(e) =>
+                    updateAnalysisQuestion(aq.id, "explanation", e.target.value)
+                  }
+                  className={fieldClass}
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ── Per-question-type answer-key editor ─────────────────────────────────
 // Without this, a host had no way to ever set real options or a real
 // correct answer — every question silently kept addQuestion's defaults.
@@ -515,7 +1564,11 @@ const QuestionAnswerEditor = ({ question, onChange }) => {
     );
   }
 
-  if (type === "short_answer" || type === "output_pred") {
+  if (["sql", "debugging", "output_pred", "code_analysis"].includes(type)) {
+    return null;
+  }
+
+  if (type === "short_answer") {
     return (
       <div className="space-y-1.5 pt-1">
         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -532,7 +1585,7 @@ const QuestionAnswerEditor = ({ question, onChange }) => {
     );
   }
 
-  if (["coding", "sql", "debugging", "code_analysis"].includes(type)) {
+  if (type === "coding") {
     const cases = question.test_cases || [];
     const setCase = (idx, field, val) => {
       const next = [...cases];
@@ -1314,11 +2367,14 @@ const CreateProRoomPage = () => {
       };
     if (type === "true_false")
       return { options: [], correct_answer: "", test_cases: [] };
-    if (type === "short_answer" || type === "output_pred")
+    if (type === "short_answer")
       return { options: [], correct_answer: "", test_cases: [] };
-    if (["coding", "sql", "debugging", "code_analysis"].includes(type))
+    if (
+      ["coding", "sql", "debugging", "output_pred", "code_analysis"].includes(
+        type,
+      )
+    )
       return { options: [], correct_answer: "", test_cases: [] };
-    // file_upload / project / video — always manual, no answer key at all.
     return { options: [], correct_answer: "", test_cases: [] };
   };
 
@@ -3379,19 +4435,46 @@ const CreateProRoomPage = () => {
                               </button>
                             </div>
 
-                            {[
-                              "coding",
-                              "sql",
-                              "debugging",
-                              "code_analysis",
-                            ].includes(q.question_type) ? (
+                            {q.question_type === "coding" ? (
                               <CodingQuestionEditor
-                                key={q.id}
+                                key={`${q.id}_${q.question_type}`}
                                 questionText={q.question_text}
                                 onChange={(newText) =>
                                   updateQuestion(sec.id, q.id, {
                                     question_text: newText,
                                   })
+                                }
+                              />
+                            ) : q.question_type === "sql" ? (
+                              <SqlQueryQuestionEditor
+                                key={`${q.id}_${q.question_type}`}
+                                question={q}
+                                onChange={(patch) =>
+                                  updateQuestion(sec.id, q.id, patch)
+                                }
+                              />
+                            ) : q.question_type === "debugging" ? (
+                              <DebuggingQuestionEditor
+                                key={`${q.id}_${q.question_type}`}
+                                question={q}
+                                onChange={(patch) =>
+                                  updateQuestion(sec.id, q.id, patch)
+                                }
+                              />
+                            ) : q.question_type === "output_pred" ? (
+                              <OutputPredictionQuestionEditor
+                                key={`${q.id}_${q.question_type}`}
+                                question={q}
+                                onChange={(patch) =>
+                                  updateQuestion(sec.id, q.id, patch)
+                                }
+                              />
+                            ) : q.question_type === "code_analysis" ? (
+                              <CodeAnalysisQuestionEditor
+                                key={`${q.id}_${q.question_type}`}
+                                question={q}
+                                onChange={(patch) =>
+                                  updateQuestion(sec.id, q.id, patch)
                                 }
                               />
                             ) : (
