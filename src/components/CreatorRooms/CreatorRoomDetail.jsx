@@ -3466,36 +3466,39 @@ const CreatorRoomDetail = ({ roomId }) => {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-[#0f0f1d] border border-amber-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl font-sans"
             >
-              <div className="flex items-center gap-3 text-amber-400 mb-3">
-                <Coins size={24} />
-                <h3 className="text-lg font-bold text-white">Stake Required to Join</h3>
-              </div>
-
-              <p className="text-xs text-gray-300 mb-4 leading-relaxed">
-                This room requires a stake of{" "}
-                <strong className="text-amber-300">{room?.entry_stake} gBits</strong>.
-              </p>
-
-              <div className="text-xs text-gray-300 space-y-1.5 mb-4 bg-white/5 border border-white/10 rounded-xl p-3.5">
-                <p>If you join this room:</p>
-                <p className="pl-3">• <strong className="text-white">{room?.entry_stake} gBits</strong> will be deducted from your available balance.</p>
-                <p className="pl-3">• Your {room?.entry_stake} gBits will be held as your room stake.</p>
-                <p className="pl-3">• If you meet the room's completion criteria (≥80% standups), your stake is returned along with the applicable reward.</p>
-                <p className="pl-3">• If you don't meet the criteria, your stake is handled according to the room's staking rules (forfeited into the pool).</p>
-              </div>
-
-              <div className="flex justify-between items-center text-xs font-mono bg-black/30 border border-white/10 rounded-xl p-3.5 mb-5">
-                <div>
-                  <div className="text-gray-400 mb-0.5">Your balance</div>
-                  <div className="text-white font-bold">
-                    {joinConfirmBalance === null ? "…" : `${joinConfirmBalance} gBits`}
-                  </div>
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <Coins size={20} />
                 </div>
-                <ArrowRight size={14} className="text-gray-500 shrink-0" />
-                <div className="text-right">
-                  <div className="text-gray-400 mb-0.5">After joining</div>
-                  <div
-                    className={`font-bold ${
+                <div>
+                  <h3 className="text-base font-bold text-white">Staked Creator Room</h3>
+                  <p className="text-[11px] text-gray-400 font-mono">Joining this room requires a gBits stake</p>
+                </div>
+              </div>
+
+              {/* Stake info box */}
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 mb-4 space-y-2 text-xs font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Entry Stake</span>
+                  <span className="text-amber-300 font-bold text-sm">{room?.entry_stake} gBits</span>
+                </div>
+                <div className="h-px bg-white/10" />
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Your current balance</span>
+                  <span className="text-white font-bold">
+                    {joinConfirmBalance === null ? "…" : `${joinConfirmBalance} gBits`}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Amount deducted</span>
+                  <span className="text-red-400 font-bold">− {room?.entry_stake} gBits</span>
+                </div>
+                <div className="h-px bg-white/10" />
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 font-bold">Balance after joining</span>
+                  <span
+                    className={`font-bold text-sm ${
                       joinConfirmBalance !== null && joinConfirmBalance < Number(room?.entry_stake || 0)
                         ? "text-red-400"
                         : "text-emerald-400"
@@ -3504,13 +3507,20 @@ const CreatorRoomDetail = ({ roomId }) => {
                     {joinConfirmBalance === null
                       ? "…"
                       : `${Math.max(0, joinConfirmBalance - Number(room?.entry_stake || 0))} gBits`}
-                  </div>
+                  </span>
                 </div>
               </div>
 
+              {/* Rules reminder */}
+              <div className="text-[11px] text-gray-400 font-mono space-y-1 mb-4 leading-relaxed">
+                <p>• Your {room?.entry_stake} gBits will be added to the Room Pool.</p>
+                <p>• Complete with ≥80% standups → stake returned + reward.</p>
+                <p>• Below 80% or early exit → stake is forfeited to the pool.</p>
+              </div>
+
               {joinConfirmBalance !== null && joinConfirmBalance < Number(room?.entry_stake || 0) && (
-                <p className="text-[11px] text-red-400 font-mono mb-4">
-                  You don't have enough gBits to stake for this room.
+                <p className="text-[11px] text-red-400 font-mono mb-4 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                  ⚠ Insufficient balance. You need {room?.entry_stake} gBits to join this room.
                 </p>
               )}
 
@@ -3518,7 +3528,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                 <button
                   onClick={() => setShowJoinConfirmModal(false)}
                   disabled={joining}
-                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 cursor-pointer disabled:opacity-40"
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-300 cursor-pointer disabled:opacity-40 hover:bg-white/10 transition"
                 >
                   Cancel
                 </button>
@@ -3532,9 +3542,10 @@ const CreatorRoomDetail = ({ roomId }) => {
                     joinConfirmBalance === null ||
                     joinConfirmBalance < Number(room?.entry_stake || 0)
                   }
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-[#FF00C8]/20 flex items-center gap-2"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-xs font-bold disabled:opacity-40 cursor-pointer shadow-lg shadow-amber-500/20 flex items-center gap-2 transition"
                 >
-                  {joining ? "Joining..." : `Join & Stake ${room?.entry_stake} gBits`}
+                  <Coins size={14} />
+                  {joining ? "Joining…" : `Confirm & Stake ${room?.entry_stake} gBits`}
                 </button>
               </div>
             </motion.div>

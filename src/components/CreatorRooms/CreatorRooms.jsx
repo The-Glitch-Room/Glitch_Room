@@ -263,7 +263,6 @@ const CreatorRooms = () => {
         code_of_conduct: roomData.rules?.code_of_conduct || null,
 
         max_members: roomData.membership?.max_members ?? 25,
-        approval_required: !!roomData.membership?.approval_required,
 
         is_draft: !!roomData.is_draft,
       };

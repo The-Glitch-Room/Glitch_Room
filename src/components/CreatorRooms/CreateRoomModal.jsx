@@ -106,7 +106,6 @@ const CreateRoomModal = ({ close, create }) => {
   const [codeOfConduct, setCodeOfConduct] = useState("Keep check-ins honest and support fellow builders.");
 
   const [maxMembers, setMaxMembers] = useState(25);
-  const [approvalRequired, setApprovalRequired] = useState(false);
 
   const toggleProofType = (type) => {
     if (selectedProofTypes.includes(type)) {
@@ -157,7 +156,6 @@ const CreateRoomModal = ({ close, create }) => {
       },
       membership: {
         max_members: maxMembers,
-        approval_required: approvalRequired,
       },
       is_draft: isDraft,
     };
@@ -725,35 +723,16 @@ const CreateRoomModal = ({ close, create }) => {
               </div>
 
               {/* Membership Settings */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
-                    Max Members Limit
-                  </label>
-                  <input
-                    type="number"
-                    value={maxMembers}
-                    onChange={(e) => setMaxMembers(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none font-mono"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[#07070d] border border-white/10">
-                  <span className="text-xs text-gray-300 font-mono">Require Approval to Join?</span>
-                  <button
-                    type="button"
-                    onClick={() => setApprovalRequired(!approvalRequired)}
-                    className={`w-9 h-5 rounded-full transition p-0.5 cursor-pointer ${
-                      approvalRequired ? "bg-purple-600" : "bg-gray-700"
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full bg-white transition transform ${
-                        approvalRequired ? "translate-x-4" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
+              <div>
+                <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
+                  Max Members Limit
+                </label>
+                <input
+                  type="number"
+                  value={maxMembers}
+                  onChange={(e) => setMaxMembers(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none font-mono"
+                />
               </div>
             </motion.div>
           )}
