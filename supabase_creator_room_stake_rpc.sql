@@ -93,7 +93,8 @@ END $$;
 -- user_points/profiles on every insert — doing so here would cause
 -- a double deduction. The frontend dispatches a gbits_transaction
 -- CustomEvent for the toast notification instead.
--- ============================================================================
+DROP FUNCTION IF EXISTS public.join_creator_room_with_stake(UUID, INTEGER);
+
 CREATE OR REPLACE FUNCTION public.join_creator_room_with_stake(
   p_room_id UUID,
   p_stake   INTEGER
@@ -206,6 +207,8 @@ GRANT EXECUTE ON FUNCTION public.join_creator_room_with_stake(UUID, INTEGER)
 -- profiles + user_points, which is the same path the join RPC uses for
 -- the original deduction.
 -- ============================================================================
+DROP FUNCTION IF EXISTS public.refund_and_delete_creator_room(UUID);
+
 CREATE OR REPLACE FUNCTION public.refund_and_delete_creator_room(p_room_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
