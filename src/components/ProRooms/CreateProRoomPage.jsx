@@ -85,9 +85,6 @@ const QUESTION_TYPES = [
   { id: "debugging", label: "Debugging Challenge" },
   { id: "output_pred", label: "Output Prediction" },
   { id: "code_analysis", label: "Code Analysis" },
-  { id: "file_upload", label: "File Upload / GitHub URL" },
-  { id: "project", label: "Project Submission" },
-  { id: "video", label: "Video Submission" },
 ];
 
 // ── Reusable themed dropdown ────────────────────────────────────────────
