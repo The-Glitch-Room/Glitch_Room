@@ -248,17 +248,17 @@ const getCurrentStreak = (dateKeySet) => {
   return getStreakEndingAt(dateKeySet, anchor);
 };
 
-// ── Auto-Scrolling Ticker Wrapper for Today's Standup Logs ───────────────────
+// ── Auto-Scrolling Ticker Wrapper for Daily Standup Logs ───────────────────
 const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
   const [isPaused, setIsPaused] = useState(false);
 
-  // Auto-scroll animation is ONLY applied when "Today" tab is active and there are multiple cards
-  if (activeTab !== "today" || itemCount <= 1) {
+  // Auto-scroll animation triggers whenever there are standup items to display
+  if (!itemCount || itemCount < 1) {
     return <div className="space-y-3">{children}</div>;
   }
 
   // Calculate smooth scroll duration based on item count (slow, natural scrolling speed)
-  const duration = Math.max(25, itemCount * 14);
+  const duration = Math.max(22, (itemCount || 1) * 14);
 
   return (
     <div
@@ -280,7 +280,13 @@ const StandupTickerWrapper = ({ children, activeTab, itemCount }) => {
         }}
       >
         {children}
-        {children} {/* Duplicated list for seamless -50% loop */}
+        {React.Children.map(children, (child, idx) =>
+          React.isValidElement(child)
+            ? React.cloneElement(child, {
+                key: `ticker-dup-${child.key || idx}`,
+              })
+            : child,
+        )}
       </div>
 
       <style>{`
@@ -1501,7 +1507,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       setProofFilePreview(null);
       setBlockers("");
       setShowCheckinModal(false);
-      setActiveTab("all");
+      setActiveTab("today");
       fetchAllRoomData();
     } catch (e) {
       console.error("Checkin submission error:", e);

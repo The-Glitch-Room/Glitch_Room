@@ -125,9 +125,13 @@ const CreatorRooms = () => {
         .select("room_id")
         .eq("user_id", user.id);
 
-      if (myMemberships) {
-        setMyRoomIds(new Set(myMemberships.map((m) => m.room_id)));
-      }
+      const myIds = new Set((myMemberships || []).map((m) => m.room_id));
+      (creatorRooms || []).forEach((r) => {
+        if (r.created_by === user.id) {
+          myIds.add(r.id);
+        }
+      });
+      setMyRoomIds(myIds);
     }
     setLoading(false);
   };
