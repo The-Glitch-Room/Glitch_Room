@@ -52,6 +52,12 @@ import {
   AlertTriangle,
   Plus,
   Pencil,
+  Image,
+  Code,
+  Copy,
+  FileText,
+  Download,
+  CheckSquare,
 } from "lucide-react";
 
 const DEFAULT_AVATAR =
@@ -100,8 +106,6 @@ const UserAvatar = ({
 // room.proof_types is empty/undefined) — mirrors CreateRoomModal's list
 // exactly so the check-in form always has something sensible to offer.
 const PROOF_TYPE_OPTIONS = [
-  "GitHub Commit",
-  "GitHub PR",
   "Project/Demo Link",
   "Screenshot",
   "Code Snippet",
@@ -113,8 +117,6 @@ const PROOF_TYPE_OPTIONS = [
 // A proof type is "link-shaped" when it's realistically a URL — used to
 // decide whether the proof input renders as a URL field or a free-text field.
 const LINK_PROOF_TYPES = new Set([
-  "GitHub Commit",
-  "GitHub PR",
   "Project/Demo Link",
 ]);
 
@@ -366,8 +368,149 @@ const parseStandupContent = (standup) => {
   return {
     accomplishment: accomplishment || "Completed daily tasks",
     proofUrl: isValidProofLink ? finalProofUrl : null,
+    proofType: standup?.proof_type || null,
     blockers: finalBlockers,
   };
+};
+
+// ── Reusable Proof Display Component ────────────────────────────────────────
+const ProofDisplay = ({ proofUrl, proofType, onOpenImage }) => {
+  const [copied, setCopied] = useState(false);
+
+  if (!proofUrl) {
+    return (
+      <span className="text-[10px] font-mono text-gray-500 italic">
+        No proof submitted
+      </span>
+    );
+  }
+
+  const isImage =
+    proofType === "Screenshot" ||
+    proofUrl.startsWith("data:image/") ||
+    /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(proofUrl);
+
+  const isCode =
+    proofType === "Code Snippet" ||
+    (!proofUrl.startsWith("http") &&
+      (proofUrl.includes("\n") || proofUrl.includes("; ") || proofUrl.includes("{")));
+
+  const isProgressLog = proofType === "Progress Log";
+  const isFile = proofType === "File Upload";
+
+  if (isImage) {
+    return (
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          type="button"
+          onClick={() => onOpenImage && onOpenImage(proofUrl)}
+          className="group relative rounded-xl overflow-hidden border border-white/15 hover:border-purple-400 transition-all shadow-md max-w-[160px] max-h-24 bg-black/40 cursor-pointer"
+        >
+          <img
+            src={proofUrl}
+            alt="Screenshot Proof"
+            className="w-full h-auto max-h-24 object-cover group-hover:scale-105 transition-transform"
+          />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 text-[10px] font-mono text-white">
+            <ExternalLink size={11} /> View Full
+          </div>
+        </button>
+      </div>
+    );
+  }
+
+  if (isCode) {
+    const handleCopy = () => {
+      navigator.clipboard.writeText(proofUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+      <div className="w-full mt-1 bg-[#06060f] border border-cyan-500/20 rounded-xl overflow-hidden shadow-inner">
+        <div className="bg-white/5 border-b border-white/5 px-2.5 py-1 flex items-center justify-between text-[10px] font-mono text-cyan-300">
+          <span className="flex items-center gap-1">
+            <Code size={11} className="text-cyan-400" /> Code Snippet
+          </span>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="text-gray-400 hover:text-white flex items-center gap-1 cursor-pointer transition"
+          >
+            {copied ? (
+              <>
+                <Check size={10} className="text-green-400" /> Copied
+              </>
+            ) : (
+              <>
+                <Copy size={10} /> Copy
+              </>
+            )}
+          </button>
+        </div>
+        <pre className="p-2.5 text-[11px] font-mono text-cyan-200 overflow-x-auto max-h-36 leading-relaxed whitespace-pre">
+          <code>{proofUrl}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  if (isProgressLog) {
+    return (
+      <div className="w-full mt-1 bg-white/5 border border-purple-500/20 rounded-xl p-2.5 font-mono text-[11px] text-gray-200 leading-relaxed whitespace-pre-wrap">
+        <div className="flex items-center gap-1 text-[10px] text-purple-400 font-bold mb-1">
+          <Activity size={11} /> Progress Log
+        </div>
+        {proofUrl}
+      </div>
+    );
+  }
+
+  if (isFile) {
+    const isUrl = proofUrl.startsWith("http");
+    return (
+      <div className="mt-1">
+        <a
+          href={isUrl ? proofUrl : "#"}
+          target={isUrl ? "_blank" : undefined}
+          rel="noopener noreferrer"
+          download={isUrl ? "proof-attachment" : undefined}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-500/40 text-cyan-300 text-xs font-mono transition group"
+        >
+          <FileText size={13} className="text-cyan-400 shrink-0" />
+          <span className="truncate max-w-[200px]">Attached File</span>
+          {isUrl && (
+            <Download
+              size={11}
+              className="text-gray-400 group-hover:text-white shrink-0 ml-1"
+            />
+          )}
+        </a>
+      </div>
+    );
+  }
+
+  // URL / Link proof (Project/Demo Link or Custom Proof)
+  const isHttp = proofUrl.startsWith("http");
+  const href = isHttp ? proofUrl : `https://${proofUrl}`;
+
+  return (
+    <div className="mt-0.5">
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[11px] font-mono transition group max-w-[280px]"
+      >
+        <Globe size={11} className="text-purple-400 shrink-0" />
+        <span className="truncate">{proofUrl}</span>
+        <ExternalLink
+          size={10}
+          className="text-gray-400 group-hover:text-white shrink-0"
+        />
+      </a>
+    </div>
+  );
 };
 
 const CreatorRoomDetail = ({ roomId }) => {
@@ -449,6 +592,9 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [accomplishment, setAccomplishment] = useState("");
   const [proofType, setProofType] = useState("");
   const [proofUrl, setProofUrl] = useState("");
+  const [proofFile, setProofFile] = useState(null);
+  const [proofFilePreview, setProofFilePreview] = useState(null);
+  const [previewLightboxImage, setPreviewLightboxImage] = useState(null);
   const [blockers, setBlockers] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -1150,6 +1296,41 @@ const CreatorRoomDetail = ({ roomId }) => {
 
       const computedIsOnTime = true;
 
+      // Handle direct file/screenshot upload if selected from device
+      let finalProofUrl = proofUrl.trim();
+      if (proofFile) {
+        try {
+          const fileExt = proofFile.name.split(".").pop() || (proofType === "Screenshot" ? "png" : "bin");
+          const cleanName = `creator-rooms/${id}/${activeUid}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+          const { error: storageErr } = await supabase.storage
+            .from("avatars")
+            .upload(cleanName, proofFile, { upsert: true });
+
+          if (!storageErr) {
+            const { data: pUrlData } = supabase.storage
+              .from("avatars")
+              .getPublicUrl(cleanName);
+            if (pUrlData?.publicUrl) {
+              finalProofUrl = pUrlData.publicUrl;
+            }
+          }
+        } catch (storageErr) {
+          console.warn("Storage upload notice:", storageErr);
+        }
+
+        // Reliable data URL fallback if storage bucket is unavailable
+        if (!finalProofUrl && proofFilePreview) {
+          finalProofUrl = proofFilePreview;
+        } else if (!finalProofUrl) {
+          finalProofUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => resolve("");
+            reader.readAsDataURL(proofFile);
+          });
+        }
+      }
+
       // 1. Insert into creator_room_checkins
       const { error: checkinErr } = await supabase
         .from("creator_room_checkins")
@@ -1159,7 +1340,7 @@ const CreatorRoomDetail = ({ roomId }) => {
             user_id: activeUid,
             accomplishment: accomplishment.trim(),
             proof_type: proofType || null,
-            proof_url: proofUrl.trim() || null,
+            proof_url: finalProofUrl || null,
             blockers: blockers.trim() || null,
             is_on_time: computedIsOnTime,
           },
@@ -1211,7 +1392,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           username: userProfile?.username || "Builder",
           roomTitle: room?.title || room?.name || "Accountability Room",
           accomplishment,
-          proofUrl,
+          proofUrl: finalProofUrl,
         });
       }
 
@@ -1219,6 +1400,8 @@ const CreatorRoomDetail = ({ roomId }) => {
       setAccomplishment("");
       setProofType("");
       setProofUrl("");
+      setProofFile(null);
+      setProofFilePreview(null);
       setBlockers("");
       setShowCheckinModal(false);
       setActiveTab("all");
@@ -2471,34 +2654,15 @@ const CreatorRoomDetail = ({ roomId }) => {
                               <div className="flex items-center justify-between gap-3 pt-0.5 flex-wrap">
                                 <div className="flex items-center gap-4 flex-wrap text-xs">
                                   {/* Proof of Work */}
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500">
                                       PROOF:
                                     </span>
-                                    {proofHref ? (
-                                      <a
-                                        href={proofHref}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-500/40 text-cyan-300 text-[10px] font-mono transition group max-w-[200px] truncate"
-                                      >
-                                        <Share2
-                                          size={10}
-                                          className="text-purple-400 shrink-0"
-                                        />
-                                        <span className="truncate">
-                                          {parsed.proofUrl}
-                                        </span>
-                                        <ExternalLink
-                                          size={9}
-                                          className="text-gray-400 shrink-0"
-                                        />
-                                      </a>
-                                    ) : (
-                                      <span className="text-[10px] font-mono text-gray-500 italic">
-                                        No proof submitted
-                                      </span>
-                                    )}
+                                    <ProofDisplay
+                                      proofUrl={parsed.proofUrl}
+                                      proofType={parsed.proofType}
+                                      onOpenImage={(imgUrl) => setPreviewLightboxImage(imgUrl)}
+                                    />
                                   </div>
 
                                   {/* Blockers */}
@@ -3170,36 +3334,218 @@ const CreatorRoomDetail = ({ roomId }) => {
                     })}
                   </div>
 
-                  <label className="block text-gray-300 mb-1 font-bold">
-                    {LINK_PROOF_TYPES.has(proofType) || !proofType
-                      ? "Proof of Work URL (Optional)"
-                      : "Proof of Work (Optional)"}
+                  <label className="block text-gray-300 mb-1 font-bold flex items-center justify-between">
+                    <span>
+                      {proofType ? `${proofType} Proof` : "Proof of Work (Optional)"}
+                    </span>
+                    {proofType && (
+                      <span className="text-[10px] text-purple-400 font-mono font-normal">
+                        Active: {proofType}
+                      </span>
+                    )}
                   </label>
-                  <input
-                    type={
-                      LINK_PROOF_TYPES.has(proofType) || !proofType
-                        ? "url"
-                        : "text"
-                    }
-                    value={proofUrl}
-                    onChange={(e) => setProofUrl(e.target.value)}
-                    placeholder={
-                      proofType === "Screenshot"
-                        ? "Link to your screenshot (Drive, Imgur, etc.)"
-                        : proofType === "Code Snippet"
-                          ? "Paste a link to the snippet, or describe it"
-                          : proofType === "Progress Log"
-                            ? "Paste a link to your log, or describe your progress"
-                            : proofType === "File Upload"
-                              ? "Link to your uploaded file"
-                              : proofType === "Custom Proof"
-                                ? "Describe or link your proof"
-                                : "https://github.com/your-username/repo-name"
-                    }
-                    className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs"
-                  />
-                  {/* Never auto-fills or falls back to a default link — leaving
-                      this blank stores/displays as "not provided", not a URL. */}
+
+                  {/* 1. SCREENSHOT PROOF INPUT */}
+                  {proofType === "Screenshot" && (
+                    <div className="space-y-2">
+                      <div className="border border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-500/5 rounded-2xl p-4 text-center transition">
+                        {proofFilePreview ? (
+                          <div className="relative inline-block max-w-full">
+                            <img
+                              src={proofFilePreview}
+                              alt="Screenshot Preview"
+                              className="max-h-36 rounded-xl object-contain border border-white/20 mx-auto shadow-lg"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProofFile(null);
+                                setProofFilePreview(null);
+                              }}
+                              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center text-xs shadow-md cursor-pointer"
+                            >
+                              <X size={13} />
+                            </button>
+                            <p className="text-[10px] text-gray-400 font-mono mt-1 truncate max-w-[200px] mx-auto">
+                              {proofFile?.name} ({(proofFile?.size / 1024).toFixed(0)} KB)
+                            </p>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer flex flex-col items-center gap-1.5 py-2">
+                            <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-0.5">
+                              <Image size={20} />
+                            </div>
+                            <span className="text-xs text-white font-bold font-sans">
+                              Upload Screenshot from Device
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              PNG, JPG, WEBP or GIF (Max 10MB)
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  setProofFile(file);
+                                  const reader = new FileReader();
+                                  reader.onload = () => setProofFilePreview(reader.result);
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono">
+                        <span className="shrink-0">Or paste image URL:</span>
+                        <input
+                          type="url"
+                          value={proofUrl}
+                          onChange={(e) => setProofUrl(e.target.value)}
+                          placeholder="https://.../screenshot.png"
+                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#07070d] border border-white/10 text-white text-[11px] focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. FILE UPLOAD PROOF INPUT */}
+                  {proofType === "File Upload" && (
+                    <div className="space-y-2">
+                      <div className="border border-dashed border-cyan-500/40 hover:border-cyan-400 bg-cyan-500/5 rounded-2xl p-4 text-center transition">
+                        {proofFile ? (
+                          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10 text-left">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                                <FileText size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs text-white font-medium truncate">
+                                  {proofFile.name}
+                                </p>
+                                <p className="text-[10px] text-gray-400 font-mono">
+                                  {(proofFile.size / 1024).toFixed(0)} KB
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProofFile(null);
+                                setProofFilePreview(null);
+                              }}
+                              className="text-gray-400 hover:text-red-400 p-1 cursor-pointer"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer flex flex-col items-center gap-1.5 py-2">
+                            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-0.5">
+                              <Upload size={20} />
+                            </div>
+                            <span className="text-xs text-white font-bold font-sans">
+                              Upload Proof Document / File
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              PDF, ZIP, DOC, TXT, JSON, CSV (Max 25MB)
+                            </span>
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,.zip,.tar,.json,.txt,.csv,.md,.png,.jpg"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  setProofFile(file);
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono">
+                        <span className="shrink-0">Or paste file link:</span>
+                        <input
+                          type="url"
+                          value={proofUrl}
+                          onChange={(e) => setProofUrl(e.target.value)}
+                          placeholder="https://drive.google.com/..."
+                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#07070d] border border-white/10 text-white text-[11px] focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. CODE SNIPPET PROOF INPUT */}
+                  {proofType === "Code Snippet" && (
+                    <div className="space-y-1.5">
+                      <div className="bg-[#05050f] border border-cyan-500/30 rounded-2xl overflow-hidden focus-within:border-cyan-400 shadow-inner">
+                        <div className="bg-white/5 border-b border-white/5 px-3 py-1.5 flex items-center justify-between text-[10px] font-mono text-cyan-300">
+                          <span className="flex items-center gap-1.5">
+                            <Code size={12} className="text-cyan-400" /> Monospace Code Editor
+                          </span>
+                          <span className="text-gray-500">Auto-formatted</span>
+                        </div>
+                        <textarea
+                          rows={6}
+                          value={proofUrl}
+                          onChange={(e) => setProofUrl(e.target.value)}
+                          placeholder={`// Paste your code snippet, function, or diff here:\nconst handleSave = async () => {\n  console.log("Proof verified!");\n};`}
+                          className="w-full p-3 bg-transparent text-cyan-200 placeholder-gray-600 focus:outline-none font-mono text-xs leading-relaxed resize-y"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. PROGRESS LOG PROOF INPUT */}
+                  {proofType === "Progress Log" && (
+                    <div className="space-y-1.5">
+                      <textarea
+                        rows={4}
+                        value={proofUrl}
+                        onChange={(e) => setProofUrl(e.target.value)}
+                        placeholder={`• Implemented authentication workflow\n• Refactored user dashboard queries\n• Fixed 3 reported UI overflow bugs`}
+                        className="w-full p-3 rounded-2xl bg-[#07070d] border border-purple-500/30 text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 font-mono text-xs leading-relaxed"
+                      />
+                    </div>
+                  )}
+
+                  {/* 5. PROJECT/DEMO LINK PROOF INPUT */}
+                  {proofType === "Project/Demo Link" && (
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-purple-400">
+                        <Globe size={15} />
+                      </div>
+                      <input
+                        type="url"
+                        value={proofUrl}
+                        onChange={(e) => setProofUrl(e.target.value)}
+                        placeholder="https://my-project.vercel.app or Figma demo link"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-mono text-xs"
+                      />
+                    </div>
+                  )}
+
+                  {/* 6. CUSTOM PROOF OR UNSELECTED */}
+                  {(proofType === "Custom Proof" || !proofType) && (
+                    <div>
+                      <textarea
+                        rows={3}
+                        value={proofUrl}
+                        onChange={(e) => setProofUrl(e.target.value)}
+                        placeholder={
+                          proofType === "Custom Proof"
+                            ? "Describe or link your custom proof of work..."
+                            : "Enter proof URL or describe your work (Optional)"
+                        }
+                        className="w-full p-3 rounded-xl bg-[#07070d] border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-sans text-xs"
+                      />
+                    </div>
+                  )}
+
                   <p className="text-[9px] text-gray-500 mt-1">
                     Leave blank if you have no proof to attach — it'll be marked
                     as not provided, never filled in automatically.
@@ -4626,23 +4972,16 @@ const CreatorRoomDetail = ({ roomId }) => {
                                   {standup.accomplishment}
                                 </p>
                                 {standup.proof_url && (
-                                  <p className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <strong className="text-white">
                                       Proof of Work:
-                                    </strong>{" "}
-                                    <a
-                                      href={
-                                        standup.proof_url.startsWith("http")
-                                          ? standup.proof_url
-                                          : `https://${standup.proof_url}`
-                                      }
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-cyan-400 underline truncate max-w-md"
-                                    >
-                                      {standup.proof_url}
-                                    </a>
-                                  </p>
+                                    </strong>
+                                    <ProofDisplay
+                                      proofUrl={standup.proof_url}
+                                      proofType={standup.proof_type}
+                                      onOpenImage={(imgUrl) => setPreviewLightboxImage(imgUrl)}
+                                    />
+                                  </div>
                                 )}
                                 <p>
                                   <strong className="text-white">
@@ -5308,18 +5647,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 {st.accomplishment}
                               </p>
                               {st.proof_url && (
-                                <a
-                                  href={
-                                    st.proof_url.startsWith("http")
-                                      ? st.proof_url
-                                      : `https://${st.proof_url}`
-                                  }
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[10px] text-cyan-400 underline block truncate mt-1"
-                                >
-                                  🔗 {st.proof_url}
-                                </a>
+                                <ProofDisplay
+                                  proofUrl={st.proof_url}
+                                  proofType={st.proof_type}
+                                  onOpenImage={(imgUrl) => setPreviewLightboxImage(imgUrl)}
+                                />
                               )}
                             </div>
                           ))
@@ -5424,20 +5756,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                           <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider block mb-1">
                             Proof of Work
                           </span>
-                          {proofHref ? (
-                            <a
-                              href={proofHref}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-mono font-bold hover:bg-purple-500/30 transition truncate max-w-full"
-                            >
-                              🔗 {parsed.proofUrl} <ExternalLink size={11} />
-                            </a>
-                          ) : (
-                            <span className="text-xs text-gray-500 italic">
-                              No proof link attached
-                            </span>
-                          )}
+                          <ProofDisplay
+                            proofUrl={parsed.proofUrl}
+                            proofType={parsed.proofType}
+                            onOpenImage={(imgUrl) => setPreviewLightboxImage(imgUrl)}
+                          />
                         </div>
 
                         <div>
@@ -5479,6 +5802,37 @@ const CreatorRoomDetail = ({ roomId }) => {
           >
             {toastMsg}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Lightbox Screenshot Preview Modal */}
+      <AnimatePresence>
+        {previewLightboxImage && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
+            onClick={() => setPreviewLightboxImage(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setPreviewLightboxImage(null)}
+                className="absolute -top-10 right-0 text-gray-400 hover:text-white transition p-2 cursor-pointer"
+              >
+                <X size={24} />
+              </button>
+              <img
+                src={previewLightboxImage}
+                alt="Screenshot Proof"
+                className="max-w-full max-h-[85vh] rounded-2xl object-contain border border-white/20 shadow-2xl"
+              />
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

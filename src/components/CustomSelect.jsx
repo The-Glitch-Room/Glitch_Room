@@ -193,7 +193,7 @@ const CustomSelect = ({
         aria-expanded={open}
         aria-haspopup="listbox"
         disabled={disabled}
-        title={selected ? selected.label : placeholder}
+        title={selected ? (selected.selectedLabel || selected.displayLabel || selected.label) : placeholder}
         onClick={() => setOpen((prev) => !prev)}
         className={`w-full bg-[#06060c] border text-left flex items-center justify-between outline-none transition-all duration-200 cursor-pointer ${
           currentSize.button
@@ -215,7 +215,7 @@ const CustomSelect = ({
               selected ? "text-white font-medium" : "text-gray-500"
             }`}
           >
-            {selected ? selected.label : placeholder}
+            {selected ? (selected.selectedLabel || selected.displayLabel || selected.label) : placeholder}
           </span>
         </span>
         <ChevronDown

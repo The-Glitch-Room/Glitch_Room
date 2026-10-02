@@ -47,8 +47,6 @@ const CATEGORIES = [
 ];
 
 const PROOF_TYPE_OPTIONS = [
-  "GitHub Commit",
-  "GitHub PR",
   "Project/Demo Link",
   "Screenshot",
   "Code Snippet",
@@ -77,9 +75,8 @@ const CreateRoomModal = ({ close, create }) => {
   const [checkinDeadline, setCheckinDeadline] = useState("11:59 PM IST");
 
   const [selectedProofTypes, setSelectedProofTypes] = useState([
-    "GitHub Commit",
-    "GitHub PR",
     "Project/Demo Link",
+    "Screenshot",
   ]);
 
   // Standup fields toggles
@@ -357,12 +354,12 @@ const CreateRoomModal = ({ close, create }) => {
                     value={durationType}
                     onChange={setDurationType}
                     options={[
-                      { value: "7_day", label: "7 Days Sprint" },
-                      { value: "14_day", label: "14 Days Sprint" },
-                      { value: "30_day", label: "30 Days Bootcamp" },
-                      { value: "60_day", label: "60 Days Challenge" },
-                      { value: "100_day", label: "100 Days Challenge" },
-                      { value: "ongoing", label: "Ongoing Consistency" },
+                      { value: "7_day", label: "7 Days Sprint", selectedLabel: "7 Days" },
+                      { value: "14_day", label: "14 Days Sprint", selectedLabel: "14 Days" },
+                      { value: "30_day", label: "30 Days Bootcamp", selectedLabel: "30 Days" },
+                      { value: "60_day", label: "60 Days Challenge", selectedLabel: "60 Days" },
+                      { value: "100_day", label: "100 Days Challenge", selectedLabel: "100 Days" },
+                      { value: "ongoing", label: "Ongoing Consistency", selectedLabel: "Ongoing" },
                     ]}
                   />
                 </div>
@@ -428,7 +425,7 @@ const CreateRoomModal = ({ close, create }) => {
                       proofRequired ? "bg-purple-500/10 border-purple-500/30 text-purple-300" : "bg-[#07070d] border-white/10 text-gray-400"
                     }`}
                   >
-                    <span>Proof Link</span>
+                    <span>Proof of Work</span>
                     <span className="font-bold">{proofRequired ? "Required" : "Optional"}</span>
                   </button>
 
