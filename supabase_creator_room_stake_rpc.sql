@@ -159,34 +159,41 @@ BEGIN
 
     -- Deduct from profiles.points directly.
     UPDATE public.profiles
-       SET points = COALESCE(points, 0) - p_stake
+       SET points = GREATEST(0, COALESCE(points, 0) - p_stake)
      WHERE id = v_user_id;
 
-    -- Deduct from user_points.points directly.
-    -- Using INSERT ... ON CONFLICT so the row is created if it doesn't exist yet.
-    INSERT INTO public.user_points (user_id, points)
-    VALUES (v_user_id, -p_stake)
-    ON CONFLICT (user_id)
-    DO UPDATE SET points = public.user_points.points - p_stake;
+    -- Safely update user_points if the row exists
+    UPDATE public.user_points
+       SET points = GREATEST(0, COALESCE(points, 0) - p_stake)
+     WHERE user_id = v_user_id;
 
   END IF;
 
   -- Insert the membership row (or re-activate a previously left row).
-  -- ON CONFLICT on (room_id, user_id) handles the rejoin case cleanly.
-  INSERT INTO public.creator_room_members
-    (room_id, user_id, role, staked_amount, forfeited_carryover, payout_status,
-     payout_amount, settled_at, left_at, joined_at)
-  VALUES
-    (p_room_id, v_user_id, 'member', p_stake, 0, 'pending', 0, NULL, NULL, NOW())
-  ON CONFLICT (room_id, user_id)
-  DO UPDATE SET
-    left_at             = NULL,
-    staked_amount       = p_stake,
-    forfeited_carryover = 0,
-    payout_status       = 'pending',
-    payout_amount       = 0,
-    settled_at          = NULL,
-    joined_at           = NOW();
+  -- Uses IF EXISTS instead of relying on ON CONFLICT so it never fails
+  -- if the unique constraint is named differently or missing.
+  IF EXISTS (
+    SELECT 1 FROM public.creator_room_members
+     WHERE room_id = p_room_id
+       AND user_id = v_user_id
+  ) THEN
+    UPDATE public.creator_room_members
+       SET left_at             = NULL,
+           staked_amount       = p_stake,
+           forfeited_carryover = 0,
+           payout_status       = 'pending',
+           payout_amount       = 0,
+           settled_at          = NULL,
+           joined_at           = NOW()
+     WHERE room_id = p_room_id
+       AND user_id = v_user_id;
+  ELSE
+    INSERT INTO public.creator_room_members
+      (room_id, user_id, role, staked_amount, forfeited_carryover, payout_status,
+       payout_amount, settled_at, left_at, joined_at)
+    VALUES
+      (p_room_id, v_user_id, 'member', p_stake, 0, 'pending', 0, NULL, NULL, NOW());
+  END IF;
 
 END;
 $$;
@@ -243,11 +250,10 @@ BEGIN
        SET points = COALESCE(points, 0) + m.staked_amount
      WHERE id = m.user_id;
 
-    -- Restore user_points balance directly.
-    INSERT INTO public.user_points (user_id, points)
-    VALUES (m.user_id, m.staked_amount)
-    ON CONFLICT (user_id)
-    DO UPDATE SET points = public.user_points.points + m.staked_amount;
+    -- Restore user_points balance directly if row exists.
+    UPDATE public.user_points
+       SET points = COALESCE(points, 0) + m.staked_amount
+     WHERE user_id = m.user_id;
   END LOOP;
 
   -- Delete the room — cascades to members, checkins, notifications, etc.

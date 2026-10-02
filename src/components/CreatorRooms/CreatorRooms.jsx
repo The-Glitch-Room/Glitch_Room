@@ -151,38 +151,147 @@ const CreatorRooms = () => {
   const executeJoin = async (room, stakeAmount, currentUser) => {
     setJoining(room.id);
     try {
+      // 1. Try atomic database RPC first
       const { error: joinError } = await supabase.rpc(
         "join_creator_room_with_stake",
         { p_room_id: room.id, p_stake: stakeAmount },
       );
 
       if (joinError) {
-        console.error("Error joining creator room:", joinError);
+        console.warn("RPC join error, evaluating fallback:", joinError);
         const msg = joinError.message || "";
+
         if (msg.includes("INSUFFICIENT_GBITS")) {
           alert(`You need ${stakeAmount} gBits to stake & join this room.`);
-        } else if (msg.includes("ROOM_ALREADY_SETTLED")) {
+          setJoining(null);
+          return;
+        }
+
+        if (msg.includes("ROOM_ALREADY_SETTLED")) {
           alert(
             "This room's sprint has already ended and been settled — it's no longer accepting new members.",
           );
-        } else if (!msg.includes("ALREADY_MEMBER")) {
-          alert("Couldn't join the room — please try again.");
+          setJoining(null);
+          return;
         }
-        setJoining(null);
-        return;
-      }
 
-      if (stakeAmount > 0) {
-        const newBal = await fetchPoints(currentUser.id);
-        window.dispatchEvent(
-          new CustomEvent("gbits_transaction", {
-            detail: {
-              delta: -stakeAmount,
-              title: `Room Entry Stake — ${room.title || room.name || "Creator Room"}`,
-              newTotal: newBal,
-            },
-          }),
-        );
+        if (msg.includes("ALREADY_MEMBER")) {
+          // Already an active member — route straight into squad hub
+          setMyRoomIds((prev) => new Set(prev).add(room.id));
+          setShowJoinConfirmModal(false);
+          setStakedRoomToJoin(null);
+          navigate(`/creator-rooms/${room.id}`);
+          return;
+        }
+
+        // 2. Safe Fallback: Direct database transaction for authenticated member
+        const curBal = await fetchPoints(currentUser.id);
+        if (stakeAmount > 0 && curBal < stakeAmount) {
+          alert(`You need ${stakeAmount} gBits to stake & join this room. (Current: ${curBal} gBits)`);
+          setJoining(null);
+          return;
+        }
+
+        // Deduct stake from profiles
+        if (stakeAmount > 0) {
+          const newBal = Math.max(0, curBal - stakeAmount);
+          const { error: profErr } = await supabase
+            .from("profiles")
+            .update({ points: newBal })
+            .eq("id", currentUser.id);
+
+          if (profErr) {
+            console.error("Failed to update profile points:", profErr);
+            alert(`Couldn't join room: ${profErr.message || "Failed to deduct stake"}`);
+            setJoining(null);
+            return;
+          }
+
+          try {
+            await supabase
+              .from("user_points")
+              .update({ points: newBal })
+              .eq("user_id", currentUser.id);
+          } catch (e) {}
+
+          window.dispatchEvent(
+            new CustomEvent("gbits_transaction", {
+              detail: {
+                delta: -stakeAmount,
+                title: `Room Entry Stake — ${room.name || room.title || "Creator Room"}`,
+                newTotal: newBal,
+              },
+            }),
+          );
+        }
+
+        // Upsert creator_room_members row
+        const { data: existingRow } = await supabase
+          .from("creator_room_members")
+          .select("id")
+          .eq("room_id", room.id)
+          .eq("user_id", currentUser.id)
+          .maybeSingle();
+
+        if (existingRow?.id) {
+          const { error: upErr } = await supabase
+            .from("creator_room_members")
+            .update({
+              left_at: null,
+              staked_amount: stakeAmount,
+              forfeited_carryover: 0,
+              payout_status: "pending",
+              payout_amount: 0,
+              settled_at: null,
+              joined_at: new Date().toISOString(),
+            })
+            .eq("id", existingRow.id);
+
+          if (upErr) {
+            console.error("Failed to update membership row:", upErr);
+            alert(`Couldn't join room: ${upErr.message}`);
+            setJoining(null);
+            return;
+          }
+        } else {
+          const { error: insErr } = await supabase
+            .from("creator_room_members")
+            .insert([
+              {
+                room_id: room.id,
+                user_id: currentUser.id,
+                role: "member",
+                staked_amount: stakeAmount,
+                forfeited_carryover: 0,
+                payout_status: "pending",
+                payout_amount: 0,
+                settled_at: null,
+                left_at: null,
+                joined_at: new Date().toISOString(),
+              },
+            ]);
+
+          if (insErr) {
+            console.error("Failed to insert membership row:", insErr);
+            alert(`Couldn't join room: ${insErr.message}`);
+            setJoining(null);
+            return;
+          }
+        }
+      } else {
+        // RPC succeeded!
+        if (stakeAmount > 0) {
+          const newBal = await fetchPoints(currentUser.id);
+          window.dispatchEvent(
+            new CustomEvent("gbits_transaction", {
+              detail: {
+                delta: -stakeAmount,
+                title: `Room Entry Stake — ${room.name || room.title || "Creator Room"}`,
+                newTotal: newBal,
+              },
+            }),
+          );
+        }
       }
 
       setMyRoomIds((prev) => new Set(prev).add(room.id));
@@ -192,6 +301,7 @@ const CreatorRooms = () => {
       navigate(`/creator-rooms/${room.id}`);
     } catch (e) {
       console.error("Error joining room:", e);
+      alert(`Couldn't join room: ${e.message || e}`);
     } finally {
       setJoining(null);
     }

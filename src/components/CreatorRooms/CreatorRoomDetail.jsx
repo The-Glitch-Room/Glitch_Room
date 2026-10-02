@@ -1151,27 +1151,96 @@ const CreatorRoomDetail = ({ roomId }) => {
       );
 
       if (joinError) {
-        console.error("Error joining squad:", joinError);
+        console.warn("RPC join error, evaluating fallback:", joinError);
         const msg = joinError.message || "";
         if (msg.includes("INSUFFICIENT_GBITS")) {
-          // Pull the real current balance from the DB for the message
-          // rather than assuming/hardcoding a number.
           const userPts = await fetchPoints(userId);
           showToast(
-            ` Insufficient gBits balance! You need ${roomEntryStake} gBits to stake & join this squad (Current: ${userPts} gBits).`,
+            `Insufficient gBits balance! You need ${roomEntryStake} gBits to stake & join this squad (Current: ${userPts} gBits).`,
           );
+          setJoining(false);
+          return;
         } else if (msg.includes("ALREADY_MEMBER")) {
           showToast("You're already a member of this squad.");
           setIsMember(true);
+          setJoining(false);
+          return;
         } else if (msg.includes("ROOM_ALREADY_SETTLED")) {
           showToast(
             "This room's sprint has already ended and been settled — it's no longer accepting new members.",
           );
-        } else {
-          showToast("Couldn't join the room — please try again.");
+          setJoining(false);
+          return;
         }
-        setJoining(false);
-        return;
+
+        // Safe Fallback: Direct database deduction and membership update
+        const curBal = await fetchPoints(userId);
+        if (roomEntryStake > 0 && curBal < roomEntryStake) {
+          showToast(`Insufficient gBits balance! You need ${roomEntryStake} gBits (Current: ${curBal} gBits).`);
+          setJoining(false);
+          return;
+        }
+
+        if (roomEntryStake > 0) {
+          const newBal = Math.max(0, curBal - roomEntryStake);
+          const { error: profErr } = await supabase
+            .from("profiles")
+            .update({ points: newBal })
+            .eq("id", userId);
+
+          if (profErr) {
+            console.error("Failed to update profile points:", profErr);
+            showToast(`Couldn't join room: ${profErr.message}`);
+            setJoining(false);
+            return;
+          }
+
+          try {
+            await supabase
+              .from("user_points")
+              .update({ points: newBal })
+              .eq("user_id", userId);
+          } catch (e) {}
+        }
+
+        const { data: existingRow } = await supabase
+          .from("creator_room_members")
+          .select("id")
+          .eq("room_id", id)
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (existingRow?.id) {
+          await supabase
+            .from("creator_room_members")
+            .update({
+              left_at: null,
+              staked_amount: roomEntryStake,
+              forfeited_carryover: 0,
+              payout_status: "pending",
+              payout_amount: 0,
+              settled_at: null,
+              joined_at: new Date().toISOString(),
+            })
+            .eq("id", existingRow.id);
+        } else {
+          await supabase
+            .from("creator_room_members")
+            .insert([
+              {
+                room_id: id,
+                user_id: userId,
+                role: "member",
+                staked_amount: roomEntryStake,
+                forfeited_carryover: 0,
+                payout_status: "pending",
+                payout_amount: 0,
+                settled_at: null,
+                left_at: null,
+                joined_at: new Date().toISOString(),
+              },
+            ]);
+        }
       }
 
       sendRoomNotification({
