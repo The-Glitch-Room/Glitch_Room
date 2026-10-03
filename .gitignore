@@ -24,6 +24,7 @@ dist-ssr
 scratch_seed.mjs
 generate_glitch_challenges.py
 *.cjs
+*.sql
 
 # Editor directories and files
 .vscode/*
