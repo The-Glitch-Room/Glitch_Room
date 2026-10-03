@@ -4479,16 +4479,19 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                   Help & Support
                 </h3>
                 <p className="text-gray-300 leading-relaxed">
-                  If you encounter technical issues during code execution or
-                  assessment tasks, reach out to event mentors or submit a
-                  direct query.
+                  If you encounter technical issues during code execution, need
+                  clarification on event rules, or want to report a platform
+                  issue, reach out through the event support desk.
                 </p>
-                <button
-                  onClick={() => showToast("🎧 Support assistant notified.")}
-                  className="px-5 py-2.5 rounded-xl bg-[#FF00C8] text-white font-bold cursor-pointer"
-                >
-                  Request Support Assistant
-                </button>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowHelpModal(true)}
+                    className="px-5 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white font-bold transition cursor-pointer shadow-lg shadow-[#FF00C8]/20 flex items-center gap-2"
+                  >
+                    <HelpCircle size={15} /> Open Support Desk
+                  </button>
+                </div>
               </div>
             )}
           </div>
