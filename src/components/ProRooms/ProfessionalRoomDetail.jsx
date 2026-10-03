@@ -53,6 +53,9 @@ import {
   Medal,
   Copy,
   Printer,
+  User,
+  Briefcase,
+  Mail,
 } from "lucide-react";
 import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
 import ProRoomHelpModal from "./ProRoomHelpModal";
@@ -104,6 +107,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
   const [userRegistration, setUserRegistration] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userGbits, setUserGbits] = useState(0);
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [activeSidebarTab, setActiveSidebarTab] = useState("overview");
@@ -1470,6 +1474,9 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         newStatus === "approved"
           ? "🎉 Candidate application approved!"
           : "Application rejected.",
+      );
+      setSelectedCandidate((prev) =>
+        prev && prev.id === regId ? { ...prev, status: newStatus } : prev,
       );
       fetchRoomData();
     } catch (err) {
@@ -2842,16 +2849,22 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                         .map((r, idx) => (
                           <div
                             key={r.id || idx}
-                            className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3"
+                            onClick={() => setSelectedCandidate(r)}
+                            className="p-4 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 hover:border-amber-500/40 transition space-y-3 cursor-pointer group"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <h5 className="text-sm font-bold text-white flex items-center gap-2">
-                                  {r.profiles?.full_name || "Candidate"}
+                                <div className="flex items-center gap-2">
+                                  <h5 className="text-sm font-bold text-white flex items-center gap-2 group-hover:text-amber-300 transition-colors">
+                                    {r.profiles?.full_name || "Candidate"}
+                                  </h5>
                                   <span className="text-xs font-mono text-cyan-300 font-normal">
                                     @{r.profiles?.username || "candidate"}
                                   </span>
-                                </h5>
+                                  <span className="text-[10px] text-gray-500 font-mono hidden sm:inline-block ml-1">
+                                    (Click to review application)
+                                  </span>
+                                </div>
                                 <div className="text-[11px] text-gray-400 font-mono mt-1 flex flex-wrap gap-3">
                                   {(() => {
                                     const resp =
@@ -2871,6 +2884,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                                             href={resp._portfolio_url}
                                             target="_blank"
                                             rel="noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
                                             className="text-[#00F0FF] hover:underline"
                                           >
                                             🔗 Portfolio / GitHub
@@ -2885,24 +2899,26 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                               <div className="flex items-center gap-2 shrink-0">
                                 <button
                                   type="button"
-                                  onClick={() =>
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleUpdateRegistrationStatus(
                                       r.id,
                                       "approved",
-                                    )
-                                  }
+                                    );
+                                  }}
                                   className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1"
                                 >
                                   <CheckCircle2 size={13} /> Approve
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() =>
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleUpdateRegistrationStatus(
                                       r.id,
                                       "rejected",
-                                    )
-                                  }
+                                    );
+                                  }}
                                   className="px-3.5 py-1.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold hover:bg-red-500/30 transition cursor-pointer"
                                 >
                                   Reject
@@ -2973,14 +2989,15 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                           return (
                             <div
                               key={r.id || idx}
-                              className="p-3 rounded-2xl bg-[#06060c] border border-white/5 flex items-center justify-between gap-2"
+                              onClick={() => setSelectedCandidate(r)}
+                              className="p-3 rounded-2xl bg-[#06060c] hover:bg-white/[0.04] border border-white/5 hover:border-emerald-500/30 transition flex items-center justify-between gap-2 cursor-pointer group"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <div className="w-7 h-7 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold text-xs shrink-0">
                                   {(r.profiles?.full_name || "C")[0]}
                                 </div>
                                 <div className="min-w-0">
-                                  <span className="text-white font-bold block truncate">
+                                  <span className="text-white font-bold block truncate group-hover:text-purple-300 transition-colors">
                                     {r.profiles?.full_name || "Candidate"}
                                   </span>
                                   <span className="text-[10px] text-cyan-300 font-mono">
@@ -5116,6 +5133,431 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         room={room}
         showToast={showToast}
       />
+
+      {/* CANDIDATE DETAILS & REVIEW MODAL */}
+      <AnimatePresence>
+        {selectedCandidate && (
+          <div
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto font-sans"
+            onClick={() => setSelectedCandidate(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0c0c16] border border-white/10 rounded-3xl max-w-xl w-full max-h-[85vh] max-h-[85dvh] flex flex-col p-6 shadow-2xl shadow-cyan-500/10 text-left relative my-auto overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b border-white/10 pb-4 shrink-0 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold text-base shrink-0 overflow-hidden">
+                    {selectedCandidate.profiles?.avatar_url ? (
+                      <img
+                        src={selectedCandidate.profiles.avatar_url}
+                        alt={selectedCandidate.profiles?.full_name || "Candidate"}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      (selectedCandidate.profiles?.full_name || "C")[0]
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-bold text-white truncate">
+                        {selectedCandidate.profiles?.full_name || "Candidate Application"}
+                      </h3>
+                      <span
+                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                          selectedCandidate.status === "approved"
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                            : selectedCandidate.status === "rejected"
+                              ? "bg-red-500/15 border-red-500/30 text-red-300"
+                              : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                        }`}
+                      >
+                        {selectedCandidate.status === "approved"
+                          ? "Approved"
+                          : selectedCandidate.status === "rejected"
+                            ? "Rejected"
+                            : "Pending Review"}
+                      </span>
+                    </div>
+                    <p className="text-xs font-mono text-cyan-300 mt-0.5 truncate">
+                      @{selectedCandidate.profiles?.username || "candidate"}
+                      {selectedCandidate.registered_at &&
+                        !isNaN(new Date(selectedCandidate.registered_at).getTime()) && (
+                          <span className="text-gray-500 ml-2 text-[11px]">
+                            Applied{" "}
+                            {new Date(selectedCandidate.registered_at).toLocaleDateString(
+                              undefined,
+                              { month: "short", day: "numeric", year: "numeric" },
+                            )}
+                          </span>
+                        )}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCandidate(null)}
+                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition cursor-pointer shrink-0"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Scrollable Content */}
+              <div className="flex-1 overflow-y-auto pr-1 no-scrollbar space-y-4 pt-4 text-xs">
+                {/* Candidate Profile / Background */}
+                {(() => {
+                  const resp =
+                    selectedCandidate.app_responses ||
+                    selectedCandidate.answers_json ||
+                    {};
+                  const college =
+                    resp._organization_college || selectedCandidate.profiles?.college;
+                  const role = resp._current_role;
+                  const portfolio = resp._portfolio_url;
+
+                  return (
+                    <div className="bg-[#06060c] border border-white/5 rounded-2xl p-4 space-y-3">
+                      <h4 className="text-[11px] font-mono font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <User size={13} className="text-[#00F0FF]" /> Candidate Profile
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-[10px] text-gray-500 font-mono block">
+                            Organization / College
+                          </span>
+                          <span className="text-white font-medium flex items-center gap-1.5 mt-0.5">
+                            <Building2 size={13} className="text-gray-400 shrink-0" />
+                            {college || <span className="italic text-gray-500">Not provided</span>}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-gray-500 font-mono block">
+                            Current Role / Status
+                          </span>
+                          <span className="text-white font-medium flex items-center gap-1.5 mt-0.5">
+                            <Briefcase size={13} className="text-gray-400 shrink-0" />
+                            {role || <span className="italic text-gray-500">Not provided</span>}
+                          </span>
+                        </div>
+                        {portfolio && (
+                          <div className="sm:col-span-2">
+                            <span className="text-[10px] text-gray-500 font-mono block">
+                              Portfolio / GitHub
+                            </span>
+                            <a
+                              href={portfolio}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#00F0FF] hover:underline flex items-center gap-1.5 mt-0.5 break-all"
+                            >
+                              <Globe size={13} className="shrink-0" />
+                              {portfolio}
+                              <ExternalLink size={11} className="shrink-0" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Room Eligibility Reference (if configured) */}
+                {(room?.required_skills ||
+                  room?.target_college ||
+                  room?.target_degree ||
+                  room?.exp_level) && (
+                  <div className="bg-purple-950/10 border border-purple-500/20 rounded-2xl p-4 space-y-2">
+                    <h4 className="text-[11px] font-mono font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck size={13} className="text-purple-400" /> Room Eligibility Requirements
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono text-gray-300">
+                      {room.target_college && (
+                        <div>
+                          <span className="text-gray-500 block">Target College:</span>
+                          <span className="text-white font-semibold">{room.target_college}</span>
+                        </div>
+                      )}
+                      {room.exp_level && (
+                        <div>
+                          <span className="text-gray-500 block">Experience Level:</span>
+                          <span className="text-white font-semibold">{room.exp_level}</span>
+                        </div>
+                      )}
+                      {room.target_degree && (
+                        <div>
+                          <span className="text-gray-500 block">Degree / Branch:</span>
+                          <span className="text-white font-semibold">
+                            {room.target_degree}{" "}
+                            {room.target_branch ? `(${room.target_branch})` : ""}
+                          </span>
+                        </div>
+                      )}
+                      {room.required_skills && (
+                        <div className="sm:col-span-2">
+                          <span className="text-gray-500 block">Required Skills:</span>
+                          <span className="text-purple-200 font-semibold">
+                            {room.required_skills}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Submitted Eligibility & Custom Questions and Answers */}
+                {(() => {
+                  const resp =
+                    selectedCandidate.app_responses ||
+                    selectedCandidate.answers_json ||
+                    {};
+
+                  const rawAppQuestions =
+                    Array.isArray(room?.custom_registration_questions) &&
+                    room.custom_registration_questions.length > 0
+                      ? room.custom_registration_questions
+                      : Array.isArray(room?.custom_questions) &&
+                          room.custom_questions.length > 0
+                        ? room.custom_questions
+                        : Array.isArray(room?.custom_app_questions) &&
+                            room.custom_app_questions.length > 0
+                          ? room.custom_app_questions
+                          : [];
+
+                  const customQuestions = rawAppQuestions.filter(
+                    (q) =>
+                      (q?.question || q?.text || q?.title) &&
+                      !q?.is_faq &&
+                      !q?.answer,
+                  );
+
+                  // Track matched question keys
+                  const matchedQuestionKeys = new Set();
+                  customQuestions.forEach((q, idx) => {
+                    if (q.id) matchedQuestionKeys.add(String(q.id));
+                    matchedQuestionKeys.add(String(idx));
+                    if (q.question) matchedQuestionKeys.add(String(q.question));
+                    if (q.text) matchedQuestionKeys.add(String(q.text));
+                    if (q.title) matchedQuestionKeys.add(String(q.title));
+                  });
+
+                  const standardKeys = new Set([
+                    "_organization_college",
+                    "_current_role",
+                    "_portfolio_url",
+                  ]);
+                  const additionalResponses = Object.entries(resp).filter(
+                    ([key, val]) =>
+                      !standardKeys.has(key) &&
+                      !matchedQuestionKeys.has(String(key)) &&
+                      val !== undefined &&
+                      val !== null &&
+                      val !== "",
+                  );
+
+                  const hasQuestions =
+                    customQuestions.length > 0 || additionalResponses.length > 0;
+
+                  return (
+                    <div className="space-y-3 bg-[#06060c] border border-cyan-500/20 rounded-2xl p-4">
+                      <h4 className="text-[11px] font-mono font-bold text-[#00F0FF] uppercase tracking-wider flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <FileText size={13} /> Submitted Application Responses
+                        </span>
+                        <span className="text-[10px] text-gray-500 font-normal">
+                          {customQuestions.length + additionalResponses.length}{" "}
+                          Question
+                          {customQuestions.length + additionalResponses.length !== 1
+                            ? "s"
+                            : ""}
+                        </span>
+                      </h4>
+
+                      {!hasQuestions ? (
+                        <p className="text-gray-400 text-xs italic py-2">
+                          No custom questionnaire was configured for this room. The candidate applied using standard profile information.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {customQuestions.map((q, idx) => {
+                            const qKey = q.id || idx;
+                            const answer =
+                              resp[qKey] ??
+                              resp[String(qKey)] ??
+                              resp[idx] ??
+                              resp[String(idx)] ??
+                              resp[q.question] ??
+                              resp[q.text] ??
+                              resp[q.title];
+
+                            const formatAnswer = (val) => {
+                              if (
+                                val === undefined ||
+                                val === null ||
+                                val === ""
+                              ) {
+                                return (
+                                  <span className="italic text-gray-500">
+                                    No response provided
+                                  </span>
+                                );
+                              }
+                              if (Array.isArray(val)) {
+                                return val.join(", ");
+                              }
+                              if (typeof val === "object") {
+                                return JSON.stringify(val);
+                              }
+                              return String(val);
+                            };
+
+                            return (
+                              <div
+                                key={q.id || idx}
+                                className="bg-[#030308] border border-white/5 rounded-xl p-3.5 space-y-1.5"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="text-xs font-semibold text-gray-200 block">
+                                    <span className="text-cyan-400 font-mono mr-1.5">
+                                      Q{idx + 1}.
+                                    </span>
+                                    {q.question || q.text || q.title}
+                                  </span>
+                                  {q.required !== false && (
+                                    <span className="text-[10px] font-mono text-amber-400 shrink-0">
+                                      Required
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-white bg-white/[0.02] border border-white/5 rounded-lg p-2.5 break-words whitespace-pre-wrap font-sans">
+                                  {formatAnswer(answer)}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {additionalResponses.map(([k, val], idx) => (
+                            <div
+                              key={k || idx}
+                              className="bg-[#030308] border border-white/5 rounded-xl p-3.5 space-y-1.5"
+                            >
+                              <span className="text-xs font-semibold text-gray-200 block">
+                                <span className="text-purple-400 font-mono mr-1.5">
+                                  Q.
+                                </span>
+                                {k}
+                              </span>
+                              <div className="text-xs text-white bg-white/[0.02] border border-white/5 rounded-lg p-2.5 break-words whitespace-pre-wrap font-sans">
+                                {typeof val === "object"
+                                  ? JSON.stringify(val)
+                                  : String(val)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Modal Footer / Host Action Buttons */}
+              <div className="border-t border-white/10 pt-4 mt-4 shrink-0 flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-xs text-gray-400 font-mono">
+                  {selectedCandidate.status === "approved" && (
+                    <span className="text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 size={13} /> Participant is approved
+                    </span>
+                  )}
+                  {selectedCandidate.status === "rejected" && (
+                    <span className="text-red-400 flex items-center gap-1">
+                      <X size={13} /> Application is currently rejected
+                    </span>
+                  )}
+                  {selectedCandidate.status === "pending" && (
+                    <span className="text-amber-400 flex items-center gap-1">
+                      <Clock size={13} /> Pending host review
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCandidate(null)}
+                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-bold transition cursor-pointer"
+                  >
+                    Close
+                  </button>
+
+                  {selectedCandidate.status === "pending" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleUpdateRegistrationStatus(
+                            selectedCandidate.id,
+                            "rejected",
+                          )
+                        }
+                        className="px-4 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold hover:bg-red-500/30 transition cursor-pointer"
+                      >
+                        Reject Application
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleUpdateRegistrationStatus(
+                            selectedCandidate.id,
+                            "approved",
+                          )
+                        }
+                        className="px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <CheckCircle2 size={14} /> Approve Candidate
+                      </button>
+                    </>
+                  )}
+
+                  {selectedCandidate.status === "approved" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateRegistrationStatus(
+                          selectedCandidate.id,
+                          "rejected",
+                        )
+                      }
+                      className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold hover:bg-red-500/20 transition cursor-pointer"
+                    >
+                      Change to Rejected
+                    </button>
+                  )}
+
+                  {selectedCandidate.status === "rejected" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateRegistrationStatus(
+                          selectedCandidate.id,
+                          "approved",
+                        )
+                      }
+                      className="px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 size={14} /> Reconsider & Approve
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
