@@ -871,6 +871,32 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
     fetchRoomData();
   }, [id]);
 
+  // Realtime subscription for Support Tickets updates
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`pro-room-tickets-live-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pro_room_help_tickets",
+          filter: `room_id=eq.${id}`,
+        },
+        () => {
+          if (isHost) {
+            fetchHostTickets(id);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, isHost]);
+
   // 2. Separate countdown timer (does not re-trigger fetchRoomData).
   // Registration dates never enter this calculation. Three phases only:
   //  - before Event Start: counts down TO Event Start ("Starts In")
@@ -1329,30 +1355,57 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
       const cleanUserMsg = parsed.userMessage;
       const combined = `${cleanUserMsg}${TICKET_DELIMITER}${replyText.trim()}`;
 
-      let updateError = null;
-      const { error: err1 } = await supabase
-        .from("pro_room_help_tickets")
-        .update({
-          status: "resolved",
-          host_response: replyText.trim(),
-          message: combined,
-        })
-        .eq("id", ticketId);
+      let updateSuccess = false;
 
-      if (err1) {
-        const { error: err2 } = await supabase
+      // 1. Try secure SECURITY DEFINER RPC first (bypasses RLS smoothly)
+      const { data: rpcData, error: rpcErr } = await supabase.rpc(
+        "reply_pro_room_help_ticket",
+        {
+          p_ticket_id: ticketId,
+          p_reply: replyText.trim(),
+        },
+      );
+
+      if (!rpcErr && rpcData?.success) {
+        updateSuccess = true;
+      } else {
+        // 2. Direct table update fallback with .select() to verify row was actually modified
+        const { data: d1, error: err1 } = await supabase
           .from("pro_room_help_tickets")
           .update({
             status: "resolved",
+            host_response: replyText.trim(),
             message: combined,
           })
-          .eq("id", ticketId);
-        updateError = err2;
+          .eq("id", ticketId)
+          .select();
+
+        if (!err1 && d1 && d1.length > 0) {
+          updateSuccess = true;
+        } else if (err1) {
+          // If error was due to missing host_response column
+          const { data: d2, error: err2 } = await supabase
+            .from("pro_room_help_tickets")
+            .update({
+              status: "resolved",
+              message: combined,
+            })
+            .eq("id", ticketId)
+            .select();
+
+          if (!err2 && d2 && d2.length > 0) {
+            updateSuccess = true;
+          } else {
+            console.error("Direct update failed:", { err1, err2, d1, d2 });
+          }
+        } else if (!err1 && (!d1 || d1.length === 0)) {
+          // RLS blocked update (0 rows updated)
+          console.warn("Update affected 0 rows — RLS policy blocked the update.");
+        }
       }
 
-      if (updateError) {
-        console.error("Failed to reply to ticket:", updateError);
-        showToast("⚠️ Failed to send reply — please try again.");
+      if (!updateSuccess) {
+        showToast("⚠️ Database blocked reply (RLS). Please run the SQL fix in Supabase SQL Editor.");
         return;
       }
 

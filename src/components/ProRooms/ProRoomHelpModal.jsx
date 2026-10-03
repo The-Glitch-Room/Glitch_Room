@@ -178,6 +178,34 @@ const ProRoomHelpModal = ({
         }
       });
     }
+
+    // Subscribe to realtime changes so replies reflect live instantly
+    const channel = supabase
+      .channel(`modal-tickets-live-${room?.id || "room"}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pro_room_help_tickets",
+          filter: `room_id=eq.${room?.id}`,
+        },
+        () => {
+          if (isHost) {
+            fetchHostTickets();
+          } else {
+            supabase.auth.getUser().then(({ data: authData }) => {
+              const uid = authData?.user?.id || currentUserId;
+              if (uid) fetchCandidateTickets(uid);
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [isOpen, isHost, room?.id, currentUserId]);
 
   if (!isOpen) return null;
@@ -240,32 +268,57 @@ const ProRoomHelpModal = ({
       const cleanUserMsg = parsed.userMessage;
       const combined = `${cleanUserMsg}${TICKET_DELIMITER}${replyText.trim()}`;
 
-      // Attempt updating with host_response column first
-      let updateError = null;
-      const { error: errCol } = await supabase
-        .from("pro_room_help_tickets")
-        .update({
-          status: "resolved",
-          host_response: replyText.trim(),
-          message: combined,
-        })
-        .eq("id", ticketId);
+      let updateSuccess = false;
 
-      if (errCol) {
-        // Fallback update without host_response column if not yet added in Supabase
-        const { error: errFallback } = await supabase
+      // 1. Try secure SECURITY DEFINER RPC first
+      const { data: rpcData, error: rpcErr } = await supabase.rpc(
+        "reply_pro_room_help_ticket",
+        {
+          p_ticket_id: ticketId,
+          p_reply: replyText.trim(),
+        },
+      );
+
+      if (!rpcErr && rpcData?.success) {
+        updateSuccess = true;
+      } else {
+        // 2. Direct table update fallback with .select() verification
+        const { data: d1, error: errCol } = await supabase
           .from("pro_room_help_tickets")
           .update({
             status: "resolved",
+            host_response: replyText.trim(),
             message: combined,
           })
-          .eq("id", ticketId);
-        updateError = errFallback;
+          .eq("id", ticketId)
+          .select();
+
+        if (!errCol && d1 && d1.length > 0) {
+          updateSuccess = true;
+        } else if (errCol) {
+          // Fallback update without host_response column if not yet added in Supabase
+          const { data: d2, error: errFallback } = await supabase
+            .from("pro_room_help_tickets")
+            .update({
+              status: "resolved",
+              message: combined,
+            })
+            .eq("id", ticketId)
+            .select();
+
+          if (!errFallback && d2 && d2.length > 0) {
+            updateSuccess = true;
+          } else {
+            console.error("Direct update failed:", { errCol, errFallback, d1, d2 });
+          }
+        } else if (!errCol && (!d1 || d1.length === 0)) {
+          // RLS blocked update (0 rows updated)
+          console.warn("Update affected 0 rows — RLS policy blocked the update.");
+        }
       }
 
-      if (updateError) {
-        console.error("Failed to reply to ticket:", updateError);
-        showToast("⚠️ Couldn't send reply — please try again.");
+      if (!updateSuccess) {
+        showToast("⚠️ Database blocked reply (RLS). Please run the SQL fix in Supabase SQL Editor.");
         return;
       }
 
