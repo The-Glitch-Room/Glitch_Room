@@ -1879,6 +1879,7 @@ const CreateProRoomPage = () => {
     org_email: "",
     organizer_name: "",
     website: "",
+    linkedin: "",
     org_logo: "",
     cover_image: "",
   });
@@ -1961,6 +1962,14 @@ const CreateProRoomPage = () => {
               org_email: rData.org_email || "",
               organizer_name: rData.organizer_name || "",
               website: rData.website || "",
+              linkedin:
+                rData.linkedin ||
+                (Array.isArray(rData.custom_app_questions)
+                  ? rData.custom_app_questions.find(
+                      (q) => q?.id === "org_linkedin",
+                    )?.value
+                  : "") ||
+                "",
               org_logo: rData.org_logo || "",
               cover_image: rData.cover_image || "",
             });
@@ -1993,10 +2002,10 @@ const CreateProRoomPage = () => {
               ? rData.custom_app_questions
               : [];
             const loadedRegQuestions = loadedQuestions.filter(
-              (q) => q && !q.answer && !q.is_faq,
+              (q) => q && !q.answer && !q.is_faq && !q.is_metadata && q.id !== "org_linkedin",
             );
             const loadedFaqQuestions = loadedQuestions.filter(
-              (q) => q && (q.answer || q.is_faq),
+              (q) => q && (q.answer || q.is_faq) && !q.is_metadata && q.id !== "org_linkedin",
             );
 
             setEligibility({
@@ -2903,6 +2912,15 @@ const CreateProRoomPage = () => {
           answer: q.answer || "",
           is_faq: true,
         })),
+        ...(basicInfo.linkedin
+          ? [
+              {
+                id: "org_linkedin",
+                is_metadata: true,
+                value: basicInfo.linkedin.trim(),
+              },
+            ]
+          : []),
       ];
 
       // Draft payload mirrors the publish payload but tolerates blanks —
@@ -2918,6 +2936,7 @@ const CreateProRoomPage = () => {
         org_email: basicInfo.org_email || null,
         organizer_name: basicInfo.organizer_name || null,
         website: basicInfo.website || null,
+        linkedin: basicInfo.linkedin ? basicInfo.linkedin.trim() : null,
         org_logo: basicInfo.org_logo || null,
         cover_image: basicInfo.cover_image || null,
         host_id: userId,
@@ -2989,17 +3008,49 @@ const CreateProRoomPage = () => {
       let roomId = draftRoomId;
 
       if (roomId) {
-        const { error: updateErr } = await supabase
+        let updatePayload = { ...draftPayload };
+        let { error: updateErr } = await supabase
           .from("pro_rooms")
-          .update(draftPayload)
+          .update(updatePayload)
           .eq("id", roomId);
+
+        if (
+          updateErr &&
+          (updateErr.code === "PGRST204" ||
+            updateErr.message?.includes("linkedin"))
+        ) {
+          delete updatePayload.linkedin;
+          const retry = await supabase
+            .from("pro_rooms")
+            .update(updatePayload)
+            .eq("id", roomId);
+          updateErr = retry.error;
+        }
+
         if (updateErr) throw updateErr;
       } else {
-        const { data: created, error: createErr } = await supabase
+        let insertPayload = { ...draftPayload };
+        let { data: created, error: createErr } = await supabase
           .from("pro_rooms")
-          .insert(draftPayload)
+          .insert(insertPayload)
           .select()
           .single();
+
+        if (
+          createErr &&
+          (createErr.code === "PGRST204" ||
+            createErr.message?.includes("linkedin"))
+        ) {
+          delete insertPayload.linkedin;
+          const retry = await supabase
+            .from("pro_rooms")
+            .insert(insertPayload)
+            .select()
+            .single();
+          created = retry.data;
+          createErr = retry.error;
+        }
+
         if (createErr) throw createErr;
         roomId = created.id;
         setDraftRoomId(roomId);
@@ -3083,6 +3134,15 @@ const CreateProRoomPage = () => {
             answer: (q.answer || "").trim(),
             is_faq: true,
           })),
+        ...(basicInfo.linkedin
+          ? [
+              {
+                id: "org_linkedin",
+                is_metadata: true,
+                value: basicInfo.linkedin.trim(),
+              },
+            ]
+          : []),
       ];
 
       const roomPayload = {
@@ -3095,6 +3155,7 @@ const CreateProRoomPage = () => {
         org_email: basicInfo.org_email || null,
         organizer_name: basicInfo.organizer_name || null,
         website: basicInfo.website || null,
+        linkedin: basicInfo.linkedin ? basicInfo.linkedin.trim() : null,
         org_logo: basicInfo.org_logo || null,
         cover_image: basicInfo.cover_image || null,
         host_id: userId,
@@ -3155,18 +3216,46 @@ const CreateProRoomPage = () => {
       let roomId = existingRoomId;
 
       if (existingRoomId) {
-        const { error: roomErr } = await supabase
+        let updatePayload = { ...roomPayload };
+        let { error: roomErr } = await supabase
           .from("pro_rooms")
-          .update(roomPayload)
+          .update(updatePayload)
           .eq("id", existingRoomId);
+
+        if (
+          roomErr &&
+          (roomErr.code === "PGRST204" || roomErr.message?.includes("linkedin"))
+        ) {
+          delete updatePayload.linkedin;
+          const retry = await supabase
+            .from("pro_rooms")
+            .update(updatePayload)
+            .eq("id", existingRoomId);
+          roomErr = retry.error;
+        }
 
         if (roomErr) throw roomErr;
       } else {
-        const { data: createdRoom, error: roomErr } = await supabase
+        let insertPayload = { ...roomPayload };
+        let { data: createdRoom, error: roomErr } = await supabase
           .from("pro_rooms")
-          .insert(roomPayload)
+          .insert(insertPayload)
           .select()
           .single();
+
+        if (
+          roomErr &&
+          (roomErr.code === "PGRST204" || roomErr.message?.includes("linkedin"))
+        ) {
+          delete insertPayload.linkedin;
+          const retry = await supabase
+            .from("pro_rooms")
+            .insert(insertPayload)
+            .select()
+            .single();
+          createdRoom = retry.data;
+          roomErr = retry.error;
+        }
 
         if (roomErr) throw roomErr;
         roomId = createdRoom.id;
@@ -3644,6 +3733,24 @@ const CreateProRoomPage = () => {
                           setBasicInfo({
                             ...basicInfo,
                             website: e.target.value,
+                          })
+                        }
+                        className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-bold text-gray-300 block mb-1">
+                        LinkedIn (Optional)
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://linkedin.com/company/technova or https://linkedin.com/in/organizer"
+                        value={basicInfo.linkedin}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            linkedin: e.target.value,
                           })
                         }
                         className="w-full bg-[#06060c] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#00F0FF]"

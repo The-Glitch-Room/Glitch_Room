@@ -144,6 +144,7 @@ END $$;
 ALTER TABLE public.pro_rooms ADD COLUMN IF NOT EXISTS prize_distribution JSONB DEFAULT '{"rank_1": 0, "rank_2": 0, "rank_3": 0, "participation": 0}'::jsonb;
 ALTER TABLE public.pro_rooms ADD COLUMN IF NOT EXISTS rewards_distributed BOOLEAN DEFAULT false;
 ALTER TABLE public.pro_rooms ADD COLUMN IF NOT EXISTS rewards_distributed_at TIMESTAMPTZ;
+ALTER TABLE public.pro_rooms ADD COLUMN IF NOT EXISTS linkedin TEXT;
 
 --- Pro Room Rewards Table (Records which candidate received which reward and why)
 CREATE TABLE IF NOT EXISTS public.pro_room_rewards (

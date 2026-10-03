@@ -56,6 +56,7 @@ import {
   User,
   Briefcase,
   Mail,
+  Linkedin,
 } from "lucide-react";
 import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
 import ProRoomHelpModal from "./ProRoomHelpModal";
@@ -2342,12 +2343,27 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
               >
                 <Globe size={13} /> Website
               </a>
-              <a
-                href="#"
-                className="text-gray-400 hover:text-purple-300 flex items-center gap-1.5"
-              >
-                <MessageCircle size={13} /> Discord
-              </a>
+              {(() => {
+                const hostLinkedIn =
+                  room?.linkedin ||
+                  (Array.isArray(room?.custom_app_questions)
+                    ? room.custom_app_questions.find(
+                        (q) => q?.id === "org_linkedin",
+                      )?.value
+                    : null) ||
+                  null;
+                if (!hostLinkedIn) return null;
+                return (
+                  <a
+                    href={hostLinkedIn}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-gray-400 hover:text-[#0077B5] flex items-center gap-1.5 transition-colors"
+                  >
+                    <Linkedin size={13} className="text-[#0a66c2]" /> LinkedIn
+                  </a>
+                );
+              })()}
             </div>
           </div>
 
