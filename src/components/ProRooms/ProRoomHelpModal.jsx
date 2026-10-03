@@ -69,6 +69,7 @@ const ProRoomHelpModal = ({
   isHost = false,
   currentUserId = null,
   onTicketsUpdated = null,
+  onHelpViewed = null,
 }) => {
   const [activeTab, setActiveTab] = useState("host"); // 'host' | 'platform'
 
@@ -175,6 +176,13 @@ const ProRoomHelpModal = ({
         const uid = authData?.user?.id || currentUserId;
         if (uid) {
           fetchCandidateTickets(uid);
+          if (room?.id) {
+            localStorage.setItem(
+              `glitch_help_ticket_seen_${room.id}_${uid}`,
+              String(Date.now()),
+            );
+            onHelpViewed?.();
+          }
         }
       });
     }
@@ -786,7 +794,17 @@ const ProRoomHelpModal = ({
 
                         <button
                           type="button"
-                          onClick={() => setCandidateSubTab("my_tickets")}
+                          onClick={() => {
+                            setCandidateSubTab("my_tickets");
+                            const uid = currentUserId;
+                            if (uid && room?.id) {
+                              localStorage.setItem(
+                                `glitch_help_ticket_seen_${room.id}_${uid}`,
+                                String(Date.now()),
+                              );
+                              onHelpViewed?.();
+                            }
+                          }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                             candidateSubTab === "my_tickets"
                               ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"

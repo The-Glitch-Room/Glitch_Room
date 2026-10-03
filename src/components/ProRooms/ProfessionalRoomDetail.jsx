@@ -345,6 +345,65 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
     }
   };
 
+  const [candidateTickets, setCandidateTickets] = useState([]);
+  const [hasUnreadHelpReply, setHasUnreadHelpReply] = useState(false);
+
+  const fetchCandidateTickets = async (roomId = id, uid = currentUserId) => {
+    const targetRoomId = roomId || id;
+    const targetUid = uid || currentUserId;
+    if (!targetRoomId || !targetUid) return;
+    try {
+      const { data, error } = await supabase
+        .from("pro_room_help_tickets")
+        .select("*")
+        .eq("room_id", targetRoomId)
+        .eq("user_id", targetUid)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.warn("Error fetching candidate tickets:", error);
+        return;
+      }
+
+      const tickets = data || [];
+      setCandidateTickets(tickets);
+
+      const candidateHostTickets = tickets.filter((t) => t.target === "host");
+      const responded = candidateHostTickets.filter(
+        (t) => t.status === "resolved" || parseTicketContent(t).hostResponse,
+      );
+
+      if (responded.length > 0) {
+        const lastSeenKey = `glitch_help_ticket_seen_${targetRoomId}_${targetUid}`;
+        const lastSeen = Number(localStorage.getItem(lastSeenKey) || 0);
+
+        const hasUnread = responded.some((t) => {
+          const tTime = new Date(
+            t.updated_at || t.created_at || Date.now(),
+          ).getTime();
+          return tTime > lastSeen;
+        });
+
+        setHasUnreadHelpReply(hasUnread);
+      } else {
+        setHasUnreadHelpReply(false);
+      }
+    } catch (err) {
+      console.warn("Exception fetching candidate tickets:", err);
+    }
+  };
+
+  const handleOpenHelpModal = () => {
+    if (currentUserId && id) {
+      localStorage.setItem(
+        `glitch_help_ticket_seen_${id}_${currentUserId}`,
+        String(Date.now()),
+      );
+      setHasUnreadHelpReply(false);
+    }
+    setShowHelpModal(true);
+  };
+
   const fetchRoomData = async () => {
     setLoading(true);
     try {
@@ -853,9 +912,11 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         console.warn("Error fetching all room rewards:", e);
       }
 
-      // 12. Fetch Host Support Tickets if user is Host
+      // 12. Fetch Support Tickets: Host tickets if Host, Candidate tickets if Participant
       if (isHostUser) {
         await fetchHostTickets(id);
+      } else if (uid) {
+        await fetchCandidateTickets(id, uid);
       }
 
       setNotifications(dynamicNotifs);
@@ -887,6 +948,8 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         () => {
           if (isHost) {
             fetchHostTickets(id);
+          } else if (currentUserId) {
+            fetchCandidateTickets(id, currentUserId);
           }
         },
       )
@@ -895,7 +958,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, isHost]);
+  }, [id, isHost, currentUserId]);
 
   // 2. Separate countdown timer (does not re-trigger fetchRoomData).
   // Registration dates never enter this calculation. Three phases only:
@@ -2760,7 +2823,12 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
               icon: Folder,
               count: resources.length > 0 ? resources.length : undefined,
             },
-            { id: "help", label: "Help & Support", icon: HelpCircle },
+            {
+              id: "help",
+              label: "Help & Support",
+              icon: HelpCircle,
+              hasDot: hasUnreadHelpReply,
+            },
           ].map((item) => {
             const Icon = item.icon;
             const isActive = activeSidebarTab === item.id;
@@ -2769,6 +2837,9 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                 key={item.id}
                 onClick={(e) => {
                   setActiveSidebarTab(item.id);
+                  if (item.id === "help") {
+                    handleOpenHelpModal();
+                  }
                   e.currentTarget.scrollIntoView({
                     behavior: "smooth",
                     block: "nearest",
@@ -2783,6 +2854,9 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
               >
                 <Icon size={13} />
                 <span>{item.label}</span>
+                {item.hasDot && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50 shrink-0" />
+                )}
                 {item.count !== undefined && item.count > 0 && (
                   <span
                     className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-white/10 text-gray-400"}`}
@@ -2905,14 +2979,24 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                   icon: Folder,
                   count: resources.length > 0 ? resources.length : undefined,
                 },
-                { id: "help", label: "Help & Support", icon: HelpCircle },
+                {
+                  id: "help",
+                  label: "Help & Support",
+                  icon: HelpCircle,
+                  hasDot: hasUnreadHelpReply,
+                },
               ].map((item) => {
                 const Icon = item.icon;
                 const isActive = activeSidebarTab === item.id;
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveSidebarTab(item.id)}
+                    onClick={() => {
+                      setActiveSidebarTab(item.id);
+                      if (item.id === "help") {
+                        handleOpenHelpModal();
+                      }
+                    }}
                     className={`w-full px-3 py-2.5 rounded-xl transition flex items-center justify-between cursor-pointer ${
                       isActive
                         ? "bg-[#FF00C8]/15 border border-[#FF00C8]/40 text-[#FF00C8]"
@@ -2922,6 +3006,9 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                     <span className="flex items-center gap-2">
                       <Icon size={14} /> {item.label}
                     </span>
+                    {item.hasDot && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50 shrink-0" />
+                    )}
                     {item.count !== undefined && (
                       <span
                         className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${isActive ? "bg-[#FF00C8] text-white" : "bg-white/10 text-gray-400"}`}
@@ -4928,10 +5015,13 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                 <div>
                   <button
                     type="button"
-                    onClick={() => setShowHelpModal(true)}
+                    onClick={handleOpenHelpModal}
                     className="px-5 py-2.5 rounded-xl bg-[#FF00C8] hover:bg-[#d600a8] text-white font-bold transition cursor-pointer shadow-lg shadow-[#FF00C8]/20 flex items-center gap-2"
                   >
                     <HelpCircle size={15} /> Open Support Desk
+                    {hasUnreadHelpReply && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50 shrink-0" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -5112,11 +5202,14 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                 mobile instead of disappearing. */}
             <button
               type="button"
-              onClick={() => setShowHelpModal(true)}
-              className="flex sm:hidden flex-col items-center text-center gap-1 shrink-0 border-l border-white/10 pl-3 cursor-pointer"
+              onClick={handleOpenHelpModal}
+              className="flex sm:hidden flex-col items-center text-center gap-1 shrink-0 border-l border-white/10 pl-3 cursor-pointer relative"
             >
-              <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0 relative">
                 <HelpCircle size={16} className="text-purple-400" />
+                {hasUnreadHelpReply && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
+                )}
               </div>
               <div>
                 <span className="text-white text-xs font-black font-mono block leading-none">
@@ -5131,10 +5224,13 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
 
           <button
             type="button"
-            onClick={() => setShowHelpModal(true)}
+            onClick={handleOpenHelpModal}
             className="hidden sm:flex px-4 py-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-bold transition cursor-pointer items-center gap-2 shrink-0 shadow-lg"
           >
             <HelpCircle size={15} /> Need Help?
+            {hasUnreadHelpReply && (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50 shrink-0" />
+            )}
           </button>
         </div>
       </div>
@@ -5586,7 +5682,11 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         showToast={showToast}
         isHost={isHost}
         currentUserId={currentUserId}
-        onTicketsUpdated={() => fetchHostTickets(id)}
+        onTicketsUpdated={() => {
+          if (isHost) fetchHostTickets(id);
+          else if (currentUserId) fetchCandidateTickets(id, currentUserId);
+        }}
+        onHelpViewed={() => setHasUnreadHelpReply(false)}
       />
 
       {/* IN-APP DIGITAL CERTIFICATE MODAL */}
