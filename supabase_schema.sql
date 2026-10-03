@@ -252,3 +252,45 @@ CREATE TRIGGER trg_sync_pro_room_reward
     AFTER INSERT ON public.pro_room_rewards
     FOR EACH ROW
     EXECUTE FUNCTION public.fn_sync_pro_room_reward();
+
+-- -------------------------------------------------------------
+-- PRO ROOM HELP & SUPPORT TICKETS
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.pro_room_help_tickets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID REFERENCES public.pro_rooms(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    target TEXT NOT NULL DEFAULT 'host', -- 'host' or 'platform'
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    host_response TEXT,
+    status TEXT NOT NULL DEFAULT 'open', -- 'open' or 'resolved'
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Ensure host_response exists if table was previously created without it
+ALTER TABLE public.pro_room_help_tickets ADD COLUMN IF NOT EXISTS host_response TEXT;
+
+ALTER TABLE public.pro_room_help_tickets ENABLE ROW LEVEL SECURITY;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anyone can view relevant pro_room_help_tickets') THEN
+        CREATE POLICY "Anyone can view relevant pro_room_help_tickets"
+            ON public.pro_room_help_tickets FOR SELECT
+            USING (true);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can insert pro_room_help_tickets') THEN
+        CREATE POLICY "Authenticated users can insert pro_room_help_tickets"
+            ON public.pro_room_help_tickets FOR INSERT
+            WITH CHECK (auth.uid() IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can update pro_room_help_tickets') THEN
+        CREATE POLICY "Authenticated users can update pro_room_help_tickets"
+            ON public.pro_room_help_tickets FOR UPDATE
+            USING (auth.uid() IS NOT NULL);
+    END IF;
+END $$;

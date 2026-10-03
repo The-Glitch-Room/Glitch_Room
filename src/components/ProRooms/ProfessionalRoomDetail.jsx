@@ -57,9 +57,12 @@ import {
   Briefcase,
   Mail,
   Linkedin,
+  LifeBuoy,
+  Inbox,
+  RefreshCw,
 } from "lucide-react";
 import ProRoomRegistrationModal from "./ProRoomRegistrationModal";
-import ProRoomHelpModal from "./ProRoomHelpModal";
+import ProRoomHelpModal, { parseTicketContent, TICKET_DELIMITER } from "./ProRoomHelpModal";
 import { GlitchCertificateModal, GlitchCertificateDOM, renderCertificateToCanvas } from "./GlitchCertificateModal";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import CustomSelect from "../CustomSelect";
@@ -152,6 +155,13 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [postingAnn, setPostingAnn] = useState(false);
+
+  // Host Support Tickets States
+  const [hostTickets, setHostTickets] = useState([]);
+  const [loadingHostTickets, setLoadingHostTickets] = useState(false);
+  const [hostTicketFilter, setHostTicketFilter] = useState("all");
+  const [hostReplyInputs, setHostReplyInputs] = useState({});
+  const [replyingTicketId, setReplyingTicketId] = useState(null);
 
   // Resources States
   const [resources, setResources] = useState([]);
@@ -289,6 +299,51 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
     mins: "00",
     secs: "00",
   });
+
+  const fetchHostTickets = async (roomId = id) => {
+    const targetRoomId = roomId || id;
+    if (!targetRoomId) return;
+    setLoadingHostTickets(true);
+    try {
+      const { data, error } = await supabase
+        .from("pro_room_help_tickets")
+        .select("*")
+        .eq("room_id", targetRoomId)
+        .eq("target", "host")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.warn("Error fetching host tickets:", error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const uids = Array.from(
+          new Set(data.map((t) => t.user_id).filter(Boolean)),
+        );
+        let pMap = {};
+        if (uids.length > 0) {
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("id, full_name, username, avatar_url")
+            .in("id", uids);
+          pMap = (profs || []).reduce(
+            (acc, p) => ({ ...acc, [p.id]: p }),
+            {},
+          );
+        }
+        setHostTickets(
+          data.map((t) => ({ ...t, profile: pMap[t.user_id] || null })),
+        );
+      } else {
+        setHostTickets([]);
+      }
+    } catch (err) {
+      console.warn("Exception fetching host tickets:", err);
+    } finally {
+      setLoadingHostTickets(false);
+    }
+  };
 
   const fetchRoomData = async () => {
     setLoading(true);
@@ -798,6 +853,11 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         console.warn("Error fetching all room rewards:", e);
       }
 
+      // 12. Fetch Host Support Tickets if user is Host
+      if (isHostUser) {
+        await fetchHostTickets(id);
+      }
+
       setNotifications(dynamicNotifs);
     } catch (err) {
       console.error("Error loading room data:", err);
@@ -1255,6 +1315,67 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
       showToast("⚠️ Couldn't post the announcement — please try again.");
     } finally {
       setPostingAnn(false);
+    }
+  };
+
+  const handleHostTicketReply = async (ticketId, originalMessage, replyText) => {
+    if (!replyText || !replyText.trim()) {
+      showToast("Please enter your reply before sending.");
+      return;
+    }
+    setReplyingTicketId(ticketId);
+    try {
+      const parsed = parseTicketContent({ message: originalMessage });
+      const cleanUserMsg = parsed.userMessage;
+      const combined = `${cleanUserMsg}${TICKET_DELIMITER}${replyText.trim()}`;
+
+      let updateError = null;
+      const { error: err1 } = await supabase
+        .from("pro_room_help_tickets")
+        .update({
+          status: "resolved",
+          host_response: replyText.trim(),
+          message: combined,
+        })
+        .eq("id", ticketId);
+
+      if (err1) {
+        const { error: err2 } = await supabase
+          .from("pro_room_help_tickets")
+          .update({
+            status: "resolved",
+            message: combined,
+          })
+          .eq("id", ticketId);
+        updateError = err2;
+      }
+
+      if (updateError) {
+        console.error("Failed to reply to ticket:", updateError);
+        showToast("⚠️ Failed to send reply — please try again.");
+        return;
+      }
+
+      showToast("Reply sent to candidate!");
+      setHostTickets((prev) =>
+        prev.map((t) => {
+          if (t.id === ticketId) {
+            return {
+              ...t,
+              status: "resolved",
+              host_response: replyText.trim(),
+              message: combined,
+            };
+          }
+          return t;
+        }),
+      );
+      setHostReplyInputs((prev) => ({ ...prev, [ticketId]: "" }));
+    } catch (err) {
+      console.error("Error replying to ticket:", err);
+      showToast("⚠️ An error occurred while sending your reply.");
+    } finally {
+      setReplyingTicketId(null);
     }
   };
 
@@ -2194,6 +2315,22 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                       </button>
                       <button
                         onClick={() => {
+                          setActiveSidebarTab("host_tickets");
+                          setShowThreeDotMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white flex items-center justify-between cursor-pointer transition"
+                      >
+                        <span className="flex items-center gap-2">
+                          <LifeBuoy size={14} className="text-[#00F0FF]" /> Support Tickets
+                        </span>
+                        {hostTickets.filter((t) => t.status === "open").length > 0 && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-black font-mono font-bold">
+                            {hostTickets.filter((t) => t.status === "open").length}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
                           handleShareRoom();
                           setShowThreeDotMenu(false);
                         }}
@@ -2645,6 +2782,12 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                       label: "Broadcast Announcement",
                       icon: Megaphone,
                       count: announcements.length,
+                    },
+                    {
+                      id: "host_tickets",
+                      label: "Support Tickets",
+                      icon: LifeBuoy,
+                      count: hostTickets.filter((t) => t.status === "open").length,
                     },
                   ].map((item) => {
                     const Icon = item.icon;
@@ -3622,6 +3765,252 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                     ))
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* HOST MANAGEMENT: SUPPORT TICKETS TAB (HOST ONLY) */}
+            {activeSidebarTab === "host_tickets" && isHost && (
+              <div className="bg-[#0c0c16] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <LifeBuoy size={18} className="text-[#00F0FF]" /> Support Tickets & Inquiries ({hostTickets.length})
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Read candidate questions and reply directly in the room. Everything is saved live on Glitch Room.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fetchHostTickets(id)}
+                      disabled={loadingHostTickets}
+                      className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-bold flex items-center gap-1.5 transition border border-white/10 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw size={13} className={loadingHostTickets ? "animate-spin" : ""} />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* FILTERS & STATS */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setHostTicketFilter("all")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        hostTicketFilter === "all"
+                          ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                          : "bg-white/5 text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      All Tickets ({hostTickets.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHostTicketFilter("open")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        hostTicketFilter === "open"
+                          ? "bg-amber-500 text-black shadow-md shadow-amber-500/30"
+                          : "bg-white/5 text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      <span>Awaiting Reply</span>
+                      {hostTickets.filter((t) => t.status === "open").length > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono font-bold">
+                          {hostTickets.filter((t) => t.status === "open").length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHostTicketFilter("resolved")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        hostTicketFilter === "resolved"
+                          ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30"
+                          : "bg-white/5 text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      <span>Resolved ({hostTickets.filter((t) => t.status === "resolved").length})</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* TICKETS LIST */}
+                {loadingHostTickets ? (
+                  <div className="text-center py-12 text-gray-400 text-xs">
+                    <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-purple-400" />
+                    Loading support tickets...
+                  </div>
+                ) : (
+                  (() => {
+                    const filtered = hostTickets.filter((t) => {
+                      if (hostTicketFilter === "open") return t.status === "open";
+                      if (hostTicketFilter === "resolved") return t.status === "resolved";
+                      return true;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="text-center py-16 rounded-2xl bg-[#07070e] border border-white/5 space-y-2">
+                          <Inbox size={32} className="mx-auto text-gray-600" />
+                          <h4 className="text-sm font-bold text-gray-300">
+                            No tickets in this view
+                          </h4>
+                          <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                            {hostTicketFilter === "open"
+                              ? "All candidate tickets have been answered! Excellent job."
+                              : "No candidates have submitted support tickets to the host yet."}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        {filtered.map((ticket) => {
+                          const parsed = parseTicketContent(ticket);
+                          const isResolved = ticket.status === "resolved";
+                          const candidateName =
+                            ticket.profile?.full_name ||
+                            ticket.profile?.username ||
+                            "Candidate";
+                          const candidateHandle = ticket.profile?.username
+                            ? `@${ticket.profile.username}`
+                            : "";
+                          const avatar = ticket.profile?.avatar_url;
+
+                          return (
+                            <div
+                              key={ticket.id}
+                              className="p-5 rounded-2xl bg-[#07070e] border border-white/10 space-y-4 transition hover:border-purple-500/40"
+                            >
+                              {/* Ticket Top Meta */}
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  {avatar ? (
+                                    <img
+                                      src={avatar}
+                                      alt={candidateName}
+                                      className="w-9 h-9 rounded-full object-cover border border-purple-500/30 shrink-0"
+                                    />
+                                  ) : (
+                                    <div className="w-9 h-9 rounded-full bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0 text-purple-300 text-xs font-bold">
+                                      {candidateName.charAt(0).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <h5 className="text-xs font-bold text-white">
+                                        {candidateName}
+                                      </h5>
+                                      {candidateHandle && (
+                                        <span className="text-[11px] text-gray-400 font-mono">
+                                          {candidateHandle}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5">
+                                      <Clock size={10} /> {formatNotificationTimestamp(ticket.created_at)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`text-[10px] font-mono px-3 py-1 rounded-full font-bold shrink-0 flex items-center gap-1.5 ${
+                                    isResolved
+                                      ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                      : "bg-amber-500/10 border border-amber-500/30 text-amber-400"
+                                  }`}
+                                >
+                                  {isResolved ? (
+                                    <>
+                                      <CheckCircle size={11} /> Resolved
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Clock size={11} /> Awaiting Reply
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+
+                              {/* Ticket Subject & Message */}
+                              <div className="space-y-1.5 pl-12">
+                                <h4 className="text-xs font-bold text-purple-200">
+                                  {ticket.subject}
+                                </h4>
+                                <div className="p-3.5 rounded-xl bg-[#030308] border border-white/5 text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                  {parsed.userMessage}
+                                </div>
+                              </div>
+
+                              {/* Existing Host Response */}
+                              {parsed.hostResponse && (
+                                <div className="pl-12">
+                                  <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/30 space-y-1.5">
+                                    <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                                      <ShieldCheck size={12} className="text-[#00F0FF]" /> Your Response
+                                    </span>
+                                    <p className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed">
+                                      {parsed.hostResponse}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Reply Form */}
+                              <div className="pl-12 space-y-2 pt-2 border-t border-white/5">
+                                <textarea
+                                  rows={2}
+                                  placeholder={
+                                    parsed.hostResponse
+                                      ? "Update your reply to this candidate..."
+                                      : "Type your reply to this candidate..."
+                                  }
+                                  value={hostReplyInputs[ticket.id] ?? ""}
+                                  onChange={(e) =>
+                                    setHostReplyInputs((prev) => ({
+                                      ...prev,
+                                      [ticket.id]: e.target.value,
+                                    }))
+                                  }
+                                  className="w-full bg-[#030308] border border-white/10 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none focus:border-purple-500 resize-none"
+                                />
+                                <div className="flex items-center justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleHostTicketReply(
+                                        ticket.id,
+                                        ticket.message,
+                                        hostReplyInputs[ticket.id],
+                                      )
+                                    }
+                                    disabled={
+                                      replyingTicketId === ticket.id ||
+                                      !hostReplyInputs[ticket.id]?.trim()
+                                    }
+                                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition shadow-lg shadow-purple-600/25 cursor-pointer disabled:opacity-40 flex items-center gap-2"
+                                  >
+                                    <Send size={12} />
+                                    {replyingTicketId === ticket.id
+                                      ? "Sending..."
+                                      : parsed.hostResponse
+                                        ? "Update Reply"
+                                        : "Send Reply & Resolve"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
+                )}
               </div>
             )}
 
@@ -5142,6 +5531,9 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         onClose={() => setShowHelpModal(false)}
         room={room}
         showToast={showToast}
+        isHost={isHost}
+        currentUserId={currentUserId}
+        onTicketsUpdated={() => fetchHostTickets(id)}
       />
 
       {/* IN-APP DIGITAL CERTIFICATE MODAL */}
