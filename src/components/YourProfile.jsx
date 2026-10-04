@@ -40,6 +40,12 @@ const PRESET_BANNERS = [
   },
 ];
 
+// ── Preset Avatars Config (Extracted directly from user's doodle bubbles) ────
+const PRESET_AVATARS = Array.from({ length: 15 }, (_, i) => ({
+  id: `preset-${i + 1}`,
+  url: `/avatars/presets/preset_${i + 1}.png`,
+}));
+
 // ── Social Platforms Config ─────────────────────────────────────────────────
 const SOCIAL_PLATFORMS = [
   {
@@ -939,8 +945,8 @@ export default function YourProfile() {
                       <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-2">
                         Profile Avatar
                       </label>
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl border border-white/10 overflow-hidden bg-[#181824] shrink-0 flex items-center justify-center">
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="w-16 h-16 rounded-2xl border border-white/10 overflow-hidden bg-[#181824] shrink-0 flex items-center justify-center shadow-inner">
                           {editForm.avatar_url && !avatarLoadError ? (
                             <img
                               src={editForm.avatar_url}
@@ -956,7 +962,7 @@ export default function YourProfile() {
                         </div>
                         <label className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-all bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20">
                           <FiUpload size={14} />
-                          {avatarUploading ? "Uploading…" : "Upload Avatar"}
+                          {avatarUploading ? "Uploading…" : "Upload Custom Avatar"}
                           <input
                             type="file"
                             accept="image/*"
@@ -966,6 +972,39 @@ export default function YourProfile() {
                             }
                           />
                         </label>
+                      </div>
+
+                      {/* Preset Doodle Avatar Bubbles */}
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
+                          Choose From Preset Avatars:
+                        </span>
+                        <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar">
+                          {PRESET_AVATARS.map((preset) => {
+                            const isSelected = editForm.avatar_url === preset.url;
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => {
+                                  setAvatarLoadError(false);
+                                  setEditForm((prev) => ({ ...prev, avatar_url: preset.url }));
+                                }}
+                                className={`w-9 h-9 rounded-full shrink-0 p-0.5 transition-all cursor-pointer border ${
+                                  isSelected
+                                    ? "border-[#FF00C8] ring-2 ring-[#FF00C8]/50 scale-110 shadow-[0_0_10px_rgba(255,0,200,0.5)]"
+                                    : "border-white/10 hover:border-white/40 hover:scale-105"
+                                } bg-white/5`}
+                              >
+                                <img
+                                  src={preset.url}
+                                  alt={preset.id}
+                                  className="w-full h-full rounded-full object-cover"
+                                />
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
