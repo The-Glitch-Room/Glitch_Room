@@ -134,7 +134,7 @@ const GlitchSandboxTeaser = () => {
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={handleFixGlitch}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#00F0FF] text-black font-black text-xs uppercase tracking-wider cursor-pointer shadow-sm flex items-center justify-center gap-2 transition-all"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#00F0FF] text-black font-bold text-sm cursor-pointer flex items-center justify-center gap-2 transition-all duration-300"
               >
                 <Code2 size={16} /> Fix Glitch Live →
               </motion.button>
@@ -156,7 +156,7 @@ const GlitchSandboxTeaser = () => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => navigate("/explore")}
-              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-[#FF00C8] text-white font-bold text-xs cursor-pointer shadow-sm flex items-center justify-center gap-2 transition-all"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#FF00C8] text-white font-bold text-sm cursor-pointer flex items-center justify-center gap-2 transition-all duration-300"
             >
               Explore All Glitches <ArrowRight size={14} />
             </motion.button>

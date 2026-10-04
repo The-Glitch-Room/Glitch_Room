@@ -124,10 +124,10 @@ const EarnRewardsTeaser = () => {
         {/* Solid CTA Button */}
         <div className="text-center">
           <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => navigate("/earn-rules")}
-            className="px-7 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-[#FF00C8] hover:bg-[#e000b0] cursor-pointer shadow-sm inline-flex items-center gap-2 transition-all"
+            className="px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-[#FF00C8] hover:bg-[#e000b0] cursor-pointer inline-flex items-center gap-2 transition-all duration-300"
           >
             <Trophy size={16} /> Explore All Earn Rules &amp; Referral Hub <ArrowRight size={14} />
           </motion.button>

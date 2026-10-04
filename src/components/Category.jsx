@@ -201,11 +201,11 @@ const Category = () => {
           <motion.button
             type="button"
             whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => navigate("/game-arena")}
-            className="group inline-flex items-center gap-2.5 px-8 py-4 rounded-xl font-mono font-black text-xs md:text-sm tracking-widest uppercase text-black bg-[#00F0FF] hover:bg-[#38f8ff] transition-all duration-200 shadow-[0_0_25px_rgba(0,240,255,0.35)] hover:shadow-[0_0_40px_rgba(0,240,255,0.55)] cursor-pointer"
+            className="group inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-black bg-[#00F0FF] hover:bg-[#38f8ff] transition-all duration-300 cursor-pointer"
           >
-            <span>ENTER THE ARENA</span>
+            <span>Enter the Arena</span>
             <ArrowRight
               size={16}
               className="transition-transform duration-200 group-hover:translate-x-1"
