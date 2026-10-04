@@ -1483,23 +1483,12 @@ const Explore = () => {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  handleToggleReminder(ch.id, ch.title)
+                                  showToast("🔔 Challenge reminders are coming soon!")
                                 }
-                                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shrink-0 cursor-pointer transition border ${
-                                  isSet
-                                    ? "bg-[#38BDF8]/20 border-[#38BDF8]/40 text-[#38BDF8]"
-                                    : "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
-                                }`}
+                                title="Automatic notifications coming soon"
+                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-[11px] shrink-0 cursor-default bg-white/5 border border-white/10 text-gray-400"
                               >
-                                {isSet ? (
-                                  <>
-                                    <Check size={14} /> Saved
-                                  </>
-                                ) : (
-                                  <>
-                                    <Bell size={14} /> Remind Me
-                                  </>
-                                )}
+                                <Bell size={13} /> Coming Soon
                               </button>
                             </div>
                           </div>

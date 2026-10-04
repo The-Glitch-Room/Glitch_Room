@@ -78,8 +78,8 @@ const ArenaEvents = () => {
     fetchEvents();
   }, []);
 
-  // Combine database events with featured fallback events
-  const allEvents = [...dbEvents, ...FEATURED_ARENA_EVENTS];
+  // Prioritize live database events; fall back to featured dataset only if no database events exist yet
+  const allEvents = dbEvents.length > 0 ? dbEvents : FEATURED_ARENA_EVENTS;
 
   // Filter events based on search query & difficulty
   const filteredEvents = allEvents.filter((ev) => {

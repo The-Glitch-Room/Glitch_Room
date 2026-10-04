@@ -4828,20 +4828,26 @@ const CreatorRoomDetail = ({ roomId }) => {
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#07070d] border border-white/5">
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#07070d] border border-white/5 opacity-75">
                   <div>
-                    <h4 className="font-bold text-white mb-0.5">
-                      Squad Check-in Activity Digest
-                    </h4>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h4 className="font-bold text-white">
+                        Squad Check-in Activity Digest
+                      </h4>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        Coming Soon
+                      </span>
+                    </div>
                     <p className="text-[11px] text-gray-400">
                       Get notified via email when squad members log proof of
-                      work
+                      work (scheduled delivery)
                     </p>
                   </div>
                   <input
                     type="checkbox"
-                    defaultChecked
-                    className="w-4 h-4 accent-purple-500 cursor-pointer"
+                    disabled
+                    checked={false}
+                    className="w-4 h-4 accent-purple-500 cursor-not-allowed opacity-50"
                   />
                 </div>
 

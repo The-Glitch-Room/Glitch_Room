@@ -766,16 +766,23 @@ const Settings = () => {
             </SettingRow>
 
             <SettingRow
-              label="Sound Effects"
-              desc="Enable audio feedback for challenges, level ups & floating particles"
+              label={
+                <span className="flex items-center gap-2">
+                  Sound Effects
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                    Coming Soon
+                  </span>
+                </span>
+              }
+              desc="Audio feedback for challenges, level ups & floating particles (in active sound design)"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 opacity-50 cursor-not-allowed">
                 <span className="text-xs text-gray-500 font-mono flex items-center gap-1">
-                  {toggles.sounds ? <Volume2 size={13} className="text-[#00F0FF]" /> : <VolumeX size={13} />}
+                  <VolumeX size={13} />
                 </span>
                 <Toggle
-                  enabled={toggles.sounds}
-                  onToggle={() => toggleSetting("sounds")}
+                  enabled={false}
+                  onToggle={() => {}}
                 />
               </div>
             </SettingRow>

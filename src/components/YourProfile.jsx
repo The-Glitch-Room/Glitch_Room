@@ -454,6 +454,7 @@ export default function YourProfile() {
 
       setProfile({
         ...pd,
+        avatar_url: pd?.avatar_url || userMeta?.avatar_url || "",
         tagline: pd?.tagline || pd?.headline || userMeta?.tagline || cachedTagline || "",
         bio: pd?.bio || userMeta?.bio || "",
         college: pd?.college || userMeta?.college || cachedCollege || "",
