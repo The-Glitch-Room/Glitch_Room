@@ -179,12 +179,6 @@ const NotFound = () => {
             <button onClick={() => navigate("/")} className="cursor-pointer">
               <Button content="← Return to Home" accent="cyan" />
             </button>
-            <button onClick={() => navigate("/explore")} className="cursor-pointer">
-              <Button content="Explore Challenges" accent="purple" variant="outline" />
-            </button>
-            <button onClick={() => navigate("/terminal-wall")} className="cursor-pointer">
-              <Button content="Terminal Wall" accent="pink" variant="outline" />
-            </button>
           </div>
         </motion.div>
       </main>
