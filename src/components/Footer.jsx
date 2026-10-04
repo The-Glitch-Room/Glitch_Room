@@ -86,7 +86,8 @@ const Footer = () => {
                 Where chaos sparks creativity. Solve glitches, compete in 3-stage arenas, collect gBits, and climb the Terminal Wall.
               </p>
 
-              {/* Newsletter Subscriber Box */}
+              {/* Newsletter Subscriber Box (Inactive for now — will be built in the future) */}
+              {/*
               <form onSubmit={handleSubscribe} className="mt-8 mb-8 max-w-md">
                 <p className="text-sm font-bold text-white mb-2.5">
                   Stay in the loop
@@ -104,7 +105,7 @@ const Footer = () => {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-[#00F0FF] text-black font-extrabold text-sm flex items-center justify-center cursor-pointer hover:bg-[#38bdf8] transition-all shadow-[0_0_15px_rgba(0,240,255,0.3)] shrink-0"
+                    className="px-6 py-2.5 rounded-xl bg-[#00F0FF] text-black font-bold text-sm flex items-center justify-center cursor-pointer hover:bg-[#38bdf8] transition-all duration-300 shrink-0"
                   >
                     Subscribe
                   </motion.button>
@@ -115,6 +116,7 @@ const Footer = () => {
                   </p>
                 )}
               </form>
+              */}
             </div>
 
             {/* Social Links (Discord, Instagram, LinkedIn) */}
