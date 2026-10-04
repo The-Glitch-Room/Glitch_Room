@@ -69,7 +69,7 @@ const GlitchSandboxTeaser = () => {
                 transition={{ duration: 1 }}
                 className="absolute top-12 right-8 z-30 pointer-events-none px-3.5 py-1.5 rounded-xl bg-[#FF00C8] text-white font-black text-xs shadow-[0_0_20px_rgba(255,0,200,0.6)] flex items-center gap-1.5"
               >
-                <Zap size={14} /> +25 gBits! Speed Demon Clearance
+                <Zap size={14} /> ⚡ Glitch Patched! Nice work.
               </motion.div>
             )}
           </AnimatePresence>
@@ -160,6 +160,13 @@ const GlitchSandboxTeaser = () => {
             >
               Explore All Glitches <ArrowRight size={14} />
             </motion.button>
+          </div>
+
+          {/* Demo Clarification Note */}
+          <div className="mt-4 pt-3 border-t border-white/5 text-center">
+            <p className="text-[11px] text-gray-500 font-mono tracking-wide">
+              Experience how Glitch Room challenges work. This is a demo — no gBits are awarded.
+            </p>
           </div>
         </div>
       </div>
