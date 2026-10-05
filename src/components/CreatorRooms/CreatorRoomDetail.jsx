@@ -50,6 +50,7 @@ import {
   UserCheck,
   Mail,
   AlertTriangle,
+  AlertCircle,
   Plus,
   Pencil,
   Image,
@@ -209,16 +210,44 @@ const formatStandupTimestamp = (isoString) => {
   return `${formatted} IST`;
 };
 
-// A submitted check-in is On Time for the IST calendar date it falls on —
-// full stop. Per-day windows are independent (12:00 AM – 11:59 PM IST), so
-// a submitted row is never compared against a previous check-in's time or
-// a rolling-hours cutoff; it's simply On Time for whichever date it landed
-// in. "Late/Missed" only ever describes a date with NO check-in by the time
-// its window closes — that's a Calendar View concept (see the day-grid
-// below), not a property you compute on an individual submitted row.
-const getOnTimeStatus = (standup) =>
-  !!standup?.created_at &&
-  !Number.isNaN(new Date(standup.created_at).getTime());
+// ── IST Daily Standup Timing & Deadline Logic ────────────────────────────────
+// • 12:00 AM → 10:00 PM IST (00:00:00 to 22:00:00 IST): ✅ On Time
+// • 10:00 PM → 11:59 PM IST (22:00:01 to 23:59:59 IST): ⚠️ Late
+// • After 12:00 AM (midnight): Counts as the next IST calendar day's standup
+export const getISTTimeParts = (input) => {
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: IST_TIME_ZONE,
+    hourCycle: "h23",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  }).formatToParts(d);
+
+  const getPart = (type) =>
+    Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return {
+    hour: getPart("hour"),
+    minute: getPart("minute"),
+    second: getPart("second"),
+  };
+};
+
+export const isISTOnTime = (input) => {
+  const parts = getISTTimeParts(input);
+  if (!parts) return true;
+  // 12:00 AM to 10:00 PM IST (inclusive of 22:00:00) is On Time.
+  // Past 10:00:00 PM IST is Late.
+  if (parts.hour < 22) return true;
+  if (parts.hour === 22 && parts.minute === 0 && parts.second === 0) return true;
+  return false;
+};
+
+const getOnTimeStatus = (standup) => {
+  if (!standup?.created_at) return true;
+  return isISTOnTime(standup.created_at);
+};
 
 // Consecutive-day streak counted backward from `endDateKey`, stopping the
 // instant a calendar day is missing from `dateKeySet`. A pure date-bucket
@@ -875,7 +904,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           proof_url: c.proof_url || null,
           blockers: c.blockers || "None",
           streak_count: c.streak_count || 1,
-          is_on_time: c.is_on_time !== false,
+          is_on_time: isISTOnTime(c.created_at),
           created_at: c.created_at,
           isUser: c.user_id === uid,
         });
@@ -1397,7 +1426,7 @@ const CreatorRoomDetail = ({ roomId }) => {
         return;
       }
 
-      const computedIsOnTime = true;
+      const computedIsOnTime = isISTOnTime(new Date());
 
       // Handle direct file/screenshot upload if selected from device
       let finalProofUrl = proofUrl.trim();
@@ -1989,6 +2018,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   // User standup stats
   const userStandups = standups.filter((s) => s.user_id === userId);
   const userOnTimeCount = userStandups.filter((s) => getOnTimeStatus(s)).length;
+  const userLateCount = userStandups.filter((s) => !getOnTimeStatus(s)).length;
   const userStreak = getUserStreak(userId);
   // `room.member_count` is not a real column — the true count always comes
   // from the live members list. Math.max(..., 1) just covers the instant
@@ -2325,15 +2355,49 @@ const CreatorRoomDetail = ({ roomId }) => {
               </p>
             </div>
 
-            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
-              <div className="flex items-center gap-2 text-xs font-bold text-white mb-2">
-                <Clock size={15} className="text-cyan-400" /> Check-in Time
+            <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
+                  <Clock size={15} className="text-cyan-400" /> Check-in Time
+                </div>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
+                  Daily
+                </span>
               </div>
               <p className="text-xs text-gray-400 font-mono">
                 Check in anytime between{" "}
                 <strong className="text-white">12:00 AM</strong> and{" "}
                 <strong className="text-white">11:59 PM IST</strong> each day.
               </p>
+
+              {/* Deadline breakdown */}
+              <div className="space-y-1.5 pt-1 font-mono text-[11px] border-t border-white/5">
+                <div className="flex items-center justify-between text-gray-300">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    12:00 AM – 10:00 PM IST
+                  </span>
+                  <span className="text-emerald-400 font-bold">On Time</span>
+                </div>
+                <div className="flex items-center justify-between text-gray-300">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                    10:00 PM – 11:59 PM IST
+                  </span>
+                  <span className="text-amber-400 font-bold">Late</span>
+                </div>
+              </div>
+
+              {/* Deadline Note */}
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200/90 space-y-1">
+                <div className="text-[11px] font-mono font-bold text-amber-300 flex items-center gap-1.5">
+                  <AlertCircle size={13} className="shrink-0 text-amber-400" />
+                  Daily Standup Deadline: 10:00 PM IST
+                </div>
+                <p className="text-[10px] text-gray-300 font-sans leading-relaxed">
+                  Submit your standup by 10:00 PM to stay On Time. Submissions after the deadline are marked Late and still count toward your activity.
+                </p>
+              </div>
             </div>
 
             <div className="bg-[#0d0d16] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg">
@@ -2718,7 +2782,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                               className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold flex items-center gap-1 border ${
                                 isOnTime
                                   ? "bg-green-500/20 text-green-400 border-green-500/40"
-                                  : "bg-red-500/20 text-red-400 border-red-500/40"
+                                  : "bg-amber-500/20 text-amber-300 border-amber-500/40"
                               }`}
                             >
                               <Clock size={10} />
@@ -3319,37 +3383,23 @@ const CreatorRoomDetail = ({ roomId }) => {
 
             <div className="h-8 w-px bg-white/10 hidden sm:block" />
 
-            {/* 5. Potential Reward */}
+            {/* 5. Late Check-ins */}
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
-                <Gift size={20} />
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <AlertCircle size={20} />
               </div>
               <div>
                 <div className="text-[11px] text-gray-400 font-sans font-medium">
-                  Potential Reward
+                  Late Check-ins
                 </div>
-                <div className="text-sm font-black text-pink-300 font-mono">
-                  {(() => {
-                    const isStakedRoom = room?.enable_gbits_stake && Number(room?.entry_stake || 0) > 0;
-                    const myStake = Number(
-                      members.find((m) => m.user_id === userId)?.staked_amount || 0,
-                    ) || Number(room?.entry_stake || 0);
-                    const bonus = Number(room?.completion_reward || 0);
-                    // Potential reward = stake RETURNED to the member + bonus
-                    // The full pool is shown as context in the Rewards modal,
-                    // not as the individual reward (each person gets their own
-                    // stake back, not the whole pool).
-                    if (isStakedRoom && bonus > 0)
-                      return `${myStake} Back + ${bonus} Bonus`;
-                    if (isStakedRoom)
-                      return `${myStake} gBits Back`;
-                    if (bonus > 0)
-                      return `+${bonus} gBits Bonus`;
-                    return "Completion Bonus";
-                  })()}
+                <div className="text-sm font-black text-amber-400 font-mono">
+                  {userLateCount}
                 </div>
-                <div className="text-[10px] text-gray-400 font-sans">
-                  If you complete (≥80%)
+                <div className="text-[10px] text-amber-400 font-mono">
+                  {userStandups.length > 0
+                    ? Math.round((userLateCount / userStandups.length) * 100)
+                    : 0}
+                  % late
                 </div>
               </div>
             </div>
@@ -5812,9 +5862,15 @@ const CreatorRoomDetail = ({ roomId }) => {
                                 <span>
                                   {formatStandupTimestamp(st.created_at)}
                                 </span>
-                                <span className="text-emerald-400 font-bold">
-                                  On Time
-                                </span>
+                                {getOnTimeStatus(st) ? (
+                                  <span className="text-emerald-400 font-bold">
+                                    On Time
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-400 font-bold">
+                                    Late
+                                  </span>
+                                )}
                               </div>
                               <p className="text-xs text-gray-200 font-sans leading-relaxed">
                                 {st.accomplishment}
