@@ -29,6 +29,7 @@ import {
   AlertCircle,
   Medal,
   Sparkles,
+  Eye,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { updatePoints } from "../../utils/pointsHelper";
