@@ -248,6 +248,63 @@ const resolveCategoryTag = (type = "", title = "") => {
   return "Glitches";
 };
 
+// ── Client-side Image Optimization (Resize & Compress) ───────────────────────
+const processImageFile = (file, maxWidth = 1200, maxHeight = 1200, quality = 0.85) => {
+  return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error("No file provided"));
+    if (!file.type || !file.type.startsWith("image/")) {
+      return reject(new Error("Please upload a valid image file."));
+    }
+
+    if (file.type === "image/svg+xml") {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve({ blob: file, dataUrl: e.target.result });
+      reader.onerror = () => reject(new Error("Failed to read SVG file."));
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read image file."));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Failed to process image."));
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, width);
+        canvas.height = Math.max(1, height);
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve({ blob, dataUrl, width, height });
+            } else {
+              resolve({ blob: file, dataUrl, width, height });
+            }
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 // ── Custom Glitch Role Select Component ──────────────────────────────────────────
 const CustomRoleSelect = ({ value, onChange, options }) => {
   const [open, setOpen] = useState(false);
@@ -560,12 +617,14 @@ export default function YourProfile() {
 
       items.sort((a, b) => new Date(b.time) - new Date(a.time));
       setSolvedGlitches(items);
-      setAvatarPreview(pd?.avatar_url || null);
+      const cachedAvatar = userId ? localStorage.getItem(`glitch_avatar_${userId}`) : null;
+      const resolvedAvatar = pd?.avatar_url || userMeta?.avatar_url || cachedAvatar || "";
+      setAvatarPreview(resolvedAvatar || null);
       setEditForm({
         full_name: pd?.full_name || "",
         username: pd?.username || "",
         bio: pd?.bio || "",
-        avatar_url: pd?.avatar_url || "",
+        avatar_url: resolvedAvatar,
         banner_url: bannerUrl,
       });
       setLoading(false);
@@ -580,13 +639,33 @@ export default function YourProfile() {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id;
       if (!file || !userId) return;
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${userId}/${Date.now()}.${fileExt}`;
-      const { error } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { upsert: true });
-      if (error) throw error;
-      const newAvatarUrl = supabase.storage.from("avatars").getPublicUrl(fileName).data.publicUrl;
+
+      const { blob, dataUrl } = await processImageFile(file, 600, 600, 0.85);
+      let newAvatarUrl = dataUrl;
+      const fileName = `${userId}/avatar_${Date.now()}.jpg`;
+
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(fileName, blob, {
+            contentType: "image/jpeg",
+            cacheControl: "3600",
+            upsert: true,
+          });
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(fileName);
+          if (urlData?.publicUrl) {
+            newAvatarUrl = urlData.publicUrl;
+          }
+        } else {
+          console.warn("Storage upload notice (using optimized fallback):", uploadError);
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload exception (using optimized fallback):", storageErr);
+      }
 
       await supabase
         .from("profiles")
@@ -605,7 +684,7 @@ export default function YourProfile() {
       window.dispatchEvent(new CustomEvent("profile_updated", { detail: { avatar_url: newAvatarUrl } }));
       window.dispatchEvent(new CustomEvent("avatar_updated", { detail: { avatar_url: newAvatarUrl } }));
     } catch (err) {
-      console.error(err);
+      console.error("Avatar upload failed:", err);
     }
   };
 
@@ -618,30 +697,46 @@ export default function YourProfile() {
       const userId = userData?.user?.id;
       if (!userId) throw new Error("Not signed in.");
 
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${userId}/${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { upsert: true });
-      if (uploadError) throw uploadError;
+      const { blob, dataUrl } = await processImageFile(file, 600, 600, 0.85);
+      let newAvatarUrl = dataUrl;
+      const fileName = `${userId}/avatar_${Date.now()}.jpg`;
 
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(fileName, blob, {
+            contentType: "image/jpeg",
+            cacheControl: "3600",
+            upsert: true,
+          });
 
-      const newAvatarUrl = urlData.publicUrl;
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(fileName);
+          if (urlData?.publicUrl) {
+            newAvatarUrl = urlData.publicUrl;
+          }
+        } else {
+          console.warn("Storage upload notice (using optimized fallback):", uploadError);
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload exception (using optimized fallback):", storageErr);
+      }
+
       setAvatarLoadError(false);
       setAvatarPreview(newAvatarUrl);
       setEditForm((prev) => ({ ...prev, avatar_url: newAvatarUrl }));
 
-      // Immediately sync new avatar across site
+      // Immediately sync new avatar across site & local storage
       localStorage.setItem(`glitch_avatar_${userId}`, newAvatarUrl);
       await supabase.from("profiles").update({ avatar_url: newAvatarUrl }).eq("id", userId);
       await supabase.auth.updateUser({ data: { avatar_url: newAvatarUrl } });
       window.dispatchEvent(new CustomEvent("profile_updated", { detail: { avatar_url: newAvatarUrl } }));
+      window.dispatchEvent(new CustomEvent("avatar_updated", { detail: { avatar_url: newAvatarUrl } }));
     } catch (err) {
-      console.error(err);
-      setEditError("Couldn't upload image.");
+      console.error("Modal avatar upload error:", err);
+      setEditError("Couldn't process image. Please try another photo.");
     } finally {
       setAvatarUploading(false);
     }
@@ -656,21 +751,37 @@ export default function YourProfile() {
       const userId = userData?.user?.id;
       if (!userId) throw new Error("Not signed in.");
 
-      const fileExt = file.name.split(".").pop();
-      const fileName = `banners/${userId}/${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { upsert: true });
-      if (uploadError) throw uploadError;
+      const { blob, dataUrl } = await processImageFile(file, 1600, 600, 0.85);
+      let newBannerUrl = dataUrl;
+      const fileName = `${userId}/banner_${Date.now()}.jpg`;
 
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(fileName, blob, {
+            contentType: "image/jpeg",
+            cacheControl: "3600",
+            upsert: true,
+          });
 
-      setEditForm((prev) => ({ ...prev, banner_url: urlData.publicUrl }));
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(fileName);
+          if (urlData?.publicUrl) {
+            newBannerUrl = urlData.publicUrl;
+          }
+        } else {
+          console.warn("Storage banner upload notice (using optimized fallback):", uploadError);
+        }
+      } catch (storageErr) {
+        console.warn("Storage banner upload exception (using optimized fallback):", storageErr);
+      }
+
+      setEditForm((prev) => ({ ...prev, banner_url: newBannerUrl }));
     } catch (err) {
-      console.error(err);
-      setEditError("Couldn't upload banner image.");
+      console.error("Modal banner upload error:", err);
+      setEditError("Couldn't process banner image. Please try another photo.");
     } finally {
       setBannerUploading(false);
     }
@@ -1164,7 +1275,9 @@ export default function YourProfile() {
                         src={editForm.banner_url}
                         alt="Banner Preview"
                         className="w-full h-full object-cover"
-                        onError={() => setEditForm((prev) => ({ ...prev, banner_url: "" }))}
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
                       />
                     ) : (
                       <div
