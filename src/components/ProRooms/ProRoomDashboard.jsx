@@ -34,6 +34,7 @@ import {
 import { supabase } from "../../supabaseClient";
 import { updatePoints } from "../../utils/pointsHelper";
 import CustomSelect from "../CustomSelect";
+import { evaluateBatchShortAnswers } from "../../utils/semanticGrading";
 
 // Shows what a candidate actually submitted for one answer, shaped by the
 // question's type — a code block for coding-family questions, a link for
@@ -405,6 +406,83 @@ const ProRoomDashboard = () => {
         }
       });
       setManualScoreDrafts((prev) => ({ ...prev, ...drafts }));
+
+      // Check for legacy short_answer questions that scored 0 due to exact word-matching
+      const shortItemsToRecheck = (data || []).filter((a) => {
+        const q = roomQuestionsById[a.question_id];
+        return (
+          q &&
+          q.question_type === "short_answer" &&
+          q.correct_answer &&
+          a.answer_text &&
+          a.answer_text.trim() &&
+          (a.points_earned === 0 || a.points_earned == null) &&
+          !overriddenAnswerIds.has(a.id)
+        );
+      });
+
+      if (shortItemsToRecheck.length > 0) {
+        const batchItems = shortItemsToRecheck.map((a) => {
+          const q = roomQuestionsById[a.question_id];
+          return {
+            id: a.id,
+            questionText: q.question_text || "",
+            expectedAnswer: q.correct_answer || "",
+            candidateAnswer: a.answer_text,
+            maxPoints: q.points || 5,
+          };
+        });
+
+        evaluateBatchShortAnswers(batchItems).then((evalResults) => {
+          let updatedAny = false;
+          let addedScore = 0;
+
+          const updatedRows = (data || []).map((a) => {
+            const res = evalResults[a.id];
+            if (res && res.pointsEarned > 0) {
+              updatedAny = true;
+              addedScore += res.pointsEarned;
+              // Persist the updated score via host RPC
+              supabase
+                .rpc("set_manual_answer_score", {
+                  p_answer_id: a.id,
+                  p_points_earned: res.pointsEarned,
+                })
+                .catch((e) => console.warn("Auto-sync semantic score note:", e));
+
+              return {
+                ...a,
+                points_earned: res.pointsEarned,
+                is_correct: res.isCorrect,
+              };
+            }
+            return a;
+          });
+
+          if (updatedAny) {
+            setSubmissionAnswers((prev) => ({
+              ...prev,
+              [submissionId]: updatedRows,
+            }));
+
+            // Sync total_score in submissions list state
+            setSubmissions((prev) =>
+              prev.map((s) => {
+                if (s.id === submissionId) {
+                  const newTotal = (s.total_score || 0) + addedScore;
+                  const newAuto = (s.auto_score || 0) + addedScore;
+                  return {
+                    ...s,
+                    total_score: newTotal,
+                    auto_score: newAuto,
+                  };
+                }
+                return s;
+              })
+            );
+          }
+        });
+      }
     } catch (err) {
       console.error(err);
       showToast("⚠️ Couldn't load this submission's answers.");
@@ -1970,10 +2048,15 @@ const ProRoomDashboard = () => {
                                     {a.auto_graded &&
                                     !overriddenAnswerIds.has(a.id) ? (
                                       <div className="flex items-center gap-2 pt-1 flex-wrap">
-                                        {a.is_correct ? (
+                                        {a.is_correct || (a.points_earned > 0 && a.points_earned >= (q?.points ?? 0)) ? (
                                           <CheckCircle
                                             size={14}
                                             className="text-emerald-400"
+                                          />
+                                        ) : a.points_earned > 0 ? (
+                                          <CheckCircle
+                                            size={14}
+                                            className="text-amber-400"
                                           />
                                         ) : (
                                           <XCircle
@@ -1983,13 +2066,20 @@ const ProRoomDashboard = () => {
                                         )}
                                         <span
                                           className={
-                                            a.is_correct
+                                            a.is_correct || (a.points_earned > 0 && a.points_earned >= (q?.points ?? 0))
                                               ? "text-emerald-400 font-bold"
-                                              : "text-red-400 font-bold"
+                                              : a.points_earned > 0
+                                                ? "text-amber-400 font-bold"
+                                                : "text-red-400 font-bold"
                                           }
                                         >
                                           {a.points_earned ?? 0} /{" "}
                                           {q?.points ?? "?"} pts (auto-graded)
+                                          {a.points_earned > 0 && a.points_earned < (q?.points ?? 0) && (
+                                            <span className="text-[10px] font-normal text-amber-300 ml-1">
+                                              (partial credit)
+                                            </span>
+                                          )}
                                         </span>
                                         <button
                                           type="button"

@@ -19,6 +19,7 @@ import {
 import { supabase } from "../../supabaseClient";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import CustomSelect from "../CustomSelect";
+import { evaluateBatchShortAnswers } from "../../utils/semanticGrading";
 
 // Real code editor — replaces the plain <textarea>. Requires:
 //   npm install @uiw/react-codemirror @uiw/codemirror-theme-vscode
@@ -1233,6 +1234,30 @@ const ProRoomAssessment = () => {
         );
       });
 
+      // Semantic AI Grading: Batch evaluate open-ended Short Answer questions
+      const shortAnswerBatchItems = [];
+      for (const [qId, a] of answerEntries) {
+        const q = findQuestionById(qId);
+        const dq = dbQuestionsMap[qId] || q;
+        const qType = dq?.question_type || q?.question_type;
+        const qCorrectAnswer = dq?.correct_answer ?? q?.correct_answer;
+        const qPoints = dq?.points ?? q?.points ?? 0;
+
+        if (qType === "short_answer" && qCorrectAnswer && a?.answer_text?.trim()) {
+          shortAnswerBatchItems.push({
+            id: String(qId),
+            questionText: dq?.question_text || q?.question_text || "",
+            expectedAnswer: qCorrectAnswer,
+            candidateAnswer: a.answer_text,
+            maxPoints: qPoints,
+          });
+        }
+      }
+
+      const shortAnswerEvals = shortAnswerBatchItems.length > 0
+        ? await evaluateBatchShortAnswers(shortAnswerBatchItems)
+        : {};
+
       if (answerEntries.length > 0) {
         const rows = answerEntries.map(([qId, a]) => {
           const q = findQuestionById(qId);
@@ -1267,7 +1292,20 @@ const ProRoomAssessment = () => {
                 points_earned = is_correct ? qPoints : 0;
                 auto_graded = true;
               }
-            } else if (["short_answer", "output_pred"].includes(qType)) {
+            } else if (qType === "short_answer") {
+              if (qCorrectAnswer) {
+                const evalResult = shortAnswerEvals[String(qId)];
+                if (evalResult) {
+                  is_correct = evalResult.isCorrect;
+                  points_earned = evalResult.pointsEarned;
+                  auto_graded = true;
+                } else {
+                  is_correct = String(a.answer_text ?? "").trim().toLowerCase() === String(qCorrectAnswer ?? "").trim().toLowerCase();
+                  points_earned = is_correct ? qPoints : 0;
+                  auto_graded = true;
+                }
+              }
+            } else if (qType === "output_pred") {
               if (qCorrectAnswer) {
                 is_correct = String(a.answer_text ?? "").trim().toLowerCase() === String(qCorrectAnswer ?? "").trim().toLowerCase();
                 points_earned = is_correct ? qPoints : 0;
@@ -1376,7 +1414,14 @@ const ProRoomAssessment = () => {
             if (qCorrectAnswer && JSON.stringify(userOpts) === JSON.stringify(correctOpts)) {
               autoScore += qPoints;
             }
-          } else if (["short_answer", "output_pred"].includes(qType)) {
+          } else if (qType === "short_answer") {
+            const evalResult = shortAnswerEvals[String(q.id)];
+            if (evalResult) {
+              autoScore += evalResult.pointsEarned;
+            } else if (qCorrectAnswer && String(a?.answer_text ?? "").trim().toLowerCase() === String(qCorrectAnswer ?? "").trim().toLowerCase()) {
+              autoScore += qPoints;
+            }
+          } else if (qType === "output_pred") {
             if (qCorrectAnswer && String(a?.answer_text ?? "").trim().toLowerCase() === String(qCorrectAnswer ?? "").trim().toLowerCase()) {
               autoScore += qPoints;
             }
@@ -1425,10 +1470,14 @@ const ProRoomAssessment = () => {
       } catch (e) {}
 
       // Server-side fallback RPC (non-blocking)
-      try {
-        await supabase.rpc("grade_pro_room_submission", { p_submission_id: resolvedSubmissionId });
-      } catch (rpcErr) {
-        console.warn("Server trigger grade call note:", rpcErr);
+      // Only invoke server fallback RPC if no short answer questions were graded with Semantic AI,
+      // preventing the legacy exact-match SQL trigger from overriding semantic scores.
+      if (shortAnswerBatchItems.length === 0) {
+        try {
+          await supabase.rpc("grade_pro_room_submission", { p_submission_id: resolvedSubmissionId });
+        } catch (rpcErr) {
+          console.warn("Server trigger grade call note:", rpcErr);
+        }
       }
 
       setAlreadySubmitted(true);
