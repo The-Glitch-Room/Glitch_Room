@@ -265,7 +265,37 @@ const ProRoomDashboard = () => {
         .from("pro_room_submissions")
         .select("*, profiles(username, full_name, avatar_url)")
         .eq("room_id", id);
-      setSubmissions(subData || []);
+
+      // Verify and sync total_score directly with actual points earned from pro_room_answers
+      const { data: allRoomAnswers } = await supabase
+        .from("pro_room_answers")
+        .select("submission_id, points_earned")
+        .eq("room_id", id);
+
+      const answerScoresBySub = {};
+      (allRoomAnswers || []).forEach((a) => {
+        if (a.submission_id && a.points_earned != null) {
+          answerScoresBySub[a.submission_id] =
+            (answerScoresBySub[a.submission_id] || 0) + Number(a.points_earned);
+        }
+      });
+
+      const syncedSubs = (subData || []).map((s) => {
+        const computedScore = answerScoresBySub[s.id];
+        if (computedScore != null && computedScore !== s.total_score) {
+          // Asynchronously sync the database record so it stays persisted
+          supabase
+            .from("pro_room_submissions")
+            .update({ total_score: computedScore })
+            .eq("id", s.id)
+            .then(() => {})
+            .catch(() => {});
+
+          return { ...s, total_score: computedScore };
+        }
+        return s;
+      });
+      setSubmissions(syncedSubs);
 
       // 4. Fetch Leaderboard
       const { data: lbData } = await supabase
@@ -273,7 +303,22 @@ const ProRoomDashboard = () => {
         .select("*, profiles(username, full_name, avatar_url)")
         .eq("room_id", id)
         .order("total_score", { ascending: false });
-      setLeaderboard(lbData || []);
+
+      const syncedLb = (lbData || []).map((lb) => {
+        const matchingSub = syncedSubs.find((s) => s.user_id === lb.user_id);
+        if (matchingSub && matchingSub.total_score != null && matchingSub.total_score !== lb.total_score) {
+          supabase
+            .from("pro_room_leaderboard")
+            .update({ total_score: matchingSub.total_score })
+            .eq("id", lb.id)
+            .then(() => {})
+            .catch(() => {});
+          return { ...lb, total_score: matchingSub.total_score };
+        }
+        return lb;
+      }).sort((a, b) => (b.total_score || 0) - (a.total_score || 0));
+
+      setLeaderboard(syncedLb);
 
       // 5. Fetch Announcements
       const { data: annData } = await supabase
@@ -465,12 +510,15 @@ const ProRoomDashboard = () => {
               [submissionId]: updatedRows,
             }));
 
+            const targetSub = submissions.find((s) => s.id === submissionId);
+            const newTotal = (targetSub?.total_score || 0) + addedScore;
+            const newAuto = (targetSub?.auto_score || 0) + addedScore;
+            const userId = targetSub?.user_id;
+
             // Sync total_score in submissions list state
             setSubmissions((prev) =>
               prev.map((s) => {
                 if (s.id === submissionId) {
-                  const newTotal = (s.total_score || 0) + addedScore;
-                  const newAuto = (s.auto_score || 0) + addedScore;
                   return {
                     ...s,
                     total_score: newTotal,
@@ -480,6 +528,34 @@ const ProRoomDashboard = () => {
                 return s;
               })
             );
+
+            // Persist to Supabase pro_room_submissions
+            supabase
+              .from("pro_room_submissions")
+              .update({ total_score: newTotal, auto_score: newAuto })
+              .eq("id", submissionId)
+              .then(() => {})
+              .catch(() => {});
+
+            // Persist to Supabase pro_room_leaderboard & local leaderboard
+            if (userId) {
+              setLeaderboard((prev) =>
+                prev
+                  .map((lb) =>
+                    lb.user_id === userId
+                      ? { ...lb, total_score: (lb.total_score || 0) + addedScore }
+                      : lb
+                  )
+                  .sort((a, b) => (b.total_score || 0) - (a.total_score || 0))
+              );
+              supabase
+                .from("pro_room_leaderboard")
+                .update({ total_score: newTotal })
+                .eq("room_id", id)
+                .eq("user_id", userId)
+                .then(() => {})
+                .catch(() => {});
+            }
           }
         });
       }
@@ -495,37 +571,166 @@ const ProRoomDashboard = () => {
     const raw = manualScoreDrafts[answerId];
     const points = Number(raw);
 
-    if (raw === "" || Number.isNaN(points) || points < 0) {
+    const questionObj = (submissionAnswers[submissionId] || []).find((a) => a.id === answerId);
+    const resolvedMaxPoints =
+      maxPoints != null
+        ? Number(maxPoints)
+        : (questionObj?.question_id && roomQuestionsById[questionObj.question_id]?.points != null
+            ? Number(roomQuestionsById[questionObj.question_id].points)
+            : null);
+
+    if (raw === "" || raw == null || Number.isNaN(points) || points < 0) {
       showToast("⚠️ Enter a valid, non-negative score.");
       return;
     }
-    if (maxPoints != null && points > maxPoints) {
-      showToast(`⚠️ Score can't exceed this question's ${maxPoints} points.`);
+    if (resolvedMaxPoints != null && points > resolvedMaxPoints) {
+      showToast(`⚠️ Score can't exceed this question's ${resolvedMaxPoints} points.`);
       return;
     }
 
     setSavingAnswerId(answerId);
     try {
-      const { error } = await supabase.rpc("set_manual_answer_score", {
-        p_answer_id: answerId,
-        p_points_earned: points,
-      });
-
-      if (error) {
-        console.error("Failed to save score:", error);
-        showToast("⚠️ Couldn't save that score — please try again.");
-        return;
+      // 1. Persist the answer score via host RPC
+      let rpcSucceeded = false;
+      try {
+        const { error: rpcErr } = await supabase.rpc("set_manual_answer_score", {
+          p_answer_id: answerId,
+          p_points_earned: points,
+        });
+        if (!rpcErr) {
+          rpcSucceeded = true;
+        } else {
+          console.warn("RPC set_manual_answer_score error, using direct table update fallback:", rpcErr);
+        }
+      } catch (rpcEx) {
+        console.warn("RPC invocation note:", rpcEx);
       }
+
+      // Fallback: direct table update if RPC failed
+      if (!rpcSucceeded) {
+        const { error: updErr } = await supabase
+          .from("pro_room_answers")
+          .update({
+            points_earned: points,
+            is_correct: points > 0,
+          })
+          .eq("id", answerId);
+
+        if (updErr) {
+          console.error("Direct update of pro_room_answers failed:", updErr);
+          showToast("⚠️ Couldn't save that score — please try again.");
+          return;
+        }
+      }
+
+      // 2. Update local submissionAnswers state
+      const existingAnswers = submissionAnswers[submissionId] || [];
+      const updatedAnswers = existingAnswers.map((a) =>
+        a.id === answerId
+          ? { ...a, points_earned: points, is_correct: points > 0 }
+          : a,
+      );
 
       setSubmissionAnswers((prev) => ({
         ...prev,
-        [submissionId]: (prev[submissionId] || []).map((a) =>
-          a.id === answerId
-            ? { ...a, points_earned: points, is_correct: points > 0 }
-            : a,
-        ),
+        [submissionId]: updatedAnswers,
       }));
-      showToast("✓ Score saved.");
+
+      // 3. Recalculate submission total score across all answers
+      const newTotalScore = updatedAnswers.reduce(
+        (sum, a) => sum + (Number(a.points_earned) || 0),
+        0
+      );
+
+      // 4. Calculate updated percentage against total possible points
+      const totalPossible =
+        Number(room?.total_possible_score) ||
+        Object.values(roomQuestionsById).reduce((sum, q) => sum + (Number(q?.points) || 0), 0) ||
+        0;
+
+      const newPercentage =
+        totalPossible > 0
+          ? Number(((newTotalScore / totalPossible) * 100).toFixed(2))
+          : null;
+
+      // 5. Update submission in local submissions state
+      const targetSub = submissions.find((s) => s.id === submissionId);
+      const userId = targetSub?.user_id;
+
+      setSubmissions((prev) =>
+        prev.map((s) => {
+          if (s.id === submissionId) {
+            return {
+              ...s,
+              total_score: newTotalScore,
+              ...(newPercentage != null ? { percentage: newPercentage } : {}),
+            };
+          }
+          return s;
+        })
+      );
+
+      // 6. Update pro_room_submissions in Supabase
+      const subUpdatePayload = {
+        total_score: newTotalScore,
+        ...(newPercentage != null ? { percentage: newPercentage } : {}),
+      };
+      supabase
+        .from("pro_room_submissions")
+        .update(subUpdatePayload)
+        .eq("id", submissionId)
+        .then(() => {})
+        .catch((err) => console.error("Error syncing pro_room_submissions total_score:", err));
+
+      // 7. Update local leaderboard state & Supabase pro_room_leaderboard
+      if (userId) {
+        setLeaderboard((prev) => {
+          let exists = false;
+          const updated = prev.map((lb) => {
+            if (lb.user_id === userId) {
+              exists = true;
+              return {
+                ...lb,
+                total_score: newTotalScore,
+                ...(newPercentage != null ? { percentage: newPercentage } : {}),
+              };
+            }
+            return lb;
+          });
+          if (!exists && targetSub) {
+            updated.push({
+              id: targetSub.id,
+              room_id: id,
+              user_id: userId,
+              profiles: targetSub.profiles,
+              total_score: newTotalScore,
+              percentage: newPercentage,
+              submitted_at: targetSub.submitted_at,
+            });
+          }
+          return updated.sort((a, b) => (b.total_score || 0) - (a.total_score || 0));
+        });
+
+        supabase
+          .from("pro_room_leaderboard")
+          .update({
+            total_score: newTotalScore,
+            ...(newPercentage != null ? { percentage: newPercentage } : {}),
+          })
+          .eq("room_id", id)
+          .eq("user_id", userId)
+          .then(() => {})
+          .catch((err) => console.error("Error syncing pro_room_leaderboard total_score:", err));
+      }
+
+      // 8. Exit override edit mode for this answer so the UI reflects the updated score view
+      setOverriddenAnswerIds((prev) => {
+        const next = new Set(prev);
+        next.delete(answerId);
+        return next;
+      });
+
+      showToast(`✓ Score updated to ${points} pts. Total: ${newTotalScore} pts.`);
     } catch (err) {
       console.error(err);
       showToast("⚠️ Couldn't save that score — please try again.");
@@ -2101,15 +2306,53 @@ const ProRoomDashboard = () => {
                                         <input
                                           type="number"
                                           min="0"
-                                          max={q?.points}
-                                          placeholder={`out of ${q?.points ?? "?"}`}
+                                          max={q?.points != null ? q.points : undefined}
+                                          placeholder={`0 - ${q?.points ?? "?"}`}
                                           value={manualScoreDrafts[a.id] ?? ""}
-                                          onChange={(e) =>
-                                            setManualScoreDrafts((prev) => ({
-                                              ...prev,
-                                              [a.id]: e.target.value,
-                                            }))
-                                          }
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val === "") {
+                                              setManualScoreDrafts((prev) => ({
+                                                ...prev,
+                                                [a.id]: "",
+                                              }));
+                                              return;
+                                            }
+                                            const maxPts = q?.points != null ? Number(q.points) : Infinity;
+                                            const num = Number(val);
+                                            if (!Number.isNaN(num)) {
+                                              if (num < 0) {
+                                                setManualScoreDrafts((prev) => ({
+                                                  ...prev,
+                                                  [a.id]: "0",
+                                                }));
+                                              } else if (num > maxPts) {
+                                                setManualScoreDrafts((prev) => ({
+                                                  ...prev,
+                                                  [a.id]: String(maxPts),
+                                                }));
+                                              } else {
+                                                setManualScoreDrafts((prev) => ({
+                                                  ...prev,
+                                                  [a.id]: val,
+                                                }));
+                                              }
+                                            }
+                                          }}
+                                          onBlur={() => {
+                                            const val = manualScoreDrafts[a.id];
+                                            if (val != null && val !== "") {
+                                              const num = Number(val);
+                                              const maxPts = q?.points != null ? Number(q.points) : Infinity;
+                                              if (!Number.isNaN(num)) {
+                                                const clamped = Math.max(0, Math.min(maxPts, num));
+                                                setManualScoreDrafts((prev) => ({
+                                                  ...prev,
+                                                  [a.id]: String(clamped),
+                                                }));
+                                              }
+                                            }
+                                          }}
                                           className="w-28 bg-[#12121e] border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs outline-none focus:border-[#00F0FF]"
                                         />
                                         <button
