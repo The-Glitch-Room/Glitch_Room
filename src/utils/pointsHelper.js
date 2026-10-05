@@ -646,23 +646,102 @@ export const saveSubmission = async (
 export const ensureSignupBonus = async (userId) => {
   if (!userId) return;
 
-  // Cheap same-session optimization only — NOT the source of truth.
-  // Skips a redundant network round trip if we already confirmed this
-  // in the current tab; the DB unique constraint below is what actually
-  // guarantees the bonus is only ever granted once, ever, per user.
   const storageKey = `signup_bonus_granted_${userId}`;
-  if (typeof window !== "undefined" && localStorage.getItem(storageKey)) {
-    return;
-  }
 
   try {
+    // 1. Direct DB verification: Has this user already claimed in signup_bonus_claims?
+    // Using the database as the true authority rather than browser localStorage.
+    const { data: claim } = await supabase
+      .from("signup_bonus_claims")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (claim?.user_id) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(storageKey, "true");
+      }
+      return; // Already recorded in DB claims table — do not award again.
+    }
+
+    // 2. Historical Ledger Check: Has this user ever received a welcome or signup bonus?
+    // Checks glitch_activity for any prior welcome/signup bonus entries.
+    const { data: activities } = await supabase
+      .from("glitch_activity")
+      .select("id, title, type")
+      .eq("user_id", userId);
+
+    if (activities && activities.length > 0) {
+      const alreadyHasBonus = activities.some(
+        (a) =>
+          a.type === "signup" ||
+          (a.title && /welcome\s*bonus|joining\s*bonus/i.test(a.title)),
+      );
+
+      // If they already have a welcome/signup bonus in the ledger,
+      // OR they have multiple historical activity rows (indicating an active existing user):
+      if (alreadyHasBonus || activities.length > 1) {
+        // Backfill their claim into signup_bonus_claims so this is permanently recorded
+        await supabase
+          .from("signup_bonus_claims")
+          .insert({ user_id: userId })
+          .catch(() => {});
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, "true");
+        }
+        return; // Existing user — do not award bonus again.
+      }
+    }
+
+    // 3. Existing Account Age / Points Verification
+    const { data: authData } = await supabase.auth.getUser();
+    const authUser = authData?.user;
+    if (authUser && authUser.id === userId && authUser.created_at) {
+      const createdAtMs = new Date(authUser.created_at).getTime();
+      const accountAgeHours = (Date.now() - createdAtMs) / (1000 * 60 * 60);
+
+      // If account was created more than 24h ago and already has any activities:
+      if (accountAgeHours > 24 && activities && activities.length > 0) {
+        await supabase
+          .from("signup_bonus_claims")
+          .insert({ user_id: userId })
+          .catch(() => {});
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, "true");
+        }
+        return;
+      }
+
+      // Check if profile points already reflect existing bonus
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("points")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (accountAgeHours > 24 && prof && (prof.points ?? 0) >= 100) {
+        await supabase
+          .from("signup_bonus_claims")
+          .insert({ user_id: userId })
+          .catch(() => {});
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, "true");
+        }
+        return;
+      }
+    }
+
+    // 4. Atomic Lock: Attempt to insert claim row into signup_bonus_claims
     const { error: claimErr } = await supabase
       .from("signup_bonus_claims")
       .insert({ user_id: userId });
 
     if (claimErr) {
       if (claimErr.code === "23505" || claimErr.message?.includes("unique")) {
-        // Already claimed (on this device or any other) — nothing to do.
+        // Already claimed concurrently or on another device
         if (typeof window !== "undefined") {
           localStorage.setItem(storageKey, "true");
         }
@@ -672,12 +751,11 @@ export const ensureSignupBonus = async (userId) => {
       return;
     }
 
-    // Claim row landed — this is genuinely the first time. Award via
-    // the real ledger, not a direct profiles write.
+    // 5. Genuine brand-new user with atomic lock confirmed: award joining bonus
     const newTotal = await updatePoints(
       100,
       "🎉 Welcome Bonus",
-      "bonus",
+      "signup",
       null,
       userId,
     );

@@ -63,9 +63,10 @@ export const AuthProvider = ({ children }) => {
         const currentUser = session?.user || null;
         setUser(currentUser);
         setLoading(false);
-        if (currentUser) ensureSignupBonus(currentUser.id);
 
         if (_event === "SIGNED_IN" && currentUser) {
+          ensureSignupBonus(currentUser.id);
+
           const savedRefCode = localStorage.getItem("gr_referral_code");
           if (savedRefCode) {
             linkReferralSignup(currentUser.id, savedRefCode)
