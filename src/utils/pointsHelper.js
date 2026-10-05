@@ -682,10 +682,9 @@ export const ensureSignupBonus = async (userId) => {
       // OR they have multiple historical activity rows (indicating an active existing user):
       if (alreadyHasBonus || activities.length > 1) {
         // Backfill their claim into signup_bonus_claims so this is permanently recorded
-        await supabase
-          .from("signup_bonus_claims")
-          .insert({ user_id: userId })
-          .catch(() => {});
+        try {
+          await supabase.from("signup_bonus_claims").insert({ user_id: userId });
+        } catch (_) {}
 
         if (typeof window !== "undefined") {
           localStorage.setItem(storageKey, "true");
@@ -703,10 +702,9 @@ export const ensureSignupBonus = async (userId) => {
 
       // If account was created more than 24h ago and already has any activities:
       if (accountAgeHours > 24 && activities && activities.length > 0) {
-        await supabase
-          .from("signup_bonus_claims")
-          .insert({ user_id: userId })
-          .catch(() => {});
+        try {
+          await supabase.from("signup_bonus_claims").insert({ user_id: userId });
+        } catch (_) {}
 
         if (typeof window !== "undefined") {
           localStorage.setItem(storageKey, "true");
@@ -722,10 +720,9 @@ export const ensureSignupBonus = async (userId) => {
         .maybeSingle();
 
       if (accountAgeHours > 24 && prof && (prof.points ?? 0) >= 100) {
-        await supabase
-          .from("signup_bonus_claims")
-          .insert({ user_id: userId })
-          .catch(() => {});
+        try {
+          await supabase.from("signup_bonus_claims").insert({ user_id: userId });
+        } catch (_) {}
 
         if (typeof window !== "undefined") {
           localStorage.setItem(storageKey, "true");

@@ -178,23 +178,23 @@ const JoinRoom = () => {
 
     try {
       if (roomItem.room_type === "professional") {
-        await supabase.from("pro_room_answers").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("pro_room_discussions").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("pro_room_help_tickets").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("pro_room_leaderboard").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("pro_room_submissions").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("pro_room_registrations").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("pro_room_announcements").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("pro_room_questions").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("pro_room_sections").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("pro_room_answers").delete().eq("room_id", roomItem.id);
+        await supabase.from("pro_room_discussions").delete().eq("room_id", roomItem.id);
+        await supabase.from("pro_room_help_tickets").delete().eq("room_id", roomItem.id);
+        await supabase.from("pro_room_leaderboard").delete().eq("room_id", roomItem.id);
+        await supabase.from("pro_room_submissions").delete().eq("room_id", roomItem.id);
+        await supabase.from("pro_room_registrations").delete().eq("room_id", roomItem.id);
+        await supabase.from("pro_room_announcements").delete().eq("room_id", roomItem.id);
+        await supabase.from("pro_room_questions").delete().eq("room_id", roomItem.id);
+        await supabase.from("pro_room_sections").delete().eq("room_id", roomItem.id);
         const { error } = await supabase.from("pro_rooms").delete().eq("id", roomItem.id);
         if (error) throw error;
       } else {
-        await supabase.from("room_notifications").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("room_events").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("room_buddies").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("room_checkins").delete().eq("room_id", roomItem.id).catch(() => {});
-        await supabase.from("room_members").delete().eq("room_id", roomItem.id).catch(() => {});
+        await supabase.from("room_notifications").delete().eq("room_id", roomItem.id);
+        await supabase.from("room_events").delete().eq("room_id", roomItem.id);
+        await supabase.from("room_buddies").delete().eq("room_id", roomItem.id);
+        await supabase.from("room_checkins").delete().eq("room_id", roomItem.id);
+        await supabase.from("room_members").delete().eq("room_id", roomItem.id);
         const { error } = await supabase.from("rooms").delete().eq("id", roomItem.id);
         if (error) throw error;
       }

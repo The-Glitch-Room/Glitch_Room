@@ -282,7 +282,9 @@ const DeleteModal = ({ onClose }) => {
       // Clear all local storage caches
       localStorage.clear();
       // Remove profile row if allowed
-      await supabase.from("profiles").delete().eq("id", userId).catch(() => {});
+      try {
+        await supabase.from("profiles").delete().eq("id", userId);
+      } catch (_) {}
     }
 
     await supabase.auth.signOut();
