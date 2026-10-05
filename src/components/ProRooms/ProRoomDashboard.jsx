@@ -35,6 +35,7 @@ import { supabase } from "../../supabaseClient";
 import { updatePoints } from "../../utils/pointsHelper";
 import CustomSelect from "../CustomSelect";
 import { evaluateBatchShortAnswers } from "../../utils/semanticGrading";
+import { getProRoomLifecycleState } from "./ProRoomCard";
 
 // Shows what a candidate actually submitted for one answer, shaped by the
 // question's type — a code block for coding-family questions, a link for
@@ -197,6 +198,33 @@ const ProRoomDashboard = () => {
   const [checkingReadiness, setCheckingReadiness] = useState(false);
   const [bulkFinalizing, setBulkFinalizing] = useState(false);
 
+  const [currentTick, setCurrentTick] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTick(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const lifecycle = useMemo(
+    () => getProRoomLifecycleState(room),
+    [room, currentTick],
+  );
+
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return "TBD";
+    try {
+      return new Date(dateStr).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return "TBD";
+    }
+  };
+
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3500);
@@ -216,7 +244,27 @@ const ProRoomDashboard = () => {
         .eq("id", id)
         .maybeSingle();
 
-      if (roomData) setRoom(roomData);
+      if (roomData) {
+        setRoom(roomData);
+
+        // Keep database status column aligned with dynamic lifecycle state if not manual terminal state
+        const computedState = getProRoomLifecycleState(roomData);
+        if (
+          roomData.status !== "draft" &&
+          roomData.status !== "results_published" &&
+          roomData.status !== "evaluation" &&
+          roomData.status !== "completed" &&
+          computedState.key &&
+          computedState.key !== roomData.status
+        ) {
+          supabase
+            .from("pro_rooms")
+            .update({ status: computedState.key })
+            .eq("id", id)
+            .then(() => {})
+            .catch((err) => console.warn("Failed to sync room status:", err));
+        }
+      }
 
       // Not the host — stop here. Do not fetch registrations/submissions/
       // leaderboard, so this data never even lands in memory for a non-host.
@@ -923,9 +971,10 @@ const ProRoomDashboard = () => {
       return;
     }
 
-    const confirmPub = window.confirm(
-      "Publish Assessment Results to Candidates?\n\nThis will finalize deterministic rankings and make scores, percentages, and the official leaderboard visible to all participants."
-    );
+    const confirmMessage = lifecycle.isLive
+      ? "Warning: This event is currently LIVE and in progress.\n\nPublishing results now will finalize rankings and make scores public while candidates might still be participating.\n\nAre you sure you want to publish results now?"
+      : "Publish Assessment Results to Candidates?\n\nThis will finalize deterministic rankings and make scores, percentages, and the official leaderboard visible to all participants.";
+    const confirmPub = window.confirm(confirmMessage);
     if (!confirmPub) return;
 
     setPublishing(true);
@@ -1638,12 +1687,29 @@ const ProRoomDashboard = () => {
             <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
               {room?.name || "Pro Room Dashboard"}
             </h1>
-            <p className="text-xs text-gray-400 mt-1">
-              {room?.org_name || "Glitch Room"} • Status:{" "}
-              <span className="text-[#00F0FF] font-bold uppercase">
-                {room?.status || "Live"}
+            <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-gray-400">
+              <span>{room?.org_name || "Glitch Room"}</span>
+              <span>•</span>
+              <span className="text-gray-400">Status:</span>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
+                  lifecycle.isLive
+                    ? "bg-red-500/15 text-red-400 border-red-500/30 animate-pulse"
+                    : lifecycle.color === "emerald"
+                    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                    : lifecycle.color === "purple"
+                    ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
+                    : lifecycle.color === "amber"
+                    ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                    : lifecycle.color === "gray"
+                    ? "bg-zinc-800/80 text-zinc-300 border-zinc-600/50"
+                    : "bg-[#00F0FF]/15 text-[#00F0FF] border-[#00F0FF]/30"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${lifecycle.dotClass}`} />
+                {lifecycle.label}
               </span>
-            </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -1655,7 +1721,12 @@ const ProRoomDashboard = () => {
             </button>
 
             {/* ACTION 1: Results Publication */}
-            {room?.status !== "results_published" ? (
+            {lifecycle.key === "results_published" || room?.status === "results_published" ? (
+              <div className="px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold font-mono flex items-center gap-1.5">
+                <CheckCircle size={14} />
+                <span>Results Published</span>
+              </div>
+            ) : (
               <button
                 onClick={handlePublishResultsOnly}
                 disabled={publishing}
@@ -1664,11 +1735,6 @@ const ProRoomDashboard = () => {
                 <Eye size={14} />
                 <span>Publish Results</span>
               </button>
-            ) : (
-              <div className="px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold font-mono flex items-center gap-1.5">
-                <CheckCircle size={14} />
-                <span>Results Published</span>
-              </div>
             )}
 
             {/* ACTION 2: Awards & Certificates Distribution */}
@@ -1694,8 +1760,34 @@ const ProRoomDashboard = () => {
           </div>
         </div>
 
-        {/* Action Needed Banners */}
-        {room?.status !== "results_published" ? (
+        {/* Action Needed / Dynamic Lifecycle Banners */}
+        {lifecycle.key === "results_published" || room?.status === "results_published" ? (
+          !room?.rewards_distributed ? (
+            <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-transparent border border-yellow-500/40 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-yellow-400/20 border border-yellow-400/40 flex items-center justify-center text-yellow-400 shrink-0">
+                  <Gift size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Results Are Published — Rewards & Certificates Pending</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 font-mono font-bold">Action Required</span>
+                  </h4>
+                  <p className="text-xs text-gray-300">
+                    Rankings are visible to candidates, but prize pool gBits and digital certificates have not been disbursed yet.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handlePublishResults}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black text-xs transition shadow-lg shadow-yellow-500/20 cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0"
+              >
+                <Sparkles size={14} />
+                <span>Distribute Rewards & Certs Now</span>
+              </button>
+            </div>
+          ) : null
+        ) : lifecycle.isCompleted ? (
           <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-[#00F0FF]/10 to-transparent border border-[#00F0FF]/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/20 border border-[#00F0FF]/40 flex items-center justify-center text-[#00F0FF] shrink-0">
@@ -1703,11 +1795,11 @@ const ProRoomDashboard = () => {
               </div>
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Results Awaiting Publication</span>
+                  <span>Event Concluded — Results Awaiting Publication</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] font-mono font-bold">Action Needed</span>
                 </h4>
                 <p className="text-xs text-gray-300">
-                  Submissions and automated scoring are complete. Click "Publish Results" to reveal scores, percentages, and the official leaderboard to candidates.
+                  The event has ended with {totalSubs} candidate submission{totalSubs === 1 ? "" : "s"}. Review scores and click "Publish Results" to reveal rankings and leaderboard to candidates.
                 </p>
               </div>
             </div>
@@ -1720,28 +1812,78 @@ const ProRoomDashboard = () => {
               <span>Publish Results Now</span>
             </button>
           </div>
-        ) : !room?.rewards_distributed ? (
-          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-transparent border border-yellow-500/40 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+        ) : lifecycle.isLive ? (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-red-500/20 via-cyan-500/10 to-transparent border border-red-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-yellow-400/20 border border-yellow-400/40 flex items-center justify-center text-yellow-400 shrink-0">
-                <Gift size={20} />
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                <Zap size={20} className="animate-pulse" />
               </div>
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Results Are Published — Rewards & Certificates Pending</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 font-mono font-bold">Action Required</span>
+                  <span>Event Is Currently Live & In Progress</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-mono font-bold animate-pulse">● Live Now</span>
                 </h4>
                 <p className="text-xs text-gray-300">
-                  Rankings are visible to candidates, but prize pool gBits and digital certificates have not been disbursed yet.
+                  Participants are actively submitting solutions ({totalSubs} submission{totalSubs === 1 ? "" : "s"} received). The event runs until {formatDateTime(room?.event_end_at)}.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab("grading")}
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold text-xs transition cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+              >
+                <Code2 size={14} className="text-[#00F0FF]" />
+                <span>Monitor Submissions ({totalSubs})</span>
+              </button>
+            </div>
+          </div>
+        ) : lifecycle.key === "registration_closed" ? (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-transparent border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <Clock size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Registration Closed — Preparing For Launch</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold">Registration Closed</span>
+                </h4>
+                <p className="text-xs text-gray-300">
+                  Registration closed on {formatDateTime(room?.reg_end_at)} with {totalRegs} registered participant{totalRegs === 1 ? "" : "s"}. The event begins on {formatDateTime(room?.event_start_at)}.
                 </p>
               </div>
             </div>
             <button
-              onClick={handlePublishResults}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black text-xs transition shadow-lg shadow-yellow-500/20 cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0"
+              onClick={() => setActiveTab("candidates")}
+              className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition cursor-pointer whitespace-nowrap flex items-center gap-1.5"
             >
-              <Sparkles size={14} />
-              <span>Distribute Rewards & Certs Now</span>
+              <Users size={14} />
+              <span>Review Candidates ({totalRegs})</span>
+            </button>
+          </div>
+        ) : lifecycle.key === "registration_open" ? (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent border border-emerald-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                <Users size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Registration Is Currently Open</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold">Accepting Registrations</span>
+                </h4>
+                <p className="text-xs text-gray-300">
+                  Candidates can register until {formatDateTime(room?.reg_end_at)}. Current registered candidates: {totalRegs}.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveTab("candidates")}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs transition cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+            >
+              <Users size={14} />
+              <span>Manage Registrations ({totalRegs})</span>
             </button>
           </div>
         ) : null}
@@ -1892,8 +2034,9 @@ const ProRoomDashboard = () => {
                     <span className="text-gray-500 text-xs block">
                       Room Status
                     </span>
-                    <span className="text-sm font-bold text-cyan-300 uppercase mt-2 block truncate">
-                      {room?.status || "Live"}
+                    <span className={`text-sm font-bold uppercase mt-2 flex items-center gap-2 truncate ${lifecycle.textClass}`}>
+                      <span className={`w-2 h-2 rounded-full ${lifecycle.dotClass} shrink-0`} />
+                      {lifecycle.label}
                     </span>
                   </div>
                 </div>

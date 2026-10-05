@@ -55,43 +55,51 @@ export const getProRoomLifecycleState = (room) => {
   const isRegOpen =
     !isDraft &&
     !isCompleted &&
+    !isLive &&
     !!(regStart && now >= regStart && (!regEnd || now <= regEnd));
 
   if (isDraft) {
     return {
-      label: "✏️ DRAFT",
+      label: "DRAFT",
       color: "amber",
       isLive: false,
       key: "draft",
       isUpcoming: false,
       isRegOpen: false,
       isCompleted: false,
+      dotClass: "bg-amber-400",
+      textClass: "text-amber-400",
     };
   }
   if (isCompleted) {
-    let label = "COMPLETED";
+    let label = "ENDED";
     if (room.status === "results_published") label = "RESULTS PUBLISHED";
     else if (room.status === "evaluation") label = "EVALUATION";
-    else if (eventEnd && now > eventEnd) label = "SUBMISSION CLOSED";
+    else if (room.status === "completed") label = "COMPLETED";
+    else if (eventEnd && now > eventEnd) label = "ENDED";
     return {
       label,
-      color: "gray",
+      color: room.status === "results_published" ? "emerald" : "gray",
       isLive: false,
-      key: "completed",
+      key: room.status === "results_published" ? "results_published" : "ended",
       isUpcoming: false,
       isRegOpen: false,
       isCompleted: true,
+      dotClass: room.status === "results_published" ? "bg-[#00F0FF]" : "bg-zinc-400",
+      textClass: room.status === "results_published" ? "text-[#00F0FF]" : "text-zinc-400",
     };
   }
   if (isLive) {
     return {
-      label: "🔴 LIVE",
+      label: "LIVE / IN PROGRESS",
       color: "red",
       isLive: true,
       key: "live",
       isUpcoming: false,
       isRegOpen: false,
       isCompleted: false,
+      dotClass: "bg-red-500 animate-pulse",
+      textClass: "text-red-400",
     };
   }
   if (isRegOpen) {
@@ -103,17 +111,21 @@ export const getProRoomLifecycleState = (room) => {
       isUpcoming,
       isRegOpen: true,
       isCompleted: false,
+      dotClass: "bg-emerald-400",
+      textClass: "text-emerald-400",
     };
   }
   if (regStart && now < regStart) {
     return {
-      label: "REGISTRATION NOT OPEN",
+      label: "REGISTRATION UPCOMING",
       color: "purple",
       isLive: false,
       key: "before_registration",
       isUpcoming,
       isRegOpen: false,
       isCompleted: false,
+      dotClass: "bg-purple-400",
+      textClass: "text-purple-400",
     };
   }
   if (regEnd && now > regEnd && (!eventStart || now < eventStart)) {
@@ -125,6 +137,8 @@ export const getProRoomLifecycleState = (room) => {
       isUpcoming,
       isRegOpen: false,
       isCompleted: false,
+      dotClass: "bg-amber-400",
+      textClass: "text-amber-400",
     };
   }
   return {
@@ -135,6 +149,8 @@ export const getProRoomLifecycleState = (room) => {
     isUpcoming: true,
     isRegOpen: false,
     isCompleted: false,
+    dotClass: "bg-purple-400",
+    textClass: "text-purple-400",
   };
 };
 
