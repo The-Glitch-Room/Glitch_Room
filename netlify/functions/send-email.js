@@ -1,7 +1,17 @@
 // netlify/functions/send-email.js
 // Netlify Serverless Backend Handler for Resend API
+// NOTE: Email notifications & Resend integration are disabled for now (Coming Soon).
+// The existing implementation is safely preserved below for future activation.
 
 export async function handler(event) {
+  // Early return: email dispatch is disabled (Coming Soon)
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "Email notifications are disabled (Coming Soon)." }),
+  };
+
+  /* ── Preserved for future implementation ──
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: JSON.stringify({ error: "Method Not Allowed" }) };
   }
@@ -53,4 +63,5 @@ export async function handler(event) {
       body: JSON.stringify({ error: err.message }),
     };
   }
+  ────────────────────────────────────────── */
 }

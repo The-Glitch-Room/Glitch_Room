@@ -1131,12 +1131,13 @@ const CreatorRoomDetail = ({ roomId }) => {
         },
       ]);
 
-      // 2. Email Integration Architecture Hook
+      /* ── Email Integration Architecture Hook (Disabled for now - Coming Soon) ──
       if (emailNotifsEnabled) {
         console.log(
           `[Email Notification Dispatch] Target: ${targetUserId || "All Members"} | Subject: ${title} | ${message}`,
         );
       }
+      ─────────────────────────────────────────────────────────────────────────── */
     } catch (e) {
       console.warn("Notification dispatch notice:", e);
     }
@@ -1516,7 +1517,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       // Real-time local refresh
       fetchAllRoomData();
 
-      // Trigger Resend Email Dispatch
+      /* ── Email / Resend Dispatch (Disabled for now - Coming Soon) ──
       const { data: auUser } = await supabase.auth.getUser();
       if (auUser?.user?.email) {
         sendStandupDigestEmail({
@@ -1527,6 +1528,7 @@ const CreatorRoomDetail = ({ roomId }) => {
           proofUrl: finalProofUrl,
         });
       }
+      ───────────────────────────────────────────────────────────── */
 
       showToast(`✅ Daily Standup logged! +${CHECKIN_REWARD} gBits awarded!`);
       setAccomplishment("");
@@ -4914,6 +4916,7 @@ const CreatorRoomDetail = ({ roomId }) => {
                         `glitch_email_prefs_${id}`,
                         JSON.stringify({ enabled: emailNotifsEnabled }),
                       );
+                      /* ── Email Confirmation Dispatch (Disabled for now - Coming Soon) ──
                       const { data: au } = await supabase.auth.getUser();
                       const userEmail = au?.user?.email;
                       if (emailNotifsEnabled && userEmail) {
@@ -4924,6 +4927,8 @@ const CreatorRoomDetail = ({ roomId }) => {
                       } else {
                         showToast("Email notification preferences saved!");
                       }
+                      ─────────────────────────────────────────────────────────────────── */
+                      showToast("Email notification preferences saved!");
                       setShowEmailPrefsModal(false);
                     }}
                     className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-600/25 cursor-pointer"

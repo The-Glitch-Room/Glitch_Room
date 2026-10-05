@@ -1,7 +1,17 @@
 // src/services/emailService.js
 // Handles live transactional email dispatching via Netlify Serverless Function & Resend API
+// NOTE: Email notifications & Resend integration are disabled for now (Coming Soon).
+// The existing implementation is safely preserved below for future activation.
+
+export const EMAIL_NOTIFICATIONS_ENABLED = false;
 
 export const sendResendEmail = async ({ to, subject, html }) => {
+  if (!EMAIL_NOTIFICATIONS_ENABLED) {
+    // Email dispatch disabled - zero network requests or Resend calls
+    return { success: false, disabled: true, message: "Email notifications are disabled (Coming Soon)" };
+  }
+
+  /* ── Preserved for future implementation ──
   try {
     // 1. Try Netlify Backend Function (Bypasses CORS restrictions)
     const netlifyRes = await fetch("/.netlify/functions/send-email", {
@@ -46,9 +56,15 @@ export const sendResendEmail = async ({ to, subject, html }) => {
     console.log("Email dispatch notice: Serverless backend required for email delivery.");
     return { success: false, error: err.message };
   }
+  ────────────────────────────────────────── */
 };
 
 export const sendStandupDigestEmail = async ({ toEmail, username, roomTitle, accomplishment, proofUrl }) => {
+  if (!EMAIL_NOTIFICATIONS_ENABLED) {
+    return { success: false, disabled: true };
+  }
+
+  /* ── Preserved for future implementation ──
   return sendResendEmail({
     to: toEmail,
     subject: `⚡ Daily Standup Activity: ${roomTitle}`,
@@ -74,9 +90,15 @@ export const sendStandupDigestEmail = async ({ toEmail, username, roomTitle, acc
       </div>
     `,
   });
+  ────────────────────────────────────────── */
 };
 
 export const sendTestConfirmationEmail = async (toEmail) => {
+  if (!EMAIL_NOTIFICATIONS_ENABLED) {
+    return { success: false, disabled: true };
+  }
+
+  /* ── Preserved for future implementation ──
   return sendResendEmail({
     to: toEmail,
     subject: "✅ Glitch Room Email Notifications Activated",
@@ -92,4 +114,5 @@ export const sendTestConfirmationEmail = async (toEmail) => {
       </div>
     `,
   });
+  ────────────────────────────────────────── */
 };

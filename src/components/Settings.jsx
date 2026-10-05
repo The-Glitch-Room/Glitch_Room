@@ -736,13 +736,22 @@ const Settings = () => {
             delay={0.15}
           >
             <SettingRow
-              label="Email Notifications"
+              label={
+                <span className="flex items-center gap-2">
+                  Email Notifications
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                    Coming Soon
+                  </span>
+                </span>
+              }
               desc="Receive activity updates and challenge news via email"
             >
-              <Toggle
-                enabled={toggles.emailNotifs}
-                onToggle={() => toggleSetting("emailNotifs")}
-              />
+              <div className="flex items-center gap-2 opacity-50 cursor-not-allowed">
+                <Toggle
+                  enabled={false}
+                  onToggle={() => {}}
+                />
+              </div>
             </SettingRow>
 
             <SettingRow
