@@ -11,6 +11,16 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authInitialView, setAuthInitialView] = useState("login");
+  const [activeReferralCode, setActiveReferralCode] = useState(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const ref = urlParams.get("ref");
+      if (ref) return ref.trim().toUpperCase();
+      return localStorage.getItem("gr_referral_code") || null;
+    }
+    return null;
+  });
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
@@ -18,7 +28,9 @@ export const AuthProvider = ({ children }) => {
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get("ref");
     if (refCode) {
-      localStorage.setItem("gr_referral_code", refCode.trim().toUpperCase());
+      const cleanRef = refCode.trim().toUpperCase();
+      localStorage.setItem("gr_referral_code", cleanRef);
+      setActiveReferralCode(cleanRef);
     }
 
     // Handle URL hash error parameters (e.g., expired confirmation links)
@@ -28,6 +40,7 @@ export const AuthProvider = ({ children }) => {
         const errorDesc = hashParams.get("error_description");
         if (errorDesc) {
           const cleanErr = decodeURIComponent(errorDesc).replace(/\+/g, " ");
+          setAuthInitialView("login");
           setIsAuthOpen(true);
           setTimeout(() => {
             window.dispatchEvent(
@@ -50,7 +63,17 @@ export const AuthProvider = ({ children }) => {
         const u = session?.user || null;
         setUser(u);
         setLoading(false);
-        if (u) ensureSignupBonus(u.id);
+        if (u) {
+          ensureSignupBonus(u.id);
+        } else if (refCode || localStorage.getItem("gr_referral_code")) {
+          // If unauthenticated and arrived via referral link, auto-open AuthModal in signup mode
+          if (refCode) {
+            setAuthInitialView("signup");
+            setTimeout(() => {
+              setIsAuthOpen(true);
+            }, 600);
+          }
+        }
       })
       .catch((err) => {
         console.error("Auth session check error:", err);
@@ -67,10 +90,15 @@ export const AuthProvider = ({ children }) => {
         if (_event === "SIGNED_IN" && currentUser) {
           ensureSignupBonus(currentUser.id);
 
-          const savedRefCode = localStorage.getItem("gr_referral_code");
+          const savedRefCode =
+            localStorage.getItem("gr_referral_code") ||
+            currentUser.user_metadata?.referral_code;
           if (savedRefCode) {
             linkReferralSignup(currentUser.id, savedRefCode)
-              .then(() => localStorage.removeItem("gr_referral_code"))
+              .then(() => {
+                localStorage.removeItem("gr_referral_code");
+                setActiveReferralCode(null);
+              })
               .catch((e) => console.error("Referral linking error:", e));
           }
 
@@ -94,7 +122,11 @@ export const AuthProvider = ({ children }) => {
       }
     );
 
-    const handleOpenAuth = () => setIsAuthOpen(true);
+    const handleOpenAuth = (e) => {
+      const targetView = e?.detail?.view || "login";
+      setAuthInitialView(targetView);
+      setIsAuthOpen(true);
+    };
     const handleTriggerOnboarding = () => setShowOnboarding(true);
 
     window.addEventListener("open_auth_modal", handleOpenAuth);
@@ -107,8 +139,14 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const openAuth = () => setIsAuthOpen(true);
-  const closeAuth = () => setIsAuthOpen(false);
+  const openAuth = (view = "login") => {
+    setAuthInitialView(view);
+    setIsAuthOpen(true);
+  };
+  const closeAuth = () => {
+    setIsAuthOpen(false);
+    setAuthInitialView("login");
+  };
 
   const finishOnboarding = () => {
     if (user) {
@@ -118,9 +156,22 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, openAuth, closeAuth }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        openAuth,
+        closeAuth,
+        referralCode: activeReferralCode,
+      }}
+    >
       {children}
-      <AuthModal isOpen={isAuthOpen} onClose={closeAuth} />
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={closeAuth}
+        initialView={authInitialView}
+        referralCode={activeReferralCode}
+      />
       {showOnboarding && <Onboarding onFinish={finishOnboarding} />}
     </AuthContext.Provider>
   );

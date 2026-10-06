@@ -91,6 +91,12 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// ── Referral & Auth entry redirect ──────────────────────────────────────────
+const AuthRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/${location.search}`} replace />;
+};
+
 // ── Admin-only Route wrapper ───────────────────────────────────────────────
 const AdminRoute = ({ children }) => {
   const { user, loading, openAuth } = useAuth();
@@ -207,6 +213,7 @@ const AnimatedRoutes = () => {
         <Routes location={location} key={location.pathname}>
         {/* ── Public routes ── */}
         <Route path="/" element={<Home />} />
+        <Route path="/auth" element={<AuthRedirect />} />
         <Route path="/about" element={<About />} />
         <Route path="/explore" element={<Explore />} />
         <Route path="/handbook" element={<HandbookPage />} />

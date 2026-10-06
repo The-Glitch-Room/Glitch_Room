@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { updatePoints, ensureSignupBonus } from "../utils/pointsHelper";
+import { linkReferralSignup } from "../utils/referralHelper";
 import {
   FiUser,
   FiMail,
@@ -14,9 +15,14 @@ import {
 } from "react-icons/fi";
 
 // view: "login" | "signup" | "forgot"
-const AuthModal = ({ isOpen, onClose }) => {
+const AuthModal = ({
+  isOpen,
+  onClose,
+  initialView = "login",
+  referralCode = null,
+}) => {
   const navigate = useNavigate();
-  const [view, setView] = useState("login");
+  const [view, setView] = useState(initialView || "login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +31,20 @@ const AuthModal = ({ isOpen, onClose }) => {
   const [confirmedEmail, setConfirmedEmail] = useState("");
   const [resendMsg, setResendMsg] = useState("");
 
-    const isSubmittingRef = useRef(false);
+  const isSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setView(initialView || "login");
+      setError("");
+    }
+  }, [isOpen, initialView]);
+
+  const effectiveReferralCode =
+    referralCode ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("gr_referral_code")
+      : null);
 
   const formatAuthError = (msg) => {
     if (!msg) return "An error occurred. Please try again.";
@@ -117,11 +136,18 @@ const AuthModal = ({ isOpen, onClose }) => {
         }
 
         const redirectUrl = `${window.location.origin}`;
+        const refToUse = effectiveReferralCode
+          ? effectiveReferralCode.trim().toUpperCase()
+          : null;
+
         const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { full_name: fullName },
+            data: {
+              full_name: fullName,
+              ...(refToUse ? { referral_code: refToUse } : {}),
+            },
             emailRedirectTo: redirectUrl,
           },
         });
@@ -161,6 +187,10 @@ const AuthModal = ({ isOpen, onClose }) => {
             if (!profileErr) {
               if (signUpData?.session) {
                 await ensureSignupBonus(newUserId);
+                if (refToUse) {
+                  await linkReferralSignup(newUserId, refToUse);
+                  localStorage.removeItem("gr_referral_code");
+                }
               }
               break;
             }
@@ -502,6 +532,29 @@ const AuthModal = ({ isOpen, onClose }) => {
                         </button>
                       ))}
                     </div>
+
+                    {/* Referral Invitation Banner */}
+                    {view === "signup" && effectiveReferralCode && (
+                      <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-[#FF00C8]/10 via-[#00F0FF]/10 to-[#FF00C8]/10 border border-[#00F0FF]/30 flex items-start gap-3 text-left">
+                        <div className="w-8 h-8 rounded-lg bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center shrink-0 text-[#00F0FF] text-base">
+                          🎁
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold tracking-wider uppercase text-[#00F0FF]">
+                              Special Invite
+                            </span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/10 text-cyan-200 border border-white/10">
+                              {effectiveReferralCode}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-200 mt-1 leading-snug">
+                            You've been invited to Glitch Room! Sign up and solve your first challenge to earn{" "}
+                            <span className="text-[#00F0FF] font-semibold">+25 bonus gBits</span>.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Error */}
                     {error && (
