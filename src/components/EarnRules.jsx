@@ -323,8 +323,8 @@ const EarnRules = () => {
                     <div className="text-[10px] font-mono text-[#a855f7] font-bold uppercase tracking-wider">
                       Level {item.level}
                     </div>
-                    <div className="text-sm font-mono font-bold text-white">
-                      {item.minXP} gBits
+                    <div className="text-sm font-mono font-bold text-white whitespace-nowrap">
+                      {item.thresholdLabel || `${item.minXP.toLocaleString()} gBits`}
                     </div>
                     <div className="text-[10px] text-gray-500 font-sans truncate">
                       {item.title}

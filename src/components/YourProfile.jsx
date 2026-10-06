@@ -17,7 +17,12 @@ import Navbar from "./Navbar";
 import GlitchBackground from "./GlitchBackground";
 import SharedSidebar from "./SharedSidebar";
 import Footer from "./Footer";
-import { getLevelFromXP, fetchPoints } from "../utils/pointsHelper";
+import {
+  getLevelFromXP,
+  getLevelTitle,
+  getLevelBadgeClass,
+  fetchPoints,
+} from "../utils/pointsHelper";
 import GlitchCertificateModal from "./ProRooms/GlitchCertificateModal";
 
 // ── Preset Banners Config ───────────────────────────────────────────────────
@@ -831,6 +836,8 @@ export default function YourProfile() {
 
   const xp = profile?.points || 0;
   const level = getLevelFromXP(xp);
+  const levelTitle = getLevelTitle(level);
+  const levelBadgeClass = getLevelBadgeClass(level);
   const username = profile?.username || profile?.full_name || "Anonymous Glitcher";
   const initials = username.slice(0, 2).toUpperCase();
 
@@ -1461,16 +1468,18 @@ export default function YourProfile() {
 
               {/* 3. PRO Pill Badge + Name + Tagline + About + Hobbies with generous spacing */}
               <div className="mt-6 mb-6">
-                {/* Badges Row with larger, more readable sizes & spacing */}
+                {/* Badges Row with dynamic level title & gBits */}
                 <div className="flex flex-wrap items-center gap-3 mb-4">
-                  <span className="bg-[#FF00C8] text-white font-black text-xs px-3.5 py-1 rounded-md uppercase tracking-wider shadow-md">
-                    PRO
+                  <span
+                    className={`font-black text-xs px-3.5 py-1 rounded-md uppercase tracking-wider shadow-md ${levelBadgeClass}`}
+                  >
+                    {levelTitle}
                   </span>
                   <span className="bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] font-bold text-xs px-3.5 py-1 rounded-md uppercase tracking-wider shadow-sm">
                     LEVEL {level}
                   </span>
                   <span className="bg-white/5 border border-white/10 text-gray-200 font-bold text-xs px-3.5 py-1 rounded-md flex items-center gap-1.5 shadow-sm font-mono">
-                    <Zap size={13} className="text-[#00F0FF]" /> {xp} gBits
+                    <Zap size={13} className="text-[#00F0FF]" /> {xp.toLocaleString()} gBits
                   </span>
                 </div>
 

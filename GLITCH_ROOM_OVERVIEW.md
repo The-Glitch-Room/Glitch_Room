@@ -29,12 +29,12 @@ Developers solve real-world bugs, diagnose complex software anomalies, engage in
 - **Single Source of Truth**: All point transactions write to `glitch_activity`.
 - **Database Trigger Automation**: A Postgres database trigger (`trg_sync_points_after_activity_insert`) automatically sums points into `user_points` and syncs `profiles.points` within the same transaction.
 - **Leveling Hierarchy**:
-  - **Level 0**: Newbie Glitcher (0 – 249 gBits)
-  - **Level 1**: Bug Hunter (250 – 499 gBits)
-  - **Level 2**: Code Breaker (500 – 999 gBits)
-  - **Level 3**: Cyber Phantom (1,000 – 1,999 gBits)
-  - **Level 4**: Glitch Architect (2,000 – 4,999 gBits)
-  - **Level 5**: Master Anomaly (5,000+ gBits - MAX)
+  - **Level 0**: Newbie Glitcher (0 – 499 gBits)
+  - **Level 1**: Bug Hunter (500 – 1,499 gBits)
+  - **Level 2**: Code Breaker (1,500 – 3,499 gBits)
+  - **Level 3**: Cyber Phantom (3,500 – 6,999 gBits)
+  - **Level 4**: Glitch Architect (7,000 – 14,999 gBits)
+  - **Level 5**: Master Anomaly (15,000+ gBits - MAX)
 
 ### 🤖 AI Evaluation System
 - **Edge Function Integration**: User answers are submitted to `ai-feedback-edge-function` alongside the challenge title, scenario description, buggy code snippet, and reference solution baseline.

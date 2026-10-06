@@ -4,28 +4,88 @@ import { checkAndAwardReferralBonus } from "./referralHelper";
 
 // ── Level Config & Constants ────────────────────────────────────────────────
 export const LEVEL_THRESHOLDS = [
-  { level: 0, title: "Newbie Glitcher", minXP: 0, maxXP: 250 },
-  { level: 1, title: "Bug Hunter", minXP: 250, maxXP: 500 },
-  { level: 2, title: "Code Breaker", minXP: 500, maxXP: 1000 },
-  { level: 3, title: "Cyber Phantom", minXP: 1000, maxXP: 2000 },
-  { level: 4, title: "Glitch Architect", minXP: 2000, maxXP: 5000 },
-  { level: 5, title: "Master Anomaly", minXP: 5000, maxXP: Infinity },
+  {
+    level: 0,
+    title: "Newbie Glitcher",
+    minXP: 0,
+    maxXP: 500,
+    thresholdLabel: "0–499 gBits",
+    badgeClass: "bg-zinc-800/80 border border-zinc-700 text-zinc-300",
+    color: "#a1a1aa",
+  },
+  {
+    level: 1,
+    title: "Bug Hunter",
+    minXP: 500,
+    maxXP: 1500,
+    thresholdLabel: "500–1,499 gBits",
+    badgeClass: "bg-emerald-500/15 border border-emerald-500/40 text-emerald-400",
+    color: "#10b981",
+  },
+  {
+    level: 2,
+    title: "Code Breaker",
+    minXP: 1500,
+    maxXP: 3500,
+    thresholdLabel: "1,500–3,499 gBits",
+    badgeClass: "bg-blue-500/15 border border-blue-500/40 text-blue-400",
+    color: "#3b82f6",
+  },
+  {
+    level: 3,
+    title: "Cyber Phantom",
+    minXP: 3500,
+    maxXP: 7000,
+    thresholdLabel: "3,500–6,999 gBits",
+    badgeClass: "bg-purple-500/15 border border-purple-500/40 text-purple-300",
+    color: "#a855f7",
+  },
+  {
+    level: 4,
+    title: "Glitch Architect",
+    minXP: 7000,
+    maxXP: 15000,
+    thresholdLabel: "7,000–14,999 gBits",
+    badgeClass: "bg-cyan-500/15 border border-cyan-500/40 text-cyan-300",
+    color: "#00F0FF",
+  },
+  {
+    level: 5,
+    title: "Master Anomaly",
+    minXP: 15000,
+    maxXP: Infinity,
+    thresholdLabel: "15,000+ gBits",
+    badgeClass: "bg-gradient-to-r from-[#FF00C8] to-[#9900f0] text-white border border-[#FF00C8]/50 shadow-[0_0_12px_rgba(255,0,200,0.4)]",
+    color: "#FF00C8",
+  },
 ];
 
 export const getLevelFromXP = (xp = 0) => {
   const safeXP = Math.max(0, Number(xp) || 0);
-  if (safeXP >= 5000) return 5;
-  if (safeXP >= 2000) return 4;
-  if (safeXP >= 1000) return 3;
-  if (safeXP >= 500) return 2;
-  if (safeXP >= 250) return 1;
+  if (safeXP >= 15000) return 5;
+  if (safeXP >= 7000) return 4;
+  if (safeXP >= 3500) return 3;
+  if (safeXP >= 1500) return 2;
+  if (safeXP >= 500) return 1;
   return 0;
 };
 
-export const getLevelTitle = (level = 0) => {
-  const lvl = Math.min(5, Math.max(0, Number(level) || 0));
+export const getLevelTitle = (levelOrXP = 0) => {
+  const lvl =
+    typeof levelOrXP === "number" && levelOrXP > 5
+      ? getLevelFromXP(levelOrXP)
+      : Math.min(5, Math.max(0, Number(levelOrXP) || 0));
   const found = LEVEL_THRESHOLDS.find((t) => t.level === lvl);
   return found ? found.title : "Newbie Glitcher";
+};
+
+export const getLevelBadgeClass = (levelOrXP = 0) => {
+  const lvl =
+    typeof levelOrXP === "number" && levelOrXP > 5
+      ? getLevelFromXP(levelOrXP)
+      : Math.min(5, Math.max(0, Number(levelOrXP) || 0));
+  const found = LEVEL_THRESHOLDS.find((t) => t.level === lvl);
+  return found?.badgeClass || "bg-zinc-800/80 border border-zinc-700 text-zinc-300";
 };
 
 export const getMinXPForLevel = (level = 0) => {
@@ -36,7 +96,7 @@ export const getMinXPForLevel = (level = 0) => {
 export const getMaxXPForLevel = (level = 0) => {
   const lvl = Math.min(5, Math.max(0, Number(level) || 0));
   const max = LEVEL_THRESHOLDS[lvl]?.maxXP;
-  return max === Infinity ? 5000 : (max ?? 250);
+  return max === Infinity ? 15000 : (max ?? 500);
 };
 
 export const getLevelProgressDetails = (xp = 0) => {
@@ -47,13 +107,13 @@ export const getLevelProgressDetails = (xp = 0) => {
     return {
       currentLevel: 5,
       nextLevel: 5,
-      currentLevelMinXP: 5000,
-      nextLevelXP: 5000,
-      xpInCurrentLevel: safeXP - 5000,
+      currentLevelMinXP: 15000,
+      nextLevelXP: 15000,
+      xpInCurrentLevel: safeXP - 15000,
       xpNeededForNextLevel: 0,
       percentage: 100,
-      displayText: `${safeXP} / 5000 gBits`,
-      rawProgressText: `${safeXP} / 5000`,
+      displayText: `${safeXP} / 15000 gBits`,
+      rawProgressText: `${safeXP} / 15000`,
       label: `Level 5 (MAX)`,
       isMaxLevel: true,
     };

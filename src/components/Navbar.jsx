@@ -30,7 +30,7 @@ const Navbar = () => {
       setLevelUpData({
         level: level || 1,
         title: getLevelTitle(level || 1),
-        xp: xp || 250,
+        xp: xp || 500,
       });
     };
     window.addEventListener("level_up", handleLevelUp);
