@@ -21,7 +21,11 @@ import {
 import Button from "./Button";
 import PageHeading from "./PageHeading";
 import GlitchBackground from "./GlitchBackground";
-import { fetchActiveRoomsStats } from "../utils/roomCountHelper";
+import {
+  fetchActiveRoomsStats,
+  isCreatorRoomCompleted,
+  isProRoomCompleted,
+} from "../utils/roomCountHelper";
 import { fetchPoints, updatePoints } from "../utils/pointsHelper";
 
 const JoinRoom = () => {
@@ -54,34 +58,44 @@ const JoinRoom = () => {
       const stats = await fetchActiveRoomsStats();
 
       // Normalize Creator Rooms
-      const normCreator = (stats.creatorRoomsList || []).map((r) => ({
-        id: r.id,
-        name: r.name || r.title || "Creator Room",
-        description: r.description || "Daily check-in and consistency squad for builders.",
-        category: r.category || "Accountability",
-        access: (r.access || "public").toLowerCase(),
-        host: r.host || "Glitch Creator",
-        host_id: r.created_by || r.host_id,
-        room_type: "creator",
-        code: r.code || "",
-        created_at: r.created_at,
-        targetUrl: `/room/${r.id}`,
-      }));
+      const normCreator = (stats.creatorRoomsList || []).map((r) => {
+        const isCompleted = isCreatorRoomCompleted(r);
+        return {
+          ...r,
+          id: r.id,
+          name: r.name || r.title || "Creator Room",
+          description: r.description || "Daily check-in and consistency squad for builders.",
+          category: r.category || "Accountability",
+          access: (r.access || "public").toLowerCase(),
+          host: r.host || "Glitch Creator",
+          host_id: r.created_by || r.host_id,
+          room_type: "creator",
+          code: r.code || "",
+          created_at: r.created_at,
+          targetUrl: `/room/${r.id}`,
+          isCompleted,
+        };
+      });
 
       // Normalize Pro Rooms
-      const normPro = (stats.proRoomsList || []).map((r) => ({
-        id: r.id,
-        name: r.name || r.title || "Pro Assessment Room",
-        description: r.short_description || r.detailed_description || "Professional assessment and competition arena.",
-        category: r.category || "AI / Machine Learning",
-        access: (r.access_type || r.access || "public").toLowerCase(),
-        host: r.org_name || r.organizer_name || "Verified Organization",
-        host_id: r.host_id,
-        room_type: "professional",
-        code: r.code || "",
-        created_at: r.created_at,
-        targetUrl: `/pro-rooms/${r.id}`,
-      }));
+      const normPro = (stats.proRoomsList || []).map((r) => {
+        const isCompleted = isProRoomCompleted(r);
+        return {
+          ...r,
+          id: r.id,
+          name: r.name || r.title || "Pro Assessment Room",
+          description: r.short_description || r.detailed_description || "Professional assessment and competition arena.",
+          category: r.category || "AI / Machine Learning",
+          access: (r.access_type || r.access || "public").toLowerCase(),
+          host: r.org_name || r.organizer_name || "Verified Organization",
+          host_id: r.host_id,
+          room_type: "professional",
+          code: r.code || "",
+          created_at: r.created_at,
+          targetUrl: `/pro-rooms/${r.id}`,
+          isCompleted,
+        };
+      });
 
       // Deduplicate combined list by id
       const combinedMap = new Map();
@@ -241,6 +255,154 @@ const JoinRoom = () => {
 
     return matchSearch && matchAccess && matchType;
   });
+
+  const activeRooms = filteredRooms.filter((r) => !r.isCompleted);
+  const completedRooms = filteredRooms.filter((r) => r.isCompleted);
+
+  const renderRoomCard = (room, index, isCompleted = false) => {
+    const isPro = room.room_type === "professional";
+    const isOwner =
+      currentUserId &&
+      (room.host_id === currentUserId ||
+        room.created_by === currentUserId ||
+        room.user_id === currentUserId);
+
+    return (
+      <motion.div
+        key={room.id}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.05 }}
+        whileHover={isCompleted ? { y: -3 } : { scale: 1.02 }}
+        className={`group bg-[#0f0f1a] border rounded-2xl p-6 flex flex-col gap-4 transition-all duration-300 relative overflow-hidden ${
+          isCompleted
+            ? "border-zinc-800/80 bg-[#0a0a14]/90 opacity-80 hover:opacity-100 hover:border-zinc-700 hover:shadow-[0_0_20px_rgba(255,255,255,0.03)]"
+            : isPro
+            ? "border-cyan-500/20 hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(0,240,255,0.12)]"
+            : "border-white/10 hover:border-purple-500/40 hover:shadow-[0_0_20px_rgba(168,85,247,0.12)]"
+        }`}
+      >
+        <div
+          className={`absolute top-0 left-0 h-[2px] w-0 group-hover:w-full transition-all duration-500 ${
+            isCompleted
+              ? "bg-zinc-600"
+              : isPro
+              ? "bg-gradient-to-r from-cyan-400 to-blue-500"
+              : "bg-gradient-to-r from-[#FF00C8] to-purple-500"
+          }`}
+        />
+
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                (room.access || "public") === "public"
+                  ? "bg-green-500/10 border-green-500/20 text-green-400"
+                  : "bg-red-500/10 border-red-500/20 text-red-400"
+              }`}
+            >
+              {(room.access || "public") === "public" ? <Globe size={11} /> : <Lock size={11} />}
+              {(room.access || "public").toUpperCase()}
+            </span>
+
+            {isCompleted && (
+              <span className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 font-mono">
+                <CheckCircle size={11} className="text-zinc-400" /> COMPLETED
+              </span>
+            )}
+          </div>
+
+          <span className="text-xs text-gray-400 bg-white/5 px-2 py-1 rounded-lg">
+            {room.category || "General"}
+          </span>
+        </div>
+
+        <span
+          className={`text-[10px] font-bold uppercase tracking-widest ${
+            isCompleted
+              ? "text-zinc-500"
+              : isPro
+              ? "text-cyan-400"
+              : "text-purple-400"
+          }`}
+        >
+          {isPro ? "🏢 Professional Track" : "✨ Creator Room"}
+        </span>
+
+        <div>
+          <h2
+            className={`text-lg font-bold text-white transition-colors mb-1.5 ${
+              isCompleted
+                ? "text-zinc-200 group-hover:text-white"
+                : isPro
+                ? "group-hover:text-cyan-300"
+                : "group-hover:text-purple-300"
+            }`}
+          >
+            {room.name}
+          </h2>
+          <p className="text-gray-400 text-sm leading-relaxed line-clamp-2">
+            {room.description || "No description provided."}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 pt-3 border-t border-white/5">
+          <div className="flex items-center gap-2 min-w-0">
+            <User size={13} className={isCompleted ? "text-zinc-500 shrink-0" : "text-purple-400 shrink-0"} />
+            <span className="text-xs text-gray-500 truncate">
+              Hosted by{" "}
+              <span className={isCompleted ? "text-zinc-400 font-semibold" : "text-purple-300 font-semibold"}>
+                {room.host}
+              </span>
+            </span>
+          </div>
+
+          {/* DELETE BUTTON FOR ROOM HOST */}
+          {isOwner && (
+            <button
+              onClick={(e) => handleDeleteRoom(e, room)}
+              title="Delete Room"
+              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/25 transition cursor-pointer shrink-0"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+
+        {isCompleted ? (
+          <button
+            type="button"
+            onClick={() => navigate(room.targetUrl || (isPro ? `/pro-rooms/${room.id}` : `/room/${room.id}`))}
+            className="w-full mt-auto py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
+          >
+            View Room <ArrowRight size={13} />
+          </button>
+        ) : (
+          <button
+            onClick={() => handleJoinRoom(room)}
+            disabled={joining}
+            className={`w-full mt-auto py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border transition cursor-pointer disabled:opacity-60 ${
+              (room.access || "public") === "public"
+                ? isPro
+                  ? "bg-cyan-500/10 border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500/40"
+                  : "bg-purple-500/10 border-purple-500/20 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/40"
+                : "bg-red-500/10 border-red-500/20 text-red-300 hover:bg-red-500/20"
+            }`}
+          >
+            {(room.access || "public") === "public" ? (
+              <>
+                <Globe size={13} /> Join Room <ArrowRight size={13} />
+              </>
+            ) : (
+              <>
+                <Lock size={13} /> Enter Access Code
+              </>
+            )}
+          </button>
+        )}
+      </motion.div>
+    );
+  };
 
   return (
     <div className="relative min-h-screen bg-[#070709] text-white flex flex-col justify-between selection:bg-[#00F0FF]/20 overflow-hidden font-sans">
@@ -475,118 +637,49 @@ const JoinRoom = () => {
                 </div>
               </div>
             ) : (
-              <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {filteredRooms.map((room, index) => {
-                  const isPro = room.room_type === "professional";
-                  const isOwner =
-                    currentUserId &&
-                    (room.host_id === currentUserId ||
-                      room.created_by === currentUserId ||
-                      room.user_id === currentUserId);
-
-                  return (
-                    <motion.div
-                      key={room.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      whileHover={{ scale: 1.02 }}
-                      className={`group bg-[#0f0f1a] border rounded-2xl p-6 flex flex-col gap-4 transition-all duration-300 relative overflow-hidden ${
-                        isPro
-                          ? "border-cyan-500/20 hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(0,240,255,0.12)]"
-                          : "border-white/10 hover:border-purple-500/40 hover:shadow-[0_0_20px_rgba(168,85,247,0.12)]"
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-0 left-0 h-[2px] w-0 group-hover:w-full transition-all duration-500 ${
-                          isPro
-                            ? "bg-gradient-to-r from-cyan-400 to-blue-500"
-                            : "bg-gradient-to-r from-[#FF00C8] to-purple-500"
-                        }`}
-                      />
-
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                            (room.access || "public") === "public"
-                              ? "bg-green-500/10 border-green-500/20 text-green-400"
-                              : "bg-red-500/10 border-red-500/20 text-red-400"
-                          }`}
-                        >
-                          {(room.access || "public") === "public" ? <Globe size={11} /> : <Lock size={11} />}
-                          {(room.access || "public").toUpperCase()}
-                        </span>
-                        <span className="text-xs text-gray-400 bg-white/5 px-2 py-1 rounded-lg">
-                          {room.category || "General"}
+              <div className="space-y-12">
+                {/* ACTIVE ROOMS SECTION */}
+                {activeRooms.length > 0 && (
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                        <h2 className="text-lg font-bold text-white tracking-wide">Active Rooms</h2>
+                        <span className="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          {activeRooms.length}
                         </span>
                       </div>
-
-                      <span
-                        className={`text-[10px] font-bold uppercase tracking-widest ${
-                          isPro ? "text-cyan-400" : "text-purple-400"
-                        }`}
-                      >
-                        {isPro ? "🏢 Professional Track" : "✨ Creator Room"}
+                      <span className="text-xs text-gray-400 hidden sm:inline">
+                        Join a live squad and start building
                       </span>
-
-                      <div>
-                        <h2
-                          className={`text-lg font-bold text-white transition-colors mb-1.5 ${
-                            isPro ? "group-hover:text-cyan-300" : "group-hover:text-purple-300"
-                          }`}
-                        >
-                          {room.name}
-                        </h2>
-                        <p className="text-gray-400 text-sm leading-relaxed line-clamp-2">
-                          {room.description || "No description provided."}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2 pt-3 border-t border-white/5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <User size={13} className="text-purple-400 shrink-0" />
-                          <span className="text-xs text-gray-500 truncate">
-                            Hosted by <span className="text-purple-300 font-semibold">{room.host}</span>
-                          </span>
-                        </div>
-
-                        {/* DELETE BUTTON FOR ROOM HOST */}
-                        {isOwner && (
-                          <button
-                            onClick={(e) => handleDeleteRoom(e, room)}
-                            title="Delete Room"
-                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/25 transition cursor-pointer shrink-0"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-
-                      <button
-                        onClick={() => handleJoinRoom(room)}
-                        disabled={joining}
-                        className={`w-full mt-auto py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border transition cursor-pointer disabled:opacity-60 ${
-                          (room.access || "public") === "public"
-                            ? isPro
-                              ? "bg-cyan-500/10 border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500/40"
-                              : "bg-purple-500/10 border-purple-500/20 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/40"
-                            : "bg-red-500/10 border-red-500/20 text-red-300 hover:bg-red-500/20"
-                        }`}
-                      >
-                        {(room.access || "public") === "public" ? (
-                          <>
-                            <Globe size={13} /> Join Room <ArrowRight size={13} />
-                          </>
-                        ) : (
-                          <>
-                            <Lock size={13} /> Enter Access Code
-                          </>
-                        )}
-                      </button>
+                    </div>
+                    <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {activeRooms.map((room, index) => renderRoomCard(room, index, false))}
                     </motion.div>
-                  );
-                })}
-              </motion.div>
+                  </div>
+                )}
+
+                {/* COMPLETED ROOMS SECTION */}
+                {completedRooms.length > 0 && (
+                  <div className="space-y-5 pt-2">
+                    <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-zinc-500" />
+                        <h2 className="text-lg font-bold text-zinc-300 tracking-wide">Completed Rooms</h2>
+                        <span className="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-zinc-800 text-zinc-400 border border-zinc-700">
+                          {completedRooms.length}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500 hidden sm:inline">
+                        Concluded events & squads (view only)
+                      </span>
+                    </div>
+                    <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {completedRooms.map((room, index) => renderRoomCard(room, index, true))}
+                    </motion.div>
+                  </div>
+                )}
+              </div>
             )}
           </section>
         )}
