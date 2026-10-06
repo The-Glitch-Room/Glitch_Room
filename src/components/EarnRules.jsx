@@ -318,15 +318,15 @@ const EarnRules = () => {
                 {LEVEL_THRESHOLDS.slice(0, 6).map((item) => (
                   <div
                     key={item.level}
-                    className="bg-[#070709] border border-white/5 rounded-xl p-4 text-center flex flex-col gap-1.5"
+                    className="bg-[#070709] border border-white/5 rounded-xl p-3 sm:p-3.5 text-center flex flex-col justify-between gap-1.5 min-h-[98px]"
                   >
                     <div className="text-[10px] font-mono text-[#a855f7] font-bold uppercase tracking-wider">
                       Level {item.level}
                     </div>
-                    <div className="text-sm font-mono font-bold text-white whitespace-nowrap">
+                    <div className="text-xs xl:text-[13px] font-mono font-bold text-white leading-tight break-words px-0.5">
                       {item.thresholdLabel || `${item.minXP.toLocaleString()} gBits`}
                     </div>
-                    <div className="text-[10px] text-gray-500 font-sans truncate">
+                    <div className="text-[10px] text-gray-400 font-sans truncate">
                       {item.title}
                     </div>
                   </div>
