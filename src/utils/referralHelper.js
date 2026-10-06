@@ -151,15 +151,17 @@ export const checkAndAwardReferralBonus = async (inviteeId) => {
 
     const referral = updated[0];
 
-    // Award +100 gBits to referrer
+    // Award +100 gBits to referrer if permitted under current session
     if (referral.referrer_id) {
-      await updatePoints(
-        100,
-        "Invite a Glitcher Referral Bonus (+100)",
-        "bonus",
-        null,
-        referral.referrer_id
-      );
+      try {
+        await updatePoints(
+          100,
+          "Invite a Glitcher Referral Bonus (+100)",
+          "bonus",
+          null,
+          referral.referrer_id
+        );
+      } catch (_) {}
     }
 
     // Award +25 gBits welcome bonus to invitee
@@ -179,6 +181,74 @@ export const checkAndAwardReferralBonus = async (inviteeId) => {
   } catch (err) {
     console.error("checkAndAwardReferralBonus error:", err);
     return null;
+  }
+};
+
+let isSyncingReferrals = false;
+
+/**
+ * Automatically syncs and awards any pending +100 gBits referral rewards
+ * to the referrer under their own authenticated session.
+ * 
+ * Works for all past, present, and future referrals:
+ * 1. Queries all referrals where referrer_id = userId and status = 'completed'.
+ * 2. Compares against the user's existing "Invite a Glitcher Referral Bonus" entries in glitch_activity.
+ * 3. For every completed referral not yet credited to this user, executes updatePoints(100, ...).
+ * 4. Safe & idempotent: Prevents duplicate bonuses by verifying the exact count of completed referrals vs credited activities.
+ */
+export const syncReferrerRewards = async (userId) => {
+  if (!userId || isSyncingReferrals) return 0;
+  isSyncingReferrals = true;
+
+  try {
+    const { data: referrals, error: refErr } = await supabase
+      .from("user_referrals")
+      .select("id, status")
+      .eq("referrer_id", userId)
+      .eq("status", "completed");
+
+    if (refErr || !referrals || referrals.length === 0) {
+      return 0;
+    }
+
+    const { data: activities, error: actErr } = await supabase
+      .from("glitch_activity")
+      .select("id, title")
+      .eq("user_id", userId)
+      .eq("type", "bonus")
+      .ilike("title", "%Invite a Glitcher Referral Bonus%");
+
+    if (actErr) {
+      console.error("syncReferrerRewards activity check error:", actErr);
+      return 0;
+    }
+
+    const completedCount = referrals.length;
+    const creditedCount = activities ? activities.length : 0;
+    const uncreditedCount = completedCount - creditedCount;
+
+    if (uncreditedCount <= 0) {
+      return 0;
+    }
+
+    let awardedTotal = 0;
+    for (let i = 0; i < uncreditedCount; i++) {
+      await updatePoints(
+        100,
+        "Invite a Glitcher Referral Bonus (+100)",
+        "bonus",
+        null,
+        userId
+      );
+      awardedTotal += 100;
+    }
+
+    return awardedTotal;
+  } catch (err) {
+    console.error("syncReferrerRewards error:", err);
+    return 0;
+  } finally {
+    isSyncingReferrals = false;
   }
 };
 

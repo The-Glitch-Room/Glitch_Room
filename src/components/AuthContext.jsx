@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import AuthModal from "./AuthModal";
 import Onboarding from "./Onboarding";
-import { linkReferralSignup } from "../utils/referralHelper";
+import { linkReferralSignup, syncReferrerRewards } from "../utils/referralHelper";
 import { ensureSignupBonus } from "../utils/pointsHelper";
 
 const AuthContext = createContext();
@@ -65,6 +65,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
         if (u) {
           ensureSignupBonus(u.id);
+          syncReferrerRewards(u.id);
         } else if (refCode || localStorage.getItem("gr_referral_code")) {
           // If unauthenticated and arrived via referral link, auto-open AuthModal in signup mode
           if (refCode) {
@@ -89,6 +90,7 @@ export const AuthProvider = ({ children }) => {
 
         if (_event === "SIGNED_IN" && currentUser) {
           ensureSignupBonus(currentUser.id);
+          syncReferrerRewards(currentUser.id);
 
           const savedRefCode =
             localStorage.getItem("gr_referral_code") ||
@@ -128,14 +130,23 @@ export const AuthProvider = ({ children }) => {
       setIsAuthOpen(true);
     };
     const handleTriggerOnboarding = () => setShowOnboarding(true);
+    const handleFocus = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.id) {
+          syncReferrerRewards(session.user.id);
+        }
+      });
+    };
 
     window.addEventListener("open_auth_modal", handleOpenAuth);
     window.addEventListener("trigger_onboarding", handleTriggerOnboarding);
+    window.addEventListener("focus", handleFocus);
 
     return () => {
       listener.subscription.unsubscribe();
       window.removeEventListener("open_auth_modal", handleOpenAuth);
       window.removeEventListener("trigger_onboarding", handleTriggerOnboarding);
+      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 

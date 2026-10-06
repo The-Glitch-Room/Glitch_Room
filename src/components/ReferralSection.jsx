@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check, Users, Gift, Sparkles, UserCheck, Share2, Award } from "lucide-react";
 import { useAuth } from "./AuthContext";
-import { getUserReferralCode, fetchUserReferralStats } from "../utils/referralHelper";
+import { getUserReferralCode, fetchUserReferralStats, syncReferrerRewards } from "../utils/referralHelper";
 
 const ReferralSection = () => {
   const { user, openAuth } = useAuth();
@@ -24,6 +24,7 @@ const ReferralSection = () => {
 
     const initReferrals = async () => {
       setLoading(true);
+      await syncReferrerRewards(user.id);
       const code = await getUserReferralCode(user.id);
       setRefCode(code);
 
