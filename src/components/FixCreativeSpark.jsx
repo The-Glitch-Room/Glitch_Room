@@ -210,7 +210,7 @@ const FixCreativeSpark = () => {
       <div className="min-h-screen bg-[#0B0C10] flex items-center justify-center">
         <div
           className="w-10 h-10 border-2 border-t-transparent rounded-full animate-spin"
-          style={{ borderColor: COLOR }}
+          style={{ borderColor: COLOR, borderTopColor: "transparent" }}
         />
       </div>
     );
