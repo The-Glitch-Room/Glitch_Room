@@ -248,7 +248,9 @@ const FeedbackBlock = ({ feedback, passed }) => {
 
 const FixGlitch = () => {
   const { id } = useParams();
-  const [glitch, setGlitch] = useState(null);
+  const [glitch, setGlitch] = useState(
+    () => glitchesData.find((g) => String(g.id) === id) || null,
+  );
 
   const [leftTab, setLeftTab] = useState("description"); // description | hint | solution
   const [rightTab, setRightTab] = useState("answer"); // answer | feedback
@@ -315,17 +317,17 @@ const FixGlitch = () => {
     init();
   }, [id]);
 
-  if (!glitch)
-    return (
-      <div className="min-h-screen bg-[#0B0C10] flex items-center justify-center text-white text-xl">
-        ⚠️ Glitch not found!
-      </div>
-    );
-
   if (loading)
     return (
       <div className="min-h-screen bg-[#0B0C10] flex items-center justify-center">
         <div className="w-10 h-10 border-2 border-t-transparent border-cyan-400 rounded-full animate-spin" />
+      </div>
+    );
+
+  if (!glitch)
+    return (
+      <div className="min-h-screen bg-[#0B0C10] flex items-center justify-center text-white text-xl">
+        ⚠️ Glitch not found!
       </div>
     );
 
