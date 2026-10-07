@@ -133,6 +133,103 @@ const syntaxErrorLinter = linter((view) => {
   return diagnostics;
 });
 
+// ── Clean & Formatted Question Content Renderer ─────────────────────────────
+const parseQuestionContent = (rawText) => {
+  if (!rawText) return { prompt: "", code: null };
+  let cleaned = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // 1. Explicit markdown code fence ```lang ... ```
+  const fenceMatch = cleaned.match(
+    /([\s\S]*?)```(?:[a-zA-Z]*\n)?([\s\S]*?)```([\s\S]*)/
+  );
+  if (fenceMatch) {
+    const before = fenceMatch[1].trim();
+    const after = fenceMatch[3] ? fenceMatch[3].trim() : "";
+    const prompt = [before, after].filter(Boolean).join("\n\n");
+    const code = fenceMatch[2].trim();
+    return { prompt, code };
+  }
+
+  // 2. Normalize runs of tabs or 3+ spaces (which awkwardly push code to the right)
+  cleaned = cleaned.replace(/\t+/g, "\n").replace(/[ ]{3,}/g, "\n");
+  const rawLines = cleaned
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  if (rawLines.length <= 1) {
+    return { prompt: cleaned.trim(), code: null };
+  }
+
+  // 3. Detect prompt line (ending with ':', '?', or mentioning code/following/output)
+  const promptEndIdx = rawLines.findIndex((l, idx) => {
+    if (idx === 0) {
+      if (
+        /\b(?:code|following|snippet|program|output|function|evaluates?)\b.*[:?]$/i.test(
+          l
+        ) ||
+        /[:?]$/.test(l)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  });
+
+  if (promptEndIdx !== -1 && promptEndIdx < rawLines.length - 1) {
+    const prompt = rawLines.slice(0, promptEndIdx + 1).join("\n");
+    const code = rawLines.slice(promptEndIdx + 1).join("\n");
+    return { prompt, code };
+  }
+
+  // Fallback: first line is a prompt and subsequent lines contain programming syntax
+  const isFirstLineProse = /[.?!:]$/.test(rawLines[0]);
+  const hasCodeSyntax = rawLines
+    .slice(1)
+    .some((l) =>
+      /[=(){}\[\];><]|\b(def|class|function|var|let|const|print|return|import|for|while|if)\b/.test(
+        l
+      )
+    );
+  if (isFirstLineProse && hasCodeSyntax) {
+    return {
+      prompt: rawLines[0],
+      code: rawLines.slice(1).join("\n"),
+    };
+  }
+
+  return { prompt: cleaned.trim(), code: null };
+};
+
+const QuestionContentCard = ({ questionText, description }) => {
+  const { prompt, code } = parseQuestionContent(questionText);
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 shadow-inner">
+        {prompt && (
+          <p className="text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-line">
+            {prompt}
+          </p>
+        )}
+        {code && (
+          <div className="mt-3.5 bg-[#090912] border border-cyan-500/25 rounded-xl p-4 overflow-x-auto glitch-scrollbar shadow-[inset_0_2px_8px_rgba(0,0,0,0.6)]">
+            <pre className="font-mono text-xs sm:text-sm text-cyan-300 leading-relaxed whitespace-pre selection:bg-cyan-500/30">
+              {code}
+            </pre>
+          </div>
+        )}
+      </div>
+
+      {description && (
+        <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
+          {description}
+        </p>
+      )}
+    </div>
+  );
+};
+
 const ProRoomAssessment = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1676,7 +1773,7 @@ const ProRoomAssessment = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#06060c] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20">
+    <div className="min-h-screen bg-[#06060c] text-white flex flex-col font-sans selection:bg-[#00F0FF]/20 assessment-container">
       {/* Top Fixed Header */}
       <header className="h-16 bg-[#0c0c16] border-b border-white/10 px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -1758,9 +1855,9 @@ const ProRoomAssessment = () => {
       {/* Main Assessment Body */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left Side: Question Pane */}
-        <div className="flex-1 flex flex-col p-6 overflow-y-auto">
+        <div className="flex-1 flex flex-col p-6 overflow-y-auto glitch-scrollbar">
           {/* Section Selector */}
-          <div className="flex items-center gap-2 pb-4 mb-6 border-b border-white/5 overflow-x-auto">
+          <div className="flex items-center gap-2 pb-4 mb-6 border-b border-white/5 overflow-x-auto glitch-scrollbar">
             {sections.map((sec, idx) => (
               <button
                 key={sec.id || idx}
@@ -1799,15 +1896,10 @@ const ProRoomAssessment = () => {
               {/* MCQ Question View */}
               {currentQuestion.question_type === "mcq" && (
                 <>
-                  <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
-                    {currentQuestion.question_text}
-                  </div>
-
-                  {currentQuestion.description && (
-                    <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
-                      {currentQuestion.description}
-                    </p>
-                  )}
+                  <QuestionContentCard
+                    questionText={currentQuestion.question_text}
+                    description={currentQuestion.description}
+                  />
 
                   <div className="space-y-3 pt-2">
                     {(currentQuestion.options || []).map((opt, optIdx) => {
@@ -1822,16 +1914,24 @@ const ProRoomAssessment = () => {
                             handleAnswerSelect(currentQuestion.id, opt)
                           }
                           disabled={interactionLocked}
-                          className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
+                          className={`w-full text-left p-4 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-3.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                             isSelected
-                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]"
-                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5"
+                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF] shadow-[0_0_15px_rgba(0,240,255,0.12)]"
+                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5 hover:border-white/20"
                           }`}
                         >
-                          <span>{opt}</span>
-                          {isSelected && (
-                            <Check size={14} className="text-[#00F0FF]" />
-                          )}
+                          <div
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+                              isSelected
+                                ? "border-[#00F0FF] bg-[#00F0FF]/20 shadow-[0_0_8px_rgba(0,240,255,0.4)]"
+                                : "border-white/25 bg-black/30"
+                            }`}
+                          >
+                            {isSelected && (
+                              <div className="w-2.5 h-2.5 rounded-full bg-[#00F0FF]" />
+                            )}
+                          </div>
+                          <span className="flex-1 leading-snug">{opt}</span>
                         </button>
                       );
                     })}
@@ -1839,16 +1939,13 @@ const ProRoomAssessment = () => {
                 </>
               )}
 
-              {/* True / False — same single-select interaction as MCQ, just
-                  with the two options fixed instead of host-authored.
-                  Auto-graded server-side by the same block as MCQ
-                  (grade_pro_room_submission: mcq/true_false share one
-                  exact-match rule). */}
+              {/* True / False — single-select interaction */}
               {currentQuestion.question_type === "true_false" && (
                 <>
-                  <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
-                    {currentQuestion.question_text}
-                  </div>
+                  <QuestionContentCard
+                    questionText={currentQuestion.question_text}
+                    description={currentQuestion.description}
+                  />
                   <div className="space-y-3 pt-2">
                     {["True", "False"].map((opt) => {
                       const isSelected =
@@ -1862,16 +1959,24 @@ const ProRoomAssessment = () => {
                             handleAnswerSelect(currentQuestion.id, opt)
                           }
                           disabled={interactionLocked}
-                          className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
+                          className={`w-full text-left p-4 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-3.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                             isSelected
-                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]"
-                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5"
+                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF] shadow-[0_0_15px_rgba(0,240,255,0.12)]"
+                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5 hover:border-white/20"
                           }`}
                         >
-                          <span>{opt}</span>
-                          {isSelected && (
-                            <Check size={14} className="text-[#00F0FF]" />
-                          )}
+                          <div
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+                              isSelected
+                                ? "border-[#00F0FF] bg-[#00F0FF]/20 shadow-[0_0_8px_rgba(0,240,255,0.4)]"
+                                : "border-white/25 bg-black/30"
+                            }`}
+                          >
+                            {isSelected && (
+                              <div className="w-2.5 h-2.5 rounded-full bg-[#00F0FF]" />
+                            )}
+                          </div>
+                          <span className="flex-1 leading-snug">{opt}</span>
                         </button>
                       );
                     })}
@@ -1879,20 +1984,13 @@ const ProRoomAssessment = () => {
                 </>
               )}
 
-              {/* Multiple Select (MSQ) — checkboxes, several options can be
-                  selected at once. Auto-graded server-side by comparing the
-                  full selected set against q.correct_answer's set, not one
-                  value at a time. */}
+              {/* Multiple Select (MSQ) — checkboxes beside option text */}
               {currentQuestion.question_type === "msq" && (
                 <>
-                  <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
-                    {currentQuestion.question_text}
-                  </div>
-                  {currentQuestion.description && (
-                    <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
-                      {currentQuestion.description}
-                    </p>
-                  )}
+                  <QuestionContentCard
+                    questionText={currentQuestion.question_text}
+                    description={currentQuestion.description}
+                  />
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">
                     Select all that apply
                   </p>
@@ -1909,24 +2007,24 @@ const ProRoomAssessment = () => {
                             handleMultiSelectToggle(currentQuestion.id, opt)
                           }
                           disabled={interactionLocked}
-                          className={`w-full text-left p-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${
+                          className={`w-full text-left p-4 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-3.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                             isSelected
-                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]"
-                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5"
+                              ? "bg-[#00F0FF]/10 border-[#00F0FF] text-white shadow-[0_0_15px_rgba(0,240,255,0.12)]"
+                              : "bg-[#0b0b14] border-white/10 text-gray-300 hover:bg-white/5 hover:border-white/20"
                           }`}
                         >
-                          <span>{opt}</span>
                           <div
-                            className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                            className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-all ${
                               isSelected
-                                ? "bg-[#00F0FF] border-[#00F0FF]"
-                                : "border-white/20"
+                                ? "bg-[#00F0FF] border-[#00F0FF] shadow-[0_0_8px_rgba(0,240,255,0.4)]"
+                                : "border-white/25 bg-black/30"
                             }`}
                           >
                             {isSelected && (
-                              <Check size={11} className="text-[#07070e]" />
+                              <Check size={12} className="text-[#07070e] stroke-[3]" />
                             )}
                           </div>
+                          <span className="flex-1 leading-snug">{opt}</span>
                         </button>
                       );
                     })}
@@ -1934,30 +2032,15 @@ const ProRoomAssessment = () => {
                 </>
               )}
 
-              {/* Short Answer / Output Prediction — free text, saved to
-                  answer_text. grade_pro_room_submission auto-grades both by
-                  comparing (case-insensitive, whitespace-trimmed) against
-                  correct_answer. Output Prediction shows question_text as a
-                  monospace code block since it's normally "what does this
-                  code print", not prose. */}
+              {/* Short Answer / Output Prediction — free text */}
               {["short_answer", "output_pred"].includes(
                 currentQuestion.question_type,
               ) && (
                 <>
-                  <div
-                    className={`bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner ${
-                      currentQuestion.question_type === "output_pred"
-                        ? "font-mono text-xs"
-                        : "font-sans sm:text-base"
-                    }`}
-                  >
-                    {currentQuestion.question_text}
-                  </div>
-                  {currentQuestion.description && (
-                    <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
-                      {currentQuestion.description}
-                    </p>
-                  )}
+                  <QuestionContentCard
+                    questionText={currentQuestion.question_text}
+                    description={currentQuestion.description}
+                  />
                   <textarea
                     rows={
                       currentQuestion.question_type === "output_pred" ? 3 : 5
@@ -1968,30 +2051,20 @@ const ProRoomAssessment = () => {
                       handleTextAnswerChange(currentQuestion.id, e.target.value)
                     }
                     disabled={interactionLocked}
-                    className="w-full bg-[#0b0b14] border border-white/10 rounded-xl p-4 text-sm text-gray-100 outline-none focus:border-[#00F0FF] disabled:opacity-50 disabled:cursor-not-allowed resize-y"
+                    className="w-full bg-[#0b0b14] border border-white/10 rounded-xl p-4 text-sm text-gray-100 outline-none focus:border-[#00F0FF] disabled:opacity-50 disabled:cursor-not-allowed resize-y font-mono"
                   />
                 </>
               )}
 
-              {/* File Upload / GitHub URL, Project Submission, Video
-                  Submission — all just a URL field saved to answer_text.
-                  None of these are ever auto-graded (no correct_answer
-                  concept for a link) — they intentionally always land in the
-                  host's "Needs Grading" queue, same as an unsupported type
-                  would, which grade_pro_room_submission already handles
-                  correctly with no changes needed there. */}
+              {/* File Upload / GitHub URL, Project Submission, Video Submission */}
               {["file_upload", "project", "video"].includes(
                 currentQuestion.question_type,
               ) && (
                 <>
-                  <div className="bg-[#06060c] border border-white/10 rounded-2xl p-5 text-sm sm:text-base font-sans text-gray-100 leading-relaxed whitespace-pre-wrap shadow-inner">
-                    {currentQuestion.question_text}
-                  </div>
-                  {currentQuestion.description && (
-                    <p className="text-xs text-gray-400 leading-relaxed bg-white/5 p-3 rounded-xl whitespace-pre-wrap">
-                      {currentQuestion.description}
-                    </p>
-                  )}
+                  <QuestionContentCard
+                    questionText={currentQuestion.question_text}
+                    description={currentQuestion.description}
+                  />
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                       {currentQuestion.question_type === "file_upload"
@@ -2345,7 +2418,7 @@ const ProRoomAssessment = () => {
         </div>
 
         {/* Right Side: Question Palette */}
-        <div className="w-full lg:w-72 bg-[#0a0a12] border-t lg:border-t-0 lg:border-l border-white/10 p-5 shrink-0 flex flex-col">
+        <div className="w-full lg:w-72 bg-[#0a0a12] border-t lg:border-t-0 lg:border-l border-white/10 p-5 shrink-0 flex flex-col overflow-y-auto glitch-scrollbar">
           <h4 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest mb-4">
             Question Navigation Palette
           </h4>

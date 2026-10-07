@@ -276,3 +276,75 @@ body {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
 }
+
+/* ─────────────────────────────────────────────────────────
+   Glitch Room Themed Scrollbars
+───────────────────────────────────────────────────────── */
+.glitch-scrollbar,
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 240, 255, 0.35) rgba(8, 8, 16, 0.7);
+}
+
+.glitch-scrollbar::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.glitch-scrollbar::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(8, 8, 16, 0.7);
+  border-radius: 9999px;
+}
+
+.glitch-scrollbar::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.28);
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  transition: all 0.2s ease;
+}
+
+.glitch-scrollbar::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.glitch-scrollbar::-webkit-scrollbar-corner,
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Assessment Experience Comprehensive Scrollbar Theme */
+.assessment-container * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 240, 255, 0.35) rgba(8, 8, 16, 0.7);
+}
+
+.assessment-container *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.assessment-container *::-webkit-scrollbar-track {
+  background: rgba(8, 8, 16, 0.7);
+  border-radius: 9999px;
+}
+
+.assessment-container *::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.28);
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 240, 255, 0.15);
+}
+
+.assessment-container *::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.assessment-container *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
