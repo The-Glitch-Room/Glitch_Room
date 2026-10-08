@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -218,6 +218,12 @@ const Console = () => {
   const [rank, setRank] = useState("—");
   const [streak, setStreak] = useState(0);
   const [earnedBadgesCount, setEarnedBadgesCount] = useState(0);
+  const lastUserIdRef = useRef(null);
+
+  const handleUnlockedCountChange = useCallback((count) => {
+    setEarnedBadgesCount(count);
+  }, []);
+
   const [certificates, setCertificates] = useState([]);
   const [selectedCert, setSelectedCert] = useState(null);
   const [showCertModal, setShowCertModal] = useState(false);
@@ -244,6 +250,11 @@ const Console = () => {
       setLoading(false);
       return;
     }
+
+    if (lastUserIdRef.current && lastUserIdRef.current !== userId) {
+      setEarnedBadgesCount(0);
+    }
+    lastUserIdRef.current = userId;
 
     const [profRes, totalPoints, recentRes, allUsersRes, badgesRes, certsRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).single(),
@@ -288,7 +299,7 @@ const Console = () => {
 
     setProfile(profRes.data);
     setUserData({ points: totalPoints });
-    setEarnedBadgesCount(badgesRes?.count || 0);
+    setEarnedBadgesCount((prev) => Math.max(prev, badgesRes?.count || 0));
     setCertificates(certsRes?.data || []);
 
     const recentActivities = recentRes.data || [];
@@ -310,6 +321,7 @@ const Console = () => {
     window.addEventListener("points_updated", handleSync);
     window.addEventListener("gbits_updated", handleSync);
     window.addEventListener("certificates_updated", handleSync);
+    window.addEventListener("badges_updated", handleSync);
 
     let channel;
     supabase.auth.getUser().then(({ data: au }) => {
@@ -347,6 +359,16 @@ const Console = () => {
           },
           () => fetchAll(),
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "user_badges",
+            filter: `user_id=eq.${userId}`,
+          },
+          () => fetchAll(),
+        )
         .subscribe();
     });
 
@@ -354,6 +376,7 @@ const Console = () => {
       window.removeEventListener("points_updated", handleSync);
       window.removeEventListener("gbits_updated", handleSync);
       window.removeEventListener("certificates_updated", handleSync);
+      window.removeEventListener("badges_updated", handleSync);
       if (channel) supabase.removeChannel(channel);
     };
   }, []);
@@ -647,7 +670,10 @@ const Console = () => {
                   <PromptLabel icon={Award} color="#FFD700">
                     ./badges --list
                   </PromptLabel>
-                  <BadgesSection userId={authUser?.id} />
+                  <BadgesSection
+                    userId={authUser?.id}
+                    onUnlockedCountChange={handleUnlockedCountChange}
+                  />
                 </TerminalWindow>
               </motion.div>
 

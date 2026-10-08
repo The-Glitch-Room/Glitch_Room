@@ -26,11 +26,14 @@ const calcStreak = (activities) => {
 
 // ── award a single badge (returns true ONLY if newly inserted) ─────────────
 const award = async (userId, badgeId) => {
-  const { error } = await supabase.from("user_badges").insert({
-    user_id: userId,
-    badge_id: badgeId,
-    earned_at: new Date().toISOString(),
-  });
+  const { error } = await supabase.from("user_badges").upsert(
+    {
+      user_id: userId,
+      badge_id: badgeId,
+      earned_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,badge_id" }
+  );
 
   if (error) {
     // Code 23505 is unique violation — means user already earned this badge previously
@@ -139,7 +142,10 @@ export const checkAndAwardBadges = async (userId) => {
     subs.filter((s) => s.challenge_type === "spark").length,
     acts.filter((a) => (a.title || "").toLowerCase().includes("spark")).length
   );
-  const arenaCount = (arenaCompletions || []).length;
+  const arenaCount = Math.max(
+    (arenaCompletions || []).length,
+    acts.filter((a) => (a.title || "").includes("Arena")).length
+  );
 
   const toAward = [];
 
@@ -194,21 +200,34 @@ export const checkAndAwardBadges = async (userId) => {
   });
   check("special_night", isNightOwl);
 
-  // Speed runner: 3+ challenges in a single calendar day
+  // Speed runner: 3+ challenges in a single calendar day or Speed Demon bonus
   const dayCounts = {};
   (submissions || []).forEach((s) => {
     const k = toKey(s.created_at);
     dayCounts[k] = (dayCounts[k] || 0) + 1;
   });
-  check(
-    "special_speed",
-    Object.values(dayCounts).some((c) => c >= 3)
+  const hasSpeedDemon =
+    (activities || []).some((a) => (a.title || "").includes("Speed Demon")) ||
+    Object.values(dayCounts).some((c) => c >= 3);
+  check("special_speed", hasSpeedDemon);
+
+  // Daily Trivia: reacted to Daily Fact
+  const hasDailyFact = (activities || []).some((a) =>
+    (a.title || "").includes("Daily Fact")
   );
+  check("special_fact", hasDailyFact);
 
   // ── Award all at once & return ONLY newly inserted badge IDs ─────────────
   const results = await Promise.all(
     toAward.map(async (id) => ({ id, success: await award(userId, id) }))
   );
 
-  return results.filter((r) => r.success).map((r) => r.id);
+  const newlyAwarded = results.filter((r) => r.success).map((r) => r.id);
+  if (newlyAwarded.length > 0 && typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("badges_updated", { detail: newlyAwarded })
+    );
+  }
+
+  return newlyAwarded;
 };

@@ -7,7 +7,7 @@ import { checkAndAwardBadges } from "../utils/badgeEngine";
 import { fetchPoints } from "../utils/pointsHelper";
 import { X, Lock, CheckCircle2, Trophy, ShieldCheck, Sparkles, AlertCircle, ChevronDown, ChevronUp, Zap } from "lucide-react";
 
-export default function BadgesSection({ userId }) {
+export default function BadgesSection({ userId, onUnlockedCountChange }) {
   const [earnedMap, setEarnedMap] = useState({}); // badgeId -> earned_at
   const [userStats, setUserStats] = useState({
     xp: 0,
@@ -210,6 +210,12 @@ export default function BadgesSection({ userId }) {
   const totalUnlockedCount = MASTER_BADGES.filter(isBadgeUnlocked).length;
   const totalBadgesCount = MASTER_BADGES.length;
   const overallPercent = Math.round((totalUnlockedCount / totalBadgesCount) * 100);
+
+  useEffect(() => {
+    if (!loading && typeof onUnlockedCountChange === "function") {
+      onUnlockedCountChange(totalUnlockedCount);
+    }
+  }, [loading, totalUnlockedCount, onUnlockedCountChange]);
 
   // Dynamic row slicing
   const maxEarnedVisible = visibleEarnedRows * cols;
