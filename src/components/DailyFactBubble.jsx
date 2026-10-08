@@ -448,30 +448,6 @@ const DailyFactBubble = () => {
                   </motion.button>
                 </div>
 
-                {/* Bonus earned confirmation */}
-                <AnimatePresence>
-                  {bonusEarned && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.8 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="text-center mt-3 p-2 rounded-xl bg-[#FFD700]/10 border border-[#FFD700]/30 relative overflow-hidden"
-                    >
-                      <motion.span
-                        initial={{ y: 0, opacity: 1 }}
-                        animate={{ y: -25, opacity: [1, 1, 0] }}
-                        transition={{ duration: 1.2, ease: "easeOut" }}
-                        className="absolute left-1/2 -translate-x-1/2 font-mono font-black text-sm text-[#FFD700] pointer-events-none drop-shadow-[0_0_8px_#FFD700]"
-                      >
-                        +10 gBits!
-                      </motion.span>
-                      <p className="text-xs font-bold text-[#FFD700] flex items-center justify-center gap-1.5">
-                        ⚡ +10 gBits Earned for Today!
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
                 {/* Aggregate / Claimed line */}
                 {claimedToday && !bonusEarned && (
                   <p className="text-center text-[11px] font-mono text-gray-400 mt-3 bg-white/5 py-1.5 px-3 rounded-lg border border-white/10">
@@ -479,7 +455,7 @@ const DailyFactBubble = () => {
                   </p>
                 )}
 
-                {totalVotes > 0 && !bonusEarned && !claimedToday && (
+                {totalVotes > 0 && (!claimedToday || bonusEarned) && (
                   <p className="text-center text-[10px] text-gray-600 mt-3">
                     {likePct}% of {totalVotes} found this useful
                   </p>
