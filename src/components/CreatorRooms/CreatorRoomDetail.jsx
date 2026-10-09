@@ -10,7 +10,11 @@ import Navbar from "../Navbar";
 import GlitchBackground from "../GlitchBackground";
 import { updatePoints, fetchPoints } from "../../utils/pointsHelper";
 import RoomCompletionModal from "./RoomCompletionModal";
-import { settleCreatorRoom } from "../../services/creatorRoomSettlementService";
+import {
+  settleCreatorRoom,
+  calculateRoomSettlement,
+  syncRoomSettlementRecords,
+} from "../../services/creatorRoomSettlementService";
 import {
   ArrowLeft,
   Share2,
@@ -972,6 +976,15 @@ const CreatorRoomDetail = ({ roomId }) => {
       }
     } catch (e) {
       // creator_room_events table not present on backend yet
+    }
+
+    // 7. If room is settled, ensure member settlement audit records are synchronized
+    if (roomData?.settled) {
+      try {
+        await syncRoomSettlementRecords(id, roomData, fetchedMembers, checkinData || []);
+      } catch (err) {
+        console.warn("Notice syncing room settlement records:", err);
+      }
     }
 
     setLoading(false);
@@ -6241,6 +6254,9 @@ const CreatorRoomDetail = ({ roomId }) => {
               totalMembers: squadMemberCount,
               totalStandups: standups.length,
             }}
+            settlementSummary={
+              room ? calculateRoomSettlement({ room, members, checkins: standups }) : null
+            }
             onExploreOther={() => navigate("/creator-rooms")}
             onSettleRoom={handleSettleRoom}
             isSettling={isSettling}

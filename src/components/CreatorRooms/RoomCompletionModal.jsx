@@ -36,6 +36,7 @@ const RoomCompletionModal = ({
   userMemberRecord,
   userStats = {},
   squadStats = {},
+  settlementSummary = null,
   onExploreOther,
   onSettleRoom,
   isSettling = false,
@@ -61,11 +62,36 @@ const RoomCompletionModal = ({
   );
 
   const originalStake = userStaked > 0 ? userStaked : (userCarryover > 0 ? userCarryover : roomEntryStake);
-  const payoutStatus = userMemberRecord?.payout_status || "pending";
-  const payoutAmount = userMemberRecord?.payout_amount !== undefined && userMemberRecord?.payout_amount !== null
+  const isRoomSettled = Boolean(room.settled);
+  const mySettlement = settlementSummary?.payouts?.find((p) => p.userId === userId);
+
+  // Status mapping: If room is settled, status is final and NEVER pending
+  const isPaidOrSettled = userMemberRecord?.payout_status === "settled" ||
+    userMemberRecord?.payout_status === "paid" ||
+    (isRoomSettled && isGoalAchieved);
+
+  const isRefunded = userMemberRecord?.payout_status === "refunded";
+
+  const isForfeited = userMemberRecord?.payout_status === "forfeited" ||
+    (isRoomSettled && !isGoalAchieved);
+
+  const payoutStatus = isPaidOrSettled
+    ? "settled"
+    : isRefunded
+    ? "refunded"
+    : isForfeited
+    ? "forfeited"
+    : "pending";
+
+  const payoutAmount = userMemberRecord?.payout_amount !== undefined && userMemberRecord?.payout_amount !== null && Number(userMemberRecord.payout_amount) > 0
     ? Number(userMemberRecord.payout_amount)
-    : null;
-  const isSettled = Boolean(room.settled || userMemberRecord?.settled_at);
+    : (mySettlement?.totalPayout !== undefined && Number(mySettlement.totalPayout) > 0
+        ? Number(mySettlement.totalPayout)
+        : (isGoalAchieved
+            ? originalStake + Number(room.completion_reward || 0) + (settlementSummary?.forfeitedBonusPerWinner || 0)
+            : 0));
+
+  const isSettled = isRoomSettled || Boolean(userMemberRecord?.settled_at);
   const completionReward = Number(room.completion_reward || 0);
 
   return (
@@ -331,7 +357,7 @@ const RoomCompletionModal = ({
                       <span className="text-gray-400 text-xs">Payout Status:</span>
                       <span
                         className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                          payoutStatus === "paid"
+                          payoutStatus === "settled" || payoutStatus === "paid"
                             ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
                             : payoutStatus === "refunded"
                             ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
@@ -340,12 +366,12 @@ const RoomCompletionModal = ({
                             : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
                         }`}
                       >
-                        {payoutStatus === "paid"
-                          ? "✅ Paid & Settled"
+                        {payoutStatus === "settled" || payoutStatus === "paid"
+                          ? "✅ Settled"
                           : payoutStatus === "refunded"
                           ? "↩️ Refunded"
                           : payoutStatus === "forfeited"
-                          ? "⚠️ Forfeited"
+                          ? "⚠️ Payout Not Eligible"
                           : "⏳ Pending Settlement"}
                       </span>
                     </div>
@@ -353,7 +379,7 @@ const RoomCompletionModal = ({
                     <div className="flex items-center justify-between pb-2 border-b border-white/5">
                       <span className="text-gray-400 text-xs">Reward / Stake Return:</span>
                       <span className="font-bold text-xs">
-                        {payoutStatus === "paid" ? (
+                        {payoutStatus === "settled" || payoutStatus === "paid" ? (
                           <span className="text-emerald-400">
                             +{payoutAmount !== null ? payoutAmount : originalStake} gBits
                           </span>
@@ -362,7 +388,7 @@ const RoomCompletionModal = ({
                             {originalStake} gBits (Refunded)
                           </span>
                         ) : payoutStatus === "forfeited" ? (
-                          <span className="text-red-400">0 gBits (Forfeited)</span>
+                          <span className="text-red-400">0 gBits (Not Eligible)</span>
                         ) : (
                           <span className="text-amber-300">
                             {isGoalAchieved
@@ -373,17 +399,47 @@ const RoomCompletionModal = ({
                       </span>
                     </div>
 
+                    {/* Verified Breakdown for Settled Winner */}
+                    {(payoutStatus === "settled" || payoutStatus === "paid") && (
+                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 font-mono space-y-1.5">
+                        <div className="flex justify-between items-center text-[10px] uppercase text-emerald-400 font-bold tracking-wider pb-1 border-b border-emerald-500/20">
+                          <span>Payout Breakdown</span>
+                          <span>Total Credited: {payoutAmount} gBits</span>
+                        </div>
+                        <div className="flex justify-between text-gray-300 text-[10px]">
+                          <span>• Returned Stake:</span>
+                          <span className="text-white font-semibold">{mySettlement?.stakeRefund ?? originalStake} gBits</span>
+                        </div>
+                        {((mySettlement?.completionBonus ?? completionReward) > 0) && (
+                          <div className="flex justify-between text-gray-300 text-[10px]">
+                            <span>• Completion Reward:</span>
+                            <span className="text-white font-semibold">+{mySettlement?.completionBonus ?? completionReward} gBits</span>
+                          </div>
+                        )}
+                        {((mySettlement?.poolShare ?? (settlementSummary?.forfeitedBonusPerWinner || 0)) > 0) && (
+                          <div className="flex justify-between text-gray-300 text-[10px]">
+                            <span>• Forfeited Pool Share:</span>
+                            <span className="text-emerald-400 font-semibold">+{mySettlement?.poolShare ?? settlementSummary?.forfeitedBonusPerWinner} gBits</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Verified Outcome Summary Narrative */}
                     <div className="pt-1 text-[11px] leading-relaxed text-gray-300 font-sans">
-                      {payoutStatus === "paid" ? (
+                      {payoutStatus === "settled" || payoutStatus === "paid" ? (
                         <span>
                           Your original stake of <strong>{originalStake} gBits</strong> was returned
-                          alongside your share of the room completion pool.
+                          alongside your share of the room completion pool (Total credited: <strong>+{payoutAmount} gBits</strong>).
                         </span>
                       ) : payoutStatus === "forfeited" ? (
                         <span>
-                          Because consistency was below the 80% threshold or the squad was left early,
-                          the entry stake was forfeited into the squad prize pool.
+                          Your completion rate was <strong>{completionPct}%</strong>, below the required 80% target. You were not eligible for the room completion reward.
+                          {originalStake > 0 && (
+                            <span className="block text-[10px] text-red-400/80 mt-1 font-mono">
+                              Entry stake of {originalStake} gBits was forfeited into the squad prize pool.
+                            </span>
+                          )}
                         </span>
                       ) : payoutStatus === "refunded" ? (
                         <span>
@@ -397,8 +453,7 @@ const RoomCompletionModal = ({
                         </span>
                       ) : (
                         <span>
-                          Your completion rate was <strong>{completionPct}%</strong> (target was 80%).
-                          Final pool distribution will be recorded upon settlement.
+                          Your completion rate was <strong>{completionPct}%</strong>, below the required 80% target. Final pool distribution will be recorded upon settlement.
                         </span>
                       )}
                     </div>
@@ -417,18 +472,22 @@ const RoomCompletionModal = ({
                           Sprint Completion Reward
                         </span>
                         <span className="text-[10px] text-gray-400 font-sans">
-                          {isGoalAchieved
-                            ? "Awarded for achieving ≥80% consistency!"
+                          {isPaidOrSettled
+                            ? "Credited to your gBits balance!"
+                            : isGoalAchieved
+                            ? "Eligible! Distributed upon room settlement."
+                            : isSettled
+                            ? `Your completion rate was ${completionPct}%, below the required 80% target.`
                             : "Requires ≥80% consistency"}
                         </span>
                       </div>
                     </div>
                     <span
                       className={`font-bold text-xs ${
-                        isGoalAchieved ? "text-pink-300" : "text-gray-500"
+                        isPaidOrSettled ? "text-emerald-400" : isGoalAchieved ? "text-pink-300" : "text-gray-500"
                       }`}
                     >
-                      +{completionReward} gBits
+                      {isGoalAchieved ? `+${completionReward} gBits` : "0 gBits"}
                     </span>
                   </div>
                 )

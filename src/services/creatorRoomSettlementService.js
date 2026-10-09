@@ -159,13 +159,18 @@ export const calculateRoomSettlement = ({ room, members = [], checkins = [] }) =
     payouts.push({
       userId: w.user_id,
       memberRecordId: w.id,
-      status: "paid",
+      status: "settled",
+      outcome: "settled",
       originalStake,
+      stakeRefund: originalStake,
       completionReward,
+      completionBonus: completionReward,
       forfeitedBonus: forfeitedBonusPerWinner,
+      poolShare: forfeitedBonusPerWinner,
       totalPayout,
       loggedDaysCount: w.loggedDaysCount,
       consistencyPct: w.consistencyPct,
+      isEligible: true,
     });
   });
 
@@ -176,13 +181,18 @@ export const calculateRoomSettlement = ({ room, members = [], checkins = [] }) =
       userId: ineligible.user_id,
       memberRecordId: ineligible.id,
       status: "forfeited",
+      outcome: "forfeited",
       originalStake,
+      stakeRefund: 0,
       newCarryover: currentCarryover + originalStake,
       completionReward: 0,
+      completionBonus: 0,
       forfeitedBonus: 0,
+      poolShare: 0,
       totalPayout: 0,
       loggedDaysCount: ineligible.loggedDaysCount,
       consistencyPct: ineligible.consistencyPct,
+      isEligible: false,
     });
   });
 
@@ -197,6 +207,73 @@ export const calculateRoomSettlement = ({ room, members = [], checkins = [] }) =
     ineligibles,
     payouts,
   };
+};
+
+/**
+ * Synchronizes database settlement records between creator_room_members,
+ * creator_room_settlements, and room state. Does NOT award points (idempotent helper).
+ */
+export const syncRoomSettlementRecords = async (roomId, room, members = [], checkins = []) => {
+  if (!roomId || !room || !room.settled) return;
+
+  try {
+    const settlement = calculateRoomSettlement({ room, members, checkins });
+    const nowIso = room.settled_at || new Date().toISOString();
+
+    for (const p of settlement.payouts) {
+      if (p.isEligible) {
+        // Update member record as settled
+        await supabase
+          .from("creator_room_members")
+          .update({
+            staked_amount: 0,
+            payout_status: "settled",
+            payout_amount: p.totalPayout,
+            settled_at: nowIso,
+          })
+          .eq("room_id", roomId)
+          .eq("user_id", p.userId);
+      } else {
+        // Ineligible member
+        await supabase
+          .from("creator_room_members")
+          .update({
+            staked_amount: 0,
+            forfeited_carryover: p.newCarryover,
+            payout_status: "forfeited",
+            payout_amount: 0,
+            settled_at: nowIso,
+          })
+          .eq("room_id", roomId)
+          .eq("user_id", p.userId);
+      }
+
+      // Record in creator_room_settlements table
+      try {
+        await supabase.from("creator_room_settlements").upsert(
+          {
+            room_id: roomId,
+            user_id: p.userId,
+            staked_amount: p.originalStake || 0,
+            completion_pct: p.consistencyPct || 0,
+            standups_submitted: p.loggedDaysCount || 0,
+            total_sprint_days: settlement.totalSprintDays || 0,
+            outcome: p.isEligible ? "settled" : "forfeited",
+            completion_bonus: p.completionReward || 0,
+            pool_share: p.forfeitedBonus || 0,
+            stake_refund: p.isEligible ? (p.originalStake || 0) : 0,
+            total_payout: p.totalPayout || 0,
+            created_at: nowIso,
+          },
+          { onConflict: "room_id,user_id" }
+        );
+      } catch (err) {
+        // Silently skip if table not writable
+      }
+    }
+  } catch (err) {
+    console.warn("syncRoomSettlementRecords notice:", err);
+  }
 };
 
 /**
@@ -224,32 +301,7 @@ export const settleCreatorRoom = async (roomId, callerUserId) => {
       return { success: false, error: "Creator Room not found in database." };
     }
 
-    // 2. Idempotency Check: Don't process twice
-    if (room.settled) {
-      return {
-        success: true,
-        alreadySettled: true,
-        message: "This Creator Room has already been finalized and settled.",
-      };
-    }
-
-    // 3. Authorization Check: Host only
-    if (callerUserId && room.created_by && room.created_by !== callerUserId) {
-      return {
-        success: false,
-        error: "Only the Creator Room host can finalize and settle this room.",
-      };
-    }
-
-    // 4. Room Completion Lifecycle Check
-    if (!checkIsCreatorRoomCompleted(room)) {
-      return {
-        success: false,
-        error: "This room is still active and has not reached its end date yet.",
-      };
-    }
-
-    // 5. Fetch Members & Check-ins
+    // 2. Fetch Members & Check-ins
     const { data: members, error: memErr } = await supabase
       .from("creator_room_members")
       .select("*")
@@ -268,6 +320,32 @@ export const settleCreatorRoom = async (roomId, callerUserId) => {
       return { success: false, error: "Failed to fetch room check-ins." };
     }
 
+    // 3. Idempotency Check: If room is already settled, sync status and do not duplicate awards
+    if (room.settled) {
+      await syncRoomSettlementRecords(roomId, room, members, checkins);
+      return {
+        success: true,
+        alreadySettled: true,
+        message: "This Creator Room has already been finalized and settled.",
+      };
+    }
+
+    // 4. Authorization Check: Host only
+    if (callerUserId && room.created_by && room.created_by !== callerUserId) {
+      return {
+        success: false,
+        error: "Only the Creator Room host can finalize and settle this room.",
+      };
+    }
+
+    // 5. Room Completion Lifecycle Check
+    if (!checkIsCreatorRoomCompleted(room)) {
+      return {
+        success: false,
+        error: "This room is still active and has not reached its end date yet.",
+      };
+    }
+
     // 6. Calculate settlement figures
     const settlement = calculateRoomSettlement({ room, members, checkins });
     const nowIso = new Date().toISOString();
@@ -275,27 +353,59 @@ export const settleCreatorRoom = async (roomId, callerUserId) => {
 
     // 7. Process member updates & payouts
     for (const p of settlement.payouts) {
-      if (p.status === "paid") {
-        // Update member record as paid
+      if (p.isEligible) {
+        // Update member record as settled
         await supabase
           .from("creator_room_members")
           .update({
-            payout_status: "paid",
+            staked_amount: 0,
+            payout_status: "settled",
             payout_amount: p.totalPayout,
             settled_at: nowIso,
           })
           .eq("room_id", roomId)
           .eq("user_id", p.userId);
 
-        // Credit points to winner if payout > 0
-        if (p.totalPayout > 0) {
-          await updatePoints(
-            p.totalPayout,
-            `🏆 Creator Room Winner — ${roomTitle}`,
-            "reward",
-            null,
-            p.userId
+        // Record in creator_room_settlements
+        try {
+          await supabase.from("creator_room_settlements").upsert(
+            {
+              room_id: roomId,
+              user_id: p.userId,
+              staked_amount: p.originalStake || 0,
+              completion_pct: p.consistencyPct || 0,
+              standups_submitted: p.loggedDaysCount || 0,
+              total_sprint_days: settlement.totalSprintDays || 0,
+              outcome: "settled",
+              completion_bonus: p.completionReward || 0,
+              pool_share: p.forfeitedBonus || 0,
+              stake_refund: p.originalStake || 0,
+              total_payout: p.totalPayout || 0,
+              created_at: nowIso,
+            },
+            { onConflict: "room_id,user_id" }
           );
+        } catch (e) {}
+
+        // Credit points to winner only if not already awarded in glitch_activity
+        if (p.totalPayout > 0) {
+          const { data: existingAward } = await supabase
+            .from("glitch_activity")
+            .select("id")
+            .eq("user_id", p.userId)
+            .eq("type", "reward")
+            .ilike("title", `%Creator Room Winner — ${roomTitle}%`)
+            .limit(1);
+
+          if (!existingAward || existingAward.length === 0) {
+            await updatePoints(
+              p.totalPayout,
+              `🏆 Creator Room Winner — ${roomTitle}`,
+              "reward",
+              null,
+              p.userId
+            );
+          }
         }
       } else {
         // Ineligible member: stake is forfeited into the pool
@@ -310,6 +420,27 @@ export const settleCreatorRoom = async (roomId, callerUserId) => {
           })
           .eq("room_id", roomId)
           .eq("user_id", p.userId);
+
+        // Record in creator_room_settlements
+        try {
+          await supabase.from("creator_room_settlements").upsert(
+            {
+              room_id: roomId,
+              user_id: p.userId,
+              staked_amount: p.originalStake || 0,
+              completion_pct: p.consistencyPct || 0,
+              standups_submitted: p.loggedDaysCount || 0,
+              total_sprint_days: settlement.totalSprintDays || 0,
+              outcome: "forfeited",
+              completion_bonus: 0,
+              pool_share: 0,
+              stake_refund: 0,
+              total_payout: 0,
+              created_at: nowIso,
+            },
+            { onConflict: "room_id,user_id" }
+          );
+        } catch (e) {}
       }
     }
 
