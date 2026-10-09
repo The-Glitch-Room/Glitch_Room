@@ -1394,6 +1394,13 @@ const CreatorRoomDetail = ({ roomId }) => {
   };
 
   const handleSubmitCheckin = async () => {
+    const roomStartDate = room?.start_date || room?.created_at;
+    const roomDaysDiff = roomStartDate ? diffISTCalendarDays(roomStartDate, new Date()) : 0;
+    if (roomStartDate && roomDaysDiff < 0) {
+      showToast(`This room starts on ${formatDateKeyLabel(getISTDateKey(roomStartDate))}. Daily check-ins will open on Day 1!`);
+      return;
+    }
+
     if (!accomplishment.trim()) {
       showToast("Please describe what you accomplished today.");
       return;
@@ -1950,30 +1957,35 @@ const CreatorRoomDetail = ({ roomId }) => {
   // Real Progress calculation — IST calendar-date based, matching the
   // Calendar View's day-grid exactly (both derive "how many sprint days
   // have elapsed" from the same date-key arithmetic).
-  const totalSprintDays =
-    room.duration_type === "7_day"
-      ? 7
-      : room.duration_type === "14_day"
-        ? 14
-        : room.duration_type === "60_day"
-          ? 60
-          : room.duration_type === "100_day"
-            ? 100
-            : room.duration_type === "ongoing"
-              ? 365
-              : 30;
+  const totalSprintDays = (() => {
+    if (room.duration_type === "ongoing") return 365;
+    if (room.duration_type === "7_day") return 7;
+    if (room.duration_type === "14_day") return 14;
+    if (room.duration_type === "30_day") return 30;
+    if (room.duration_type === "60_day") return 60;
+    if (room.duration_type === "100_day") return 100;
+    if (room.duration_days) return Number(room.duration_days);
+    const match = String(room.duration_type || "").match(/\d+/);
+    if (match) return parseInt(match[0], 10);
+    if (room.end_date && room.start_date && room.end_date !== room.start_date) {
+      const diff = Math.round((new Date(room.end_date) - new Date(room.start_date)) / 86400000);
+      if (diff > 0) return diff;
+    }
+    return 30;
+  })();
   const startDate = room.start_date || room.created_at;
-  const daysElapsed = Math.max(
-    1,
-    diffISTCalendarDays(startDate, new Date()) + 1,
-  );
-  const completedDays = Math.min(daysElapsed, totalSprintDays);
-  const progressPct = Math.min(
-    100,
-    Math.round((completedDays / totalSprintDays) * 100),
-  );
+  const daysDiff = diffISTCalendarDays(startDate, new Date());
+  const isUpcoming = daysDiff < 0;
+  const daysElapsed = isUpcoming ? 0 : Math.min(totalSprintDays, daysDiff + 1);
+  const completedDays = daysElapsed;
+  const progressPct = isUpcoming
+    ? 0
+    : Math.min(
+        100,
+        Math.round((completedDays / totalSprintDays) * 100),
+      );
   const isExpired =
-    room.duration_type !== "ongoing" && daysElapsed > totalSprintDays;
+    room.duration_type !== "ongoing" && !isUpcoming && (daysDiff + 1) > totalSprintDays;
 
   // Per-user IST calendar-date sets — every streak figure on this page
   // (member sidebar, standup cards, leaderboard, Squad Overview, Calendar
@@ -2276,7 +2288,7 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                   <div className="flex items-center gap-4 text-xs font-mono text-gray-400 mt-4 flex-wrap">
                     <span className="flex items-center gap-1 text-purple-300">
-                      <Calendar size={13} /> {totalSprintDays} Days Duration
+                      <Calendar size={13} /> {room.duration_type === "ongoing" ? "Ongoing" : `${totalSprintDays} Days`} Duration
                     </span>
                     <span className="flex items-center gap-1 text-amber-400">
                       <Clock size={13} /> {room.checkin_frequency || "Daily"}
@@ -2321,20 +2333,26 @@ const CreatorRoomDetail = ({ roomId }) => {
                   </div>
                   <div className="flex justify-between text-[10px] font-mono text-gray-500 pt-1">
                     <span>
-                      {completedDays} /{" "}
-                      {room.duration_type === "ongoing"
-                        ? "Ongoing"
-                        : `${totalSprintDays} Days`}{" "}
-                      Completed
+                      {isUpcoming ? (
+                        `Starts in ${Math.abs(daysDiff)} day${Math.abs(daysDiff) === 1 ? "" : "s"}`
+                      ) : (
+                        `${completedDays} / ${room.duration_type === "ongoing" ? "Ongoing" : `${totalSprintDays} Days`} Completed`
+                      )}
                     </span>
                     <span
                       className={
-                        isExpired
+                        isUpcoming
+                          ? "text-cyan-400 font-bold"
+                          : isExpired
                           ? "text-amber-400 font-bold flex items-center gap-1"
                           : "text-green-400 font-semibold"
                       }
                     >
-                      {isExpired ? "🏁 Sprint Completed" : "On Track"}
+                      {isUpcoming
+                        ? `🗓️ Starts ${formatDateKeyLabel(getISTDateKey(startDate))}`
+                        : isExpired
+                        ? "🏁 Sprint Completed"
+                        : "On Track"}
                     </span>
                   </div>
                 </div>
@@ -2651,20 +2669,29 @@ const CreatorRoomDetail = ({ roomId }) => {
                   />
                   <div>
                     <h4 className="text-xs font-bold text-white">
-                      What did you accomplish today?
+                      {isUpcoming
+                        ? `Room starts on ${formatDateKeyLabel(getISTDateKey(startDate))}`
+                        : "What did you accomplish today?"}
                     </h4>
                     <p className="text-[11px] text-gray-400">
-                      Share your progress, add proof, and keep your uptime
-                      alive!
+                      {isUpcoming
+                        ? `Daily check-ins will unlock on Day 1 (${Math.abs(daysDiff)} ${Math.abs(daysDiff) === 1 ? "day" : "days"} remaining)`
+                        : "Share your progress, add proof, and keep your uptime alive!"}
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowCheckinModal(true)}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-md cursor-pointer shrink-0"
-                >
-                  Check-in Now
-                </button>
+                {isUpcoming ? (
+                  <div className="px-4 py-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold shadow-md shrink-0 flex items-center gap-2">
+                    <Clock size={14} /> Starts in {Math.abs(daysDiff)}d
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowCheckinModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-md cursor-pointer shrink-0"
+                  >
+                    Check-in Now
+                  </button>
+                )}
               </div>
             )}
 
@@ -2673,17 +2700,21 @@ const CreatorRoomDetail = ({ roomId }) => {
               <div className="bg-[#0d0d16] border border-dashed border-white/10 rounded-2xl p-8 text-center my-6">
                 <div className="text-4xl mb-3">⚡</div>
                 <h3 className="text-sm font-bold text-white">
-                  {standups.length > 0
+                  {isUpcoming
+                    ? `Room has not started yet (Starts ${formatDateKeyLabel(getISTDateKey(startDate))})`
+                    : standups.length > 0
                     ? "No standups submitted today yet"
                     : "No daily standups submitted yet"}
                 </h3>
                 <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-                  {standups.length > 0
+                  {isUpcoming
+                    ? "Get ready! The room will activate and daily standup logs will open on Day 1."
+                    : standups.length > 0
                     ? "Check out previous logs under 'All Logs' or log your progress for today!"
                     : "Be the first squad member to log your accomplishment and proof of work!"}
                 </p>
                 <div className="mt-4 flex items-center justify-center gap-3">
-                  {isMember && (
+                  {isMember && !isUpcoming && (
                     <button
                       onClick={() => setShowCheckinModal(true)}
                       className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg cursor-pointer"

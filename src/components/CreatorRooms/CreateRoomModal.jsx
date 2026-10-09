@@ -55,6 +55,14 @@ const PROOF_TYPE_OPTIONS = [
   "Custom Proof",
 ];
 
+const computeEndDate = (startStr, numDays) => {
+  if (!startStr || !numDays) return "";
+  const [y, m, d] = startStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + Number(numDays));
+  return dt.toISOString().slice(0, 10);
+};
+
 const CreateRoomModal = ({ close, create }) => {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -67,11 +75,10 @@ const CreateRoomModal = ({ close, create }) => {
   const [visibility, setVisibility] = useState("Public");
   const [goalPledge, setGoalPledge] = useState("");
 
-
   // ── Step 2: Duration, Proof & Standup ──
-  const [durationType, setDurationType] = useState("30_day");
+  const [durationDays, setDurationDays] = useState(30);
+  const [isOngoing, setIsOngoing] = useState(false);
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
-  const [customEndDate, setCustomEndDate] = useState("");
   const [checkinDeadline, setCheckinDeadline] = useState("11:59 PM IST");
 
   const [selectedProofTypes, setSelectedProofTypes] = useState([
@@ -120,6 +127,10 @@ const CreateRoomModal = ({ close, create }) => {
     if (!isStep1Valid || submitting) return;
     setSubmitting(true);
 
+    const days = isOngoing ? null : Math.max(1, parseInt(durationDays, 10) || 30);
+    const durType = isOngoing ? "ongoing" : `${days}_day`;
+    const calculatedEndDate = isOngoing ? null : computeEndDate(startDate, days);
+
     const roomPayload = {
       title: title.trim(),
       name: title.trim(),
@@ -128,9 +139,9 @@ const CreateRoomModal = ({ close, create }) => {
       cover_icon: coverIcon,
       visibility,
       goal_pledge: goalPledge.trim(),
-      duration_type: durationType,
+      duration_type: durType,
       start_date: startDate,
-      end_date: customEndDate || startDate,
+      end_date: calculatedEndDate,
       checkin_deadline: checkinDeadline,
       proof_types: selectedProofTypes,
       verification_system: {
@@ -342,28 +353,119 @@ const CreateRoomModal = ({ close, create }) => {
                   <span>2. Schedule, Proof Requirements & Standup Rules</span>
                 </h4>
                 <p className="text-xs text-gray-400 font-mono mt-0.5">
-                  Configure sprint duration, daily deadlines, and required Proof of Work types.
+                  Configure room duration, start date, daily deadlines, and required Proof of Work types.
                 </p>
               </div>
 
               {/* Schedule Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <CustomSelect
-                    label="Sprint Duration *"
-                    value={durationType}
-                    onChange={setDurationType}
-                    options={[
-                      { value: "7_day", label: "7 Days" },
-                      { value: "14_day", label: "14 Days" },
-                      { value: "30_day", label: "30 Days" },
-                      { value: "60_day", label: "60 Days" },
-                      { value: "100_day", label: "100 Days" },
-                      { value: "ongoing", label: "Ongoing" },
-                    ]}
-                  />
+                {/* Room Duration */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider block">
+                      Room Duration *
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10px] font-mono text-gray-400 hover:text-white transition">
+                      <input
+                        type="checkbox"
+                        checked={isOngoing}
+                        onChange={(e) => setIsOngoing(e.target.checked)}
+                        className="rounded border-white/20 bg-[#07070d] text-[#00F0FF] focus:ring-0 cursor-pointer"
+                      />
+                      <span>Ongoing Room</span>
+                    </label>
+                  </div>
+
+                  {isOngoing ? (
+                    <div className="px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-emerald-400 text-xs font-mono flex items-center justify-between">
+                      <span>Continuous squad (no fixed end date)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-bold">Ongoing</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="1"
+                          max="365"
+                          step="1"
+                          value={durationDays}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "") {
+                              setDurationDays("");
+                            } else {
+                              const n = parseInt(val, 10);
+                              setDurationDays(Number.isNaN(n) ? "" : Math.max(1, n));
+                            }
+                          }}
+                          placeholder="e.g. 7, 30, 50, 56, 70, 100"
+                          className="w-full px-4 py-2.5 pr-14 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none focus:border-[#00F0FF]/50 transition font-mono"
+                        />
+                        <span className="absolute right-3.5 top-2.5 text-xs font-mono text-gray-500 pointer-events-none">
+                          Days
+                        </span>
+                      </div>
+
+                      {/* Quick preset chips */}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[9px] font-mono text-gray-500 mr-0.5">Quick:</span>
+                        {[7, 14, 30, 60, 100].map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => {
+                              setDurationDays(d);
+                              setIsOngoing(false);
+                            }}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-mono transition cursor-pointer border ${
+                              durationDays === d && !isOngoing
+                                ? "bg-[#00F0FF]/15 border-[#00F0FF]/40 text-[#00F0FF] font-bold"
+                                : "bg-white/[0.03] border-white/10 text-gray-400 hover:text-white"
+                            }`}
+                          >
+                            {d}d
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
+                {/* Room Start Date */}
+                <div>
+                  <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
+                    Room Start Date *
+                  </label>
+                  <input
+                    type="date"
+                    min={new Date().toISOString().split("T")[0]}
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none focus:border-[#00F0FF]/50 transition font-mono"
+                  />
+                  <div className="flex items-center justify-between text-[10px] font-mono text-gray-500 mt-1.5">
+                    <span>
+                      {(() => {
+                        const todayStr = new Date().toISOString().split("T")[0];
+                        if (startDate === todayStr) return "Starts today";
+                        const diff = Math.round((new Date(startDate) - new Date(todayStr)) / 86400000);
+                        return diff > 0 ? `Starts in ${diff} day${diff === 1 ? "" : "s"}` : "Starts today";
+                      })()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setStartDate(new Date().toISOString().split("T")[0])}
+                      className="text-[#00F0FF] hover:underline cursor-pointer"
+                    >
+                      Set Today
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Schedule Timeline Preview Card & Daily Deadline */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider mb-1 block">
                     Daily Deadline *
@@ -375,6 +477,22 @@ const CreateRoomModal = ({ close, create }) => {
                     placeholder="11:59 PM IST"
                     className="w-full px-4 py-2.5 rounded-xl bg-[#07070d] border border-white/10 text-white text-xs focus:outline-none focus:border-[#00F0FF]/50 transition font-mono"
                   />
+                </div>
+
+                <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 flex flex-col justify-center">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-purple-300 font-bold mb-0.5">
+                    Room Timeline
+                  </span>
+                  <p className="text-xs font-mono text-white flex items-center gap-1.5 flex-wrap">
+                    <Calendar size={12} className="text-[#00F0FF]" />
+                    {isOngoing ? (
+                      <span>Starts <strong>{startDate}</strong> (Ongoing sprint)</span>
+                    ) : (
+                      <span>
+                        <strong>{startDate}</strong> → <strong>{computeEndDate(startDate, durationDays || 1)}</strong> (<strong>{durationDays || 1} Days</strong>)
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
 
@@ -759,7 +877,7 @@ const CreateRoomModal = ({ close, create }) => {
                         {category}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                        {durationType === "7_day" ? "7 Days" : durationType === "14_day" ? "14 Days" : durationType === "30_day" ? "30 Days" : durationType === "60_day" ? "60 Days" : durationType === "100_day" ? "100 Days" : "Ongoing"}
+                        {isOngoing ? "Ongoing" : `${durationDays || 30} Days`}
                       </span>
                     </div>
 
@@ -786,24 +904,34 @@ const CreateRoomModal = ({ close, create }) => {
                 </div>
 
                 {/* Grid Summary Details */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-mono pt-2">
                   <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
-                    <span className="text-gray-500 text-[10px] block font-bold">DURATION</span>
-                    <span className="text-white capitalize">{durationType === "7_day" ? "7 Days" : durationType === "14_day" ? "14 Days" : durationType === "30_day" ? "30 Days" : durationType === "60_day" ? "60 Days" : durationType === "100_day" ? "100 Days" : "Ongoing"}</span>
+                    <span className="text-gray-500 text-[10px] block font-bold uppercase">ROOM DURATION</span>
+                    <span className="text-white capitalize">{isOngoing ? "Ongoing" : `${durationDays || 30} Days`}</span>
                   </div>
 
                   <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
-                    <span className="text-gray-500 text-[10px] block font-bold">DEADLINE</span>
+                    <span className="text-gray-500 text-[10px] block font-bold uppercase">START DATE</span>
+                    <span className="text-white">{startDate}</span>
+                  </div>
+
+                  <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
+                    <span className="text-gray-500 text-[10px] block font-bold uppercase">END DATE</span>
+                    <span className="text-[#00F0FF]">{isOngoing ? "Ongoing" : computeEndDate(startDate, durationDays || 1)}</span>
+                  </div>
+
+                  <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
+                    <span className="text-gray-500 text-[10px] block font-bold uppercase">DEADLINE</span>
                     <span className="text-[#00F0FF]">{checkinDeadline}</span>
                   </div>
 
                   <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
-                    <span className="text-gray-500 text-[10px] block font-bold">PROOFS REQUIRED</span>
+                    <span className="text-gray-500 text-[10px] block font-bold uppercase">PROOFS REQUIRED</span>
                     <span className="text-purple-300">{selectedProofTypes.length} Types</span>
                   </div>
 
                   <div className="bg-[#07070d] p-3 rounded-xl border border-white/5">
-                    <span className="text-gray-500 text-[10px] block font-bold">ENTRY STAKE</span>
+                    <span className="text-gray-500 text-[10px] block font-bold uppercase">ENTRY STAKE</span>
                     <span className="text-amber-400 font-bold">{enableGbitsStake ? `${entryStake} gBits` : "Free"}</span>
                   </div>
                 </div>

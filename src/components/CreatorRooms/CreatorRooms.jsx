@@ -520,10 +520,6 @@ const CreatorRooms = () => {
     );
   });
 
-  // Maps duration_type enum values (stored in DB) to days —
-  // mirrors the exact same mapping used in CreatorRoomDetail.jsx so
-  // a room is considered completed on both the list page and the detail
-  // page at the same logical moment.
   const DURATION_DAYS = {
     "7_day": 7,
     "14_day": 14,
@@ -533,11 +529,26 @@ const CreatorRooms = () => {
     "ongoing": null, // ongoing rooms never auto-complete
   };
 
+  const parseRoomDuration = (room) => {
+    if (!room || room.duration_type === "ongoing") return null;
+    if (DURATION_DAYS[room.duration_type] !== undefined) {
+      return DURATION_DAYS[room.duration_type];
+    }
+    const match = String(room.duration_type || "").match(/\d+/);
+    if (match) return parseInt(match[0], 10);
+    if (room.duration_days) return Number(room.duration_days);
+    if (room.end_date && room.start_date && room.end_date !== room.start_date) {
+      const diff = Math.round((new Date(room.end_date) - new Date(room.start_date)) / 86400000);
+      if (diff > 0) return diff;
+    }
+    return null;
+  };
+
   const isRoomCompleted = (room) => {
     // ongoing rooms never expire
     if (room.duration_type === "ongoing") return false;
 
-    const days = DURATION_DAYS[room.duration_type] ?? null;
+    const days = parseRoomDuration(room);
     const anchor = room.start_date || room.created_at;
 
     if (days && anchor) {
@@ -546,8 +557,8 @@ const CreatorRooms = () => {
       return endDate < new Date();
     }
 
-    // Fallback: explicit end_date stored on the row
-    if (room.end_date) {
+    // Fallback: explicit end_date stored on the row (only if different from start_date)
+    if (room.end_date && room.start_date && room.end_date !== room.start_date) {
       return new Date(room.end_date) < new Date();
     }
 
@@ -725,20 +736,30 @@ const CreatorRooms = () => {
                   {/* Compact vault cards */}
                   <div className="flex flex-col gap-2">
                     {completedFiltered.map((room) => {
-                      const endDate = room.end_date
-                        ? new Date(room.end_date)
-                        : room.start_date && room.duration_days
-                        ? (() => { const s = new Date(room.start_date); s.setDate(s.getDate() + Number(room.duration_days)); return s; })()
-                        : null;
+                      const days = parseRoomDuration(room);
+                      const anchor = room.start_date || room.created_at;
+                      let endDate = null;
+                      if (room.end_date && room.start_date && room.end_date !== room.start_date) {
+                        endDate = new Date(room.end_date);
+                      } else if (days && anchor) {
+                        const d = new Date(anchor);
+                        d.setDate(d.getDate() + days);
+                        endDate = d;
+                      } else if (room.end_date) {
+                        endDate = new Date(room.end_date);
+                      }
+
                       const endLabel = endDate
                         ? endDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
-                        : 'Sprint Ended';
-                      const durationLabel = room.duration_type
-                        || (room.duration_days ? `${room.duration_days} Days` : null)
-                        || (room.end_date && room.start_date
-                            ? `${Math.round((new Date(room.end_date) - new Date(room.start_date)) / 86400000)} Days`
-                            : null)
-                        || 'Sprint';
+                        : null;
+
+                      const durationLabel = room.duration_type === "ongoing"
+                        ? "Ongoing"
+                        : days
+                        ? `${days} Days`
+                        : (room.duration_type
+                            ? String(room.duration_type).replace(/_day/i, " Days")
+                            : "Sprint");
 
                       return (
                         <motion.button
@@ -765,7 +786,7 @@ const CreatorRooms = () => {
                                 <Users size={9} /> {room.member_count || 1} members
                               </span>
                               <span className="flex items-center gap-1 text-[10px] text-gray-500 font-mono">
-                                <Clock size={9} /> Ended {endLabel}
+                                <Clock size={9} /> {endLabel ? `Ended ${endLabel}` : 'Sprint Completed'}
                               </span>
                             </div>
                           </div>

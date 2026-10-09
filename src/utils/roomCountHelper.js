@@ -24,7 +24,8 @@ export const isCreatorRoomCompleted = (room) => {
   }
   if (room.duration_type === "ongoing") return false;
 
-  const days = DURATION_DAYS[room.duration_type] ?? (room.duration_days ? Number(room.duration_days) : null);
+  const match = String(room.duration_type || "").match(/\d+/);
+  const days = DURATION_DAYS[room.duration_type] ?? (room.duration_days ? Number(room.duration_days) : (match ? parseInt(match[0], 10) : null));
   const anchor = room.start_date || room.created_at;
 
   if (days && anchor) {
@@ -33,7 +34,7 @@ export const isCreatorRoomCompleted = (room) => {
     return endDate < new Date();
   }
 
-  if (room.end_date) {
+  if (room.end_date && room.start_date && room.end_date !== room.start_date) {
     return new Date(room.end_date) < new Date();
   }
 

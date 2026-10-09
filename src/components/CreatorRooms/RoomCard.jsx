@@ -9,6 +9,7 @@ import {
   Calendar,
   ShieldCheck,
   ArrowRight,
+  Clock,
 } from "lucide-react";
 
 // ── Per-category accent identity — every card is themed by its own category
@@ -57,18 +58,9 @@ const getCategoryAccent = (category) => {
 };
 
 const getDurationLabel = (d) => {
-  if (d === "7_day") return "7 Days";
-  if (d === "14_day") return "14 Days";
-  if (d === "30_day") return "30 Days";
-  if (d === "60_day") return "60 Days";
-  if (d === "100_day") return "100 Days";
   if (d === "ongoing") return "Ongoing";
-  if (typeof d === "string") {
-    return d
-      .replace(/_day/i, " Days")
-      .replace(/[-_]sprint|[-_]bootcamp|[-_]challenge|[-_]consistency|sprint|bootcamp|challenge|consistency/gi, "")
-      .trim();
-  }
+  const match = String(d || "").match(/\d+/);
+  if (match) return `${match[0]} Days`;
   return "Ongoing";
 };
 
@@ -101,16 +93,27 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
   // Ongoing rooms never auto-complete.
   const isCompleted = (() => {
     if (room.duration_type === "ongoing") return false;
-    const days = DURATION_DAYS_MAP[room.duration_type] ?? null;
+    const match = String(room.duration_type || "").match(/\d+/);
+    const days = DURATION_DAYS_MAP[room.duration_type] ?? (room.duration_days ? Number(room.duration_days) : (match ? parseInt(match[0], 10) : null));
     const anchor = room.start_date || room.created_at;
     if (days && anchor) {
       const end = new Date(anchor);
       end.setDate(end.getDate() + days);
       return end < new Date();
     }
-    // Fallback to explicit end_date if no duration mapping found
-    if (room.end_date) return new Date(room.end_date) < new Date();
+    // Fallback to explicit end_date (only if different from start_date)
+    if (room.end_date && room.start_date && room.end_date !== room.start_date) {
+      return new Date(room.end_date) < new Date();
+    }
     return false;
+  })();
+
+  const isUpcoming = (() => {
+    if (!room.start_date) return false;
+    const start = new Date(room.start_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return start > today;
   })();
 
   return (
@@ -254,6 +257,10 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
           {isCompleted ? (
             <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800/80 border border-zinc-600/50 text-zinc-300 font-bold shrink-0">
               <CheckCircle size={13} /> Completed
+            </span>
+          ) : isUpcoming ? (
+            <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500/10 border border-cyan-500/25 text-[#00F0FF] font-bold shrink-0">
+              <Clock size={13} /> Starts {new Date(room.start_date).toLocaleDateString([], { month: "short", day: "numeric" })}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-bold shrink-0">
