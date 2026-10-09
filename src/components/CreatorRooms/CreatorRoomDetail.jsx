@@ -9,6 +9,7 @@ import {
 import Navbar from "../Navbar";
 import GlitchBackground from "../GlitchBackground";
 import { updatePoints, fetchPoints } from "../../utils/pointsHelper";
+import RoomCompletionModal from "./RoomCompletionModal";
 import {
   ArrowLeft,
   Share2,
@@ -208,6 +209,40 @@ const formatStandupTimestamp = (isoString) => {
     timeZone: IST_TIME_ZONE,
   });
   return `${formatted} IST`;
+};
+
+// Determines whether a Creator Room has ended or reached completion
+export const checkIsCreatorRoomCompleted = (room) => {
+  if (!room) return false;
+  if (room.settled) return true;
+  if (room.duration_type === "ongoing") return false;
+
+  const start = room.start_date || room.created_at;
+  if (!start) return false;
+  const dDiff = diffISTCalendarDays(start, new Date());
+  if (dDiff < 0) return false; // upcoming room
+
+  let totDays = 30;
+  if (room.duration_type === "7_day") totDays = 7;
+  else if (room.duration_type === "14_day") totDays = 14;
+  else if (room.duration_type === "30_day") totDays = 30;
+  else if (room.duration_type === "60_day") totDays = 60;
+  else if (room.duration_type === "100_day") totDays = 100;
+  else if (room.duration_days) totDays = Number(room.duration_days);
+  else {
+    const m = String(room.duration_type || "").match(/\d+/);
+    if (m) totDays = parseInt(m[0], 10);
+    else if (room.end_date && room.start_date && room.end_date !== room.start_date) {
+      const diff = Math.round((new Date(room.end_date) - new Date(room.start_date)) / 86400000);
+      if (diff > 0) totDays = diff;
+    }
+  }
+
+  if ((dDiff + 1) > totDays) return true;
+  if (room.end_date && room.start_date && room.end_date !== room.start_date && new Date(room.end_date) < new Date()) {
+    return true;
+  }
+  return false;
 };
 
 // ── IST Daily Standup Timing & Deadline Logic ────────────────────────────────
@@ -589,6 +624,8 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showEmailPrefsModal, setShowEmailPrefsModal] = useState(false);
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [completionModalDismissed, setCompletionModalDismissed] = useState(false);
   const [calendarViewMode, setCalendarViewMode] = useState("personal");
   const [selectedDayNum, setSelectedDayNum] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -843,6 +880,9 @@ const CreatorRoomDetail = ({ roomId }) => {
         // joined, or a member is present without ever having staked.
         staked_amount: Number(mRecord?.staked_amount) || 0,
         forfeited_carryover: Number(mRecord?.forfeited_carryover) || 0,
+        payout_status: mRecord?.payout_status || null,
+        payout_amount: mRecord?.payout_amount !== undefined && mRecord?.payout_amount !== null ? Number(mRecord.payout_amount) : 0,
+        settled_at: mRecord?.settled_at || null,
         left_at: mRecord?.left_at || null,
       };
     });
@@ -1158,6 +1198,10 @@ const CreatorRoomDetail = ({ roomId }) => {
   // fetches the balance fresh from the DB rather than trusting any
   // locally-cached number, so "balance after joining" is accurate.
   const openJoinConfirm = async () => {
+    if (checkIsCreatorRoomCompleted(room)) {
+      setShowCompletionModal(true);
+      return;
+    }
     if (!userId) {
       navigate("/");
       return;
@@ -1174,6 +1218,11 @@ const CreatorRoomDetail = ({ roomId }) => {
   };
 
   const handleJoinSquad = async () => {
+    if (checkIsCreatorRoomCompleted(room)) {
+      showToast("This room has ended and is no longer accepting new members.");
+      setShowCompletionModal(true);
+      return;
+    }
     if (!userId) {
       navigate("/");
       return;
@@ -1394,6 +1443,12 @@ const CreatorRoomDetail = ({ roomId }) => {
   };
 
   const handleSubmitCheckin = async () => {
+    if (checkIsCreatorRoomCompleted(room)) {
+      showToast("This room has ended and was completed. Standup check-ins are closed.");
+      setShowCompletionModal(true);
+      return;
+    }
+
     const roomStartDate = room?.start_date || room?.created_at;
     const roomDaysDiff = roomStartDate ? diffISTCalendarDays(roomStartDate, new Date()) : 0;
     if (roomStartDate && roomDaysDiff < 0) {
@@ -1915,6 +1970,15 @@ const CreatorRoomDetail = ({ roomId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifDrawer]);
 
+  // Auto-open Completion Experience Modal when opening a completed room
+  useEffect(() => {
+    if (!loading && room && !completionModalDismissed) {
+      if (checkIsCreatorRoomCompleted(room)) {
+        setShowCompletionModal(true);
+      }
+    }
+  }, [loading, room, completionModalDismissed]);
+
   //  Calculated Real Statistics
   if (loading) {
     return (
@@ -1986,6 +2050,7 @@ const CreatorRoomDetail = ({ roomId }) => {
       );
   const isExpired =
     room.duration_type !== "ongoing" && !isUpcoming && (daysDiff + 1) > totalSprintDays;
+  const isCompletedRoom = checkIsCreatorRoomCompleted(room) || isExpired;
 
   // Per-user IST calendar-date sets — every streak figure on this page
   // (member sidebar, standup cards, leaderboard, Squad Overview, Calendar
@@ -2340,18 +2405,22 @@ const CreatorRoomDetail = ({ roomId }) => {
                       )}
                     </span>
                     <span
+                      onClick={() => {
+                        if (isCompletedRoom) setShowCompletionModal(true);
+                      }}
                       className={
                         isUpcoming
                           ? "text-cyan-400 font-bold"
-                          : isExpired
-                          ? "text-amber-400 font-bold flex items-center gap-1"
+                          : isCompletedRoom
+                          ? "text-amber-400 font-bold flex items-center gap-1 cursor-pointer hover:underline"
                           : "text-green-400 font-semibold"
                       }
+                      title={isCompletedRoom ? "Click to view completion summary" : undefined}
                     >
                       {isUpcoming
                         ? `🗓️ Starts ${formatDateKeyLabel(getISTDateKey(startDate))}`
-                        : isExpired
-                        ? "🏁 Sprint Completed"
+                        : isCompletedRoom
+                        ? "🏁 Room Completed"
                         : "On Track"}
                     </span>
                   </div>
@@ -2443,12 +2512,28 @@ const CreatorRoomDetail = ({ roomId }) => {
             </div>
 
             {!isMember ? (
+              isCompletedRoom ? (
+                <button
+                  onClick={() => setShowCompletionModal(true)}
+                  className="w-full py-3 rounded-xl text-gray-200 text-xs font-bold font-mono bg-white/5 border border-white/10 hover:bg-white/10 transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Trophy size={14} className="text-amber-400" /> Room Completed — View Summary
+                </button>
+              ) : (
+                <button
+                  onClick={openJoinConfirm}
+                  disabled={joining}
+                  className="w-full py-3 rounded-xl text-white text-xs font-bold bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 transition shadow-lg shadow-[#FF00C8]/20 cursor-pointer"
+                >
+                  {joining ? "Joining..." : "Commit & Join Squad ⚡"}
+                </button>
+              )
+            ) : isCompletedRoom ? (
               <button
-                onClick={openJoinConfirm}
-                disabled={joining}
-                className="w-full py-3 rounded-xl text-white text-xs font-bold bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 transition shadow-lg shadow-[#FF00C8]/20 cursor-pointer"
+                onClick={() => setShowCompletionModal(true)}
+                className="w-full py-2.5 rounded-xl text-xs font-mono text-purple-300 hover:text-white bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer flex items-center justify-center gap-2"
               >
-                {joining ? "Joining..." : "Commit & Join Squad "}
+                <Trophy size={14} className="text-[#FF00C8]" /> View Completion Outcome
               </button>
             ) : (
               <button
@@ -2669,18 +2754,29 @@ const CreatorRoomDetail = ({ roomId }) => {
                   />
                   <div>
                     <h4 className="text-xs font-bold text-white">
-                      {isUpcoming
+                      {isCompletedRoom
+                        ? "Sprint Finished — Room Completed"
+                        : isUpcoming
                         ? `Room starts on ${formatDateKeyLabel(getISTDateKey(startDate))}`
                         : "What did you accomplish today?"}
                     </h4>
                     <p className="text-[11px] text-gray-400">
-                      {isUpcoming
+                      {isCompletedRoom
+                        ? "Check-ins are now closed. Review your final sprint outcome and statistics."
+                        : isUpcoming
                         ? `Daily check-ins will unlock on Day 1 (${Math.abs(daysDiff)} ${Math.abs(daysDiff) === 1 ? "day" : "days"} remaining)`
                         : "Share your progress, add proof, and keep your uptime alive!"}
                     </p>
                   </div>
                 </div>
-                {isUpcoming ? (
+                {isCompletedRoom ? (
+                  <button
+                    onClick={() => setShowCompletionModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold shadow-md cursor-pointer shrink-0 flex items-center gap-1.5 transition"
+                  >
+                    <Trophy size={14} className="text-[#FF00C8]" /> View Outcome
+                  </button>
+                ) : isUpcoming ? (
                   <div className="px-4 py-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold shadow-md shrink-0 flex items-center gap-2">
                     <Clock size={14} /> Starts in {Math.abs(daysDiff)}d
                   </div>
@@ -2698,23 +2794,36 @@ const CreatorRoomDetail = ({ roomId }) => {
             {/* Standups Feed / Empty State */}
             {displayStandups.length === 0 ? (
               <div className="bg-[#0d0d16] border border-dashed border-white/10 rounded-2xl p-8 text-center my-6">
-                <div className="text-4xl mb-3">⚡</div>
+                <div className="text-4xl mb-3">{isCompletedRoom ? "🏁" : "⚡"}</div>
                 <h3 className="text-sm font-bold text-white">
-                  {isUpcoming
+                  {isCompletedRoom
+                    ? "Room Sprint Completed"
+                    : isUpcoming
                     ? `Room has not started yet (Starts ${formatDateKeyLabel(getISTDateKey(startDate))})`
                     : standups.length > 0
                     ? "No standups submitted today yet"
                     : "No daily standups submitted yet"}
                 </h3>
                 <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-                  {isUpcoming
+                  {isCompletedRoom
+                    ? standups.length > 0
+                      ? "The sprint has concluded! Browse all logged standups under 'All Logs'."
+                      : "The sprint has concluded. No standup logs were submitted."
+                    : isUpcoming
                     ? "Get ready! The room will activate and daily standup logs will open on Day 1."
                     : standups.length > 0
                     ? "Check out previous logs under 'All Logs' or log your progress for today!"
                     : "Be the first squad member to log your accomplishment and proof of work!"}
                 </p>
                 <div className="mt-4 flex items-center justify-center gap-3">
-                  {isMember && !isUpcoming && (
+                  {isCompletedRoom ? (
+                    <button
+                      onClick={() => setShowCompletionModal(true)}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF00C8] to-purple-600 hover:from-[#FF00C8] hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-600/30 cursor-pointer flex items-center gap-2"
+                    >
+                      <Trophy size={14} /> View Completion Summary
+                    </button>
+                  ) : isMember && !isUpcoming && (
                     <button
                       onClick={() => setShowCheckinModal(true)}
                       className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg cursor-pointer"
@@ -3217,9 +3326,11 @@ const CreatorRoomDetail = ({ roomId }) => {
                 /* State 4: Not Paired */
                 <div className="text-center py-4 border border-dashed border-white/10 rounded-xl p-3">
                   <p className="text-xs text-gray-400 mb-2 font-mono">
-                    No Pair Buddy paired yet.
+                    {isCompletedRoom
+                      ? "Sprint completed."
+                      : "No Pair Buddy paired yet."}
                   </p>
-                  {isMember || isHost ? (
+                  {isCompletedRoom ? null : isMember || isHost ? (
                     <button
                       onClick={() => setShowPairBuddyModal(true)}
                       className="px-3.5 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-bold font-mono hover:bg-purple-500/30 transition cursor-pointer shadow-sm"
@@ -6055,6 +6166,37 @@ const CreatorRoomDetail = ({ roomId }) => {
       </AnimatePresence>
 
 
+
+      {/* Room Completion Experience Modal */}
+      <AnimatePresence>
+        {showCompletionModal && (
+          <RoomCompletionModal
+            isOpen={showCompletionModal}
+            onClose={() => {
+              setShowCompletionModal(false);
+              setCompletionModalDismissed(true);
+            }}
+            room={room}
+            userId={userId}
+            isMember={Boolean(isMember || members.some((m) => m.user_id === userId) || (userId && room?.created_by === userId))}
+            isHost={Boolean(userId && room?.created_by === userId)}
+            userMemberRecord={members.find((m) => m.user_id === userId)}
+            userStats={{
+              userStandupCount: userDateKeySet.size,
+              totalSprintDays,
+              completionPct: Math.min(100, Math.round((userDateKeySet.size / totalSprintDays) * 100)),
+              streak: userStreak,
+              onTimeCount: userOnTimeCount,
+              lateCount: userLateCount,
+            }}
+            squadStats={{
+              totalMembers: squadMemberCount,
+              totalStandups: standups.length,
+            }}
+            onExploreOther={() => navigate("/creator-rooms")}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Toast Notification */}
       <AnimatePresence>

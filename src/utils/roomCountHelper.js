@@ -19,7 +19,7 @@ export const DURATION_DAYS = {
 export const isCreatorRoomCompleted = (room) => {
   if (!room) return false;
   const status = (room.status || "").toLowerCase();
-  if (["completed", "ended", "archived", "closed"].includes(status)) {
+  if (["completed", "ended", "archived", "closed"].includes(status) || room.settled) {
     return true;
   }
   if (room.duration_type === "ongoing") return false;

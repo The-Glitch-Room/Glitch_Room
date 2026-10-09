@@ -545,6 +545,7 @@ const CreatorRooms = () => {
   };
 
   const isRoomCompleted = (room) => {
+    if (room?.settled) return true;
     // ongoing rooms never expire
     if (room.duration_type === "ongoing") return false;
 

@@ -92,6 +92,7 @@ const RoomCard = ({ room, isMember, onJoin, onEnter, joining }) => {
   // A room is completed when (start_date || created_at) + sprint_days < now.
   // Ongoing rooms never auto-complete.
   const isCompleted = (() => {
+    if (room?.settled) return true;
     if (room.duration_type === "ongoing") return false;
     const match = String(room.duration_type || "").match(/\d+/);
     const days = DURATION_DAYS_MAP[room.duration_type] ?? (room.duration_days ? Number(room.duration_days) : (match ? parseInt(match[0], 10) : null));
