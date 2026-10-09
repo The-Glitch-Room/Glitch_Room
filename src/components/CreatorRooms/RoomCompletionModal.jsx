@@ -37,6 +37,8 @@ const RoomCompletionModal = ({
   userStats = {},
   squadStats = {},
   onExploreOther,
+  onSettleRoom,
+  isSettling = false,
 }) => {
   if (!isOpen || !room) return null;
 
@@ -431,6 +433,49 @@ const RoomCompletionModal = ({
                   </div>
                 )
               )}
+            </div>
+          )}
+
+          {/* Host Settlement Action Banner */}
+          {isHost && !room.settled && (
+            <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-[#FF00C8]/10 border border-amber-500/30 flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <Crown size={20} className="text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-white font-mono flex items-center gap-1.5">
+                    Host Action: Finalize & Settle Room
+                  </h4>
+                  <p className="text-[11px] text-gray-300 font-sans leading-relaxed">
+                    This sprint has ended. As room host, you can finalize the results to distribute stakes, completion rewards, and pool shares to eligible finishers (≥80% consistency).
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={onSettleRoom}
+                disabled={isSettling}
+                className={`w-full py-2.5 px-4 rounded-xl font-bold font-mono text-xs transition flex items-center justify-center gap-2 shadow-lg ${
+                  isSettling
+                    ? "bg-amber-600/50 text-white cursor-wait opacity-80"
+                    : "bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-400 hover:from-amber-400 hover:to-yellow-300 text-black shadow-amber-500/25 cursor-pointer font-black"
+                }`}
+              >
+                {isSettling ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                      className="w-3.5 h-3.5 border-2 border-t-transparent border-white rounded-full"
+                    />
+                    <span>Settling Room & Distributing Rewards...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} />
+                    <span>⚡ Finalize & Settle Room Payouts</span>
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>

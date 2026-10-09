@@ -10,6 +10,7 @@ import Navbar from "../Navbar";
 import GlitchBackground from "../GlitchBackground";
 import { updatePoints, fetchPoints } from "../../utils/pointsHelper";
 import RoomCompletionModal from "./RoomCompletionModal";
+import { settleCreatorRoom } from "../../services/creatorRoomSettlementService";
 import {
   ArrowLeft,
   Share2,
@@ -626,6 +627,7 @@ const CreatorRoomDetail = ({ roomId }) => {
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [completionModalDismissed, setCompletionModalDismissed] = useState(false);
+  const [isSettling, setIsSettling] = useState(false);
   const [calendarViewMode, setCalendarViewMode] = useState("personal");
   const [selectedDayNum, setSelectedDayNum] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -1668,6 +1670,29 @@ const CreatorRoomDetail = ({ roomId }) => {
     }
   };
 
+  const handleSettleRoom = async () => {
+    if (isSettling) return;
+    if (!isHost) {
+      showToast("Only the room host can finalize and settle this room.");
+      return;
+    }
+    setIsSettling(true);
+    try {
+      const res = await settleCreatorRoom(id, userId);
+      if (res.success) {
+        showToast(res.message || "🎉 Room finalized and settled!");
+        await fetchAllRoomData();
+      } else {
+        showToast(res.error || "Failed to settle room.");
+      }
+    } catch (e) {
+      console.error("Error settling room:", e);
+      showToast("Failed to settle room. Please try again.");
+    } finally {
+      setIsSettling(false);
+    }
+  };
+
   const handleRemoveMember = async (targetUserId) => {
     try {
       const targetRow = members.find((m) => m.user_id === targetUserId);
@@ -2228,6 +2253,17 @@ const CreatorRoomDetail = ({ roomId }) => {
 
                   {isHost ? (
                     <>
+                      {isCompletedRoom && !room?.settled && (
+                        <button
+                          onClick={() => {
+                            setShowMenu(false);
+                            setShowCompletionModal(true);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border border-amber-500/35 hover:bg-amber-500/25 flex items-center gap-2.5 text-amber-300 hover:text-amber-200 font-semibold cursor-pointer shadow-sm"
+                        >
+                          <Sparkles size={14} className="text-amber-400" /> Finalize & Settle Room
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setShowMenu(false);
@@ -2531,9 +2567,21 @@ const CreatorRoomDetail = ({ roomId }) => {
             ) : isCompletedRoom ? (
               <button
                 onClick={() => setShowCompletionModal(true)}
-                className="w-full py-2.5 rounded-xl text-xs font-mono text-purple-300 hover:text-white bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer flex items-center justify-center gap-2"
+                className={`w-full py-2.5 rounded-xl text-xs font-mono transition cursor-pointer flex items-center justify-center gap-2 ${
+                  isHost && !room?.settled
+                    ? "bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/40 text-amber-300 hover:text-white hover:bg-amber-500/30 font-bold"
+                    : "text-purple-300 hover:text-white bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20"
+                }`}
               >
-                <Trophy size={14} className="text-[#FF00C8]" /> View Completion Outcome
+                {isHost && !room?.settled ? (
+                  <>
+                    <Sparkles size={14} className="text-amber-400" /> Finalize & Settle Room ⚡
+                  </>
+                ) : (
+                  <>
+                    <Trophy size={14} className="text-[#FF00C8]" /> View Completion Outcome
+                  </>
+                )}
               </button>
             ) : (
               <button
@@ -6194,6 +6242,8 @@ const CreatorRoomDetail = ({ roomId }) => {
               totalStandups: standups.length,
             }}
             onExploreOther={() => navigate("/creator-rooms")}
+            onSettleRoom={handleSettleRoom}
+            isSettling={isSettling}
           />
         )}
       </AnimatePresence>
