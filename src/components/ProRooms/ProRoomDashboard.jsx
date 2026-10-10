@@ -257,9 +257,10 @@ const ProRoomDashboard = () => {
           computedState.key &&
           computedState.key !== roomData.status
         ) {
+          const targetStatus = computedState.key === "ended_awaiting_finalization" ? "evaluation" : computedState.key;
           supabase
             .from("pro_rooms")
-            .update({ status: computedState.key })
+            .update({ status: targetStatus })
             .eq("id", id)
             .then(() => {})
             .catch((err) => console.warn("Failed to sync room status:", err));
@@ -1039,6 +1040,10 @@ const ProRoomDashboard = () => {
 
   const handlePublishResults = () => {
     if (!isHost) return;
+    if (room?.status !== "results_published") {
+      showToast("Distribution unavailable: Please review submissions and finalize/publish results first before distributing awards.");
+      return;
+    }
     const dist = room?.prize_distribution || {};
     const totalPool = Number(room?.gbits_prize_pool) || 0;
     let d1 = Number(dist.rank_1) || 0;
@@ -1200,7 +1205,7 @@ const ProRoomDashboard = () => {
 
       // Safe check-then-insert/update helper for pro_room_rewards
       const saveRewardRecord = async (targetUserId, rewardType, rankNum, gbits) => {
-        if (!targetUserId || gbits <= 0) return;
+        if (!targetUserId || gbits <= 0) return false;
         try {
           const { data: existing } = await supabase
             .from("pro_room_rewards")
@@ -1216,6 +1221,7 @@ const ProRoomDashboard = () => {
               .update({ rank: rankNum, gbits_awarded: gbits })
               .eq("id", existing.id);
             if (updErr) console.warn(`pro_room_rewards update err (${rewardType}):`, updErr);
+            return false; // Already credited earlier, avoid duplicate points
           } else {
             const { error: insErr } = await supabase
               .from("pro_room_rewards")
@@ -1227,57 +1233,65 @@ const ProRoomDashboard = () => {
                 gbits_awarded: gbits,
               });
             if (insErr) console.warn(`pro_room_rewards insert err (${rewardType}):`, insErr);
+            return true; // Newly inserted!
           }
         } catch (err) {
           console.warn(`pro_room_rewards exception (${rewardType}):`, err);
+          return false;
         }
       };
 
       // Rank 1 Payout
       if (rankUpdates[0] && p1 > 0) {
         const winner = rankUpdates[0];
-        await saveRewardRecord(winner.user_id, "rank_1", 1, p1);
-        try {
-          await updatePoints(
-            p1,
-            `🏆 1st Place Prize — ${room.name || room.title || "Pro Room"}`,
-            "reward",
-            id,
-            winner.user_id,
-          );
-        } catch (e) {}
+        const isNew = await saveRewardRecord(winner.user_id, "rank_1", 1, p1);
+        if (isNew) {
+          try {
+            await updatePoints(
+              p1,
+              `🏆 1st Place Prize — ${room.name || room.title || "Pro Room"}`,
+              "reward",
+              id,
+              winner.user_id,
+            );
+          } catch (e) {}
+        }
         allocatedGBits += p1;
       }
 
       // Rank 2 Payout
       if (rankUpdates[1] && p2 > 0) {
         const runnerUp = rankUpdates[1];
-        await saveRewardRecord(runnerUp.user_id, "rank_2", 2, p2);
-        try {
-          await updatePoints(
-            p2,
-            `🥈 2nd Place Prize — ${room.name || room.title || "Pro Room"}`,
-            "reward",
-            id,
-            runnerUp.user_id,
-          );
-        } catch (e) {}
+        const isNew = await saveRewardRecord(runnerUp.user_id, "rank_2", 2, p2);
+        if (isNew) {
+          try {
+            await updatePoints(
+              p2,
+              `🥈 2nd Place Prize — ${room.name || room.title || "Pro Room"}`,
+              "reward",
+              id,
+              runnerUp.user_id,
+            );
+          } catch (e) {}
+        }
         allocatedGBits += p2;
       }
 
       // Rank 3 Payout
       if (rankUpdates[2] && p3 > 0) {
         const third = rankUpdates[2];
-        await saveRewardRecord(third.user_id, "rank_3", 3, p3);
-        try {
-          await updatePoints(
-            p3,
-            `🥉 3rd Place Prize — ${room.name || room.title || "Pro Room"}`,
-            "reward",
-            id,
-            third.user_id,
-          );
-        } catch (e) {}
+        const isNew = await saveRewardRecord(third.user_id, "rank_3", 3, p3);
+        if (isNew) {
+          try {
+            await updatePoints(
+              p3,
+              `🥉 3rd Place Prize — ${room.name || room.title || "Pro Room"}`,
+              "reward",
+              id,
+              third.user_id,
+            );
+          } catch (e) {}
+        }
         allocatedGBits += p3;
       }
 
@@ -1287,16 +1301,18 @@ const ProRoomDashboard = () => {
           const cand = rankUpdates[i];
           const pct = cand.percentage ?? 0;
           if (pct >= passingScore) {
-            await saveRewardRecord(cand.user_id, "participation", cand.calculatedRank, pPart);
-            try {
-              await updatePoints(
-                pPart,
-                `🎖️ Participation Award — ${room.name || room.title || "Pro Room"}`,
-                "reward",
-                id,
-                cand.user_id,
-              );
-            } catch (e) {}
+            const isNew = await saveRewardRecord(cand.user_id, "participation", cand.calculatedRank, pPart);
+            if (isNew) {
+              try {
+                await updatePoints(
+                  pPart,
+                  `🎖️ Participation Award — ${room.name || room.title || "Pro Room"}`,
+                  "reward",
+                  id,
+                  cand.user_id,
+                );
+              } catch (e) {}
+            }
             allocatedGBits += pPart;
           }
         }
@@ -1724,10 +1740,19 @@ const ProRoomDashboard = () => {
             {!room?.rewards_distributed ? (
               <button
                 onClick={handlePublishResults}
-                disabled={publishing}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-bold text-xs shadow-lg shadow-purple-600/25 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                disabled={publishing || room?.status !== "results_published"}
+                title={
+                  room?.status !== "results_published"
+                    ? "Distribution Locked: Host must review submissions and publish/finalize results first before distributing awards."
+                    : "Distribute prize pool gBits and verified certificates"
+                }
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                  room?.status !== "results_published"
+                    ? "bg-white/5 border border-white/10 text-gray-500 cursor-not-allowed opacity-60"
+                    : "bg-gradient-to-r from-purple-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white shadow-lg shadow-purple-600/25 cursor-pointer"
+                }`}
               >
-                <Trophy size={14} className="text-yellow-300" />
+                <Trophy size={14} className={room?.status === "results_published" ? "text-yellow-300" : "text-gray-500"} />
                 <span>Distribute Awards 🏆</span>
               </button>
             ) : (
@@ -1753,11 +1778,11 @@ const ProRoomDashboard = () => {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>Results Are Published — Rewards & Certificates Pending</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 font-mono font-bold">Action Required</span>
+                    <span>Results Finalized — Awards & Certificates Ready for Distribution</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 font-mono font-bold">Step 2: Host Distribution</span>
                   </h4>
                   <p className="text-xs text-gray-300">
-                    Rankings are visible to candidates, but prize pool gBits and digital certificates have not been disbursed yet.
+                    Rankings and scores are finalized and published to candidates. Click below to review prize allocation and distribute gBits rewards and verified digital certificates.
                   </p>
                 </div>
               </div>
@@ -1770,30 +1795,39 @@ const ProRoomDashboard = () => {
               </button>
             </div>
           ) : null
-        ) : lifecycle.isCompleted ? (
-          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-[#00F0FF]/10 to-transparent border border-[#00F0FF]/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+        ) : lifecycle.isCompleted || (room?.event_end_at && new Date() > new Date(room.event_end_at)) ? (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/20 border border-[#00F0FF]/40 flex items-center justify-center text-[#00F0FF] shrink-0">
-                <Eye size={20} />
+              <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0">
+                <Clock size={20} />
               </div>
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Event Concluded — Results Awaiting Publication</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] font-mono font-bold">Action Needed</span>
+                  <span>Ended – Awaiting Finalization</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-mono font-bold">Step 1: Host Finalization Required</span>
                 </h4>
                 <p className="text-xs text-gray-300">
-                  The event has ended with {totalSubs} candidate submission{totalSubs === 1 ? "" : "s"}. Review scores and click "Publish Results" to reveal rankings and leaderboard to candidates.
+                  The event end time has passed and submissions are locked ({totalSubs} submission{totalSubs === 1 ? "" : "s"}). Review scores and rankings in the Grading tab, then finalize results before awards and certificates can be distributed.
                 </p>
               </div>
             </div>
-            <button
-              onClick={handlePublishResultsOnly}
-              disabled={publishing}
-              className="px-5 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black font-black text-xs transition shadow-lg shadow-[#00F0FF]/20 cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0"
-            >
-              <Eye size={14} />
-              <span>Publish Results Now</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setActiveTab("grading")}
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold text-xs transition cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+              >
+                <CheckCircle size={14} className="text-[#00F0FF]" />
+                <span>Review Submissions</span>
+              </button>
+              <button
+                onClick={handlePublishResultsOnly}
+                disabled={publishing}
+                className="px-5 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#00d0df] text-black font-black text-xs transition shadow-lg shadow-[#00F0FF]/20 cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+              >
+                <Eye size={14} />
+                <span>Finalize & Publish Results</span>
+              </button>
+            </div>
           </div>
         ) : lifecycle.isLive ? (
           <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-red-500/20 via-cyan-500/10 to-transparent border border-red-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">

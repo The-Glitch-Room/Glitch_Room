@@ -206,6 +206,10 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
   const [generatingCert, setGeneratingCert] = useState(false);
   const handleClaimOrGenerateCertificate = async () => {
     if (!currentUserId || !room) return;
+    if (!room.rewards_distributed) {
+      showToast("Certificates will be available once the host finalizes the event and distributes awards.");
+      return;
+    }
     setGeneratingCert(true);
     try {
       const userRank = userSubmission?.rank || (myRankItem?.rank ? Number(myRankItem.rank) : 1);
@@ -782,9 +786,8 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
 
           let finalRewards = uRewards || [];
 
-          // Synthesize / fallback reward if rewards distributed but DB pro_room_rewards row is missing
-          const isPub = currentRoom?.status === "results_published" || Boolean(currentRoom?.rewards_distributed) || isResultsPublished;
-          const isRewardsDist = Boolean(currentRoom?.rewards_distributed) || isPub;
+          // Fallback reward ONLY when the host has explicitly distributed rewards
+          const isRewardsDist = Boolean(currentRoom?.rewards_distributed);
           const prizeDist = currentRoom?.prize_distribution || {};
 
           if (finalRewards.length === 0 && sub && isRewardsDist) {
@@ -873,8 +876,8 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
 
           let finalCerts = uCerts || [];
 
-          // Synthesize / fallback certificate if results are published or rewards distributed, but DB cert row is missing
-          if (finalCerts.length === 0 && sub && isPub) {
+          // Fallback certificate ONLY when the host has explicitly distributed rewards and certificates
+          if (finalCerts.length === 0 && sub && isRewardsDist) {
             let userRank = sub.rank;
             if (!userRank && leaderboard && leaderboard.length > 0) {
               const lbEntry = leaderboard.find((l) => l.user_id === uid);
@@ -994,7 +997,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         let finalRoomRewards = allRewards || [];
 
         // Synthesize roomRewards from prize_distribution for leaderboard display if DB table is empty
-        const isDist = currentRoom?.rewards_distributed || currentRoom?.status === "results_published";
+        const isDist = Boolean(currentRoom?.rewards_distributed);
         if (finalRoomRewards.length === 0 && isDist && currentRoom?.prize_distribution) {
           const pDist = currentRoom.prize_distribution;
           const passScore = Number(currentRoom.passing_score) || 50;
@@ -2026,17 +2029,32 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                     (!eventEnd || now <= eventEnd));
 
                 if (isEventEnded) {
+                  const isDistributed = Boolean(room?.rewards_distributed);
+                  const isPublished = room?.status === "results_published";
                   return (
                     <>
-                      <div className="w-14 h-14 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center mx-auto">
-                        <Trophy size={26} className="text-purple-300" />
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto border ${
+                        isDistributed
+                          ? "bg-purple-500/15 border-purple-500/30 text-purple-300"
+                          : isPublished
+                          ? "bg-cyan-500/15 border-[#00F0FF]/30 text-[#00F0FF]"
+                          : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                      }`}>
+                        <Trophy size={26} />
                       </div>
                       <h2 className="text-base font-bold text-white">
-                        Event Completed
+                        {isDistributed
+                          ? "Event Completed"
+                          : isPublished
+                          ? "Results Published"
+                          : "Ended – Awaiting Finalization"}
                       </h2>
                       <p className="text-xs text-gray-400 leading-relaxed">
-                        This event has ended and submissions are closed. Results
-                        and leaderboards are available for participants.
+                        {isDistributed
+                          ? "This event has ended and awards have been distributed. Results and leaderboards are available for participants."
+                          : isPublished
+                          ? "This event has concluded and results have been published. Standings and scores are live for participants."
+                          : "The assessment window is closed and submissions are locked. The organizer is reviewing submissions and finalizing rankings before publishing results and awards."}
                       </p>
                       <button
                         type="button"
@@ -2267,11 +2285,24 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         label: "Upcoming",
         color: "text-purple-400 bg-purple-500/10 border-purple-500/30",
       };
-    if (eventEnd && now > eventEnd)
+    if (eventEnd && now > eventEnd) {
+      if (room?.rewards_distributed) {
+        return {
+          label: "Completed",
+          color: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+        };
+      }
+      if (room?.status === "results_published") {
+        return {
+          label: "Results Published",
+          color: "text-[#00F0FF] bg-cyan-500/10 border-[#00F0FF]/30",
+        };
+      }
       return {
-        label: "Ended",
-        color: "text-gray-400 bg-white/5 border-white/10",
+        label: "Ended – Awaiting Finalization",
+        color: "text-amber-400 bg-amber-500/10 border-amber-500/30",
       };
+    }
     if (eventStart)
       return {
         label: "Active",
@@ -4826,22 +4857,26 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                     </div>
                     <div className="space-y-3 max-w-md mx-auto">
                       <h4 className="text-base font-bold text-white">
-                        {canViewResults
+                        {room?.rewards_distributed
                           ? isEligibleForCert
                             ? "Official Credential Ready to Claim"
                             : "No Certificate Issued"
-                          : "Certificates Awaiting Publication"}
+                          : room?.status === "results_published"
+                          ? "Results Published — Certificates Pending Distribution"
+                          : "Certificates Awaiting Host Finalization"}
                       </h4>
                       <p className="text-xs text-gray-400 leading-relaxed">
                         {userSubmission
-                          ? canViewResults
+                          ? room?.rewards_distributed
                             ? isEligibleForCert
                               ? `Congratulations! You placed Rank ${actualRank} with a score of ${actualScore} pts (${actualPercentage})! You qualify for an official verified credential in this arena.`
                               : `You completed this assessment with a score of ${actualScore} pts (${actualPercentage}). A minimum score of ${room?.passing_score || 50}% is required for certification.`
-                            : "Your submission has been recorded. Official digital certificates and awards will be generated and made available here once the organizer publishes results."
+                            : room?.status === "results_published"
+                            ? "Results and standings have been published. Official verified certificates will be unlocked and distributed once the organizer triggers final awards distribution."
+                            : "Your submission has been recorded. The assessment window is closed and awaiting host evaluation and finalization."
                           : "Complete your assessment and meet the qualification benchmark to receive an official verified cyber certificate."}
                       </p>
-                      {canViewResults && isEligibleForCert && (
+                      {room?.rewards_distributed && isEligibleForCert && (
                         <button
                           onClick={handleClaimOrGenerateCertificate}
                           disabled={generatingCert}

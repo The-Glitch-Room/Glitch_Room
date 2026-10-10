@@ -72,21 +72,49 @@ export const getProRoomLifecycleState = (room) => {
     };
   }
   if (isCompleted) {
-    let label = "ENDED";
-    if (room.status === "results_published") label = "RESULTS PUBLISHED";
-    else if (room.status === "evaluation") label = "EVALUATION";
-    else if (room.status === "completed") label = "COMPLETED";
-    else if (eventEnd && now > eventEnd) label = "ENDED";
+    let label = "ENDED – AWAITING FINALIZATION";
+    let color = "amber";
+    let key = "ended_awaiting_finalization";
+    let dotClass = "bg-amber-400";
+    let textClass = "text-amber-400";
+    let isAwaitingFinalization = false;
+    let isResultsPublished = false;
+
+    if (room.rewards_distributed) {
+      label = "COMPLETED";
+      color = "purple";
+      key = "completed";
+      dotClass = "bg-purple-400";
+      textClass = "text-purple-400";
+      isResultsPublished = true;
+    } else if (room.status === "results_published") {
+      label = "RESULTS PUBLISHED";
+      color = "emerald";
+      key = "results_published";
+      dotClass = "bg-[#00F0FF]";
+      textClass = "text-[#00F0FF]";
+      isResultsPublished = true;
+    } else {
+      label = "ENDED – AWAITING FINALIZATION";
+      color = "amber";
+      key = "ended_awaiting_finalization";
+      dotClass = "bg-amber-400";
+      textClass = "text-amber-400";
+      isAwaitingFinalization = true;
+    }
+
     return {
       label,
-      color: room.status === "results_published" ? "emerald" : "gray",
+      color,
       isLive: false,
-      key: room.status === "results_published" ? "results_published" : "ended",
+      key,
       isUpcoming: false,
       isRegOpen: false,
       isCompleted: true,
-      dotClass: room.status === "results_published" ? "bg-[#00F0FF]" : "bg-zinc-400",
-      textClass: room.status === "results_published" ? "text-[#00F0FF]" : "text-zinc-400",
+      isAwaitingFinalization,
+      isResultsPublished,
+      dotClass,
+      textClass,
     };
   }
   if (isLive) {
@@ -179,11 +207,13 @@ const ProRoomCard = ({ room, isRegistered, userRegStatus, isHost, onSelect }) =>
     if (lifecycle.key === "draft") return "✏️ Resume Editing →";
     if (isHost) {
       if (lifecycle.isLive) return "Enter Room (Host) →";
-      if (lifecycle.key === "completed") return "View Results & Submissions →";
+      if (lifecycle.key === "completed" || lifecycle.key === "results_published") return "View Results & Submissions →";
+      if (lifecycle.key === "ended_awaiting_finalization") return "Review Submissions & Finalize →";
       return "Manage Room →";
     }
 
-    if (lifecycle.key === "completed") return "View Results →";
+    if (lifecycle.key === "completed" || lifecycle.key === "results_published") return "View Results →";
+    if (lifecycle.key === "ended_awaiting_finalization") return "Event Ended – In Review →";
 
     const isApproved = userRegStatus === "approved" || isRegistered === true || isRegistered === "approved";
     const isPending = userRegStatus === "pending" || isRegistered === "pending";
