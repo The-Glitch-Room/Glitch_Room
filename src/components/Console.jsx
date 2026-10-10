@@ -300,7 +300,21 @@ const Console = () => {
     setProfile(profRes.data);
     setUserData({ points: totalPoints });
     setEarnedBadgesCount((prev) => Math.max(prev, badgesRes?.count || 0));
-    setCertificates(certsRes?.data || []);
+    const rawCerts = certsRes?.data || [];
+    const certsByRoom = new Map();
+    rawCerts.forEach((c) => {
+      const key = c.room_id || c.id;
+      if (!certsByRoom.has(key)) {
+        certsByRoom.set(key, c);
+      } else {
+        const existing = certsByRoom.get(key);
+        const isWinner = c.type === "winner" || c.type === "runner_up" || c.type === "top_3" || (c.type && c.type.startsWith("winner"));
+        if (isWinner && existing.type === "participation") {
+          certsByRoom.set(key, c);
+        }
+      }
+    });
+    setCertificates(Array.from(certsByRoom.values()));
 
     const recentActivities = recentRes.data || [];
     setActivities(recentActivities);

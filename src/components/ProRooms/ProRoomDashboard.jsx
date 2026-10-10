@@ -1321,10 +1321,15 @@ const ProRoomDashboard = () => {
       // 3. Digital Certificates Generation with schema-tolerant fallback
       const roomCode = (id || "0000").slice(0, 8).toUpperCase();
 
+      const hasWinnerCert = room?.has_winner_certificate !== false;
+      const winnerCount = hasWinnerCert ? Math.min(3, rankUpdates.length) : 0;
+      const awardedWinnerUserIds = new Set();
+
       // Winner Certificates (Top 3) — issued by default unless explicitly disabled
-      if (room?.has_winner_certificate !== false) {
-        for (let i = 0; i < Math.min(3, rankUpdates.length); i++) {
+      if (hasWinnerCert) {
+        for (let i = 0; i < winnerCount; i++) {
           const cand = rankUpdates[i];
+          awardedWinnerUserIds.add(cand.user_id);
           const candProfile =
             cand.profiles ||
             registrations.find((r) => r.user_id === cand.user_id)?.profiles;
@@ -1379,16 +1384,29 @@ const ProRoomDashboard = () => {
                 await supabase.from("pro_room_certificates").insert(noPct);
               }
             }
+
+            // Remove any redundant participation certificate for this winner in this room
+            try {
+              await supabase
+                .from("pro_room_certificates")
+                .delete()
+                .eq("room_id", id)
+                .eq("user_id", cand.user_id)
+                .eq("type", "participation");
+            } catch (delErr) {
+              console.warn("Clean redundant participation cert err:", delErr);
+            }
           } catch (e) {
             console.warn("Winner certificate save err:", e);
           }
         }
       }
 
-      // Participation Certificates for all passing candidates
+      // Participation Certificates — ONLY for passing candidates who did NOT receive a winner certificate
       if (room?.has_participation_certificate !== false) {
-        for (let i = 0; i < rankUpdates.length; i++) {
+        for (let i = winnerCount; i < rankUpdates.length; i++) {
           const cand = rankUpdates[i];
+          if (awardedWinnerUserIds.has(cand.user_id)) continue;
           const pct = cand.percentage ?? 0;
           if (pct >= passingScore) {
             const candProfile =

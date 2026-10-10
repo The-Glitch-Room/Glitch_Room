@@ -478,7 +478,21 @@ export default function YourProfile() {
             .order("issued_at", { ascending: false }),
         ]);
 
-      setCertificates(certsRes?.data || []);
+      const rawCerts = certsRes?.data || [];
+      const certsByRoom = new Map();
+      rawCerts.forEach((c) => {
+        const key = c.room_id || c.id;
+        if (!certsByRoom.has(key)) {
+          certsByRoom.set(key, c);
+        } else {
+          const existing = certsByRoom.get(key);
+          const isWinner = c.type === "winner" || c.type === "runner_up" || c.type === "top_3" || (c.type && c.type.startsWith("winner"));
+          if (isWinner && existing.type === "participation") {
+            certsByRoom.set(key, c);
+          }
+        }
+      });
+      setCertificates(Array.from(certsByRoom.values()));
 
       const pd = profileRes.data;
       const userMeta = userData?.user?.user_metadata;

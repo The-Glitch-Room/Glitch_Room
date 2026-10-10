@@ -216,7 +216,8 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
       const userScore = Number(userSubmission?.total_score != null ? userSubmission.total_score : (myRankItem?.total_score ?? 0));
       const maxScore = Number(room.total_possible_score) || 100;
       const userPct = Number(userSubmission?.percentage) || (maxScore > 0 ? Math.round((userScore / maxScore) * 100) : 0);
-      const isWinner = userRank <= 3;
+      const hasWinnerCert = room?.has_winner_certificate !== false;
+      const isWinner = hasWinnerCert && userRank <= 3;
       const roomCode = (id || "0000").slice(0, 8).toUpperCase();
       const certType = isWinner
         ? (userRank === 1 ? "winner" : userRank === 2 ? "runner_up" : "top_3")
@@ -279,6 +280,18 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
           const { percentage, ...noPct } = newCert;
           await supabase.from("pro_room_certificates").insert(noPct);
         }
+      }
+
+      // If winner certificate claimed, clean up any duplicate participation certificate
+      if (isWinner) {
+        try {
+          await supabase
+            .from("pro_room_certificates")
+            .delete()
+            .eq("room_id", id)
+            .eq("user_id", currentUserId)
+            .eq("type", "participation");
+        } catch (e) {}
       }
 
       showToast("🏆 Official certificate generated successfully!");
@@ -876,6 +889,31 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
 
           let finalCerts = uCerts || [];
 
+          // Ensure each participant receives and sees ONLY ONE appropriate certificate
+          if (finalCerts.length > 1) {
+            const getPriority = (c) => {
+              if (c.type === "winner" || c.type === "winner_1") return 1;
+              if (c.type === "runner_up" || c.type === "winner_2") return 2;
+              if (c.type === "top_3" || c.type === "winner_3") return 3;
+              if (c.type && c.type.startsWith("winner")) return 4;
+              return 10; // participation
+            };
+            finalCerts.sort((a, b) => getPriority(a) - getPriority(b));
+
+            const primaryCert = finalCerts[0];
+            const redundantCerts = finalCerts.slice(1);
+            if (getPriority(primaryCert) <= 4) {
+              redundantCerts.forEach(async (rc) => {
+                try {
+                  await supabase.from("pro_room_certificates").delete().eq("id", rc.id);
+                } catch (e) {
+                  console.warn("Clean redundant cert error:", e);
+                }
+              });
+            }
+            finalCerts = [primaryCert];
+          }
+
           // Fallback certificate ONLY when the host has explicitly distributed rewards and certificates
           if (finalCerts.length === 0 && sub && isRewardsDist) {
             let userRank = sub.rank;
@@ -889,7 +927,8 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
             const maxScore = Number(currentRoom.total_possible_score) || 100;
             const userPct = Number(sub.percentage) || Math.round((userScore / maxScore) * 100);
             const passScore = Number(currentRoom.passing_score) || 50;
-            const isWinner = userRank <= 3;
+            const hasWinnerCert = currentRoom?.has_winner_certificate !== false;
+            const isWinner = hasWinnerCert && userRank <= 3;
             const isEligible = isWinner || userPct >= passScore;
 
             if (isEligible) {
@@ -974,6 +1013,17 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                       const { percentage, ...noPct } = dbPayload;
                       await supabase.from("pro_room_certificates").insert(noPct);
                     }
+                  }
+
+                  if (isWinner) {
+                    try {
+                      await supabase
+                        .from("pro_room_certificates")
+                        .delete()
+                        .eq("room_id", id)
+                        .eq("user_id", uid)
+                        .eq("type", "participation");
+                    } catch (e) {}
                   }
                 } catch (saveErr) {
                   console.warn("Could not persist synthesized certificate to DB:", saveErr);
@@ -4754,7 +4804,20 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                 {userCertificates.length > 0 ? (
                   <div className="space-y-6">
                     {userCertificates.map((cert) => {
-                      const isWinner = cert.type && cert.type.startsWith("winner");
+                      const isWinner =
+                        cert.type === "winner" ||
+                        cert.type === "runner_up" ||
+                        cert.type === "top_3" ||
+                        (cert.type && cert.type.startsWith("winner")) ||
+                        (cert.rank && Number(cert.rank) <= 3 && cert.type !== "participation");
+                      const rankNum = Number(cert.rank) || (cert.type === "winner" ? 1 : cert.type === "runner_up" ? 2 : cert.type === "top_3" ? 3 : 1);
+                      const awardBadge = isWinner
+                        ? rankNum === 1
+                          ? "Official 1st Place Award"
+                          : rankNum === 2
+                          ? "Official 2nd Place Award"
+                          : "Official 3rd Place Award"
+                        : "Certificate of Achievement";
                       return (
                         <div
                           key={cert.id}
@@ -4783,9 +4846,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                                       : "bg-[#00F0FF]/20 text-[#00F0FF]"
                                   }`}
                                 >
-                                  {isWinner
-                                    ? `Official ${cert.type === "winner" || cert.type === "winner_1" ? "1st Place" : cert.type === "runner_up" || cert.type === "winner_2" ? "2nd Place" : "3rd Place"} Award`
-                                    : "Certificate of Achievement"}
+                                  {awardBadge}
                                 </span>
                                 <h4 className="text-base font-bold text-white">
                                   {isWinner ? "Certificate of Excellence" : "Certificate of Achievement"}
