@@ -779,7 +779,91 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
             .select("*")
             .eq("room_id", id)
             .eq("user_id", uid);
-          setUserRewards(uRewards || []);
+
+          let finalRewards = uRewards || [];
+
+          // Synthesize / fallback reward if rewards distributed but DB pro_room_rewards row is missing
+          const isPub = currentRoom?.status === "results_published" || Boolean(currentRoom?.rewards_distributed) || isResultsPublished;
+          const isRewardsDist = Boolean(currentRoom?.rewards_distributed) || isPub;
+          const prizeDist = currentRoom?.prize_distribution || {};
+
+          if (finalRewards.length === 0 && sub && isRewardsDist) {
+            let userRank = sub.rank;
+            if (!userRank && leaderboard && leaderboard.length > 0) {
+              const lbEntry = leaderboard.find((l) => l.user_id === uid);
+              if (lbEntry?.rank) userRank = lbEntry.rank;
+            }
+
+            if (userRank) {
+              let rewardType = null;
+              let gbitsAwarded = 0;
+
+              if (userRank === 1 && Number(prizeDist.rank_1) > 0) {
+                rewardType = "rank_1";
+                gbitsAwarded = Number(prizeDist.rank_1);
+              } else if (userRank === 2 && Number(prizeDist.rank_2) > 0) {
+                rewardType = "rank_2";
+                gbitsAwarded = Number(prizeDist.rank_2);
+              } else if (userRank === 3 && Number(prizeDist.rank_3) > 0) {
+                rewardType = "rank_3";
+                gbitsAwarded = Number(prizeDist.rank_3);
+              } else if (userRank > 3 && Number(prizeDist.participation) > 0) {
+                const userPct = Number(sub.percentage) || 0;
+                const passScore = Number(currentRoom.passing_score) || 50;
+                if (userPct >= passScore) {
+                  rewardType = "participation";
+                  gbitsAwarded = Number(prizeDist.participation);
+                }
+              }
+
+              if (rewardType && gbitsAwarded > 0) {
+                finalRewards = [
+                  {
+                    id: `rew_${id}_${uid}`,
+                    room_id: id,
+                    user_id: uid,
+                    reward_type: rewardType,
+                    rank: userRank,
+                    gbits_awarded: gbitsAwarded,
+                    created_at: currentRoom.rewards_distributed_at || new Date().toISOString(),
+                  },
+                ];
+
+                // Self-credit and persist in background under user's session
+                (async () => {
+                  try {
+                    const { data: existingR } = await supabase
+                      .from("pro_room_rewards")
+                      .select("id")
+                      .eq("room_id", id)
+                      .eq("user_id", uid)
+                      .eq("reward_type", rewardType)
+                      .maybeSingle();
+
+                    if (!existingR?.id) {
+                      await supabase.from("pro_room_rewards").insert({
+                        room_id: id,
+                        user_id: uid,
+                        reward_type: rewardType,
+                        rank: userRank,
+                        gbits_awarded: gbitsAwarded,
+                      });
+                    }
+
+                    // Trigger fetchPoints to auto-credit and sync balance
+                    const updatedBal = await fetchPoints(uid);
+                    if (typeof updatedBal === "number") {
+                      setUserGbits(updatedBal);
+                    }
+                  } catch (e) {
+                    console.warn("Background reward persist/sync error:", e);
+                  }
+                })();
+              }
+            }
+          }
+
+          setUserRewards(finalRewards);
 
           const { data: uCerts } = await supabase
             .from("pro_room_certificates")
@@ -790,7 +874,6 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
           let finalCerts = uCerts || [];
 
           // Synthesize / fallback certificate if results are published or rewards distributed, but DB cert row is missing
-          const isPub = currentRoom?.status === "results_published" || Boolean(currentRoom?.rewards_distributed) || isResultsPublished;
           if (finalCerts.length === 0 && sub && isPub) {
             let userRank = sub.rank;
             if (!userRank && leaderboard && leaderboard.length > 0) {
@@ -907,7 +990,32 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
           .from("pro_room_rewards")
           .select("*")
           .eq("room_id", id);
-        setRoomRewards(allRewards || []);
+
+        let finalRoomRewards = allRewards || [];
+
+        // Synthesize roomRewards from prize_distribution for leaderboard display if DB table is empty
+        const isDist = currentRoom?.rewards_distributed || currentRoom?.status === "results_published";
+        if (finalRoomRewards.length === 0 && isDist && currentRoom?.prize_distribution) {
+          const pDist = currentRoom.prize_distribution;
+          const passScore = Number(currentRoom.passing_score) || 50;
+          finalRoomRewards = (submissions || []).map((s) => {
+            const rk = s.rank;
+            let amt = 0;
+            if (rk === 1) amt = Number(pDist.rank_1) || 0;
+            else if (rk === 2) amt = Number(pDist.rank_2) || 0;
+            else if (rk === 3) amt = Number(pDist.rank_3) || 0;
+            else if (rk > 3 && (s.percentage ?? 0) >= passScore) amt = Number(pDist.participation) || 0;
+
+            return {
+              room_id: id,
+              user_id: s.user_id,
+              rank: rk,
+              gbits_awarded: amt,
+            };
+          }).filter((rw) => rw.gbits_awarded > 0);
+        }
+
+        setRoomRewards(finalRoomRewards);
       } catch (e) {
         console.warn("Error fetching all room rewards:", e);
       }

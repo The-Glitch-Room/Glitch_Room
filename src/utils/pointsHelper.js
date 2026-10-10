@@ -188,10 +188,101 @@ export const fetchPoints = async (userId) => {
     try {
       const { data: authUser } = await supabase.auth.getUser();
       if (authUser?.user?.id === userId) {
-        const { data: rewards } = await supabase
+        let { data: rewards } = await supabase
           .from("pro_room_rewards")
           .select("id, room_id, reward_type, rank, gbits_awarded, created_at")
           .eq("user_id", userId);
+
+        rewards = rewards ? [...rewards] : [];
+
+        // Dynamic Self-Healing Fallback for All Pro Rooms:
+        // If user placed in any pro room where rewards_distributed is true
+        // but pro_room_rewards row was missed, dynamically synthesize and insert it!
+        try {
+          const { data: mySubs } = await supabase
+            .from("pro_room_submissions")
+            .select("room_id, rank, percentage, total_score")
+            .eq("user_id", userId)
+            .not("rank", "is", null);
+
+          if (mySubs && mySubs.length > 0) {
+            const roomIds = [...new Set(mySubs.map((s) => s.room_id).filter(Boolean))];
+            if (roomIds.length > 0) {
+              const { data: distRooms } = await supabase
+                .from("pro_rooms")
+                .select("id, name, prize_distribution, passing_score, rewards_distributed")
+                .in("id", roomIds)
+                .eq("rewards_distributed", true);
+
+              if (distRooms && distRooms.length > 0) {
+                for (const r of distRooms) {
+                  const subForRoom = mySubs.find((s) => s.room_id === r.id);
+                  if (!subForRoom || !subForRoom.rank) continue;
+
+                  const pDist = r.prize_distribution || {};
+                  let awardGbits = 0;
+                  let rewType = null;
+                  if (subForRoom.rank === 1 && Number(pDist.rank_1) > 0) {
+                    awardGbits = Number(pDist.rank_1);
+                    rewType = "rank_1";
+                  } else if (subForRoom.rank === 2 && Number(pDist.rank_2) > 0) {
+                    awardGbits = Number(pDist.rank_2);
+                    rewType = "rank_2";
+                  } else if (subForRoom.rank === 3 && Number(pDist.rank_3) > 0) {
+                    awardGbits = Number(pDist.rank_3);
+                    rewType = "rank_3";
+                  } else if (subForRoom.rank > 3 && Number(pDist.participation) > 0) {
+                    const pct = Number(subForRoom.percentage) || 0;
+                    const pass = Number(r.passing_score) || 50;
+                    if (pct >= pass) {
+                      awardGbits = Number(pDist.participation);
+                      rewType = "participation";
+                    }
+                  }
+
+                  if (awardGbits > 0 && rewType) {
+                    const hasRew = rewards.some(
+                      (rw) => rw.room_id === r.id && rw.reward_type === rewType
+                    );
+                    if (!hasRew) {
+                      try {
+                        const { data: existingRow } = await supabase
+                          .from("pro_room_rewards")
+                          .select("id")
+                          .eq("room_id", r.id)
+                          .eq("user_id", userId)
+                          .eq("reward_type", rewType)
+                          .maybeSingle();
+
+                        if (!existingRow?.id) {
+                          await supabase.from("pro_room_rewards").insert({
+                            room_id: r.id,
+                            user_id: userId,
+                            reward_type: rewType,
+                            rank: subForRoom.rank,
+                            gbits_awarded: awardGbits,
+                          });
+                        }
+
+                        rewards.push({
+                          room_id: r.id,
+                          user_id: userId,
+                          reward_type: rewType,
+                          rank: subForRoom.rank,
+                          gbits_awarded: awardGbits,
+                        });
+                      } catch (e) {
+                        console.warn("Self-healing pro_room_rewards insert err:", e);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (subErr) {
+          console.warn("fetchPoints sub fallback warning:", subErr);
+        }
 
         if (rewards && rewards.length > 0) {
           const { data: existingActs } = await supabase
@@ -246,6 +337,11 @@ export const fetchPoints = async (userId) => {
               );
               window.dispatchEvent(
                 new CustomEvent("gbits_updated", { detail: { points: nextBalance } })
+              );
+              window.dispatchEvent(
+                new CustomEvent("gbits_transaction", {
+                  detail: { delta: pendingDelta, title: "🏆 Pro Room Prize Awarded", newTotal: nextBalance },
+                })
               );
             }
           }

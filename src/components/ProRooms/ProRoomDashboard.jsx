@@ -1198,91 +1198,87 @@ const ProRoomDashboard = () => {
       // 2. Rewards Distribution
       let allocatedGBits = 0;
 
+      // Safe check-then-insert/update helper for pro_room_rewards
+      const saveRewardRecord = async (targetUserId, rewardType, rankNum, gbits) => {
+        if (!targetUserId || gbits <= 0) return;
+        try {
+          const { data: existing } = await supabase
+            .from("pro_room_rewards")
+            .select("id")
+            .eq("room_id", id)
+            .eq("user_id", targetUserId)
+            .eq("reward_type", rewardType)
+            .maybeSingle();
+
+          if (existing?.id) {
+            const { error: updErr } = await supabase
+              .from("pro_room_rewards")
+              .update({ rank: rankNum, gbits_awarded: gbits })
+              .eq("id", existing.id);
+            if (updErr) console.warn(`pro_room_rewards update err (${rewardType}):`, updErr);
+          } else {
+            const { error: insErr } = await supabase
+              .from("pro_room_rewards")
+              .insert({
+                room_id: id,
+                user_id: targetUserId,
+                reward_type: rewardType,
+                rank: rankNum,
+                gbits_awarded: gbits,
+              });
+            if (insErr) console.warn(`pro_room_rewards insert err (${rewardType}):`, insErr);
+          }
+        } catch (err) {
+          console.warn(`pro_room_rewards exception (${rewardType}):`, err);
+        }
+      };
+
       // Rank 1 Payout
       if (rankUpdates[0] && p1 > 0) {
         const winner = rankUpdates[0];
+        await saveRewardRecord(winner.user_id, "rank_1", 1, p1);
         try {
-          await supabase.from("pro_room_rewards").upsert(
-            {
-              room_id: id,
-              user_id: winner.user_id,
-              reward_type: "rank_1",
-              rank: 1,
-              gbits_awarded: p1,
-            },
-            { onConflict: "room_id,user_id,reward_type" },
+          await updatePoints(
+            p1,
+            `🏆 1st Place Prize — ${room.name || room.title || "Pro Room"}`,
+            "reward",
+            id,
+            winner.user_id,
           );
-          try {
-            await updatePoints(
-              p1,
-              `🏆 1st Place Prize — ${room.name || room.title || "Pro Room"}`,
-              "reward",
-              id,
-              winner.user_id,
-            );
-          } catch (e) {}
-          allocatedGBits += p1;
-        } catch (e) {
-          console.warn("Rank 1 reward err:", e);
-        }
+        } catch (e) {}
+        allocatedGBits += p1;
       }
 
       // Rank 2 Payout
       if (rankUpdates[1] && p2 > 0) {
         const runnerUp = rankUpdates[1];
+        await saveRewardRecord(runnerUp.user_id, "rank_2", 2, p2);
         try {
-          await supabase.from("pro_room_rewards").upsert(
-            {
-              room_id: id,
-              user_id: runnerUp.user_id,
-              reward_type: "rank_2",
-              rank: 2,
-              gbits_awarded: p2,
-            },
-            { onConflict: "room_id,user_id,reward_type" },
+          await updatePoints(
+            p2,
+            `🥈 2nd Place Prize — ${room.name || room.title || "Pro Room"}`,
+            "reward",
+            id,
+            runnerUp.user_id,
           );
-          try {
-            await updatePoints(
-              p2,
-              `🥈 2nd Place Prize — ${room.name || room.title || "Pro Room"}`,
-              "reward",
-              id,
-              runnerUp.user_id,
-            );
-          } catch (e) {}
-          allocatedGBits += p2;
-        } catch (e) {
-          console.warn("Rank 2 reward err:", e);
-        }
+        } catch (e) {}
+        allocatedGBits += p2;
       }
 
       // Rank 3 Payout
       if (rankUpdates[2] && p3 > 0) {
         const third = rankUpdates[2];
+        await saveRewardRecord(third.user_id, "rank_3", 3, p3);
         try {
-          await supabase.from("pro_room_rewards").upsert(
-            {
-              room_id: id,
-              user_id: third.user_id,
-              reward_type: "rank_3",
-              rank: 3,
-              gbits_awarded: p3,
-            },
-            { onConflict: "room_id,user_id,reward_type" },
+          await updatePoints(
+            p3,
+            `🥉 3rd Place Prize — ${room.name || room.title || "Pro Room"}`,
+            "reward",
+            id,
+            third.user_id,
           );
-          try {
-            await updatePoints(
-              p3,
-              `🥉 3rd Place Prize — ${room.name || room.title || "Pro Room"}`,
-              "reward",
-              id,
-              third.user_id,
-            );
-          } catch (e) {}
-          allocatedGBits += p3;
-        } catch (e) {
-          console.warn("Rank 3 reward err:", e);
-        }
+        } catch (e) {}
+        allocatedGBits += p3;
       }
 
       // Participation rewards for passing candidates (Rank 4+)
@@ -1291,30 +1287,17 @@ const ProRoomDashboard = () => {
           const cand = rankUpdates[i];
           const pct = cand.percentage ?? 0;
           if (pct >= passingScore) {
+            await saveRewardRecord(cand.user_id, "participation", cand.calculatedRank, pPart);
             try {
-              await supabase.from("pro_room_rewards").upsert(
-                {
-                  room_id: id,
-                  user_id: cand.user_id,
-                  reward_type: "participation",
-                  rank: cand.calculatedRank,
-                  gbits_awarded: pPart,
-                },
-                { onConflict: "room_id,user_id,reward_type" },
+              await updatePoints(
+                pPart,
+                `🎖️ Participation Award — ${room.name || room.title || "Pro Room"}`,
+                "reward",
+                id,
+                cand.user_id,
               );
-              try {
-                await updatePoints(
-                  pPart,
-                  `🎖️ Participation Award — ${room.name || room.title || "Pro Room"}`,
-                  "reward",
-                  id,
-                  cand.user_id,
-                );
-              } catch (e) {}
-              allocatedGBits += pPart;
-            } catch (e) {
-              console.warn("Participation reward err:", e);
-            }
+            } catch (e) {}
+            allocatedGBits += pPart;
           }
         }
       }
