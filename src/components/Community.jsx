@@ -1083,40 +1083,54 @@ const PostCard = ({
                     setMenuOpen((prev) => !prev);
                   }}
                   className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                  title="Post options"
                 >
                   <MoreVertical size={15} />
                 </button>
 
                 <AnimatePresence>
                   {menuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9, y: -4 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9, y: -4 }}
-                      className="absolute right-0 top-full mt-1 w-32 bg-[#0c0c14] border border-white/10 rounded-xl shadow-2xl py-1 z-30 overflow-hidden font-sans text-xs"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        onClick={() => {
+                    <>
+                      <div
+                        className="fixed inset-0 z-20 cursor-default"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setMenuOpen(false);
-                          onEdit(post);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/10 transition text-left cursor-pointer"
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                        className="absolute right-0 top-full mt-1 w-36 bg-[#0c0c14] border border-white/10 rounded-xl shadow-2xl py-1 z-30 overflow-hidden font-sans text-xs"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <Edit3 size={13} className="text-purple-400" />
-                        <span>Edit Post</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          onDelete(post);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition text-left cursor-pointer"
-                      >
-                        <Trash2 size={13} />
-                        <span>Delete</span>
-                      </button>
-                    </motion.div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpen(false);
+                            onEdit(post);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/10 transition text-left cursor-pointer"
+                        >
+                          <Edit3 size={13} className="text-purple-400" />
+                          <span>Edit Post</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpen(false);
+                            onDelete(post);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition text-left cursor-pointer"
+                        >
+                          <Trash2 size={13} />
+                          <span>Delete Post</span>
+                        </button>
+                      </motion.div>
+                    </>
                   )}
                 </AnimatePresence>
               </div>

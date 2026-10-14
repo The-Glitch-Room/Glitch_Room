@@ -725,10 +725,12 @@ const EditPostModal = ({ post, onClose, onUpdated }) => {
 const CommunityPost = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
+  const { user: ctxUser } = useAuth() || {};
+  const [user, setUser] = useState(null);
+  const activeUser = user || ctxUser;
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
   const [commentBody, setCommentBody] = useState("");
   const [commentMode, setCommentMode] = useState("text");
   const [submitting, setSubmitting] = useState(false);
@@ -740,7 +742,12 @@ const CommunityPost = () => {
   const [userReactions, setUserReactions] = useState({});
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data?.user || null));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setUser(session.user);
+    });
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) setUser(data.user);
+    });
     fetchPost();
 
     try {
@@ -842,7 +849,7 @@ const CommunityPost = () => {
   };
 
   const handleReaction = async (reactionId) => {
-    if (!user) {
+    if (!activeUser) {
       navigate("/");
       return;
     }
@@ -882,7 +889,7 @@ const CommunityPost = () => {
   };
 
   const handleComment = async () => {
-    if (!commentBody.trim() || !user) return;
+    if (!commentBody.trim() || !activeUser) return;
     if (containsProfanity(commentBody)) {
       setCommentError(PROFANITY_ERROR_MSG);
       return;
@@ -892,16 +899,16 @@ const CommunityPost = () => {
     const { data: profileData } = await supabase
       .from("profiles")
       .select("username, full_name, avatar_url")
-      .eq("id", user.id)
+      .eq("id", activeUser.id)
       .single();
     await supabase.from("community_comments").insert({
       post_id: postId,
       parent_id: null,
-      user_id: user.id,
+      user_id: activeUser.id,
       username:
         profileData?.username ||
         profileData?.full_name ||
-        user.email?.split("@")[0],
+        activeUser.email?.split("@")[0],
       avatar_url: profileData?.avatar_url || null,
       body: commentMode === "text" ? commentBody.trim() : null,
       code: commentMode === "code" ? commentBody.trim() : null,
@@ -958,7 +965,7 @@ const CommunityPost = () => {
             <ArrowLeft size={15} /> Back to Lounge
           </button>
 
-          {user?.id === post?.user_id && (
+          {activeUser?.id === post?.user_id && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -974,7 +981,7 @@ const CommunityPost = () => {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition cursor-pointer"
               >
                 <Trash2 size={13} />
-                Delete
+                Delete Post
               </button>
             </div>
           )}
@@ -1106,7 +1113,7 @@ const CommunityPost = () => {
         </motion.article>
 
         {/* Add Comment Box */}
-        {user ? (
+        {activeUser ? (
           <div className="bg-[#0f0f16] border border-white/8 rounded-3xl p-5 sm:p-6 mb-8 shadow-xl">
             <p className="text-xs font-mono text-gray-400 uppercase tracking-widest font-bold mb-3">
               Add to the Discussion
@@ -1203,7 +1210,7 @@ const CommunityPost = () => {
                   key={comment.id}
                   comment={comment}
                   onReply={fetchPost}
-                  user={user}
+                  user={activeUser}
                   postAuthorId={post.user_id}
                   onAuthorClick={(dev) => setSelectedDev(dev)}
                 />
@@ -1237,7 +1244,7 @@ const CommunityPost = () => {
         developer={selectedDev}
         isOpen={Boolean(selectedDev)}
         onClose={() => setSelectedDev(null)}
-        currentUser={user}
+        currentUser={activeUser}
         onFilterByAuthor={() => {
           setSelectedDev(null);
           navigate("/community");
