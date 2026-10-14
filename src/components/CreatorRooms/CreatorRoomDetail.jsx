@@ -14,6 +14,8 @@ import {
   settleCreatorRoom,
   calculateRoomSettlement,
   syncRoomSettlementRecords,
+  syncAndCreditUserCreatorSettlements,
+  getRoomTotalSprintDays,
 } from "../../services/creatorRoomSettlementService";
 import {
   ArrowLeft,
@@ -867,7 +869,38 @@ const CreatorRoomDetail = ({ roomId }) => {
       const p = profs.find((pr) => pr.id === uId || pr.user_id === uId);
       const isHostUser = uId === roomData?.created_by;
 
+      let pStatus = mRecord?.payout_status || null;
+      let pAmount = mRecord?.payout_amount !== undefined && mRecord?.payout_amount !== null ? Number(mRecord.payout_amount) : 0;
+      let sAt = mRecord?.settled_at || null;
+      let sAmount = Number(mRecord?.staked_amount) || 0;
+
+      // If room is settled, dynamically resolve settlement status for accurate squad overview
+      if (roomData?.settled) {
+        const userCheckins = (checkinData || []).filter((c) => c.user_id === uId);
+        const uniqueDays = new Set(userCheckins.map((c) => getISTDateKey(c.created_at)).filter(Boolean)).size;
+        const totDays = getRoomTotalSprintDays(roomData);
+        const pct = totDays > 0 ? Math.min(100, Math.round((uniqueDays / totDays) * 100)) : 0;
+        const isElig = !mRecord?.left_at && pct >= 80;
+
+        if (isElig) {
+          pStatus = "settled";
+          sAmount = 0;
+          if (!pAmount || pAmount === 0) {
+            const eStake = Number(roomData.entry_stake || 0);
+            const cReward = Number(roomData.completion_reward || 0);
+            pAmount = (roomData.enable_gbits_stake && eStake > 0) ? (eStake + cReward) : cReward;
+          }
+          sAt = sAt || roomData.settled_at || new Date().toISOString();
+        } else {
+          pStatus = "forfeited";
+          sAmount = 0;
+          pAmount = 0;
+          sAt = sAt || roomData.settled_at || new Date().toISOString();
+        }
+      }
+
       return {
+        id: mRecord?.id,
         user_id: uId,
         role: mRecord?.role || (isHostUser ? "host" : "member"),
         joined_at:
@@ -878,17 +911,11 @@ const CreatorRoomDetail = ({ roomId }) => {
           (isHostUser ? roomData?.host || "Host" : "Squad Member"),
         avatar_url: p?.avatar_url || null,
         streak: 0,
-        // The room pool is the SUM of what members actually staked when
-        // they joined (creator_room_members.staked_amount), not
-        // entry_stake × member count — that assumed every member,
-        // including the host, paid the room's current entry_stake, which
-        // breaks the moment entry_stake changes after members already
-        // joined, or a member is present without ever having staked.
-        staked_amount: Number(mRecord?.staked_amount) || 0,
+        staked_amount: sAmount,
         forfeited_carryover: Number(mRecord?.forfeited_carryover) || 0,
-        payout_status: mRecord?.payout_status || null,
-        payout_amount: mRecord?.payout_amount !== undefined && mRecord?.payout_amount !== null ? Number(mRecord.payout_amount) : 0,
-        settled_at: mRecord?.settled_at || null,
+        payout_status: pStatus,
+        payout_amount: pAmount,
+        settled_at: sAt,
         left_at: mRecord?.left_at || null,
       };
     });
@@ -978,9 +1005,18 @@ const CreatorRoomDetail = ({ roomId }) => {
       // creator_room_events table not present on backend yet
     }
 
-    // 7. If room is settled, ensure member settlement audit records are synchronized
+    // 7. If room is settled, ensure member settlement audit records are synchronized and active user is credited
     if (roomData?.settled) {
       try {
+        if (uid) {
+          const credited = await syncAndCreditUserCreatorSettlements(uid);
+          if (credited > 0) {
+            const newBal = await fetchPoints(uid);
+            if (typeof newBal === "number") {
+              setUserProfile((prev) => (prev ? { ...prev, points: newBal } : prev));
+            }
+          }
+        }
         await syncRoomSettlementRecords(id, roomData, fetchedMembers, checkinData || []);
       } catch (err) {
         console.warn("Notice syncing room settlement records:", err);

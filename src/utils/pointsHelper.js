@@ -1,6 +1,7 @@
 import { getLocalDateStr } from "./dateUtils";
 import { supabase } from "../supabaseClient";
 import { checkAndAwardReferralBonus } from "./referralHelper";
+import { syncAndCreditUserCreatorSettlements } from "../services/creatorRoomSettlementService";
 
 // ── Level Config & Constants ────────────────────────────────────────────────
 export const LEVEL_THRESHOLDS = [
@@ -345,6 +346,43 @@ export const fetchPoints = async (userId) => {
               );
             }
           }
+        }
+
+        // Auto-sync uncredited Creator Room Settlements for currently logged-in user
+        try {
+          const creatorDelta = await syncAndCreditUserCreatorSettlements(userId);
+          if (creatorDelta > 0) {
+            const nextBalance = currentBalance + creatorDelta;
+            await supabase
+              .from("profiles")
+              .update({ points: nextBalance })
+              .eq("id", userId);
+            try {
+              await supabase
+                .from("user_points")
+                .upsert(
+                  { user_id: userId, points: nextBalance },
+                  { onConflict: "user_id" }
+                );
+            } catch (e) {}
+            currentBalance = nextBalance;
+
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(
+                new CustomEvent("points_updated", { detail: { points: nextBalance } })
+              );
+              window.dispatchEvent(
+                new CustomEvent("gbits_updated", { detail: { points: nextBalance } })
+              );
+              window.dispatchEvent(
+                new CustomEvent("gbits_transaction", {
+                  detail: { delta: creatorDelta, title: "🏆 Creator Room Settlement Credited", newTotal: nextBalance },
+                })
+              );
+            }
+          }
+        } catch (cSyncErr) {
+          console.warn("Creator room settlement sync notice:", cSyncErr);
         }
       }
     } catch (syncErr) {
