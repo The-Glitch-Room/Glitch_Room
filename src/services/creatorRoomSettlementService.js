@@ -249,23 +249,33 @@ export const syncRoomSettlementRecords = async (roomId, room, members = [], chec
 
       // Record in creator_room_settlements table
       try {
-        await supabase.from("creator_room_settlements").upsert(
-          {
-            room_id: roomId,
-            user_id: p.userId,
-            staked_amount: p.originalStake || 0,
-            completion_pct: p.consistencyPct || 0,
-            standups_submitted: p.loggedDaysCount || 0,
-            total_sprint_days: settlement.totalSprintDays || 0,
-            outcome: p.isEligible ? "settled" : "forfeited",
-            completion_bonus: p.completionReward || 0,
-            pool_share: p.forfeitedBonus || 0,
-            stake_refund: p.isEligible ? (p.originalStake || 0) : 0,
-            total_payout: p.totalPayout || 0,
-            settled_at: nowIso,
-          },
-          { onConflict: "room_id,user_id" }
-        );
+        const { data: existingSet } = await supabase
+          .from("creator_room_settlements")
+          .select("id")
+          .eq("room_id", roomId)
+          .eq("user_id", p.userId)
+          .maybeSingle();
+
+        const sData = {
+          room_id: roomId,
+          user_id: p.userId,
+          staked_amount: p.originalStake || 0,
+          completion_pct: p.consistencyPct || 0,
+          standups_submitted: p.loggedDaysCount || 0,
+          total_sprint_days: settlement.totalSprintDays || 0,
+          outcome: p.isEligible ? "settled" : "forfeited",
+          completion_bonus: p.completionReward || 0,
+          pool_share: p.forfeitedBonus || 0,
+          stake_refund: p.isEligible ? (p.originalStake || 0) : 0,
+          total_payout: p.totalPayout || 0,
+          settled_at: nowIso,
+        };
+
+        if (existingSet?.id) {
+          await supabase.from("creator_room_settlements").update(sData).eq("id", existingSet.id);
+        } else {
+          await supabase.from("creator_room_settlements").insert([sData]);
+        }
       } catch (err) {
         // Silently skip if table not writable
       }
@@ -351,7 +361,12 @@ export const syncAndCreditUserCreatorSettlements = async (userId) => {
 
         const alreadyAwarded = existingAct && existingAct.length > 0;
 
-        if (!alreadyAwarded && myPayout.totalPayout > 0) {
+        if (alreadyAwarded) {
+          // Already credited and finalized for this user session
+          continue;
+        }
+
+        if (myPayout.totalPayout > 0) {
           // Insert glitch_activity under user's own session (RLS compliant)
           const { error: actErr } = await supabase.from("glitch_activity").insert({
             user_id: userId,
@@ -369,11 +384,7 @@ export const syncAndCreditUserCreatorSettlements = async (userId) => {
         }
 
         // Update member record as settled
-        if (
-          myMem.payout_status !== "settled" ||
-          Number(myMem.staked_amount) !== 0 ||
-          Number(myMem.payout_amount) !== myPayout.totalPayout
-        ) {
+        try {
           await supabase
             .from("creator_room_members")
             .update({
@@ -382,33 +393,44 @@ export const syncAndCreditUserCreatorSettlements = async (userId) => {
               payout_amount: myPayout.totalPayout,
               settled_at: nowIso,
             })
-            .eq("id", myMem.id);
-        }
+            .eq("room_id", room.id)
+            .eq("user_id", userId);
+        } catch (mErr) {}
 
         // Record in creator_room_settlements using settled_at column
         try {
-          await supabase.from("creator_room_settlements").upsert(
-            {
-              room_id: room.id,
-              user_id: userId,
-              staked_amount: myPayout.originalStake || 0,
-              completion_pct: myPayout.consistencyPct || 0,
-              standups_submitted: myPayout.loggedDaysCount || 0,
-              total_sprint_days: settlement.totalSprintDays || 0,
-              outcome: "settled",
-              completion_bonus: myPayout.completionReward || 0,
-              pool_share: myPayout.forfeitedBonus || 0,
-              stake_refund: myPayout.stakeRefund || 0,
-              total_payout: myPayout.totalPayout || 0,
-              settled_at: nowIso,
-            },
-            { onConflict: "room_id,user_id" }
-          );
+          const { data: existingSet } = await supabase
+            .from("creator_room_settlements")
+            .select("id")
+            .eq("room_id", room.id)
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          const sData = {
+            room_id: room.id,
+            user_id: userId,
+            staked_amount: myPayout.originalStake || 0,
+            completion_pct: myPayout.consistencyPct || 0,
+            standups_submitted: myPayout.loggedDaysCount || 0,
+            total_sprint_days: settlement.totalSprintDays || 0,
+            outcome: "settled",
+            completion_bonus: myPayout.completionReward || 0,
+            pool_share: myPayout.forfeitedBonus || 0,
+            stake_refund: myPayout.stakeRefund || 0,
+            total_payout: myPayout.totalPayout || 0,
+            settled_at: nowIso,
+          };
+
+          if (existingSet?.id) {
+            await supabase.from("creator_room_settlements").update(sData).eq("id", existingSet.id);
+          } else {
+            await supabase.from("creator_room_settlements").insert([sData]);
+          }
         } catch (e) {}
 
       } else {
         // Ineligible member: stake is forfeited into the pool
-        if (myMem.payout_status !== "forfeited" || Number(myMem.staked_amount) !== 0) {
+        try {
           await supabase
             .from("creator_room_members")
             .update({
@@ -418,27 +440,38 @@ export const syncAndCreditUserCreatorSettlements = async (userId) => {
               payout_amount: 0,
               settled_at: nowIso,
             })
-            .eq("id", myMem.id);
-        }
+            .eq("room_id", room.id)
+            .eq("user_id", userId);
+        } catch (mErr) {}
 
         try {
-          await supabase.from("creator_room_settlements").upsert(
-            {
-              room_id: room.id,
-              user_id: userId,
-              staked_amount: myPayout.originalStake || 0,
-              completion_pct: myPayout.consistencyPct || 0,
-              standups_submitted: myPayout.loggedDaysCount || 0,
-              total_sprint_days: settlement.totalSprintDays || 0,
-              outcome: "forfeited",
-              completion_bonus: 0,
-              pool_share: 0,
-              stake_refund: 0,
-              total_payout: 0,
-              settled_at: nowIso,
-            },
-            { onConflict: "room_id,user_id" }
-          );
+          const { data: existingSet } = await supabase
+            .from("creator_room_settlements")
+            .select("id")
+            .eq("room_id", room.id)
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          const sData = {
+            room_id: room.id,
+            user_id: userId,
+            staked_amount: myPayout.originalStake || 0,
+            completion_pct: myPayout.consistencyPct || 0,
+            standups_submitted: myPayout.loggedDaysCount || 0,
+            total_sprint_days: settlement.totalSprintDays || 0,
+            outcome: "forfeited",
+            completion_bonus: 0,
+            pool_share: 0,
+            stake_refund: 0,
+            total_payout: 0,
+            settled_at: nowIso,
+          };
+
+          if (existingSet?.id) {
+            await supabase.from("creator_room_settlements").update(sData).eq("id", existingSet.id);
+          } else {
+            await supabase.from("creator_room_settlements").insert([sData]);
+          }
         } catch (e) {}
       }
     }
