@@ -433,7 +433,10 @@ const ProRooms = () => {
                         const dateStr = new Date(room.reg_start_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
                         showToast(`Registration for this room opens on ${dateStr}`);
                         navigate(`/pro-rooms/${room.id}`);
-                      } else if ((regEnd && now > regEnd) || (!room.allow_late_entry && state.isLive)) {
+                      } else if (
+                        (!room.allow_late_entry && !room.name?.toLowerCase().includes("starter")) &&
+                        ((regEnd && now > regEnd) || state.isLive)
+                      ) {
                         showToast("Sorry, registration for this room is closed. Please check out other rooms.");
                         navigate(`/pro-rooms/${room.id}`);
                       } else {

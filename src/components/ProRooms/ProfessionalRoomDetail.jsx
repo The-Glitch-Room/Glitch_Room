@@ -2051,8 +2051,10 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                   Back to Pro Rooms →
                 </button>
               </>
-            ) : (room?.reg_end_at && new Date() > new Date(room.reg_end_at)) ||
-              (!room?.allow_late_entry && lifecycle.isLive) ||
+            ) : ((!room?.allow_late_entry && !room?.name?.toLowerCase().includes("starter")) && (
+                (room?.reg_end_at && new Date() > new Date(room.reg_end_at)) ||
+                lifecycle.isLive
+              )) ||
               (room?.event_end_at &&
                 new Date() > new Date(room.event_end_at)) ||
               room?.status === "completed" ||

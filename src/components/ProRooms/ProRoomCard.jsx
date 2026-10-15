@@ -218,6 +218,18 @@ const ProRoomCard = ({ room, isRegistered, userRegStatus, isHost, onSelect }) =>
     const isApproved = userRegStatus === "approved" || isRegistered === true || isRegistered === "approved";
     const isPending = userRegStatus === "pending" || isRegistered === "pending";
 
+    // Starter Pro Room / Evergreen rooms: allow immediate registration & assessment entry
+    const isStarterOrEvergreen =
+      room?.allow_late_entry === true ||
+      room?.allow_late_entry === "true" ||
+      Boolean(room?.name?.toLowerCase().includes("starter"));
+
+    if (isStarterOrEvergreen) {
+      if (isApproved) return "Start Assessment →";
+      if (isPending) return "Waiting for Approval";
+      return room?.require_application === true ? "Apply Now →" : "Register Now →";
+    }
+
     // Phase 1: Before Registration Opens
     if (lifecycle.key === "before_registration") {
       return "Registration Not Open";
