@@ -136,34 +136,6 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
     !isHost && userRegistration && userRegistration.status === "pending",
   );
 
-  // Official Glitch Room branding and fallback links
-  const isGlitchRoomOfficial =
-    Boolean(room?.name?.toLowerCase().includes("starter")) ||
-    Boolean(room?.org_name?.toLowerCase().includes("glitch room"));
-
-  const effectiveOrgName = isGlitchRoomOfficial
-    ? (room?.org_name || "Glitch Room")
-    : (room?.org_name || "Verified Organization");
-
-  const effectiveOrgLogo =
-    isGlitchRoomOfficial &&
-    (!room?.org_logo ||
-      room?.org_logo?.includes("gstatic.com") ||
-      room?.org_logo?.includes("dicebear"))
-      ? "/logo_GR.png"
-      : room?.org_logo || (isGlitchRoomOfficial ? "/logo_GR.png" : null);
-
-  const effectiveWebsite =
-    isGlitchRoomOfficial &&
-    (!room?.website || room?.website?.includes("glitchroom.dev"))
-      ? "https://joinglitchroom.com/"
-      : room?.website || null;
-
-  const effectiveLinkedin =
-    isGlitchRoomOfficial && !room?.linkedin
-      ? "https://www.linkedin.com/company/glitch-room/"
-      : room?.linkedin || null;
-
   // Dropdowns & Modal States
   const [showNotifications, setShowNotifications] = useState(false);
   const [showThreeDotMenu, setShowThreeDotMenu] = useState(false);
@@ -2008,12 +1980,12 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
         <div className="relative z-10 flex-1 flex items-center justify-center px-6 py-16">
           <div className="max-w-md w-full bg-[#0c0c16] border border-white/10 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
             <div className="flex items-center justify-center gap-2">
-              {effectiveOrgLogo ? (
+              {room?.org_logo ? (
                 <img
-                  src={effectiveOrgLogo}
-                  alt={effectiveOrgName}
+                  src={room.org_logo}
+                  alt={room.org_name || "Organization"}
                   onError={(e) => {
-                    e.currentTarget.src = "/logo_GR.png";
+                    e.currentTarget.style.display = "none";
                   }}
                   className="w-10 h-10 rounded-xl object-contain border border-white/10 bg-[#161622] p-1"
                 />
@@ -2021,7 +1993,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                 <Building2 size={18} className="text-purple-300" />
               )}
               <span className="text-[11px] font-mono font-bold text-gray-400">
-                By {effectiveOrgName}
+                By {room?.org_name || "Verified Organization"}
               </span>
             </div>
 
@@ -2794,18 +2766,18 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                 </h1>
 
                 <div className="flex items-center gap-2 text-xs">
-                  {effectiveOrgLogo && (
+                  {room?.org_logo && (
                     <img
-                      src={effectiveOrgLogo}
-                      alt={effectiveOrgName}
+                      src={room.org_logo}
+                      alt={room.org_name || "Organization"}
                       className="w-5 h-5 rounded-md object-contain border border-white/10 bg-[#161622] p-0.5"
                       onError={(e) => {
-                        e.currentTarget.src = "/logo_GR.png";
+                        e.currentTarget.style.display = "none";
                       }}
                     />
                   )}
                   <span className="text-gray-300 font-bold flex items-center gap-1">
-                    By {effectiveOrgName}
+                    By {room?.org_name || "Verified Organization"}
                     <ShieldCheck size={13} className="text-[#00F0FF]" />
                   </span>
                 </div>
@@ -2817,9 +2789,9 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
             </div>
 
             <div className="flex items-center gap-4 pt-3 border-t border-white/5 text-xs font-mono flex-wrap">
-              {effectiveWebsite && (
+              {room?.website && (
                 <a
-                  href={effectiveWebsite}
+                  href={room.website}
                   target="_blank"
                   rel="noreferrer"
                   className="text-gray-400 hover:text-[#00F0FF] flex items-center gap-1.5 transition-colors"
@@ -2829,7 +2801,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
               )}
               {(() => {
                 const hostLinkedIn =
-                  effectiveLinkedin ||
+                  room?.linkedin ||
                   (Array.isArray(room?.custom_app_questions)
                     ? room.custom_app_questions.find(
                         (q) => q?.id === "org_linkedin",
@@ -3257,12 +3229,12 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
               <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest block">
                 Event by
               </span>
-              {effectiveOrgLogo ? (
+              {room?.org_logo ? (
                 <img
-                  src={effectiveOrgLogo}
-                  alt={effectiveOrgName}
+                  src={room.org_logo}
+                  alt={room.org_name || "Org Logo"}
                   onError={(e) => {
-                    e.currentTarget.src = "/logo_GR.png";
+                    e.currentTarget.style.display = "none";
                   }}
                   className="w-12 h-12 rounded-2xl mx-auto object-contain border border-white/10 bg-[#161622] p-1.5"
                 />
@@ -3270,7 +3242,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                 <Building2 size={28} className="text-[#00F0FF] mx-auto" />
               )}
               <h5 className="text-xs font-bold text-white flex items-center justify-center gap-1">
-                {effectiveOrgName}{" "}
+                {room?.org_name || "Verified Organization"}{" "}
                 <ShieldCheck size={12} className="text-[#00F0FF]" />
               </h5>
               <button
@@ -5095,12 +5067,12 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
 
                 <div className="p-6 rounded-2xl bg-[#06060c] border border-white/10 space-y-4 text-xs">
                   <div className="flex items-center gap-4">
-                    {effectiveOrgLogo ? (
+                    {room?.org_logo ? (
                       <img
-                        src={effectiveOrgLogo}
+                        src={room.org_logo}
                         alt="Logo"
                         onError={(e) => {
-                          e.currentTarget.src = "/logo_GR.png";
+                          e.currentTarget.style.display = "none";
                         }}
                         className="w-14 h-14 rounded-2xl object-contain border border-white/10 bg-[#161622] p-2"
                       />
@@ -5109,25 +5081,23 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                     )}
                     <div>
                       <h4 className="text-sm font-bold text-white flex items-center gap-1">
-                        {effectiveOrgName}{" "}
+                        {room?.org_name || "Verified Organization"}{" "}
                         <ShieldCheck size={14} className="text-[#00F0FF]" />
                       </h4>
                       <p className="text-gray-400 text-[11px]">
-                        {room.org_email || (isGlitchRoomOfficial ? "contact@joinglitchroom.com" : "contact@organizer.edu")}
+                        {room?.org_email || "contact@organizer.edu"}
                       </p>
                     </div>
                   </div>
 
                   <p className="text-gray-300 leading-relaxed">
-                    {isGlitchRoomOfficial
-                      ? "Official benchmark and assessment challenge arena hosted by Glitch Room. Test real-world skills, debug systems, solve engineering problems, and benchmark your engineering profile."
-                      : "Verified organization hosting high-stakes technical assessments and competitions on Glitch Room."}
+                    Verified organization hosting high-stakes technical assessments and competitions on Glitch Room.
                   </p>
 
                   <div className="flex items-center gap-3 flex-wrap">
-                    {effectiveWebsite && (
+                    {room?.website && (
                       <a
-                        href={effectiveWebsite}
+                        href={room.website}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 font-bold text-xs border border-purple-500/30 hover:bg-purple-500/30 transition"
@@ -5135,9 +5105,9 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                         <Globe size={13} /> Visit Official Website <ExternalLink size={12} />
                       </a>
                     )}
-                    {effectiveLinkedin && (
+                    {room?.linkedin && (
                       <a
-                        href={effectiveLinkedin}
+                        href={room.linkedin}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0a66c2]/20 text-[#00F0FF] font-bold text-xs border border-[#0a66c2]/40 hover:bg-[#0a66c2]/30 transition"
