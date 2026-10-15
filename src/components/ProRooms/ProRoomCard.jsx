@@ -10,6 +10,8 @@ import {
   Calendar,
   Zap,
   Bell,
+  Globe,
+  Linkedin,
 } from "lucide-react";
 
 export const isRegistrationClosed = (room) => {
@@ -325,24 +327,88 @@ const ProRoomCard = ({ room, isRegistered, userRegStatus, isHost, onSelect }) =>
       <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
         <div className="space-y-2.5">
           {/* Organization Info */}
-          <div className="flex items-center gap-2">
-            {room.org_logo ? (
-              <img
-                src={room.org_logo}
-                alt={room.org_name}
-                className="w-5 h-5 rounded-md object-cover border border-white/10 shrink-0 bg-[#161622]"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-            ) : (
-              <Building2 size={14} className="text-[#00F0FF] shrink-0" />
-            )}
-            <span className="text-xs font-bold text-gray-300 truncate flex items-center gap-1">
-              By {room.org_name || "Verified Organization"}
-              <ShieldCheck size={13} className="text-[#00F0FF] shrink-0" />
-            </span>
-          </div>
+          {(() => {
+            const isGlitchRoomOfficial =
+              Boolean(room?.name?.toLowerCase().includes("starter")) ||
+              Boolean(room?.org_name?.toLowerCase().includes("glitch room"));
+
+            const effectiveOrgName = isGlitchRoomOfficial
+              ? (room?.org_name || "Glitch Room")
+              : (room?.org_name || "Verified Organization");
+
+            const effectiveLogo =
+              isGlitchRoomOfficial &&
+              (!room?.org_logo ||
+                room?.org_logo?.includes("gstatic.com") ||
+                room?.org_logo?.includes("dicebear"))
+                ? "/logo_GR.png"
+                : room?.org_logo || (isGlitchRoomOfficial ? "/logo_GR.png" : null);
+
+            const effectiveWebsite =
+              isGlitchRoomOfficial &&
+              (!room?.website || room?.website?.includes("glitchroom.dev"))
+                ? "https://joinglitchroom.com/"
+                : room?.website || null;
+
+            const effectiveLinkedin =
+              isGlitchRoomOfficial && !room?.linkedin
+                ? "https://www.linkedin.com/company/glitch-room/"
+                : room?.linkedin || null;
+
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {effectiveLogo ? (
+                    <img
+                      src={effectiveLogo}
+                      alt={effectiveOrgName}
+                      className="w-5 h-5 rounded-md object-contain border border-white/10 shrink-0 bg-[#161622] p-0.5"
+                      onError={(e) => {
+                        e.currentTarget.src = "/logo_GR.png";
+                      }}
+                    />
+                  ) : (
+                    <Building2 size={14} className="text-[#00F0FF] shrink-0" />
+                  )}
+                  <span className="text-xs font-bold text-gray-300 truncate flex items-center gap-1">
+                    By {effectiveOrgName}
+                    <ShieldCheck size={13} className="text-[#00F0FF] shrink-0" />
+                  </span>
+                </div>
+
+                {/* Organization External Links */}
+                {(effectiveWebsite || effectiveLinkedin) && (
+                  <div
+                    className="flex items-center gap-1.5 shrink-0 z-10"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {effectiveWebsite && (
+                      <a
+                        href={effectiveWebsite}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1 rounded text-gray-400 hover:text-[#00F0FF] hover:bg-white/5 transition"
+                        title="Official Website"
+                      >
+                        <Globe size={13} />
+                      </a>
+                    )}
+                    {effectiveLinkedin && (
+                      <a
+                        href={effectiveLinkedin}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1 rounded text-gray-400 hover:text-[#0a66c2] hover:bg-white/5 transition"
+                        title="LinkedIn Page"
+                      >
+                        <Linkedin size={13} className="text-[#0a66c2]" />
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Room Title */}
           <h3 className="text-base font-bold text-white group-hover:text-[#FF00C8] transition-colors leading-snug line-clamp-1">
