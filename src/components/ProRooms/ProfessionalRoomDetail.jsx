@@ -2052,7 +2052,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                 </button>
               </>
             ) : (room?.reg_end_at && new Date() > new Date(room.reg_end_at)) ||
-              lifecycle.isLive ||
+              (!room?.allow_late_entry && lifecycle.isLive) ||
               (room?.event_end_at &&
                 new Date() > new Date(room.event_end_at)) ||
               room?.status === "completed" ||

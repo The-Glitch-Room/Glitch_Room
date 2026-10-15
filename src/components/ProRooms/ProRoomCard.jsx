@@ -241,6 +241,7 @@ const ProRoomCard = ({ room, isRegistered, userRegStatus, isHost, onSelect }) =>
     if (lifecycle.isLive) {
       if (isApproved) return "Start Assessment →";
       if (isPending) return "Waiting for Host Approval";
+      if (room?.allow_late_entry) return room?.require_application === true ? "Apply Now →" : "Register Now →";
       return "Registration Closed";
     }
 
