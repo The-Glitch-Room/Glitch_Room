@@ -66,6 +66,7 @@ import ProRoomHelpModal, { parseTicketContent, TICKET_DELIMITER } from "./ProRoo
 import { GlitchCertificateModal, GlitchCertificateDOM, renderCertificateToCanvas } from "./GlitchCertificateModal";
 import { getProRoomLifecycleState } from "./ProRoomCard";
 import CustomSelect from "../CustomSelect";
+import ProRoomDescriptionRenderer from "./ProRoomDescriptionRenderer";
 import { supabase } from "../../supabaseClient";
 import { fetchPoints } from "../../utils/pointsHelper";
 
@@ -3715,9 +3716,9 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                       <Info size={16} className="text-purple-400" /> About This
                       Event
                     </h3>
-                    <p className="text-xs text-gray-300 leading-relaxed">
-                      {room.detailed_description || room.short_description}
-                    </p>
+                    <ProRoomDescriptionRenderer
+                      content={room.detailed_description || room.short_description}
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10 text-xs">
@@ -5085,7 +5086,7 @@ const ProfessionalRoomDetail = ({ roomId: propRoomId }) => {
                         <ShieldCheck size={14} className="text-[#00F0FF]" />
                       </h4>
                       <p className="text-gray-400 text-[11px]">
-                        {room?.org_email || "contact@organizer.edu"}
+                        {room?.org_email || "theglitchroom.official@gmail.com"}
                       </p>
                     </div>
                   </div>
