@@ -60,15 +60,9 @@ const TIMELINE = [
     isCurrent: false,
   },
   {
-    phase: "PHASE 04 — AUGUST 2026",
-    title: "CSJMU Incubation Cell Pitch",
-    desc: "Pitched Glitch Room at the CSJMU incubation cell, bringing the idea closer to an institutional startup/incubation environment.",
-    isCurrent: false,
-  },
-  {
-    phase: "PHASE 05 — PRESENT",
-    title: "Actively Building Glitch Room",
-    desc: "Glitch Room is now being actively developed into a functional platform, with continuous work on its product, features, rooms, assessments, community experience, and overall ecosystem.",
+    phase: "PHASE 04 — PRESENT",
+    title: "Live Platform & Community Arena",
+    desc: "Glitch Room is now open for developers to explore at joinglitchroom.com. Featuring interactive debugging puzzles, in-browser code execution sandboxes, and Pro Rooms, welcoming developers to practice, solve, and grow together.",
     isCurrent: true,
   },
 ];
