@@ -291,7 +291,7 @@ const DeleteModal = ({ onClose }) => {
     } catch (error) {
       // TODO: Add proper NOTIFICATION system for errors instead of alert
       console.error("Delete error:", error);
-      alert(error.message || "Failed to delete account");
+      alert("Failed to delete account");
       setLoading(false);
     }
   };
