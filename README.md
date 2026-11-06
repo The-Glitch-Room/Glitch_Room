@@ -89,7 +89,7 @@ Open `.env` and add your Supabase credentials from your Supabase Dashboard:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-publishable-anon-key
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-anon-key
 ```
 
 > ⚠️ **Security Warning**: Never commit your `.env` file to version control. It is automatically ignored in `.gitignore`.
@@ -135,7 +135,7 @@ Make sure you have a `.env` file in the root directory (`Glitch_Room`) with your
 
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
 ```
 
 #### 2. Build and Start the Containers
