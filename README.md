@@ -126,6 +126,37 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
+### 🐳 Running with Docker
+
+Alternatively, you can containerise and run the entire application using Docker and Docker Compose. This ensures a consistent environment without needing to manage local dependencies.
+
+#### 1. Setup Environment Variables
+Make sure you have a `.env` file in the root directory (`Glitch_Room`) with your Supabase credentials:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+#### 2. Build and Start the Containers
+Run the following command to automatically build the project image and launch the container:
+
+```bash
+docker compose up --build
+```
+
+#### 3. Access the Application
+Once the build is complete and the terminal shows that the server is running, open the application in your browser at:
+👉 **http://localhost:5173**
+
+#### 4. Stopping the Container
+To stop the environment and clean up the running containers, press `Ctrl + C` in your terminal or run:
+
+```bash
+docker compose down
+```
+---
+
 ### 5️⃣ Production Build
 
 Compile and validate the production bundle:
