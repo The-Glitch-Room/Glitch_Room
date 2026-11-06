@@ -89,7 +89,7 @@ Open `.env` and add your Supabase credentials from your Supabase Dashboard:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-anon-key
+VITE_SUPABASE_ANON_KEY=your-publishable-anon-key
 ```
 
 > ⚠️ **Security Warning**: Never commit your `.env` file to version control. It is automatically ignored in `.gitignore`.
