@@ -3,22 +3,8 @@ import GlitchBackground from "./GlitchBackground";
 import { FaDiscord, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Send, Zap } from "lucide-react";
 
-const Footer = () => {
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
-
-  const handleSubscribe = (e) => {
-    e.preventDefault();
-    if (email) {
-      setSubscribed(true);
-      setEmail("");
-      setTimeout(() => setSubscribed(false), 4000);
-    }
-  };
-
-  const socialLinks = [
+const socialLinks = [
     {
       icon: <FaDiscord size={18} />,
       label: "Discord",
@@ -34,7 +20,10 @@ const Footer = () => {
       label: "LinkedIn",
       url: "https://www.linkedin.com/company/glitch-room/",
     },
-  ];
+];
+const Footer = () => { 
+
+  
 
   return (
     <footer className="relative z-0 mt-auto w-full bg-[#070709] text-gray-300 border-t border-white/10 overflow-hidden font-sans">
@@ -85,38 +74,6 @@ const Footer = () => {
               <p className="text-sm sm:text-base text-gray-300 max-w-md leading-relaxed mb-6 font-normal">
                 Where chaos sparks creativity. Solve glitches, compete in 3-stage arenas, collect gBits, and climb the Terminal Wall.
               </p>
-
-              {/* Newsletter Subscriber Box (Inactive for now — will be built in the future) */}
-              {/*
-              <form onSubmit={handleSubscribe} className="mt-8 mb-8 max-w-md">
-                <p className="text-sm font-bold text-white mb-2.5">
-                  Stay in the loop
-                </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your dev email..."
-                    required
-                    className="flex-1 bg-[#0d0d14] border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-[#00F0FF]/60 transition-colors font-medium"
-                  />
-                  <motion.button
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-[#00F0FF] text-black font-bold text-sm flex items-center justify-center cursor-pointer hover:bg-[#38bdf8] transition-all duration-300 shrink-0"
-                  >
-                    Subscribe
-                  </motion.button>
-                </div>
-                {subscribed && (
-                  <p className="text-xs text-[#22c55e] mt-2 font-semibold">
-                    ✓ Subscribed! Welcome to the Glitch Room network.
-                  </p>
-                )}
-              </form>
-              */}
             </div>
 
             {/* Social Links (Discord, Instagram, LinkedIn) */}

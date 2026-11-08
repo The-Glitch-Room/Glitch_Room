@@ -4,7 +4,6 @@ import Navbar from "./Navbar";
 import Footer from "./Footer";
 import { useNavigate } from "react-router-dom";
 import PageHeading from "./PageHeading";
-import Button from "./Button";
 import GlitchBackground from "./GlitchBackground";
 import {
   Swords,
@@ -12,13 +11,28 @@ import {
   Zap,
   Target,
   Flame,
-  Award,
-  Sparkles,
-  ArrowRight,
-  ShieldAlert,
   Users,
 } from "lucide-react";
-
+const rankPreviewCards = [
+                {
+                  rank: "🥇 #1",
+                  title: "Overclocker Champion",
+                  badge: "Legend",
+                  color: "#FFD700",
+                },
+                {
+                  rank: "🥈 #2",
+                  title: "Glitch Master",
+                  badge: "Pro",
+                  color: "#9CA3AF",
+                },
+                {
+                  rank: "🥉 #3",
+                  title: "Code Vanguard",
+                  badge: "Elite",
+                  color: "#D97706",
+                },
+              ];
 const GameArena = () => {
   const navigate = useNavigate();
 
@@ -291,26 +305,7 @@ const GameArena = () => {
 
             {/* Rank preview cards */}
             <div className="flex flex-col gap-2.5 w-full lg:w-72 shrink-0">
-              {[
-                {
-                  rank: "🥇 #1",
-                  title: "Overclocker Champion",
-                  badge: "Legend",
-                  color: "#FFD700",
-                },
-                {
-                  rank: "🥈 #2",
-                  title: "Glitch Master",
-                  badge: "Pro",
-                  color: "#9CA3AF",
-                },
-                {
-                  rank: "🥉 #3",
-                  title: "Code Vanguard",
-                  badge: "Elite",
-                  color: "#D97706",
-                },
-              ].map((item, i) => (
+              {rankPreviewCards.map((item, i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between bg-[#070709] border border-white/5 rounded-2xl px-4 py-3 text-xs"
