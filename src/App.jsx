@@ -17,6 +17,7 @@ import SplashScreen from "./components/SplashScreen";
 import BottomNav from "./components/BottomNav";
 import DailyFactBubble from "./components/DailyFactBubble";
 import GBitsToast from "./components/GBitsToast";
+import Notification from "./utils/ui/Notification";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 // Code-split dynamic routes for optimal bundle performance
@@ -363,6 +364,7 @@ const App = () => {
         <ScrollToHashElement />
         <DailyFactBubble />
         <GBitsToast />
+        <Notification />
         {showSplash ? (
           <SplashScreen onFinish={() => setShowSplash(false)} />
         ) : (

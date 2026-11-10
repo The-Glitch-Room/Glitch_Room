@@ -1,0 +1,842 @@
+{
+  "info": {
+    "_postman_id": "a7f3c891-4b2e-4f8a-9c12-7e8a90b34d02",
+    "name": "Glitch Room - Flow 2 (Challenges, AI Grading, Points & Badges)",
+    "description": "Industry-standard Postman Collection v2.1 for testing Glitch Room Flow 2 APIs.\n\nHOW TO USE:\n1. Set `SUPABASE_URL` and `ANON_KEY` in Collection Variables (from your .env).\n2. Set `TEST_EMAIL` and `TEST_PASSWORD` in request `00. Login & Auto-Capture JWT`.\n3. Run `00. Login` first — its Test script automatically saves `USER_JWT` and `USER_ID` for all other requests.\n4. Note: Direct POST/PATCH calls to `glitch_activity`, `user_points`, or `profiles` also act as RLS Penetration Tests — under strict production RLS, tampering with points from Postman should be rejected.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "SUPABASE_URL",
+      "value": "https://your-project-ref.supabase.co",
+      "type": "string"
+    },
+    {
+      "key": "ANON_KEY",
+      "value": "your-supabase-anon-or-publishable-key",
+      "type": "string"
+    },
+    {
+      "key": "USER_JWT",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "USER_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "CHALLENGE_ID",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "CHALLENGE_TYPE",
+      "value": "glitch",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - Auth Setup (Run First)",
+      "item": [
+        {
+          "name": "00. Login & Auto-Capture JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.access_token) {",
+                  "    pm.collectionVariables.set(\"USER_JWT\", jsonData.access_token);",
+                  "    console.log(\"USER_JWT updated successfully\");",
+                  "}",
+                  "if (jsonData.user && jsonData.user.id) {",
+                  "    pm.collectionVariables.set(\"USER_ID\", jsonData.user.id);",
+                  "    console.log(\"USER_ID set to:\", jsonData.user.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"your-test-user@example.com\",\n  \"password\": \"YourPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/auth/v1/token?grant_type=password",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["auth", "v1", "token"],
+              "query": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Challenge Discovery & Pre-Checks",
+      "item": [
+        {
+          "name": "01. Fetch Challenge by Type & ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/challenges?type=eq.{{CHALLENGE_TYPE}}&id=eq.{{CHALLENGE_ID}}&select=*",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "challenges"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "eq.{{CHALLENGE_TYPE}}"
+                },
+                {
+                  "key": "id",
+                  "value": "eq.{{CHALLENGE_ID}}"
+                },
+                {
+                  "key": "select",
+                  "value": "*"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "02a. Fetch Points from user_points",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/user_points?user_id=eq.{{USER_ID}}&select=points",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "user_points"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{USER_ID}}"
+                },
+                {
+                  "key": "select",
+                  "value": "points"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "02b. Fetch Points from profiles (Dual Read)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/profiles?id=eq.{{USER_ID}}&select=points",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "profiles"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "eq.{{USER_ID}}"
+                },
+                {
+                  "key": "select",
+                  "value": "points"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "03. Check Latest Submission (checkIfSolved)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/challenge_submissions?user_id=eq.{{USER_ID}}&challenge_id=eq.{{CHALLENGE_ID}}&challenge_type=eq.{{CHALLENGE_TYPE}}&order=created_at.desc&limit=1",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "challenge_submissions"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{USER_ID}}"
+                },
+                {
+                  "key": "challenge_id",
+                  "value": "eq.{{CHALLENGE_ID}}"
+                },
+                {
+                  "key": "challenge_type",
+                  "value": "eq.{{CHALLENGE_TYPE}}"
+                },
+                {
+                  "key": "order",
+                  "value": "created_at.desc"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "04. Check Prior Attempts Count (First-Try Guard)",
+          "request": {
+            "method": "HEAD",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Prefer",
+                "value": "count=exact"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/challenge_submissions?user_id=eq.{{USER_ID}}&challenge_id=eq.{{CHALLENGE_ID}}&challenge_type=eq.{{CHALLENGE_TYPE}}&select=id",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "challenge_submissions"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{USER_ID}}"
+                },
+                {
+                  "key": "challenge_id",
+                  "value": "eq.{{CHALLENGE_ID}}"
+                },
+                {
+                  "key": "challenge_type",
+                  "value": "eq.{{CHALLENGE_TYPE}}"
+                },
+                {
+                  "key": "select",
+                  "value": "id"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - AI Evaluation (Edge Function)",
+      "item": [
+        {
+          "name": "05. Invoke ai-feedback-edge-function",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"AI Edge Function returned 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Response includes numeric score\", function () {",
+                  "    pm.expect(body.score).to.be.a('number');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scenario\": \"Challenge: Fix Stale Closure in React useEffect\\n\\nDescription: Counter freezes at 1 inside setInterval.\\n\\nEvaluate whether the user correctly identified the glitch and proposed a valid fix.\",\n  \"answer\": \"Use functional state update setCount(prev => prev + 1) inside setInterval and clean up the interval in the useEffect return callback.\"\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/functions/v1/ai-feedback-edge-function",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["functions", "v1", "ai-feedback-edge-function"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Points Ledger & Anti-Farming Guards",
+      "item": [
+        {
+          "name": "06. Check If Already Passed (hasPassedChallenge)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/challenge_completions?user_id=eq.{{USER_ID}}&challenge_id=eq.{{CHALLENGE_ID}}&challenge_type=eq.{{CHALLENGE_TYPE}}&select=id&limit=1",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "challenge_completions"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{USER_ID}}"
+                },
+                {
+                  "key": "challenge_id",
+                  "value": "eq.{{CHALLENGE_ID}}"
+                },
+                {
+                  "key": "challenge_type",
+                  "value": "eq.{{CHALLENGE_TYPE}}"
+                },
+                {
+                  "key": "select",
+                  "value": "id"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "07a. Insert Main Points Ledger (glitch_activity)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{USER_ID}}\",\n  \"title\": \"Fixed: Sample Glitch Challenge\",\n  \"points\": 10,\n  \"type\": \"glitch\",\n  \"created_at\": \"2026-11-10T12:30:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/glitch_activity",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "glitch_activity"]
+            }
+          }
+        },
+        {
+          "name": "07b. Insert First-Try Bonus (glitch_activity)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{USER_ID}}\",\n  \"title\": \"First-Try Clearance: Sample Glitch Challenge\",\n  \"points\": 25,\n  \"type\": \"bonus\",\n  \"created_at\": \"2026-11-10T12:30:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/glitch_activity",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "glitch_activity"]
+            }
+          }
+        },
+        {
+          "name": "07c. Check Speed Demon 24h Cooldown",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/glitch_activity?user_id=eq.{{USER_ID}}&type=eq.bonus&title=ilike.*Speed Demon Bonus*&created_at=gte.2026-11-09T12:30:00.000Z&select=id&limit=1",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "glitch_activity"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{USER_ID}}"
+                },
+                {
+                  "key": "type",
+                  "value": "eq.bonus"
+                },
+                {
+                  "key": "title",
+                  "value": "ilike.*Speed Demon Bonus*"
+                },
+                {
+                  "key": "created_at",
+                  "value": "gte.2026-11-09T12:30:00.000Z"
+                },
+                {
+                  "key": "select",
+                  "value": "id"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "08a. Fallback Upsert user_points (Security Probe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "resolution=merge-duplicates,return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{USER_ID}}\",\n  \"points\": 135\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/user_points?on_conflict=user_id",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "user_points"],
+              "query": [
+                {
+                  "key": "on_conflict",
+                  "value": "user_id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "08b. Fallback Update profiles.points (Security Probe)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"points\": 135\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/profiles?id=eq.{{USER_ID}}",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "profiles"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "eq.{{USER_ID}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "08c. Update Streak Timestamp (user_points)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"last_streak_bonus_at\": 1794313800\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/user_points?user_id=eq.{{USER_ID}}",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "user_points"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{USER_ID}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Submission & Completion Persistence",
+      "item": [
+        {
+          "name": "09. Insert Challenge Submission (challenge_submissions)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{USER_ID}}\",\n  \"challenge_id\": \"{{CHALLENGE_ID}}\",\n  \"challenge_type\": \"{{CHALLENGE_TYPE}}\",\n  \"answer\": \"Use functional state update setCount(prev => prev + 1).\",\n  \"points_earned\": 10,\n  \"score\": 9,\n  \"time_taken_seconds\": 35\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/challenge_submissions",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "challenge_submissions"]
+            }
+          }
+        },
+        {
+          "name": "10. Upsert Pass Record (challenge_completions)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "resolution=merge-duplicates,return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{USER_ID}}\",\n  \"challenge_id\": \"{{CHALLENGE_ID}}\",\n  \"challenge_type\": \"{{CHALLENGE_TYPE}}\",\n  \"score\": 9,\n  \"points_earned\": 10,\n  \"completed_at\": \"2026-11-10T12:30:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/challenge_completions?on_conflict=user_id,challenge_id,challenge_type",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "challenge_completions"],
+              "query": [
+                {
+                  "key": "on_conflict",
+                  "value": "user_id,challenge_id,challenge_type"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "11. Insert First-Try Clearance (challenge_first_tries)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{USER_ID}}\",\n  \"challenge_id\": \"{{CHALLENGE_ID}}\",\n  \"challenge_type\": \"{{CHALLENGE_TYPE}}\"\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/challenge_first_tries",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "challenge_first_tries"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Referral Conversion & Badge Engine",
+      "item": [
+        {
+          "name": "12. Atomic Referral Conversion (user_referrals)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"completed_at\": \"2026-11-10T12:30:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/user_referrals?invitee_id=eq.{{USER_ID}}&status=eq.pending",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "user_referrals"],
+              "query": [
+                {
+                  "key": "invitee_id",
+                  "value": "eq.{{USER_ID}}"
+                },
+                {
+                  "key": "status",
+                  "value": "eq.pending"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "13a. Fetch User Earned Badges (user_badges)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/user_badges?user_id=eq.{{USER_ID}}&select=badge_id",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "user_badges"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{USER_ID}}"
+                },
+                {
+                  "key": "select",
+                  "value": "badge_id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "13b. Award Badge (user_badges upsert)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{USER_JWT}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "resolution=merge-duplicates,return=representation"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{USER_ID}}\",\n  \"badge_id\": \"vol_1\",\n  \"earned_at\": \"2026-11-10T12:30:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/user_badges?on_conflict=user_id,badge_id",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "user_badges"],
+              "query": [
+                {
+                  "key": "on_conflict",
+                  "value": "user_id,badge_id"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
