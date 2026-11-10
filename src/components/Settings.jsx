@@ -273,22 +273,27 @@ const DeleteModal = ({ onClose }) => {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleDelete = async () => {
-    setLoading(true);
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData?.user?.id;
+    const handleDelete = async () => {
+    try {
+      setLoading(true);
 
-    if (userId) {
-      // Clear all local storage caches
+      
+      const { error } = await supabase.rpc("delete_user_account");
+      if (error) throw error;
+
+      
+      await supabase.auth.signOut();
       localStorage.clear();
-      // Remove profile row if allowed
-      try {
-        await supabase.from("profiles").delete().eq("id", userId);
-      } catch (_) {}
-    }
+      sessionStorage.clear();
 
-    await supabase.auth.signOut();
-    window.location.href = "/";
+      
+      window.location.href = "/";
+    } catch (error) {
+      // TODO: Add proper NOTIFICATION system for errors instead of alert
+      console.error("Delete error:", error);
+      alert("Failed to delete account");
+      setLoading(false);
+    }
   };
 
   return (

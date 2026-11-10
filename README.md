@@ -57,6 +57,149 @@
 
 ---
 
+## 🚀 Getting Started
+
+### Prerequisites
+- **Node.js**: `v18.0.0` or higher
+- **npm**: `v9.0.0` or higher
+
+---
+
+### 1️⃣ Installation
+
+Clone the repository and install project dependencies:
+
+```bash
+git clone https://github.com/The-Glitch-Room/Glitch_Room.git
+cd Glitch_Room
+npm install
+```
+
+---
+
+### 2️⃣ Environment Configuration
+
+Copy the sample environment file `.env.example` to create your local `.env` file:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and add your Supabase credentials from your Supabase Dashboard:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-anon-key
+```
+
+> ⚠️ **Security Warning**: Never commit your `.env` file to version control. It is automatically ignored in `.gitignore`.
+
+---
+
+### 3️⃣ Database Setup (Supabase)
+
+Execute the complete database provisioning script [`scratch/supabase_schema.sql`](file:///C:/Users/parul/.gemini/antigravity/brain/1e6da592-1ced-45c3-bb3e-e081e7afbb95/scratch/supabase_schema.sql) in your **Supabase SQL Editor** to create all tables, indexes, and Row Level Security (RLS) policies:
+
+- `profiles`
+- `user_points`
+- `challenge_submissions`
+- `rooms`
+- `room_members`
+- `room_checkins`
+- `room_questions`
+- `glitch_activity`
+- `community_posts`
+- `community_comments`
+- `arena_completions`
+
+---
+
+### 4️⃣ Development Server
+
+Start the local development server:
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser.
+
+---
+
+### 🐳 Running with Docker
+
+Alternatively, you can containerise and run the entire application using Docker and Docker Compose. This ensures a consistent environment without needing to manage local dependencies.
+
+#### 1. Setup Environment Variables
+Make sure you have a `.env` file in the root directory (`Glitch_Room`) with your Supabase credentials:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+```
+
+#### 2. Build and Start the Containers
+Run the following command to automatically build the project image and launch the container:
+
+```bash
+docker compose up --build
+```
+
+#### 3. Access the Application
+Once the build is complete and the terminal shows that the server is running, open the application in your browser at:
+👉 **http://localhost:5173**
+
+#### 4. Stopping the Container
+To stop the environment and clean up the running containers, press `Ctrl + C` in your terminal or run:
+
+```bash
+docker compose down
+```
+---
+
+### 5️⃣ Production Build
+
+Compile and validate the production bundle:
+
+```bash
+npm run build
+```
+
+Preview the production build locally:
+
+```bash
+npm run preview
+```
+
+---
+
+## 📁 Repository Structure
+
+```
+Glitch_Room/
+├── public/                     # Static assets & logos
+├── src/
+│   ├── components/             # React components
+│   │   ├── CreatorRooms/       # Professional & Creator room views & modals
+│   │   ├── AuthContext.jsx     # Authentication provider & session manager
+│   │   ├── Console.jsx         # Main developer dashboard
+│   │   ├── HostRoom.jsx        # Room creation multi-step wizard
+│   │   ├── JoinRoom.jsx        # Public & private room discovery
+│   │   ├── ProfessionalRoomDetail.jsx  # MCQ assessment engine
+│   │   ├── TerminalWall.jsx    # Real-time leaderboard & Hall of Fame
+│   │   └── Community.jsx       # Community feed & discussion lounge
+│   ├── data/                   # Challenge catalogs & static assets
+│   ├── utils/                  # Point helper engines & profanity filters
+│   ├── App.jsx                 # App router & protected navigation
+│   └── main.jsx                # Entry point
+├── .env.example                # Template environment file
+├── .gitignore                  # Git ignore rules
+├── package.json
+└── README.md
+```
+
+---
+
 ## 📜 License
 
 Distributed under the **MIT License**. See `LICENSE` for more information.
