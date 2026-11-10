@@ -4,6 +4,7 @@ import Footer from "./Footer";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { notify } from "../utils/ui/notify";
 import {
   User,
   Tag,
@@ -140,7 +141,7 @@ const JoinRoom = () => {
         if (roomEntryStake > 0) {
           const userPts = await fetchPoints(uid);
           if (userPts < roomEntryStake) {
-            alert(
+            notify.error(
               `Insufficient gBits balance! You need at least ${roomEntryStake} gBits to stake & join this room (Current: ${userPts} gBits).`,
             );
             setJoining(false);

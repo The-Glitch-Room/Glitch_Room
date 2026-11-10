@@ -1,5 +1,6 @@
 import GlitchFixedModal from "./GlitchFixedModal";
 import React, { useState, useEffect, useRef } from "react";
+import { notify } from "../utils/ui/notify";
 import { useParams, Link } from "react-router-dom";
 import glitchesData from "../data/glitches.json";
 import { motion, AnimatePresence } from "framer-motion";
@@ -333,7 +334,7 @@ const FixGlitch = () => {
 
   const handleShowSolution = async () => {
     if (points < 5) {
-      alert("Not enough points to reveal the solution 💪");
+      notify.warning("Not enough points to reveal the solution 💪");
       return;
     }
     const next = await updatePoints(-5, `Hint used: ${glitch.title}`, "glitch");
@@ -344,7 +345,7 @@ const FixGlitch = () => {
 
   const handleSubmit = async () => {
     if (!userAnswer.trim()) {
-      alert("Please write your approach before submitting!");
+      notify.warning("Please write your approach before submitting!");
       return;
     }
 

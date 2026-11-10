@@ -13,6 +13,7 @@ import StatCard from "../StatCard";
 import { supabase } from "../../supabaseClient";
 import { useAuth } from "../AuthContext";
 import { fetchPoints } from "../../utils/pointsHelper";
+import { notify } from "../../utils/ui/notify";
 
 const formatNumber = (n) => {
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
@@ -166,13 +167,13 @@ const CreatorRooms = () => {
         const msg = joinError.message || "";
 
         if (msg.includes("INSUFFICIENT_GBITS")) {
-          alert(`You need ${stakeAmount} gBits to stake & join this room.`);
+          notify.error(`You need ${stakeAmount} gBits to stake & join this room.`);
           setJoining(null);
           return;
         }
 
         if (msg.includes("ROOM_ALREADY_SETTLED")) {
-          alert(
+          notify.warning(
             "This room's sprint has already ended and been settled — it's no longer accepting new members.",
           );
           setJoining(null);
@@ -191,7 +192,7 @@ const CreatorRooms = () => {
         // 2. Safe Fallback: Direct database transaction for authenticated member
         const curBal = await fetchPoints(currentUser.id);
         if (stakeAmount > 0 && curBal < stakeAmount) {
-          alert(`You need ${stakeAmount} gBits to stake & join this room. (Current: ${curBal} gBits)`);
+          notify.error(`You need ${stakeAmount} gBits to stake & join this room. (Current: ${curBal} gBits)`);
           setJoining(null);
           return;
         }
@@ -206,7 +207,7 @@ const CreatorRooms = () => {
 
           if (profErr) {
             console.error("Failed to update profile points:", profErr);
-            alert(`Couldn't join room: ${profErr.message || "Failed to deduct stake"}`);
+            notify.error(`Couldn't join room: ${profErr.message || "Failed to deduct stake"}`);
             setJoining(null);
             return;
           }
@@ -253,7 +254,7 @@ const CreatorRooms = () => {
 
           if (upErr) {
             console.error("Failed to update membership row:", upErr);
-            alert(`Couldn't join room: ${upErr.message}`);
+            notify.error(`Couldn't join room: ${upErr.message}`);
             setJoining(null);
             return;
           }
@@ -277,7 +278,7 @@ const CreatorRooms = () => {
 
           if (insErr) {
             console.error("Failed to insert membership row:", insErr);
-            alert(`Couldn't join room: ${insErr.message}`);
+            notify.error(`Couldn't join room: ${insErr.message}`);
             setJoining(null);
             return;
           }
@@ -305,7 +306,7 @@ const CreatorRooms = () => {
       navigate(`/creator-rooms/${room.id}`);
     } catch (e) {
       console.error("Error joining room:", e);
-      alert(`Couldn't join room: ${e.message || e}`);
+      notify.error(`Couldn't join room: ${e.message || e}`);
     } finally {
       setJoining(null);
     }

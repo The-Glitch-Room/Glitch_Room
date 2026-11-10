@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Confetti from "react-confetti";
 import { supabase } from "../supabaseClient";
 import { updatePoints, fetchPoints } from "../utils/pointsHelper";
+import { notify } from "../utils/ui/notify";
 import { checkAndAwardBadges } from "../utils/badgeEngine";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
@@ -491,7 +492,7 @@ const ChallengeView = ({
 
   const handleSubmit = async () => {
     if (userCode.trim() === challenge.badCode.trim()) {
-      alert("You haven't changed anything yet! Fix the code first.");
+      notify.warning("You haven't changed anything yet! Fix the code first.");
       return;
     }
     clearInterval(intervalRef.current);

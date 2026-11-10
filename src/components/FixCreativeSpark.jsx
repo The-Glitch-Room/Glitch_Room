@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { notify } from "../utils/ui/notify";
 import { useParams, Link } from "react-router-dom";
 import creativeChallenges from "../data/creative_sparks_challenges.json";
 import { motion, AnimatePresence } from "framer-motion";
@@ -217,7 +218,7 @@ const FixCreativeSpark = () => {
 
   const handleShowSolution = async () => {
     if (points < 5) {
-      alert("Not enough points to reveal 💪");
+      notify.warning("Not enough points to reveal 💪");
       return;
     }
     const next = await updatePoints(
@@ -232,7 +233,7 @@ const FixCreativeSpark = () => {
 
   const handleSubmit = async () => {
     if (!userAnswer.trim()) {
-      alert("Please describe your approach before submitting!");
+      notify.warning("Please describe your approach before submitting!");
       return;
     }
 
